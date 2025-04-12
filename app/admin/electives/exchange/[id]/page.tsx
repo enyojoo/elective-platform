@@ -25,7 +25,7 @@ interface ExchangeProgramDetailPageProps {
   }
 }
 
-export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPageProps) {
+export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetailPageProps) {
   // State for dialog
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -273,11 +273,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   }
 
   return (
-    <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
+    <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives">
+            <Link href="/admin/electives">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -289,13 +289,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusBadge(exchangeProgram.status)}
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          </div>
+          <div className="flex items-center gap-2">{getStatusBadge(exchangeProgram.status)}</div>
         </div>
 
         <Card>

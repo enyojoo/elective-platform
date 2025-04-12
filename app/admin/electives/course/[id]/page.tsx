@@ -8,160 +8,124 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
 
-interface ExchangeProgramDetailPageProps {
+interface ElectiveCourseDetailPageProps {
   params: {
     id: string
   }
 }
 
-export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPageProps) {
-  // State for dialog
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
-
-  // Helper function to get formatted exchange program name
-  const getExchangeProgramName = (id: string) => {
-    if (id.includes("fall-2023")) return "Fall Semester 2023 Exchange"
-    if (id.includes("spring-2023")) return "Spring Semester 2023 Exchange"
-    if (id.includes("fall-2024")) return "Fall Semester 2024 Exchange"
-    if (id.includes("spring-2024")) return "Spring Semester 2024 Exchange"
-
-    // Extract season and year from ID
-    const seasonMatch = id.match(/(spring|fall|winter|summer)/i)
-    const yearMatch = id.match(/20\d\d/)
-
-    if (seasonMatch && yearMatch) {
-      const season = seasonMatch[0].charAt(0).toUpperCase() + seasonMatch[0].slice(1).toLowerCase()
-      return `${season} Semester ${yearMatch[0]} Exchange`
-    }
-
-    return "Exchange Program" // Default if no pattern is found
-  }
-
-  // Mock exchange program data
-  const exchangeProgram = {
+export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
+  // Mock elective course data
+  const electiveCourse = {
     id: params.id,
-    name: getExchangeProgramName(params.id),
+    name:
+      params.id === "fall-2023"
+        ? "Fall Semester 2023"
+        : params.id === "spring-2024"
+          ? "Spring Semester 2024"
+          : "Elective Courses",
     description:
-      "Select your preferred universities for this semester's exchange program. You can choose up to the maximum number of universities allowed for this program.",
+      "Select your preferred courses for this semester's elective program. You can choose up to the maximum number of courses allowed for this program.",
     semester: params.id.includes("fall") ? "Fall" : "Spring",
     year: params.id.includes("2023") ? 2023 : params.id.includes("2024") ? 2024 : 2025,
     maxSelections: params.id === "spring-2024" ? 3 : 2,
     status: ElectivePackStatus.PUBLISHED,
     startDate: params.id.includes("fall") ? "2023-08-01" : "2024-01-10",
     endDate: params.id.includes("fall") ? "2023-08-15" : "2024-01-25",
-    universitiesCount: params.id === "spring-2024" ? 8 : 6,
+    coursesCount: params.id === "spring-2024" ? 8 : 6,
     studentsEnrolled: params.id === "fall-2023" ? 42 : params.id === "spring-2024" ? 28 : 0,
     createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
   }
 
-  // Mock universities data for this exchange program
-  const universities = [
+  // Mock courses data for this elective program
+  const courses = [
     {
       id: "1",
-      name: "University of Amsterdam",
-      description: "One of the largest research universities in Europe with a rich academic tradition.",
-      country: "Netherlands",
-      city: "Amsterdam",
-      language: "English, Dutch",
-      maxStudents: 5,
-      currentStudents: 3,
-      website: "https://www.uva.nl/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "Strategic Management",
+      description: "This course focuses on the strategic management of organizations.",
+      credits: 5,
+      maxStudents: 30,
+      currentStudents: 25,
+      professor: "Dr. Smith",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "2",
-      name: "HEC Paris",
-      description: "One of Europe's leading business schools with a strong focus on management education.",
-      country: "France",
-      city: "Paris",
-      language: "English, French",
-      maxStudents: 4,
-      currentStudents: 4,
-      website: "https://www.hec.edu/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "International Marketing",
+      description: "This course covers marketing strategies in an international context.",
+      credits: 4,
+      maxStudents: 25,
+      currentStudents: 25,
+      professor: "Dr. Johnson",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "3",
-      name: "Copenhagen Business School",
-      description: "One of the largest business schools in Europe with a broad range of programs.",
-      country: "Denmark",
-      city: "Copenhagen",
-      language: "English, Danish",
-      maxStudents: 6,
-      currentStudents: 2,
-      website: "https://www.cbs.dk/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "Financial Management",
+      description: "This course covers financial management principles and practices.",
+      credits: 5,
+      maxStudents: 35,
+      currentStudents: 20,
+      professor: "Dr. Williams",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "4",
-      name: "Bocconi University",
-      description: "A private university in Milan, Italy, specializing in economics, management, and finance.",
-      country: "Italy",
-      city: "Milan",
-      language: "English, Italian",
-      maxStudents: 5,
-      currentStudents: 5,
-      website: "https://www.unibocconi.eu/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "Organizational Behavior",
+      description: "This course examines human behavior in organizational settings.",
+      credits: 4,
+      maxStudents: 30,
+      currentStudents: 30,
+      professor: "Dr. Brown",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "5",
-      name: "Vienna University of Economics and Business",
-      description:
-        "One of Europe's largest business universities focusing on business, economics, and social sciences.",
-      country: "Austria",
-      city: "Vienna",
-      language: "English, German",
-      maxStudents: 4,
-      currentStudents: 2,
-      website: "https://www.wu.ac.at/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "Business Ethics",
+      description: "This course explores ethical issues in business and management.",
+      credits: 3,
+      maxStudents: 40,
+      currentStudents: 15,
+      professor: "Dr. Davis",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["International Management"],
     },
     {
       id: "6",
-      name: "Stockholm School of Economics",
-      description: "A private business school with a strong international presence and research focus.",
-      country: "Sweden",
-      city: "Stockholm",
-      language: "English, Swedish",
-      maxStudents: 3,
-      currentStudents: 2,
-      website: "https://www.hhs.se/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
+      name: "Supply Chain Management",
+      description: "This course covers the management of supply chains and logistics.",
+      credits: 4,
+      maxStudents: 25,
+      currentStudents: 20,
+      professor: "Dr. Miller",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
@@ -176,7 +140,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       group: "23.B12-vshm",
       program: "Management",
       email: "alex.johnson@student.gsom.spbu.ru",
-      selectedUniversities: ["University of Amsterdam", "Copenhagen Business School"],
+      selectedCourses: ["Strategic Management", "Financial Management"],
       selectionDate: "2023-08-05",
       status: SelectionStatus.APPROVED,
     },
@@ -187,7 +151,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       group: "23.B12-vshm",
       program: "Management",
       email: "maria.petrova@student.gsom.spbu.ru",
-      selectedUniversities: ["HEC Paris", "Stockholm School of Economics"],
+      selectedCourses: ["International Marketing", "Supply Chain Management"],
       selectionDate: "2023-08-06",
       status: SelectionStatus.APPROVED,
     },
@@ -198,7 +162,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       group: "23.B12-vshm",
       program: "Management",
       email: "ivan.sokolov@student.gsom.spbu.ru",
-      selectedUniversities: ["Bocconi University", "Vienna University of Economics and Business"],
+      selectedCourses: ["Organizational Behavior", "Business Ethics"],
       selectionDate: "2023-08-07",
       status: SelectionStatus.PENDING,
     },
@@ -209,7 +173,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       group: "23.B11-vshm",
       program: "International Management",
       email: "elena.ivanova@student.gsom.spbu.ru",
-      selectedUniversities: ["University of Amsterdam", "Vienna University of Economics and Business"],
+      selectedCourses: ["Strategic Management", "Business Ethics"],
       selectionDate: "2023-08-08",
       status: SelectionStatus.PENDING,
     },
@@ -266,36 +230,24 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
   }
 
-  // Function to open dialog with student details
-  const openStudentDialog = (student: any) => {
-    setSelectedStudent(student)
-    setDialogOpen(true)
-  }
-
   return (
-    <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
+    <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives">
+            <Link href="/admin/electives">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{exchangeProgram.name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{electiveCourse.name}</h1>
               <p className="text-muted-foreground">
-                {exchangeProgram.semester} {exchangeProgram.year} • Max Selections: {exchangeProgram.maxSelections}
+                {electiveCourse.semester} {electiveCourse.year} • Max Selections: {electiveCourse.maxSelections}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusBadge(exchangeProgram.status)}
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          </div>
+          <div className="flex items-center gap-2">{getStatusBadge(electiveCourse.status)}</div>
         </div>
 
         <Card>
@@ -307,42 +259,45 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
               <div className="flex justify-between">
                 <dt className="font-medium">Selection Period:</dt>
                 <dd>
-                  {formatDate(exchangeProgram.startDate)} - {formatDate(exchangeProgram.endDate)}
+                  {formatDate(electiveCourse.startDate)} - {formatDate(electiveCourse.endDate)}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">Max Selections:</dt>
-                <dd>{exchangeProgram.maxSelections} universities</dd>
+                <dd>{electiveCourse.maxSelections} courses</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Universities:</dt>
-                <dd>{exchangeProgram.universitiesCount}</dd>
+                <dt className="font-medium">Courses:</dt>
+                <dd>{electiveCourse.coursesCount}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">Students Enrolled:</dt>
-                <dd>{exchangeProgram.studentsEnrolled}</dd>
+                <dd>{electiveCourse.studentsEnrolled}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">Created:</dt>
-                <dd>{formatDate(exchangeProgram.createdAt)}</dd>
+                <dd>{formatDate(electiveCourse.createdAt)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">Status:</dt>
-                <dd>{exchangeProgram.status}</dd>
+                <dd>{electiveCourse.status}</dd>
               </div>
             </dl>
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="universities">
+        <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="universities">Universities</TabsTrigger>
+            <TabsTrigger value="courses">Courses</TabsTrigger>
             <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
-          <TabsContent value="universities" className="mt-4">
+          <TabsContent value="courses" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Universities</CardTitle>
+                <div>
+                  <CardTitle>Courses in this Program</CardTitle>
+                  {/* No description needed */}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
@@ -350,26 +305,20 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Location</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Language</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Professor</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {universities.map((university) => (
-                        <tr key={university.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{university.name}</td>
+                      {courses.map((course) => (
+                        <tr key={course.id} className="border-b">
+                          <td className="py-3 px-4 text-sm">{course.name}</td>
+                          <td className="py-3 px-4 text-sm">{course.professor}</td>
+                          <td className="py-3 px-4 text-sm">{course.credits}</td>
                           <td className="py-3 px-4 text-sm">
-                            {university.city}, {university.country}
-                          </td>
-                          <td className="py-3 px-4 text-sm">{university.language}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <Badge
-                              variant={
-                                university.currentStudents >= university.maxStudents ? "destructive" : "secondary"
-                              }
-                            >
-                              {university.currentStudents}/{university.maxStudents}
+                            <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
+                              {course.currentStudents}/{course.maxStudents}
                             </Badge>
                           </td>
                         </tr>
@@ -385,7 +334,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Student Selections</CardTitle>
-                  <CardDescription>Manage student selections for this exchange program</CardDescription>
+                  <CardDescription>Manage student selections for this elective program</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -423,9 +372,104 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                           <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
                           <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
                           <td className="py-3 px-4 text-sm text-center">
-                            <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                  <DialogTitle>Student Selection Details</DialogTitle>
+                                  <DialogDescription>
+                                    View details for {selection.studentName}'s course selection
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h3 className="text-sm font-medium">Student Information</h3>
+                                      <div className="mt-2 space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Name:</span>
+                                          <span>{selection.studentName}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">ID:</span>
+                                          <span>{selection.studentId}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Email:</span>
+                                          <span>{selection.email}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Group:</span>
+                                          <span>{selection.group}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Program:</span>
+                                          <span>{selection.program}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-medium">Selected Courses</h3>
+                                      <div className="mt-2 space-y-2">
+                                        {selection.selectedCourses.map((course, index) => (
+                                          <div key={index} className="rounded-md border p-2">
+                                            <p className="font-medium">{course}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {courses.find((c) => c.name === course)?.professor} •{" "}
+                                              {courses.find((c) => c.name === course)?.credits} credits
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-medium">Selection Information</h3>
+                                      <div className="mt-2 space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Date:</span>
+                                          <span>{formatDate(selection.selectionDate)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Status:</span>
+                                          <span>{getSelectionStatusBadge(selection.status)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  {selection.status === SelectionStatus.PENDING && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        className="mr-2"
+                                        onClick={() => console.log("Approve selection")}
+                                      >
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        className="mr-2"
+                                        onClick={() => console.log("Reject selection")}
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
+                                  <DialogClose asChild>
+                                    <Button variant="outline" type="button">
+                                      Close
+                                    </Button>
+                                  </DialogClose>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                           </td>
                           <td className="py-3 px-4 text-sm text-center">
                             <DropdownMenu>
@@ -464,103 +508,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Student Details Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          {selectedStudent && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Student Selection Details</DialogTitle>
-                <DialogDescription>
-                  View details for {selectedStudent.studentName}'s exchange selection
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">Student Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Name:</span>
-                        <span>{selectedStudent.studentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">ID:</span>
-                        <span>{selectedStudent.studentId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Email:</span>
-                        <span>{selectedStudent.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Group:</span>
-                        <span>{selectedStudent.group}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Program:</span>
-                        <span>{selectedStudent.program}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Selected Universities</h3>
-                    <div className="mt-2 space-y-2">
-                      {selectedStudent.selectedUniversities.map((university: string, index: number) => (
-                        <div key={index} className="rounded-md border p-2">
-                          <p className="font-medium">{university}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {universities.find((u) => u.name === university)?.city},{" "}
-                            {universities.find((u) => u.name === university)?.country}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Selection Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Date:</span>
-                        <span>{formatDate(selectedStudent.selectionDate)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Status:</span>
-                        <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                {selectedStudent.status === SelectionStatus.PENDING && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => console.log("Approve selection")}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => console.log("Reject selection")}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   )
 }

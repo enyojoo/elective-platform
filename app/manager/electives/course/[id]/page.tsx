@@ -1,41 +1,43 @@
-import { DialogFooter } from "@/components/ui/dialog"
+"use client"
+
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Edit, Plus, Search, Trash2, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 
-interface ElectivePackDetailPageProps {
+interface ElectiveCourseDetailPageProps {
   params: {
     id: string
   }
 }
 
-export default function ElectivePackDetailPage({ params }: ElectivePackDetailPageProps) {
-  // Mock elective pack data
-  const electivePack = {
+export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
+  // Mock elective course data
+  const electiveCourse = {
     id: params.id,
     name:
       params.id === "fall-2023"
-        ? "Fall Semester 2023 Electives"
+        ? "Fall Semester 2023"
         : params.id === "spring-2024"
-          ? "Spring Semester 2024 Electives"
-          : "Elective Pack",
+          ? "Spring Semester 2024"
+          : "Elective Courses",
     description:
-      "Select your preferred elective courses for this semester. You can choose up to the maximum number of courses allowed for this pack.",
+      "Select your preferred courses for this semester's elective program. You can choose up to the maximum number of courses allowed for this program.",
     semester: params.id.includes("fall") ? "Fall" : "Spring",
     year: params.id.includes("2023") ? 2023 : params.id.includes("2024") ? 2024 : 2025,
     maxSelections: params.id === "spring-2024" ? 3 : 2,
@@ -47,89 +49,83 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
     createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
   }
 
-  // Mock elective courses data for this pack
-  const electiveCourses = [
+  // Mock courses data for this elective program
+  const courses = [
     {
       id: "1",
-      name: "Business Ethics",
-      description: "Explore ethical principles and moral challenges in business decision-making.",
-      credits: 3,
+      name: "Strategic Management",
+      description: "This course focuses on the strategic management of organizations.",
+      credits: 5,
       maxStudents: 30,
-      currentStudents: 18,
-      teacher: "Dr. Anna Ivanova",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      currentStudents: 25,
+      professor: "Dr. Smith",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "2",
-      name: "Digital Marketing",
-      description: "Learn modern digital marketing strategies and tools for business growth.",
+      name: "International Marketing",
+      description: "This course covers marketing strategies in an international context.",
       credits: 4,
       maxStudents: 25,
       currentStudents: 25,
-      teacher: "Prof. Mikhail Petrov",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      professor: "Dr. Johnson",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "3",
-      name: "Sustainable Business",
-      description: "Study sustainable business practices and their impact on the environment and society.",
-      credits: 3,
+      name: "Financial Management",
+      description: "This course covers financial management principles and practices.",
+      credits: 5,
       maxStudents: 35,
-      currentStudents: 12,
-      teacher: "Dr. Elena Smirnova",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      currentStudents: 20,
+      professor: "Dr. Williams",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "4",
-      name: "Project Management",
-      description: "Master the principles and methodologies of effective project management.",
+      name: "Organizational Behavior",
+      description: "This course examines human behavior in organizational settings.",
       credits: 4,
       maxStudents: 30,
-      currentStudents: 28,
-      teacher: "Prof. Sergei Kuznetsov",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      currentStudents: 30,
+      professor: "Dr. Brown",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "5",
-      name: "International Business Law",
-      description: "Understand legal frameworks governing international business operations.",
+      name: "Business Ethics",
+      description: "This course explores ethical issues in business and management.",
       credits: 3,
-      maxStudents: 25,
+      maxStudents: 40,
       currentStudents: 15,
-      teacher: "Dr. Olga Volkova",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      professor: "Dr. Davis",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["International Management"],
     },
     {
       id: "6",
-      name: "Financial Markets",
-      description: "Analyze financial markets, instruments, and investment strategies.",
+      name: "Supply Chain Management",
+      description: "This course covers the management of supply chains and logistics.",
       credits: 4,
-      maxStudents: 30,
-      currentStudents: 22,
-      teacher: "Prof. Dmitry Sokolov",
-      academicYear: 2,
-      semester: electivePack.semester,
-      year: electivePack.year,
+      maxStudents: 25,
+      currentStudents: 20,
+      professor: "Dr. Miller",
+      semester: electiveCourse.semester,
+      year: electiveCourse.year,
       degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
@@ -143,7 +139,8 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
       studentId: "st123456",
       group: "23.B12-vshm",
       program: "Management",
-      selectedCourses: ["Business Ethics", "Sustainable Business"],
+      email: "alex.johnson@student.gsom.spbu.ru",
+      selectedCourses: ["Strategic Management", "Financial Management"],
       selectionDate: "2023-08-05",
       status: SelectionStatus.APPROVED,
     },
@@ -153,7 +150,8 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
       studentId: "st123457",
       group: "23.B12-vshm",
       program: "Management",
-      selectedCourses: ["Digital Marketing", "Financial Markets"],
+      email: "maria.petrova@student.gsom.spbu.ru",
+      selectedCourses: ["International Marketing", "Supply Chain Management"],
       selectionDate: "2023-08-06",
       status: SelectionStatus.APPROVED,
     },
@@ -163,7 +161,8 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
       studentId: "st123458",
       group: "23.B12-vshm",
       program: "Management",
-      selectedCourses: ["Project Management", "International Business Law"],
+      email: "ivan.sokolov@student.gsom.spbu.ru",
+      selectedCourses: ["Organizational Behavior", "Business Ethics"],
       selectionDate: "2023-08-07",
       status: SelectionStatus.PENDING,
     },
@@ -173,7 +172,8 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
       studentId: "st123459",
       group: "23.B11-vshm",
       program: "International Management",
-      selectedCourses: ["Business Ethics", "International Business Law"],
+      email: "elena.ivanova@student.gsom.spbu.ru",
+      selectedCourses: ["Strategic Management", "Business Ethics"],
       selectionDate: "2023-08-08",
       status: SelectionStatus.PENDING,
     },
@@ -241,109 +241,56 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{electivePack.name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{electiveCourse.name}</h1>
               <p className="text-muted-foreground">
-                {electivePack.semester} {electivePack.year} • Max Selections: {electivePack.maxSelections}
+                {electiveCourse.semester} {electiveCourse.year} • Max Selections: {electiveCourse.maxSelections}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {getStatusBadge(electivePack.status)}
+            {getStatusBadge(electiveCourse.status)}
             <Button variant="outline" size="sm">
               <Edit className="mr-2 h-4 w-4" />
-              Edit Pack
+              Edit
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pack Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="font-medium">Selection Period:</dt>
-                  <dd>
-                    {formatDate(electivePack.startDate)} - {formatDate(electivePack.endDate)}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">Max Selections:</dt>
-                  <dd>{electivePack.maxSelections} courses</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">Courses:</dt>
-                  <dd>{electivePack.coursesCount}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">Students Enrolled:</dt>
-                  <dd>{electivePack.studentsEnrolled}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">Created:</dt>
-                  <dd>{formatDate(electivePack.createdAt)}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">Status:</dt>
-                  <dd>{electivePack.status}</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
-
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Enrollment Statistics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">Overall Enrollment</span>
-                    <span className="text-sm font-medium">{electivePack.studentsEnrolled} students</span>
-                  </div>
-                  <Progress value={electivePack.studentsEnrolled > 0 ? 75 : 0} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">Approved Selections</span>
-                    <span className="text-sm font-medium">
-                      {studentSelections.filter((s) => s.status === SelectionStatus.APPROVED).length} /{" "}
-                      {studentSelections.length}
-                    </span>
-                  </div>
-                  <Progress
-                    value={
-                      (studentSelections.filter((s) => s.status === SelectionStatus.APPROVED).length /
-                        studentSelections.length) *
-                      100
-                    }
-                    className="h-2"
-                  />
-                </div>
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">Pending Selections</span>
-                    <span className="text-sm font-medium">
-                      {studentSelections.filter((s) => s.status === SelectionStatus.PENDING).length} /{" "}
-                      {studentSelections.length}
-                    </span>
-                  </div>
-                  <Progress
-                    value={
-                      (studentSelections.filter((s) => s.status === SelectionStatus.PENDING).length /
-                        studentSelections.length) *
-                      100
-                    }
-                    className="h-2"
-                  />
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Program Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-2">
+              <div className="flex justify-between">
+                <dt className="font-medium">Selection Period:</dt>
+                <dd>
+                  {formatDate(electiveCourse.startDate)} - {formatDate(electiveCourse.endDate)}
+                </dd>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="flex justify-between">
+                <dt className="font-medium">Max Selections:</dt>
+                <dd>{electiveCourse.maxSelections} courses</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="font-medium">Courses:</dt>
+                <dd>{electiveCourse.coursesCount}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="font-medium">Students Enrolled:</dt>
+                <dd>{electiveCourse.studentsEnrolled}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="font-medium">Created:</dt>
+                <dd>{formatDate(electiveCourse.createdAt)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="font-medium">Status:</dt>
+                <dd>{electiveCourse.status}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="courses">
           <TabsList>
@@ -352,56 +299,11 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
           </TabsList>
           <TabsContent value="courses" className="mt-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <div>
-                  <CardTitle>Courses in this Pack</CardTitle>
-                  <CardDescription>Manage the courses available in this elective pack</CardDescription>
+                  <CardTitle>Courses in this Program</CardTitle>
+                  {/* No description needed */}
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Course
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Course to Pack</DialogTitle>
-                      <DialogDescription>Select courses to add to this elective pack.</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                      <div className="mb-4">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <input
-                            type="search"
-                            placeholder="Search courses..."
-                            className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                        {electiveCourses.map((course) => (
-                          <div key={course.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
-                            <Checkbox id={`course-${course.id}`} />
-                            <div>
-                              <label
-                                htmlFor={`course-${course.id}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                {course.name}
-                              </label>
-                              <p className="text-xs text-muted-foreground">{course.teacher}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit">Add Selected Courses</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
@@ -409,39 +311,21 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Teacher</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Professor</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Programs</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {electiveCourses.map((course) => (
+                      {courses.map((course) => (
                         <tr key={course.id} className="border-b">
                           <td className="py-3 px-4 text-sm">{course.name}</td>
-                          <td className="py-3 px-4 text-sm">{course.teacher}</td>
+                          <td className="py-3 px-4 text-sm">{course.professor}</td>
                           <td className="py-3 px-4 text-sm">{course.credits}</td>
                           <td className="py-3 px-4 text-sm">
                             <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
                               {course.currentStudents}/{course.maxStudents}
                             </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm">
-                            <div className="flex flex-wrap gap-1">
-                              {course.programs.map((program, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {program}
-                                </Badge>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              <Button variant="ghost" size="icon">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
                           </td>
                         </tr>
                       ))}
@@ -456,7 +340,7 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Student Selections</CardTitle>
-                  <CardDescription>Manage student selections for this elective pack</CardDescription>
+                  <CardDescription>Manage student selections for this elective program</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -478,50 +362,147 @@ export default function ElectivePackDetailPage({ params }: ElectivePackDetailPag
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">Student</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">ID</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Group</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Program</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Selected Courses</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Actions</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">View</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {studentSelections.map((selection) => (
                         <tr key={selection.id} className="border-b">
                           <td className="py-3 px-4 text-sm">{selection.studentName}</td>
-                          <td className="py-3 px-4 text-sm">{selection.studentId}</td>
                           <td className="py-3 px-4 text-sm">{selection.group}</td>
-                          <td className="py-3 px-4 text-sm">{selection.program}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <div className="flex flex-col gap-1">
-                              {selection.selectedCourses.map((course, index) => (
-                                <span key={index} className="text-xs">
-                                  {course}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
                           <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
                           <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              {selection.status === SelectionStatus.PENDING && (
-                                <>
-                                  <Button variant="ghost" size="icon" className="text-green-600">
-                                    <CheckCircle className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="text-red-600">
-                                    <XCircle className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                              <Button variant="ghost" size="icon">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </div>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                  <DialogTitle>Student Selection Details</DialogTitle>
+                                  <DialogDescription>
+                                    View details for {selection.studentName}'s course selection
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h3 className="text-sm font-medium">Student Information</h3>
+                                      <div className="mt-2 space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Name:</span>
+                                          <span>{selection.studentName}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">ID:</span>
+                                          <span>{selection.studentId}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Email:</span>
+                                          <span>{selection.email}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Group:</span>
+                                          <span>{selection.group}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Program:</span>
+                                          <span>{selection.program}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-medium">Selected Courses</h3>
+                                      <div className="mt-2 space-y-2">
+                                        {selection.selectedCourses.map((course, index) => (
+                                          <div key={index} className="rounded-md border p-2">
+                                            <p className="font-medium">{course}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {courses.find((c) => c.name === course)?.professor} •{" "}
+                                              {courses.find((c) => c.name === course)?.credits} credits
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-medium">Selection Information</h3>
+                                      <div className="mt-2 space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Date:</span>
+                                          <span>{formatDate(selection.selectionDate)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="font-medium">Status:</span>
+                                          <span>{getSelectionStatusBadge(selection.status)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  {selection.status === SelectionStatus.PENDING && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        className="mr-2"
+                                        onClick={() => console.log("Approve selection")}
+                                      >
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        className="mr-2"
+                                        onClick={() => console.log("Reject selection")}
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
+                                  <DialogClose asChild>
+                                    <Button variant="outline" type="button">
+                                      Close
+                                    </Button>
+                                  </DialogClose>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {selection.status === SelectionStatus.PENDING && (
+                                  <>
+                                    <DropdownMenuItem className="text-green-600">
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Approve
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-red-600">
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Reject
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         </tr>
                       ))}

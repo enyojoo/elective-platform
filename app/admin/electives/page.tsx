@@ -260,7 +260,7 @@ export default function AdminElectivesPage() {
                             </div>
                             <div className="flex justify-between">
                               <Button asChild variant="outline">
-                                <Link href={`/admin/electives/${pack.id}`}>
+                                <Link href={`/admin/electives/course/${pack.id}`}>
                                   <Eye className="mr-2 h-4 w-4" />
                                   View Details
                                 </Link>
