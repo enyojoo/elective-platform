@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,13 +12,21 @@ import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { UserRole } from "@/lib/types"
+import { useSearchParams } from "next/navigation"
 
 export default function ManageElectivesPage() {
-  const [activeTab, setActiveTab] = useState("courses")
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState(tabParam === "exchange" ? "exchange" : "courses")
   const [searchTerm, setSearchTerm] = useState("")
   const [programFilter, setProgramFilter] = useState("all")
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+
+  // Update activeTab when URL parameters change
+  useEffect(() => {
+    setActiveTab(tabParam === "exchange" ? "exchange" : "courses")
+  }, [tabParam])
 
   // Mock data for course elective packs
   const courseElectivePacks = [
@@ -161,32 +169,33 @@ export default function ManageElectivesPage() {
             <h1 className="text-3xl font-bold tracking-tight">Elective Selections</h1>
             <p className="text-muted-foreground mt-2">Manage course and exchange elective selections</p>
           </div>
-          <div className="mt-4 md:mt-0 flex gap-2">
-            {activeTab === "courses" ? (
-              <Link href="/manager/electives/course-builder">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Elective
-                </Button>
-              </Link>
-            ) : (
-              <Link href="/manager/electives/exchange-builder">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Exchange
-                </Button>
-              </Link>
-            )}
-          </div>
         </div>
 
         <Card>
           <CardContent className="pt-6">
-            <Tabs defaultValue="courses" onValueChange={handleTabChange}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="courses">Course Electives</TabsTrigger>
-                <TabsTrigger value="exchange">Exchange Programs</TabsTrigger>
-              </TabsList>
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <div className="flex justify-between items-center mb-4">
+                <TabsList>
+                  <TabsTrigger value="courses">Course Electives</TabsTrigger>
+                  <TabsTrigger value="exchange">Exchange Programs</TabsTrigger>
+                </TabsList>
+
+                {activeTab === "courses" ? (
+                  <Link href="/manager/electives/course-builder">
+                    <Button size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link href="/manager/electives/exchange-builder">
+                    <Button size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create
+                    </Button>
+                  </Link>
+                )}
+              </div>
 
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4">

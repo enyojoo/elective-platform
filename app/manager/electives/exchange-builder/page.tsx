@@ -6,25 +6,15 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Plus, Search } from "lucide-react"
+import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
 import Link from "next/link"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 
 export default function ExchangeBuilderPage() {
   const router = useRouter()
@@ -163,11 +153,7 @@ export default function ExchangeBuilderPage() {
   }
 
   // Updated steps for the 3-step wizard
-  const steps = [
-    { title: "Basic Information", description: "Set semester, year and selection rules" },
-    { title: "Add Universities", description: "Add universities to the exchange program" },
-    { title: "Review & Publish", description: "Review and publish the exchange program" },
-  ]
+  const steps = [{ title: "Basic Information" }, { title: "Add Universities" }, { title: "Review & Publish" }]
 
   // Add a computed pack name function
   const getPackName = () => {
@@ -198,7 +184,7 @@ export default function ExchangeBuilderPage() {
       ...packDetails,
       universities: selectedUniversities,
     })
-    router.push("/manage/electives")
+    router.push("/manager/electives")
   }
 
   // Handle publish
@@ -211,7 +197,7 @@ export default function ExchangeBuilderPage() {
       universities: selectedUniversities,
       status: ElectivePackStatus.PUBLISHED,
     })
-    router.push("/manage/electives")
+    router.push("/manager/electives")
   }
 
   return (
@@ -219,7 +205,7 @@ export default function ExchangeBuilderPage() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manage/electives">
+            <Link href="/manager/electives">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -251,7 +237,6 @@ export default function ExchangeBuilderPage() {
               </div>
               <div className="ml-4 mr-8">
                 <p className="text-sm font-medium">{step.title}</p>
-                <p className="text-xs text-muted-foreground">{step.description}</p>
               </div>
               {index < steps.length - 1 && <ChevronRight className="h-5 w-5 text-muted-foreground mr-8" />}
             </div>
@@ -278,7 +263,6 @@ export default function ExchangeBuilderPage() {
         <Card>
           <CardHeader>
             <CardTitle>{steps[activeStep].title}</CardTitle>
-            <CardDescription>{steps[activeStep].description}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* Step 1: Basic Information & Selection Rules (Combined) */}
@@ -405,63 +389,6 @@ export default function ExchangeBuilderPage() {
                     <span className="text-sm text-muted-foreground">
                       {selectedUniversities.length} universities selected
                     </span>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add New University
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[600px]">
-                        <DialogHeader>
-                          <DialogTitle>Add New University</DialogTitle>
-                          <DialogDescription>
-                            Create a new university that will be available for this exchange program.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityName" className="text-right text-sm font-medium">
-                              University Name
-                            </Label>
-                            <Input id="universityName" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityDescription" className="text-right text-sm font-medium">
-                              Description
-                            </Label>
-                            <Textarea id="universityDescription" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityCountry" className="text-right text-sm font-medium">
-                              Country
-                            </Label>
-                            <Input id="universityCountry" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityCity" className="text-right text-sm font-medium">
-                              City
-                            </Label>
-                            <Input id="universityCity" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityMaxStudents" className="text-right text-sm font-medium">
-                              Max Students
-                            </Label>
-                            <Input id="universityMaxStudents" type="number" min="1" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="universityLanguage" className="text-right text-sm font-medium">
-                              Language
-                            </Label>
-                            <Input id="universityLanguage" className="col-span-3" placeholder="e.g. English, French" />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit">Add University</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 </div>
 

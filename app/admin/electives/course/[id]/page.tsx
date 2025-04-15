@@ -8,17 +8,16 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -27,6 +26,10 @@ interface ElectiveCourseDetailPageProps {
 }
 
 export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
+  // State for dialog
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
   // Mock elective course data
   const electiveCourse = {
     id: params.id,
@@ -230,21 +233,24 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     }
   }
 
+  // Function to open dialog with student details
+  const openStudentDialog = (student: any) => {
+    setSelectedStudent(student)
+    setDialogOpen(true)
+  }
+
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/admin/electives">
+            <Link href="/admin/electives?tab=courses">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">{electiveCourse.name}</h1>
-              <p className="text-muted-foreground">
-                {electiveCourse.semester} {electiveCourse.year} • Max Selections: {electiveCourse.maxSelections}
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">{getStatusBadge(electiveCourse.status)}</div>
@@ -306,7 +312,6 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                       <tr className="border-b bg-muted/50">
                         <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Professor</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
                       </tr>
                     </thead>
@@ -315,7 +320,6 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                         <tr key={course.id} className="border-b">
                           <td className="py-3 px-4 text-sm">{course.name}</td>
                           <td className="py-3 px-4 text-sm">{course.professor}</td>
-                          <td className="py-3 px-4 text-sm">{course.credits}</td>
                           <td className="py-3 px-4 text-sm">
                             <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
                               {course.currentStudents}/{course.maxStudents}
@@ -372,104 +376,9 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                           <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
                           <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
                           <td className="py-3 px-4 text-sm text-center">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-[425px]">
-                                <DialogHeader>
-                                  <DialogTitle>Student Selection Details</DialogTitle>
-                                  <DialogDescription>
-                                    View details for {selection.studentName}'s course selection
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="py-4">
-                                  <div className="space-y-4">
-                                    <div>
-                                      <h3 className="text-sm font-medium">Student Information</h3>
-                                      <div className="mt-2 space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Name:</span>
-                                          <span>{selection.studentName}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">ID:</span>
-                                          <span>{selection.studentId}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Email:</span>
-                                          <span>{selection.email}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Group:</span>
-                                          <span>{selection.group}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Program:</span>
-                                          <span>{selection.program}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <h3 className="text-sm font-medium">Selected Courses</h3>
-                                      <div className="mt-2 space-y-2">
-                                        {selection.selectedCourses.map((course, index) => (
-                                          <div key={index} className="rounded-md border p-2">
-                                            <p className="font-medium">{course}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                              {courses.find((c) => c.name === course)?.professor} •{" "}
-                                              {courses.find((c) => c.name === course)?.credits} credits
-                                            </p>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <h3 className="text-sm font-medium">Selection Information</h3>
-                                      <div className="mt-2 space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Date:</span>
-                                          <span>{formatDate(selection.selectionDate)}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="font-medium">Status:</span>
-                                          <span>{getSelectionStatusBadge(selection.status)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  {selection.status === SelectionStatus.PENDING && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        className="mr-2"
-                                        onClick={() => console.log("Approve selection")}
-                                      >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Approve
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        className="mr-2"
-                                        onClick={() => console.log("Reject selection")}
-                                      >
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        Reject
-                                      </Button>
-                                    </>
-                                  )}
-                                  <DialogClose asChild>
-                                    <Button variant="outline" type="button">
-                                      Close
-                                    </Button>
-                                  </DialogClose>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
+                            <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </td>
                           <td className="py-3 px-4 text-sm text-center">
                             <DropdownMenu>
@@ -508,6 +417,96 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
           </TabsContent>
         </Tabs>
       </div>
+      {/* Student Details Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          {selectedStudent && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Student Selection Details</DialogTitle>
+                <DialogDescription>View details for {selectedStudent.studentName}'s course selection</DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium">Student Information</h3>
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="font-medium">Name:</span>
+                        <span>{selectedStudent.studentName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">ID:</span>
+                        <span>{selectedStudent.studentId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Email:</span>
+                        <span>{selectedStudent.email}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Group:</span>
+                        <span>{selectedStudent.group}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Program:</span>
+                        <span>{selectedStudent.program}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Selected Courses</h3>
+                    <div className="mt-2 space-y-2">
+                      {selectedStudent.selectedCourses.map((course: string, index: number) => (
+                        <div key={index} className="rounded-md border p-2">
+                          <p className="font-medium">{course}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Selection Information</h3>
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="font-medium">Date:</span>
+                        <span>{formatDate(selectedStudent.selectionDate)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Status:</span>
+                        <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                {selectedStudent.status === SelectionStatus.PENDING && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                      onClick={() => console.log("Approve selection")}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                      onClick={() => console.log("Reject selection")}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

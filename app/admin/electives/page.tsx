@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,13 +11,21 @@ import { Search, Filter, Eye, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useSearchParams } from "next/navigation"
 
 export default function AdminElectivesPage() {
-  const [activeTab, setActiveTab] = useState("courses")
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState(tabParam === "exchange" ? "exchange" : "courses")
   const [searchTerm, setSearchTerm] = useState("")
   const [programFilter, setProgramFilter] = useState("all")
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+
+  // Update activeTab when URL parameters change
+  useEffect(() => {
+    setActiveTab(tabParam === "exchange" ? "exchange" : "courses")
+  }, [tabParam])
 
   // Mock data for demonstration
   const courseElectivePacks = [
@@ -103,26 +111,26 @@ export default function AdminElectivesPage() {
     },
   ]
 
-  // Filter packs based on search term and filters
-  const filteredCoursePacks = courseElectivePacks.filter((pack) => {
+  // Filter selections based on search term and filters
+  const filteredCoursePacks = courseElectivePacks.filter((selection) => {
     return (
       (searchTerm === "" ||
-        pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (programFilter === "all" || pack.programCode === programFilter) &&
-      (semesterFilter === "all" || pack.title === semesterFilter) &&
-      (statusFilter === "all" || pack.status === statusFilter)
+        selection.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        selection.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (programFilter === "all" || selection.programCode === programFilter) &&
+      (semesterFilter === "all" || selection.title === semesterFilter) &&
+      (statusFilter === "all" || selection.status === statusFilter)
     )
   })
 
-  const filteredExchangePacks = exchangePacks.filter((pack) => {
+  const filteredExchangePacks = exchangePacks.filter((program) => {
     return (
       (searchTerm === "" ||
-        pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (programFilter === "all" || pack.programCode === programFilter) &&
-      (semesterFilter === "all" || pack.title === semesterFilter) &&
-      (statusFilter === "all" || pack.status === statusFilter)
+        program.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        program.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (programFilter === "all" || program.programCode === programFilter) &&
+      (semesterFilter === "all" || program.title === semesterFilter) &&
+      (statusFilter === "all" || program.status === statusFilter)
     )
   })
 
@@ -161,11 +169,11 @@ export default function AdminElectivesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Elective Selections</h1>
-            <p className="text-muted-foreground mt-2">Manage course elective and exchange selection packs</p>
+            <p className="text-muted-foreground mt-2">Manage elective course selections and exchange programs</p>
           </div>
         </div>
 
-        <Tabs defaultValue="courses" className="w-full" onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="courses">Course Electives</TabsTrigger>
             <TabsTrigger value="exchange">Exchange Programs</TabsTrigger>
@@ -179,7 +187,7 @@ export default function AdminElectivesPage() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder={`Search ${activeTab === "courses" ? "elective" : "exchange"} packs...`}
+                      placeholder={`Search ${activeTab === "courses" ? "elective course selections" : "exchange programs"}...`}
                       className="pl-8"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -285,7 +293,7 @@ export default function AdminElectivesPage() {
                     </div>
                   ) : (
                     <div className="text-center py-10">
-                      <p className="text-muted-foreground">No elective packs found.</p>
+                      <p className="text-muted-foreground">No elective course selections found.</p>
                     </div>
                   )}
                 </TabsContent>
@@ -348,7 +356,7 @@ export default function AdminElectivesPage() {
                     </div>
                   ) : (
                     <div className="text-center py-10">
-                      <p className="text-muted-foreground">No exchange packs found.</p>
+                      <p className="text-muted-foreground">No exchange programs found.</p>
                     </div>
                   )}
                 </TabsContent>

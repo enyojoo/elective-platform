@@ -6,25 +6,15 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Plus, Search } from "lucide-react"
+import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
 import Link from "next/link"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 
 export default function ElectivePackBuilderPage() {
   const router = useRouter()
@@ -169,11 +159,7 @@ export default function ElectivePackBuilderPage() {
   }
 
   // Updated steps for the 3-step wizard
-  const steps = [
-    { title: "Basic Information", description: "Set semester, year and selection rules" },
-    { title: "Add Courses", description: "Add courses to the elective pack" },
-    { title: "Review & Publish", description: "Review and publish the elective pack" },
-  ]
+  const steps = [{ title: "Basic Information" }, { title: "Add Courses" }, { title: "Review & Publish" }]
 
   // Add a computed pack name function
   const getPackName = () => {
@@ -198,9 +184,9 @@ export default function ElectivePackBuilderPage() {
   // Handle save as draft
   const handleSaveAsDraft = () => {
     // Here you would typically save to your backend
-    const packName = getPackName()
+    const courseSelectionName = getPackName()
     console.log("Saving as draft:", {
-      name: packName,
+      name: courseSelectionName,
       ...packDetails,
       courses: selectedCourses,
     })
@@ -210,9 +196,9 @@ export default function ElectivePackBuilderPage() {
   // Handle publish
   const handlePublish = () => {
     // Here you would typically save and publish to your backend
-    const packName = getPackName()
+    const courseSelectionName = getPackName()
     console.log("Publishing:", {
-      name: packName,
+      name: courseSelectionName,
       ...packDetails,
       courses: selectedCourses,
       status: ElectivePackStatus.PUBLISHED,
@@ -231,8 +217,8 @@ export default function ElectivePackBuilderPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Create Elective Pack</h1>
-              <p className="text-muted-foreground">Build a new elective pack for students to select from</p>
+              <h1 className="text-3xl font-bold tracking-tight">Create Elective Course Selection</h1>
+              <p className="text-muted-foreground">Build a new elective course selection for students to select from</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -257,7 +243,6 @@ export default function ElectivePackBuilderPage() {
               </div>
               <div className="ml-4 mr-8">
                 <p className="text-sm font-medium">{step.title}</p>
-                <p className="text-xs text-muted-foreground">{step.description}</p>
               </div>
               {index < steps.length - 1 && <ChevronRight className="h-5 w-5 text-muted-foreground mr-8" />}
             </div>
@@ -284,7 +269,6 @@ export default function ElectivePackBuilderPage() {
         <Card>
           <CardHeader>
             <CardTitle>{steps[activeStep].title}</CardTitle>
-            <CardDescription>{steps[activeStep].description}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* Step 1: Basic Information & Selection Rules (Combined) */}
@@ -292,7 +276,7 @@ export default function ElectivePackBuilderPage() {
               <div className="space-y-6">
                 {/* Basic Information Section */}
                 <div>
-                  <h3 className="text-lg font-medium mb-4">Pack Information</h3>
+                  <h3 className="text-lg font-medium mb-4">Course Selection Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="semester">Semester</Label>
@@ -327,7 +311,7 @@ export default function ElectivePackBuilderPage() {
                       <div className="flex items-center gap-2">
                         <Info className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium">Pack Name Preview</p>
+                          <p className="text-sm font-medium">Course Selection Name Preview</p>
                           <p className="text-lg font-semibold">{getPackName()}</p>
                         </div>
                       </div>
@@ -409,57 +393,6 @@ export default function ElectivePackBuilderPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">{selectedCourses.length} courses selected</span>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add New Course
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[600px]">
-                        <DialogHeader>
-                          <DialogTitle>Add New Course</DialogTitle>
-                          <DialogDescription>
-                            Create a new course that will be available for this elective pack.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="courseName" className="text-right text-sm font-medium">
-                              Course Name
-                            </Label>
-                            <Input id="courseName" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="courseDescription" className="text-right text-sm font-medium">
-                              Description
-                            </Label>
-                            <Textarea id="courseDescription" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="courseTeacher" className="text-right text-sm font-medium">
-                              Teacher
-                            </Label>
-                            <Input id="courseTeacher" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="courseCredits" className="text-right text-sm font-medium">
-                              Credits
-                            </Label>
-                            <Input id="courseCredits" type="number" min="1" max="10" className="col-span-3" />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="courseMaxStudents" className="text-right text-sm font-medium">
-                              Max Students
-                            </Label>
-                            <Input id="courseMaxStudents" type="number" min="1" className="col-span-3" />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit">Add Course</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 </div>
 
@@ -470,9 +403,7 @@ export default function ElectivePackBuilderPage() {
                         <th className="w-[50px] py-3 px-4 text-left text-sm font-medium"></th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Teacher</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Max Students</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Programs</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -500,17 +431,7 @@ export default function ElectivePackBuilderPage() {
                             </td>
                             <td className="py-3 px-4 text-sm">{course.name}</td>
                             <td className="py-3 px-4 text-sm">{course.teacher}</td>
-                            <td className="py-3 px-4 text-sm">{course.credits}</td>
                             <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
-                            <td className="py-3 px-4 text-sm">
-                              <div className="flex flex-wrap gap-1">
-                                {course.programs.map((program, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {program}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </td>
                           </tr>
                         ))
                       )}
@@ -525,7 +446,7 @@ export default function ElectivePackBuilderPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="text-lg font-medium mb-2">Pack Details</h3>
+                    <h3 className="text-lg font-medium mb-2">Course Selection Details</h3>
                     <dl className="space-y-2">
                       <div className="flex justify-between">
                         <dt className="font-medium">Name:</dt>
@@ -557,7 +478,9 @@ export default function ElectivePackBuilderPage() {
                     <div className="text-center py-8 border rounded-md">
                       <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
                       <h3 className="mt-4 text-lg font-semibold">No Courses Selected</h3>
-                      <p className="mt-2 text-muted-foreground">Go back to add courses to this elective pack.</p>
+                      <p className="mt-2 text-muted-foreground">
+                        Go back to add courses to this elective course selection.
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-md border">
@@ -566,7 +489,6 @@ export default function ElectivePackBuilderPage() {
                           <tr className="border-b bg-muted/50">
                             <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
                             <th className="py-3 px-4 text-left text-sm font-medium">Teacher</th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
                             <th className="py-3 px-4 text-left text-sm font-medium">Max Students</th>
                           </tr>
                         </thead>
@@ -577,7 +499,6 @@ export default function ElectivePackBuilderPage() {
                               <tr key={course.id} className="border-b">
                                 <td className="py-3 px-4 text-sm">{course.name}</td>
                                 <td className="py-3 px-4 text-sm">{course.teacher}</td>
-                                <td className="py-3 px-4 text-sm">{course.credits}</td>
                                 <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
                               </tr>
                             ))}
@@ -641,7 +562,7 @@ export default function ElectivePackBuilderPage() {
                     selectedCourses.length === 0
                   }
                 >
-                  Publish Pack
+                  Publish Course Selection
                 </Button>
               )}
             </div>
