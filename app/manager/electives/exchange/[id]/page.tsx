@@ -294,9 +294,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
           </div>
           <div className="flex items-center gap-2">
             {getStatusBadge(exchangeProgram.status)}
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              {t("manager.exchangeDetails.edit")}
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/manager/electives/exchange/${params.id}/edit`}>
+                <Edit className="mr-2 h-4 w-4" />
+                {t("manager.exchangeDetails.edit")}
+              </Link>
             </Button>
           </div>
         </div>

@@ -390,7 +390,11 @@ export default function ManageElectivesPage() {
                                       ? t("manager.electives.inactive")
                                       : t("manager.electives.active")}
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>{t("manager.electives.edit")}</DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/exchange/${pack.id}/edit`}>
+                                      {t("manager.electives.edit")}
+                                    </Link>
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
