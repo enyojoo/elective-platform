@@ -445,7 +445,7 @@ const translations: Translations = {
     "auth.login.demoText": "Для демонстрации вы также можете:",
     "auth.login.studentDemo": "Демо студента",
     "auth.login.managerDemo": "Демо менеджера",
-    "auth.login.adminDemo": "Демо администратора",
+    "auth.login.adminDemo": "Демо админа",
     "auth.login.noAccount": "Нет аккаунта?",
     "auth.login.signUp": "Зарегистрироваться",
     "auth.signup.title": "Платформа элективов ВШМ",

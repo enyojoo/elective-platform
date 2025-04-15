@@ -15,37 +15,37 @@ export default function AdminDashboard() {
     // Course Electives
     courseElectives: language === "en" ? "Course Electives" : "Элективные курсы",
     totalCourseElectives: language === "en" ? "Total course elective selections" : "Всего выборов элективных курсов",
-    manageCourseElectives: language === "en" ? "Manage Course Electives" : "Управление элективными курсами",
+    manageCourseElectives: language === "en" ? "Manage" : "Управлять",
 
     // Exchange Programs
     exchangePrograms: language === "en" ? "Exchange Programs" : "Программы обмена",
     totalExchangePrograms: language === "en" ? "Total exchange programs available" : "Всего доступных программ обмена",
-    manageExchangePrograms: language === "en" ? "Manage Exchange Programs" : "Управление программами обмена",
+    manageExchangePrograms: language === "en" ? "Manage" : "Управлять",
 
     // Courses
     courses: language === "en" ? "Courses" : "Курсы",
     totalCourses: language === "en" ? "Courses in the system" : "Курсы в системе",
-    manageCourses: language === "en" ? "Manage Courses" : "Управление курсами",
+    manageCourses: language === "en" ? "Manage" : "Управлять",
 
     // Programs
     programs: language === "en" ? "Programs" : "Программы",
     totalPrograms: language === "en" ? "Academic programs configured" : "Настроенные академические программы",
-    managePrograms: language === "en" ? "Manage Programs" : "Управление программами",
+    managePrograms: language === "en" ? "Manage" : "Управлять",
 
     // Groups
     groups: language === "en" ? "Groups" : "Группы",
     totalGroups: language === "en" ? "Student groups created" : "Созданные группы студентов",
-    manageGroups: language === "en" ? "Manage Groups" : "Управление группами",
+    manageGroups: language === "en" ? "Manage" : "Управлять",
 
     // Degrees
     degrees: language === "en" ? "Degrees" : "Степени",
     totalDegrees: language === "en" ? "Degree types available" : "Доступные типы степеней",
-    manageDegrees: language === "en" ? "Manage Degrees" : "Управление степенями",
+    manageDegrees: language === "en" ? "Manage" : "Управлять",
 
     // Users
     users: language === "en" ? "Users" : "Пользователи",
     totalUsers: language === "en" ? "Total users in the system" : "Всего пользователей в системе",
-    manageUsers: language === "en" ? "Manage Users" : "Управление пользователями",
+    manageUsers: language === "en" ? "Manage" : "Управлять",
   }
 
   return (

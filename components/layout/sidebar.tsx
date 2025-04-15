@@ -16,7 +16,7 @@ interface SidebarProps {
 
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
 
   // Determine user role based on URL path
   const isAdmin = pathname.includes("/admin")
@@ -45,7 +45,13 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             href={isAdmin ? "/admin/dashboard" : isManager ? "/manager/dashboard" : "/student/dashboard"}
             className="flex items-center gap-2"
           >
-            <Image src="/images/gsom-logo-en.png" alt="GSOM Logo" width={180} height={48} className="h-10 w-auto" />
+            <Image
+              src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
+              alt="GSOM Logo"
+              width={130}
+              height={40}
+              className="h-9 w-auto"
+            />
           </Link>
           <button
             className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 md:hidden"
