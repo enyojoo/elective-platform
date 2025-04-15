@@ -186,7 +186,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
   // State for selected universities
   const [selectedUniversities, setSelectedUniversities] = useState<string[]>(
-    existingSelection ? existingSelection.selectedUniversityIds : [],
+    existingSelection ? existingSelection.selectedUniversityIds || [] : [],
   )
 
   // Handle university selection
@@ -265,7 +265,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
   // Get card style based on selection status
   const getCardStyle = (universityId: string) => {
-    const isSelected = selectedUniversities.includes(universityId)
+    const isSelected = selectedUniversities?.includes(universityId) || false
     const isFull =
       universities.find((u) => u.id === universityId)?.currentStudents >=
       universities.find((u) => u.id === universityId)?.maxStudents
@@ -352,7 +352,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {universities.map((university) => {
-            const isSelected = selectedUniversities.includes(university.id)
+            const isSelected = selectedUniversities?.includes(university.id) || false
             const isFull = university.currentStudents >= university.maxStudents
             const isDisabled = !isSelected && (selectedUniversities.length >= exchangeData.maxSelections || isFull)
             const isApproved = existingSelection?.status === SelectionStatus.APPROVED
@@ -506,7 +506,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   ))}
                 </div>
               </div>
-              {selectedUniversities.includes(viewingUniversity?.id) && (
+              {selectedUniversities?.includes(viewingUniversity?.id) && (
                 <div className="flex justify-end">
                   <Badge
                     variant="outline"
