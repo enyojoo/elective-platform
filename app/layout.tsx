@@ -9,6 +9,11 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "GSOM Elective Platform",
   description: "Graduate School of Management Elective Course Selection Platform",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
     generator: 'v0.dev'
 }
 
