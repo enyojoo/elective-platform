@@ -52,46 +52,46 @@ export default function StudentDashboard() {
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("student.dashboard.title")}</h1>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Required Electives</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("student.dashboard.requiredElectives")}</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
               <p className="text-xs text-muted-foreground">
-                {studentData.requiredElectives.courses} courses, {studentData.requiredElectives.exchange} exchange
-                programs
+                {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Selected Electives</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("student.dashboard.selectedElectives")}</CardTitle>
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
               <p className="text-xs text-muted-foreground">
-                {studentData.selectedElectives.courses} courses, {studentData.selectedElectives.exchange} exchange
-                programs
+                {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Selections</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("student.dashboard.pendingSelections")}</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
               <p className="text-xs text-muted-foreground">
-                {studentData.pendingSelections.courses} courses, {studentData.pendingSelections.exchange} exchange
-                programs
+                {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
@@ -100,33 +100,33 @@ export default function StudentDashboard() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="col-span-1">
             <CardHeader>
-              <CardTitle>Your Information</CardTitle>
-              <CardDescription>Your academic details</CardDescription>
+              <CardTitle>{t("student.dashboard.yourInfo")}</CardTitle>
+              <CardDescription>{t("student.dashboard.academicDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
               <dl className="space-y-2">
                 <div className="flex justify-between">
-                  <dt className="font-medium">Name:</dt>
+                  <dt className="font-medium">{t("student.dashboard.name")}:</dt>
                   <dd>{studentData.name}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="font-medium">Degree:</dt>
+                  <dt className="font-medium">{t("student.dashboard.degree")}:</dt>
                   <dd>{studentData.degree}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="font-medium">Program:</dt>
+                  <dt className="font-medium">{t("student.dashboard.program")}:</dt>
                   <dd>{studentData.program}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="font-medium">Year of Enrollment:</dt>
+                  <dt className="font-medium">{t("student.dashboard.yearEnrollment")}:</dt>
                   <dd>{studentData.year}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="font-medium">Group:</dt>
+                  <dt className="font-medium">{t("student.dashboard.group")}:</dt>
                   <dd>{studentData.group}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="font-medium">Email:</dt>
+                  <dt className="font-medium">{t("student.dashboard.email")}:</dt>
                   <dd>{studentData.email}</dd>
                 </div>
               </dl>
@@ -135,8 +135,8 @@ export default function StudentDashboard() {
 
           <Card className="col-span-1">
             <CardHeader>
-              <CardTitle>Upcoming Deadlines</CardTitle>
-              <CardDescription>Important dates for elective selections</CardDescription>
+              <CardTitle>{t("student.dashboard.upcomingDeadlines")}</CardTitle>
+              <CardDescription>{t("student.dashboard.importantDates")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -155,7 +155,7 @@ export default function StudentDashboard() {
                             : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                       }`}
                     >
-                      {deadline.daysLeft} days left
+                      {deadline.daysLeft} {t("student.dashboard.daysLeft")}
                     </div>
                   </div>
                 ))}

@@ -184,36 +184,25 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       return (
         <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
           <CheckCircle className="h-4 w-4" />
-          <AlertTitle>{t("Selection Approved")}</AlertTitle>
-          <AlertDescription>
-            {t(
-              "Your selection for these elective courses has been approved. You can view your selected courses below.",
-            )}
-          </AlertDescription>
+          <AlertTitle>{t("student.courses.selectionApproved")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionApprovedDesc")}</AlertDescription>
         </Alert>
       )
     } else if (existingSelection && existingSelection.status === SelectionStatus.PENDING) {
       return (
         <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
           <Clock className="h-4 w-4" />
-          <AlertTitle>{t("Selection Pending")}</AlertTitle>
-          <AlertDescription>
-            {t(
-              "Your selection for these elective courses is pending approval. You can still modify your selection until the deadline.",
-            )}
-          </AlertDescription>
+          <AlertTitle>{t("student.courses.selectionPending")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionPendingDesc")}</AlertDescription>
         </Alert>
       )
     } else if (electiveData.status === "draft") {
       return (
         <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <Info className="h-4 w-4" />
-          <AlertTitle>{t("Coming Soon")}</AlertTitle>
+          <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
           <AlertDescription>
-            {t(
-              "Elective selection is not open yet. You can preview the available courses, but selection will be available starting",
-            )}{" "}
-            {formatDate(electiveData.startDate)}.
+            {t("student.courses.comingSoonDesc")} {formatDate(electiveData.startDate)}.
           </AlertDescription>
         </Alert>
       )
@@ -221,9 +210,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       return (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>{t("Selection Period Active")}</AlertTitle>
+          <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
           <AlertDescription>
-            {t("You can select up to")} {electiveData.maxSelections} {t("courses until")}{" "}
+            {t("student.courses.selectionPeriodDesc")} {electiveData.maxSelections} {t("student.courses.until")}{" "}
             {formatDate(electiveData.endDate)}.
           </AlertDescription>
         </Alert>
@@ -265,7 +254,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{electiveData.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <p className="text-sm text-muted-foreground">{t("Select your elective courses for this semester")}</p>
+              <p className="text-sm text-muted-foreground">{t("student.courses.selectCourses")}</p>
             </div>
           </div>
         </div>
@@ -282,10 +271,10 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           }
         >
           <CardHeader>
-            <CardTitle>{t("Selection Progress")}</CardTitle>
+            <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
             <CardDescription>
-              {t("You have selected")} {selectedCourses.length} {t("out of")} {electiveData.maxSelections}{" "}
-              {t("allowed courses")}
+              {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.out")}{" "}
+              {electiveData.maxSelections} {t("student.courses.allowedCourses")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -308,9 +297,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             />
             <p className="mt-2 text-sm text-muted-foreground">
               {selectedCourses.length === electiveData.maxSelections
-                ? t("You've reached the maximum number of selections")
-                : `${t("You can select")} ${electiveData.maxSelections - selectedCourses.length} ${t("more course")}${
-                    electiveData.maxSelections - selectedCourses.length !== 1 ? "s" : ""
+                ? t("student.courses.maxSelections")
+                : `${t("student.courses.canSelectMore")} ${electiveData.maxSelections - selectedCourses.length} ${
+                    electiveData.maxSelections - selectedCourses.length === 1
+                      ? t("student.courses.moreCourse")
+                      : t("student.courses.moreCourses")
                   }`}
             </p>
           </CardContent>
@@ -343,7 +334,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                     onClick={() => setViewingCourse(course)}
                   >
                     <BookOpen className="h-3.5 w-3.5 mr-1" />
-                    {t("View Description")}
+                    {t("student.courses.viewDescription")}
                   </Button>
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between items-center">
@@ -359,7 +350,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                         htmlFor={`course-${course.id}`}
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
-                        {isSelected ? t("Selected") : t("Select")}
+                        {isSelected ? t("student.courses.selected") : t("student.courses.select")}
                       </label>
                     </div>
                   )}
@@ -381,26 +372,24 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   }
                   className="px-8"
                 >
-                  {existingSelection ? t("Update Selection") : t("Confirm Selection")}
+                  {existingSelection ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{t("Confirm Your Selection")}</DialogTitle>
-                  <DialogDescription>
-                    {t("Please review your selection and enter your full name to authorize this submission.")}
-                  </DialogDescription>
+                  <DialogTitle>{t("student.courses.confirmYourSelection")}</DialogTitle>
+                  <DialogDescription>{t("student.courses.reviewSelection")}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
-                    <h4 className="text-sm font-medium mb-2">{t("Selected Courses")}:</h4>
+                    <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
                     <ul className="space-y-2">
                       {selectedCourses.map((courseId) => {
                         const course = electiveCourses.find((c) => c.id === courseId)
                         return (
                           <li key={courseId} className="text-sm flex items-center gap-2">
                             <CheckCircle className="h-4 w-4 text-green-600" />
-                            {course?.name} ({course?.credits} {t("credits")})
+                            {course?.name} ({course?.credits} {t("student.courses.credits")})
                           </li>
                         )
                       })}
@@ -408,19 +397,19 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="student-name">
-                      {t("Your Full Name")} ({t("to authorize")})
+                      {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
                     </Label>
                     <Input
                       id="student-name"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
-                      placeholder={t("Enter your full name")}
+                      placeholder={t("student.courses.enterFullName")}
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting}>
-                    {submitting ? t("Submitting...") : t("Submit Selection")}
+                    {submitting ? t("student.courses.submitting") : t("student.courses.submitSelection")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -437,7 +426,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("Course Description")}</h4>
+                <h4 className="text-sm font-medium">{t("student.courses.courseDescription")}</h4>
                 <p className="text-sm text-muted-foreground">{viewingCourse?.description}</p>
               </div>
               {selectedCourses.includes(viewingCourse?.id) && (
@@ -452,14 +441,14 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                           : "bg-primary/10"
                     }
                   >
-                    {t("Selected")}
+                    {t("student.courses.selected")}
                   </Badge>
                 </div>
               )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewingCourse(null)}>
-                {t("Close")}
+                {t("student.courses.close")}
               </Button>
               {!existingSelection?.status === SelectionStatus.APPROVED && electiveData.status !== "draft" && (
                 <Button
@@ -473,7 +462,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                       selectedCourses.length >= electiveData.maxSelections)
                   }
                 >
-                  {selectedCourses.includes(viewingCourse?.id) ? t("Remove Selection") : t("Select Course")}
+                  {selectedCourses.includes(viewingCourse?.id)
+                    ? t("student.courses.removeSelection")
+                    : t("student.courses.selectCourse")}
                 </Button>
               )}
             </DialogFooter>

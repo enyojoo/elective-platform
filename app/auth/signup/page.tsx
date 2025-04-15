@@ -11,6 +11,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { AuthLanguageSwitcher } from "../components/auth-language-switcher"
+import { useLanguage } from "@/lib/language-context"
 
 // Mock data from admin pages
 const mockDegrees = [
@@ -59,6 +60,7 @@ export default function SignupPage() {
   const [filteredGroups, setFilteredGroups] = useState(mockGroups)
 
   const router = useRouter()
+  const { t, language } = useLanguage()
 
   // Filter programs based on selected degree
   useEffect(() => {
@@ -100,12 +102,12 @@ export default function SignupPage() {
 
     // Basic validation
     if (!email.endsWith("@student.spbu.ru") && !email.endsWith("@gsom.spbu.ru")) {
-      setError("Email must end with @student.spbu.ru or @gsom.spbu.ru")
+      setError(t("auth.error.invalidEmail"))
       return
     }
 
     if (!degree || !program || !year || !group) {
-      setError("Please complete all required fields")
+      setError(t("auth.error.incompleteFields"))
       return
     }
 
@@ -118,19 +120,25 @@ export default function SignupPage() {
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
-          <Image src="/images/gsom-logo-en.png" alt="GSOM Logo" width={200} height={60} className="h-12 w-auto" />
+          <Image
+            src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
+            alt="GSOM Logo"
+            width={200}
+            height={60}
+            className="h-12 w-auto"
+          />
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>GSOM Elective Platform</CardTitle>
-            <CardDescription>Create a new account with your university email</CardDescription>
+            <CardTitle>{t("auth.signup.title")}</CardTitle>
+            <CardDescription>{t("auth.signup.description")}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSignup}>
             <CardContent className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("auth.signup.email")}</Label>
                 <input
                   id="email"
                   type="email"
@@ -140,11 +148,11 @@ export default function SignupPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <p className="text-xs text-muted-foreground">Must end with @student.spbu.ru or @gsom.spbu.ru</p>
+                <p className="text-xs text-muted-foreground">{t("auth.signup.emailHint")}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t("auth.signup.name")}</Label>
                 <input
                   id="name"
                   type="text"
@@ -156,10 +164,10 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="degree">Degree</Label>
+                <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
                 <Select value={degree} onValueChange={setDegree} required>
                   <SelectTrigger id="degree" className="w-full">
-                    <SelectValue placeholder="Select degree" />
+                    <SelectValue placeholder={t("auth.signup.selectDegree")} />
                   </SelectTrigger>
                   <SelectContent>
                     {mockDegrees.map((d) => (
@@ -172,10 +180,10 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="program">Program</Label>
+                <Label htmlFor="program">{t("auth.signup.program")}</Label>
                 <Select value={program} onValueChange={setProgram} required disabled={!degree}>
                   <SelectTrigger id="program" className="w-full">
-                    <SelectValue placeholder="Select program" />
+                    <SelectValue placeholder={t("auth.signup.selectProgram")} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPrograms.map((p) => (
@@ -189,10 +197,10 @@ export default function SignupPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="year">Year</Label>
+                  <Label htmlFor="year">{t("auth.signup.year")}</Label>
                   <Select value={year} onValueChange={setYear} required>
                     <SelectTrigger id="year" className="w-full">
-                      <SelectValue placeholder="Select year" />
+                      <SelectValue placeholder={t("auth.signup.selectYear")} />
                     </SelectTrigger>
                     <SelectContent>
                       {mockYears.map((y) => (
@@ -205,10 +213,10 @@ export default function SignupPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="group">Group</Label>
+                  <Label htmlFor="group">{t("auth.signup.group")}</Label>
                   <Select value={group} onValueChange={setGroup} required disabled={!degree || !program || !year}>
                     <SelectTrigger id="group" className="w-full">
-                      <SelectValue placeholder="Select group" />
+                      <SelectValue placeholder={t("auth.signup.selectGroup")} />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredGroups.map((g) => (
@@ -222,7 +230,7 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("auth.signup.password")}</Label>
                 <input
                   id="password"
                   type="password"
@@ -235,12 +243,12 @@ export default function SignupPage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
               <Button type="submit" className="w-full">
-                Sign Up
+                {t("auth.signup.button")}
               </Button>
               <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
+                {t("auth.signup.hasAccount")}{" "}
                 <Link href="/auth/login" className="text-primary hover:underline">
-                  Login
+                  {t("auth.signup.login")}
                 </Link>
               </div>
             </CardFooter>

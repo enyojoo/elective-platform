@@ -9,11 +9,13 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { AuthLanguageSwitcher } from "../components/auth-language-switcher"
+import { useLanguage } from "@/lib/language-context"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const router = useRouter()
+  const { t, language } = useLanguage()
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,12 +38,18 @@ export default function LoginPage() {
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
-          <Image src="/images/gsom-logo-en.png" alt="GSOM Logo" width={200} height={60} className="h-12 w-auto" />
+          <Image
+            src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
+            alt="GSOM Logo"
+            width={200}
+            height={60}
+            className="h-12 w-auto"
+          />
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>GSOM Elective Platform</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardTitle>{t("auth.login.title")}</CardTitle>
+            <CardDescription>{t("auth.login.description")}</CardDescription>
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
@@ -50,7 +58,7 @@ export default function LoginPage() {
                   htmlFor="email"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Email
+                  {t("auth.login.email")}
                 </label>
                 <input
                   id="email"
@@ -67,7 +75,7 @@ export default function LoginPage() {
                   htmlFor="password"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Password
+                  {t("auth.login.password")}
                 </label>
                 <input
                   id="password"
@@ -81,9 +89,9 @@ export default function LoginPage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
               <Button type="submit" className="w-full">
-                Login
+                {t("auth.login.button")}
               </Button>
-              <div className="text-sm text-center text-muted-foreground">For demo purposes, you can also:</div>
+              <div className="text-sm text-center text-muted-foreground">{t("auth.login.demoText")}</div>
               <div className="flex gap-2 w-full">
                 <Button
                   variant="outline"
@@ -92,7 +100,7 @@ export default function LoginPage() {
                   onClick={() => router.push("/student/dashboard")}
                   type="button"
                 >
-                  Student Demo
+                  {t("auth.login.studentDemo")}
                 </Button>
                 <Button
                   variant="outline"
@@ -101,7 +109,7 @@ export default function LoginPage() {
                   onClick={() => router.push("/manager/dashboard")}
                   type="button"
                 >
-                  Manager Demo
+                  {t("auth.login.managerDemo")}
                 </Button>
                 <Button
                   variant="outline"
@@ -110,13 +118,13 @@ export default function LoginPage() {
                   onClick={() => router.push("/admin/dashboard")}
                   type="button"
                 >
-                  Admin Demo
+                  {t("auth.login.adminDemo")}
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">
-                Don't have an account?{" "}
+                {t("auth.login.noAccount")}{" "}
                 <Link href="/auth/signup" className="text-primary hover:underline">
-                  Sign up
+                  {t("auth.login.signUp")}
                 </Link>
               </div>
             </CardFooter>

@@ -19,6 +19,9 @@ import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock
 import Link from "next/link"
 import { useState } from "react"
 
+// Add the language import first
+import { useLanguage } from "@/lib/language-context"
+
 interface ElectiveCourseDetailPageProps {
   params: {
     id: string
@@ -26,6 +29,9 @@ interface ElectiveCourseDetailPageProps {
 }
 
 export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
+  // Add the language hook near the top of the component
+  const { t, language } = useLanguage()
+
   // State for dialog
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -182,10 +188,14 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     },
   ]
 
-  // Format date helper
+  // Replace the existing formatDate function with this one:
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   // Helper function to get status badge
@@ -286,7 +296,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">Status:</dt>
-                <dd>{electiveCourse.status}</dd>
+                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
               </div>
             </dl>
           </CardContent>

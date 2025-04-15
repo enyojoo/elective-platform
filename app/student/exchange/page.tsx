@@ -112,10 +112,8 @@ export default function ExchangePage() {
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("Exchange Program Selection")}</h1>
-          <p className="text-muted-foreground">
-            {t("Browse and select exchange universities available for your program")}
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("student.exchange.title")}</h1>
+          <p className="text-muted-foreground">{t("student.exchange.subtitle")}</p>
         </div>
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -145,17 +143,17 @@ export default function ExchangePage() {
                       <Badge className={getStatusColor("none")} variant="secondary">
                         <span className="flex items-center space-x-1">
                           {getStatusIcon("none")}
-                          <span className="capitalize ml-1">{t("No Selection")}</span>
+                          <span className="capitalize ml-1">{t("student.exchange.noSelection")}</span>
                         </span>
                       </Badge>
                     )}
                   </div>
                   {exchange.status === "draft" ? (
-                    <Badge variant="outline">{t("Coming Soon")}</Badge>
+                    <Badge variant="outline">{t("student.exchange.comingSoon")}</Badge>
                   ) : exchange.availableSpaces ? (
-                    <Badge variant="secondary">{t("Open")}</Badge>
+                    <Badge variant="secondary">{t("student.exchange.open")}</Badge>
                   ) : (
-                    <Badge variant="destructive">{t("Limited")}</Badge>
+                    <Badge variant="destructive">{t("student.exchange.limited")}</Badge>
                   )}
                 </div>
               </CardHeader>
@@ -163,16 +161,16 @@ export default function ExchangePage() {
               <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
                 <div className="flex flex-col gap-y-2 text-sm w-full">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground">{t("Deadline")}:</span>
+                    <span className="text-muted-foreground">{t("student.exchange.deadline")}:</span>
                     <span>{formatDate(exchange.endDate)}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("Universities")}:</span>
+                      <span className="text-muted-foreground">{t("student.exchange.universities")}:</span>
                       <span>{exchange.universitiesCount}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("Limit")}:</span>
+                      <span className="text-muted-foreground">{t("student.exchange.limit")}:</span>
                       <span>{exchange.maxSelections}</span>
                     </div>
                   </div>
@@ -188,7 +186,7 @@ export default function ExchangePage() {
                   }`}
                 >
                   <span className="text-sm">
-                    {t("Selected")}: {exchange.selectedCount}/{exchange.maxSelections}
+                    {t("student.exchange.selected")}: {exchange.selectedCount}/{exchange.maxSelections}
                   </span>
                   <Link href={`/student/exchange/${exchange.id}`}>
                     <Button
@@ -211,7 +209,7 @@ export default function ExchangePage() {
                       }`}
                     >
                       <>
-                        <span>{t("View")}</span>
+                        <span>{t("student.exchange.view")}</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </>
                     </Button>

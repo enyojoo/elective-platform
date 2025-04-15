@@ -227,36 +227,25 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
       return (
         <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
           <CheckCircle className="h-4 w-4" />
-          <AlertTitle>{t("Selection Approved")}</AlertTitle>
-          <AlertDescription>
-            {t(
-              "Your selection for these exchange universities has been approved. You can view your selected universities below.",
-            )}
-          </AlertDescription>
+          <AlertTitle>{t("student.exchange.selectionApproved")}</AlertTitle>
+          <AlertDescription>{t("student.exchange.selectionApprovedDesc")}</AlertDescription>
         </Alert>
       )
     } else if (existingSelection && existingSelection.status === SelectionStatus.PENDING) {
       return (
         <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
           <Clock className="h-4 w-4" />
-          <AlertTitle>{t("Selection Pending")}</AlertTitle>
-          <AlertDescription>
-            {t(
-              "Your selection for these exchange universities is pending approval. You can still modify your selection until the deadline.",
-            )}
-          </AlertDescription>
+          <AlertTitle>{t("student.exchange.selectionPending")}</AlertTitle>
+          <AlertDescription>{t("student.exchange.selectionPendingDesc")}</AlertDescription>
         </Alert>
       )
     } else if (exchangeData.status === "draft") {
       return (
         <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <Info className="h-4 w-4" />
-          <AlertTitle>{t("Coming Soon")}</AlertTitle>
+          <AlertTitle>{t("student.exchange.comingSoon")}</AlertTitle>
           <AlertDescription>
-            {t(
-              "Exchange selection is not open yet. You can preview the available universities, but selection will be available starting",
-            )}{" "}
-            {formatDate(exchangeData.startDate)}.
+            {t("student.exchange.comingSoonDesc")} {formatDate(exchangeData.startDate)}.
           </AlertDescription>
         </Alert>
       )
@@ -264,9 +253,9 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
       return (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>{t("Selection Period Active")}</AlertTitle>
+          <AlertTitle>{t("student.exchange.selectionPeriodActive")}</AlertTitle>
           <AlertDescription>
-            {t("You can select up to")} {exchangeData.maxSelections} {t("universities until")}{" "}
+            {t("student.exchange.selectionPeriodDesc")} {exchangeData.maxSelections} {t("student.exchange.until")}{" "}
             {formatDate(exchangeData.endDate)}.
           </AlertDescription>
         </Alert>
@@ -308,9 +297,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{exchangeData.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <p className="text-sm text-muted-foreground">
-                {t("Select your exchange universities for this semester")}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("student.exchange.selectUniversities")}</p>
             </div>
           </div>
         </div>
@@ -327,10 +314,10 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           }
         >
           <CardHeader>
-            <CardTitle>{t("Selection Progress")}</CardTitle>
+            <CardTitle>{t("student.exchange.selectionProgress")}</CardTitle>
             <CardDescription>
-              {t("You have selected")} {selectedUniversities.length} {t("out of")} {exchangeData.maxSelections}{" "}
-              {t("allowed universities")}
+              {t("student.exchange.selectedOutOf")} {selectedUniversities.length} {t("student.exchange.out")}{" "}
+              {exchangeData.maxSelections} {t("student.exchange.allowedUniversities")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -353,11 +340,11 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
             />
             <p className="mt-2 text-sm text-muted-foreground">
               {selectedUniversities.length === exchangeData.maxSelections
-                ? t("You've reached the maximum number of selections")
-                : `${t("You can select")} ${
-                    exchangeData.maxSelections - selectedUniversities.length
-                  } ${t("more university")}${
-                    exchangeData.maxSelections - selectedUniversities.length !== 1 ? "ies" : ""
+                ? t("student.exchange.maxSelections")
+                : `${t("student.exchange.canSelectMore")} ${exchangeData.maxSelections - selectedUniversities.length} ${
+                    exchangeData.maxSelections - selectedUniversities.length === 1
+                      ? t("student.exchange.moreUniversity")
+                      : t("student.exchange.moreUniversities")
                   }`}
             </p>
           </CardContent>
@@ -397,7 +384,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                     onClick={() => setViewingUniversity(university)}
                   >
                     <Globe className="h-3.5 w-3.5 mr-1" />
-                    {t("View Details")}
+                    {t("student.exchange.viewDetails")}
                   </Button>
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between items-center">
@@ -414,7 +401,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                           htmlFor={`university-${university.id}`}
                           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                         >
-                          {isSelected ? t("Selected") : t("Select")}
+                          {isSelected ? t("student.exchange.selected") : t("student.exchange.select")}
                         </label>
                       </>
                     )}
@@ -425,7 +412,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                     rel="noopener noreferrer"
                     className="text-sm text-primary hover:text-primary/80 flex items-center"
                   >
-                    {t("Visit Website")}
+                    {t("student.exchange.visitWebsite")}
                     <ExternalLink className="h-3.5 w-3.5 ml-1" />
                   </a>
                 </CardFooter>
@@ -446,19 +433,17 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   }
                   className="px-8"
                 >
-                  {existingSelection ? t("Update Selection") : t("Confirm Selection")}
+                  {existingSelection ? t("student.exchange.updateSelection") : t("student.exchange.confirmSelection")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{t("Confirm Your Selection")}</DialogTitle>
-                  <DialogDescription>
-                    {t("Please review your selection and enter your full name to authorize this submission.")}
-                  </DialogDescription>
+                  <DialogTitle>{t("student.exchange.confirmYourSelection")}</DialogTitle>
+                  <DialogDescription>{t("student.exchange.reviewSelection")}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
-                    <h4 className="text-sm font-medium mb-2">{t("Selected Universities")}:</h4>
+                    <h4 className="text-sm font-medium mb-2">{t("student.exchange.selectedUniversities")}:</h4>
                     <ul className="space-y-2">
                       {selectedUniversities.map((universityId) => {
                         const university = universities.find((u) => u.id === universityId)
@@ -473,19 +458,19 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="student-name">
-                      {t("Your Full Name")} ({t("to authorize")})
+                      {t("student.exchange.yourFullName")} ({t("student.exchange.toAuthorize")})
                     </Label>
                     <Input
                       id="student-name"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
-                      placeholder={t("Enter your full name")}
+                      placeholder={t("student.exchange.enterFullName")}
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting}>
-                    {submitting ? t("Submitting...") : t("Submit Selection")}
+                    {submitting ? t("student.exchange.submitting") : t("student.exchange.submitSelection")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -504,15 +489,15 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("University Description")}</h4>
+                <h4 className="text-sm font-medium">{t("student.exchange.universityDescription")}</h4>
                 <p className="text-sm text-muted-foreground">{viewingUniversity?.description}</p>
               </div>
               <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("Language of Instruction")}</h4>
+                <h4 className="text-sm font-medium">{t("student.exchange.languageInstruction")}</h4>
                 <p className="text-sm text-muted-foreground">{viewingUniversity?.language}</p>
               </div>
               <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("Available Programs")}</h4>
+                <h4 className="text-sm font-medium">{t("student.exchange.availablePrograms")}</h4>
                 <div className="flex flex-wrap gap-1">
                   {viewingUniversity?.programs.map((program: string, index: number) => (
                     <Badge key={index} variant="outline">
@@ -533,14 +518,14 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                           : "bg-primary/10"
                     }
                   >
-                    {t("Selected")}
+                    {t("student.exchange.selected")}
                   </Badge>
                 </div>
               )}
             </div>
             <DialogFooter className="flex justify-between sm:justify-between">
               <Button variant="outline" onClick={() => setViewingUniversity(null)}>
-                {t("Close")}
+                {t("student.exchange.close")}
               </Button>
               <div className="flex gap-2">
                 <a
@@ -549,7 +534,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
                 >
-                  {t("Visit Website")}
+                  {t("student.exchange.visitWebsite")}
                   <ExternalLink className="h-4 w-4 ml-2" />
                 </a>
               </div>

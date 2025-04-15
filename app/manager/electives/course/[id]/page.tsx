@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { useLanguage } from "@/lib/language-context"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -178,23 +179,30 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     },
   ]
 
+  // Get translation function
+  const { t, language } = useLanguage()
+
   // Format date helper
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   // Helper function to get status badge
   const getStatusBadge = (status: ElectivePackStatus) => {
     switch (status) {
       case ElectivePackStatus.DRAFT:
-        return <Badge variant="outline">Draft</Badge>
+        return <Badge variant="outline">{t("manager.status.draft")}</Badge>
       case ElectivePackStatus.PUBLISHED:
-        return <Badge variant="secondary">Published</Badge>
+        return <Badge variant="secondary">{t("manager.status.published")}</Badge>
       case ElectivePackStatus.CLOSED:
-        return <Badge variant="destructive">Closed</Badge>
+        return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
       case ElectivePackStatus.ARCHIVED:
-        return <Badge variant="default">Archived</Badge>
+        return <Badge variant="default">{t("manager.status.archived")}</Badge>
       default:
         return null
     }
@@ -207,21 +215,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
-            Approved
+            {t("manager.exchangeDetails.approved")}
           </Badge>
         )
       case SelectionStatus.PENDING:
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
-            Pending
+            {t("manager.exchangeDetails.pending")}
           </Badge>
         )
       case SelectionStatus.REJECTED:
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
-            Rejected
+            {t("manager.exchangeDetails.rejected")}
           </Badge>
         )
       default:
@@ -256,42 +264,44 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             {getStatusBadge(electiveCourse.status)}
             <Button variant="outline" size="sm">
               <Edit className="mr-2 h-4 w-4" />
-              Edit
+              {t("manager.courseDetails.edit")}
             </Button>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Program Details</CardTitle>
+            <CardTitle>{t("manager.courseDetails.programDetails")}</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="font-medium">Selection Period:</dt>
+                <dt className="font-medium">{t("manager.courseDetails.selectionPeriod")}:</dt>
                 <dd>
                   {formatDate(electiveCourse.startDate)} - {formatDate(electiveCourse.endDate)}
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Max Selections:</dt>
-                <dd>{electiveCourse.maxSelections} courses</dd>
+                <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
+                <dd>
+                  {electiveCourse.maxSelections} {t("manager.courseDetails.courses")}
+                </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Courses:</dt>
+                <dt className="font-medium">{t("manager.courseDetails.courses")}:</dt>
                 <dd>{electiveCourse.coursesCount}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Students Enrolled:</dt>
+                <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
                 <dd>{electiveCourse.studentsEnrolled}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Created:</dt>
+                <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
                 <dd>{formatDate(electiveCourse.createdAt)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Status:</dt>
-                <dd>{electiveCourse.status}</dd>
+                <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
+                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
               </div>
             </dl>
           </CardContent>
@@ -299,15 +309,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="courses">Courses</TabsTrigger>
-            <TabsTrigger value="students">Student Selections</TabsTrigger>
+            <TabsTrigger value="courses">{t("manager.courseDetails.coursesTab")}</TabsTrigger>
+            <TabsTrigger value="students">{t("manager.courseDetails.studentsTab")}</TabsTrigger>
           </TabsList>
           <TabsContent value="courses" className="mt-4">
             <Card>
               <CardHeader>
                 <div>
-                  <CardTitle>Courses in this Program</CardTitle>
-                  {/* No description needed */}
+                  <CardTitle>{t("manager.courseDetails.coursesInProgram")}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -315,10 +324,16 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Professor</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.professor")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.credits")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.enrollment")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -344,21 +359,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Student Selections</CardTitle>
-                  <CardDescription>Manage student selections for this elective program</CardDescription>
+                  <CardTitle>{t("manager.courseDetails.studentSelections")}</CardTitle>
+                  <CardDescription>{t("manager.courseDetails.manageStudentSelections")}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="search"
-                      placeholder="Search students..."
+                      placeholder={t("manager.courseDetails.searchStudents")}
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                     />
                   </div>
                   <Button variant="outline" size="sm">
                     <Download className="mr-2 h-4 w-4" />
-                    Export
+                    {t("manager.courseDetails.export")}
                   </Button>
                 </div>
               </CardHeader>
@@ -367,12 +382,16 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Group</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">View</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.selectionDate")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.courseDetails.actions")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -397,17 +416,17 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <Edit className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t("manager.courseDetails.edit")}
                                 </DropdownMenuItem>
                                 {selection.status === SelectionStatus.PENDING && (
                                   <>
                                     <DropdownMenuItem className="text-green-600">
                                       <CheckCircle className="mr-2 h-4 w-4" />
-                                      Approve
+                                      {t("manager.exchangeDetails.approve")}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem className="text-red-600">
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      Reject
+                                      {t("manager.exchangeDetails.reject")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -429,40 +448,41 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             {selectedStudent && (
               <>
                 <DialogHeader>
-                  <DialogTitle>Student Selection Details</DialogTitle>
+                  <DialogTitle>{t("manager.courseDetails.studentDetails")}</DialogTitle>
                   <DialogDescription>
-                    View details for {selectedStudent.studentName}'s course selection
+                    {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.studentName}
+                    {t("manager.courseDetails.courseSelection")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-medium">Student Information</h3>
+                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">Name:</span>
+                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
                           <span>{selectedStudent.studentName}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">ID:</span>
+                          <span className="font-medium">{t("manager.courseDetails.id")}:</span>
                           <span>{selectedStudent.studentId}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">Email:</span>
+                          <span className="font-medium">{t("manager.courseDetails.email")}:</span>
                           <span>{selectedStudent.email}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">Group:</span>
+                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
                           <span>{selectedStudent.group}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">Program:</span>
+                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
                           <span>{selectedStudent.program}</span>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">Selected Courses</h3>
+                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
                       <div className="mt-2 space-y-2">
                         {selectedStudent.selectedCourses.map((course: string, index: number) => (
                           <div key={index} className="rounded-md border p-2">
@@ -472,14 +492,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">Selection Information</h3>
+                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectionInformation")}</h3>
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">Date:</span>
+                          <span className="font-medium">{t("manager.courseDetails.date")}:</span>
                           <span>{formatDate(selectedStudent.selectionDate)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">Status:</span>
+                          <span className="font-medium">{t("manager.courseDetails.status")}:</span>
                           <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
                         </div>
                       </div>
@@ -495,7 +515,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         onClick={() => console.log("Approve selection")}
                       >
                         <CheckCircle className="mr-2 h-4 w-4" />
-                        Approve
+                        {t("manager.exchangeDetails.approve")}
                       </Button>
                       <Button
                         variant="outline"
@@ -503,12 +523,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         onClick={() => console.log("Reject selection")}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
-                        Reject
+                        {t("manager.exchangeDetails.reject")}
                       </Button>
                     </>
                   )}
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                    Close
+                    {t("manager.courseDetails.close")}
                   </Button>
                 </DialogFooter>
               </>

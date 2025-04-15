@@ -112,10 +112,8 @@ export default function ElectivesPage() {
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("Course Selection")}</h1>
-          <p className="text-muted-foreground">
-            {t("Browse and select elective courses available in the semester for your program")}
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
+          <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
         </div>
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -145,17 +143,17 @@ export default function ElectivesPage() {
                       <Badge className={getStatusColor("none")} variant="secondary">
                         <span className="flex items-center space-x-1">
                           {getStatusIcon("none")}
-                          <span className="capitalize ml-1">{t("No Selection")}</span>
+                          <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
                         </span>
                       </Badge>
                     )}
                   </div>
                   {elective.status === "draft" ? (
-                    <Badge variant="outline">{t("Coming Soon")}</Badge>
+                    <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
                   ) : elective.availableSpaces ? (
-                    <Badge variant="secondary">{t("Open")}</Badge>
+                    <Badge variant="secondary">{t("student.courses.open")}</Badge>
                   ) : (
-                    <Badge variant="destructive">{t("Limited")}</Badge>
+                    <Badge variant="destructive">{t("student.courses.limited")}</Badge>
                   )}
                 </div>
               </CardHeader>
@@ -163,16 +161,16 @@ export default function ElectivesPage() {
               <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
                 <div className="flex flex-col gap-y-2 text-sm w-full">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground">{t("Deadline")}:</span>
+                    <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
                     <span>{formatDate(elective.endDate)}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("Courses")}:</span>
+                      <span className="text-muted-foreground">{t("student.courses.courses")}:</span>
                       <span>{elective.coursesCount}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("Limit")}:</span>
+                      <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
                       <span>{elective.maxSelections}</span>
                     </div>
                   </div>
@@ -188,7 +186,7 @@ export default function ElectivesPage() {
                   }`}
                 >
                   <span className="text-sm">
-                    {t("Selected")}: {elective.selectedCount}/{elective.maxSelections}
+                    {t("student.courses.selected")}: {elective.selectedCount}/{elective.maxSelections}
                   </span>
                   <Link href={`/student/courses/${elective.id}`}>
                     <Button
@@ -211,7 +209,7 @@ export default function ElectivesPage() {
                       }`}
                     >
                       <>
-                        <span>{t("View")}</span>
+                        <span>{t("student.courses.view")}</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </>
                     </Button>

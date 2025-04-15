@@ -19,6 +19,9 @@ import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock
 import Link from "next/link"
 import { useState } from "react"
 
+// Add the language import first
+import { useLanguage } from "@/lib/language-context"
+
 interface ExchangeProgramDetailPageProps {
   params: {
     id: string
@@ -29,6 +32,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
   // State for dialog
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  // Add the language hook near the top of the component
+  const { t, language } = useLanguage()
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -215,10 +221,14 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     },
   ]
 
-  // Format date helper
+  // Replace the existing formatDate function with this one:
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   // Helper function to get status badge
@@ -317,9 +327,10 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                 <dt className="font-medium">Created:</dt>
                 <dd>{formatDate(exchangeProgram.createdAt)}</dd>
               </div>
+              {/* Update the status display in the program details card */}
               <div className="flex justify-between">
                 <dt className="font-medium">Status:</dt>
-                <dd>{exchangeProgram.status}</dd>
+                <dd>{t(`manager.status.${exchangeProgram.status.toLowerCase()}`)}</dd>
               </div>
             </dl>
           </CardContent>

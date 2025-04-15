@@ -13,6 +13,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { UserRole } from "@/lib/types"
 import { useSearchParams } from "next/navigation"
+import { useLanguage } from "@/lib/language-context"
 
 export default function ManageElectivesPage() {
   const searchParams = useSearchParams()
@@ -22,6 +23,7 @@ export default function ManageElectivesPage() {
   const [programFilter, setProgramFilter] = useState("all")
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const { t } = useLanguage()
 
   // Update activeTab when URL parameters change
   useEffect(() => {
@@ -132,19 +134,19 @@ export default function ManageElectivesPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            Active
+            {t("manager.electives.active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            Inactive
+            {t("manager.electives.inactive")}
           </Badge>
         )
       case "draft":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            Draft
+            {t("manager.electives.draft")}
           </Badge>
         )
       default:
@@ -166,8 +168,8 @@ export default function ManageElectivesPage() {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Elective Selections</h1>
-            <p className="text-muted-foreground mt-2">Manage course and exchange elective selections</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("manager.electives.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("manager.electives.subtitle")}</p>
           </div>
         </div>
 
@@ -176,22 +178,22 @@ export default function ManageElectivesPage() {
             <Tabs value={activeTab} onValueChange={handleTabChange}>
               <div className="flex justify-between items-center mb-4">
                 <TabsList>
-                  <TabsTrigger value="courses">Course Electives</TabsTrigger>
-                  <TabsTrigger value="exchange">Exchange Programs</TabsTrigger>
+                  <TabsTrigger value="courses">{t("manager.electives.courseElectives")}</TabsTrigger>
+                  <TabsTrigger value="exchange">{t("manager.electives.exchangePrograms")}</TabsTrigger>
                 </TabsList>
 
                 {activeTab === "courses" ? (
                   <Link href="/manager/electives/course-builder">
                     <Button size="sm">
                       <Plus className="mr-2 h-4 w-4" />
-                      Create
+                      {t("manager.electives.create")}
                     </Button>
                   </Link>
                 ) : (
                   <Link href="/manager/electives/exchange-builder">
                     <Button size="sm">
                       <Plus className="mr-2 h-4 w-4" />
-                      Create
+                      {t("manager.electives.create")}
                     </Button>
                   </Link>
                 )}
@@ -204,7 +206,9 @@ export default function ManageElectivesPage() {
                     <Input
                       type="search"
                       placeholder={
-                        activeTab === "courses" ? "Search course electives..." : "Search exchange programs..."
+                        activeTab === "courses"
+                          ? t("manager.electives.searchCourses")
+                          : t("manager.electives.searchExchange")
                       }
                       className="pl-8"
                       value={searchTerm}
@@ -215,10 +219,10 @@ export default function ManageElectivesPage() {
                     <Select value={programFilter} onValueChange={setProgramFilter}>
                       <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Program" />
+                        <SelectValue placeholder={t("manager.electives.program")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Programs</SelectItem>
+                        <SelectItem value="all">{t("manager.electives.allPrograms")}</SelectItem>
                         <SelectItem value="MiM">Master in Management</SelectItem>
                         <SelectItem value="MiBA">Master in Business Analytics</SelectItem>
                       </SelectContent>
@@ -227,10 +231,10 @@ export default function ManageElectivesPage() {
                     <Select value={semesterFilter} onValueChange={setSemesterFilter}>
                       <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Semester" />
+                        <SelectValue placeholder={t("manager.electives.semester")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Semesters</SelectItem>
+                        <SelectItem value="all">{t("manager.electives.allSemesters")}</SelectItem>
                         <SelectItem value="Fall 2023">Fall 2023</SelectItem>
                         <SelectItem value="Spring 2024">Spring 2024</SelectItem>
                         <SelectItem value="Spring 2023">Spring 2023</SelectItem>
@@ -240,13 +244,13 @@ export default function ManageElectivesPage() {
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-[130px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Status" />
+                        <SelectValue placeholder={t("manager.electives.status")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="all">{t("manager.electives.allStatus")}</SelectItem>
+                        <SelectItem value="active">{t("manager.electives.active")}</SelectItem>
+                        <SelectItem value="inactive">{t("manager.electives.inactive")}</SelectItem>
+                        <SelectItem value="draft">{t("manager.electives.draft")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -269,17 +273,18 @@ export default function ManageElectivesPage() {
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
                               <div>
-                                <p className="text-sm text-muted-foreground">Courses</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.courses")}</p>
                                 <p className="text-lg font-medium">{pack.courses}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Selections</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
                                 <p className="text-lg font-medium">{pack.selections}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">Created by</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}</p>
                                 <p className="text-sm">
-                                  {pack.createdBy} on {new Date(pack.createdAt).toLocaleDateString()}
+                                  {pack.createdBy} {t("manager.electives.on")}{" "}
+                                  {new Date(pack.createdAt).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
@@ -287,7 +292,7 @@ export default function ManageElectivesPage() {
                               <Button asChild variant="outline">
                                 <Link href={`/manager/electives/course/${pack.id}`}>
                                   <Eye className="mr-2 h-4 w-4" />
-                                  View Details
+                                  {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
                               <DropdownMenu>
@@ -298,10 +303,12 @@ export default function ManageElectivesPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem>
-                                    {pack.status === "active" ? "Deactivate" : "Activate"}
+                                    {pack.status === "active"
+                                      ? t("manager.electives.inactive")
+                                      : t("manager.electives.active")}
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>Edit</DropdownMenuItem>
-                                  <DropdownMenuItem>Export Data</DropdownMenuItem>
+                                  <DropdownMenuItem>{t("manager.electives.edit")}</DropdownMenuItem>
+                                  <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -311,11 +318,11 @@ export default function ManageElectivesPage() {
                     </div>
                   ) : (
                     <div className="text-center py-10">
-                      <p className="text-muted-foreground">No course elective packs found.</p>
+                      <p className="text-muted-foreground">{t("manager.electives.noCourseElectives")}</p>
                       <Button asChild variant="outline" className="mt-4">
                         <Link href="/manager/electives/course-builder">
                           <Plus className="mr-2 h-4 w-4" />
-                          Create New Elective Pack
+                          {t("manager.electives.createNewElectivePack")}
                         </Link>
                       </Button>
                     </div>
@@ -339,17 +346,18 @@ export default function ManageElectivesPage() {
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
                               <div>
-                                <p className="text-sm text-muted-foreground">Universities</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.universities")}</p>
                                 <p className="text-lg font-medium">{pack.universities}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Selections</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
                                 <p className="text-lg font-medium">{pack.selections}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">Created by</p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}</p>
                                 <p className="text-sm">
-                                  {pack.createdBy} on {new Date(pack.createdAt).toLocaleDateString()}
+                                  {pack.createdBy} {t("manager.electives.on")}{" "}
+                                  {new Date(pack.createdAt).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
@@ -357,7 +365,7 @@ export default function ManageElectivesPage() {
                               <Button asChild variant="outline">
                                 <Link href={`/manager/electives/exchange/${pack.id}`}>
                                   <Eye className="mr-2 h-4 w-4" />
-                                  View Details
+                                  {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
                               <DropdownMenu>
@@ -368,10 +376,12 @@ export default function ManageElectivesPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem>
-                                    {pack.status === "active" ? "Deactivate" : "Activate"}
+                                    {pack.status === "active"
+                                      ? t("manager.electives.inactive")
+                                      : t("manager.electives.active")}
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>Edit</DropdownMenuItem>
-                                  <DropdownMenuItem>Export Data</DropdownMenuItem>
+                                  <DropdownMenuItem>{t("manager.electives.edit")}</DropdownMenuItem>
+                                  <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -381,11 +391,11 @@ export default function ManageElectivesPage() {
                     </div>
                   ) : (
                     <div className="text-center py-10">
-                      <p className="text-muted-foreground">No exchange programs found.</p>
+                      <p className="text-muted-foreground">{t("manager.electives.noExchangePrograms")}</p>
                       <Button asChild variant="outline" className="mt-4">
                         <Link href="/manager/electives/exchange-builder">
                           <Plus className="mr-2 h-4 w-4" />
-                          Create New Exchange Program
+                          {t("manager.electives.createNewExchangeProgram")}
                         </Link>
                       </Button>
                     </div>

@@ -7,6 +7,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { BookOpen, Home, Users, GraduationCap, BookMarked, X, Globe, Book, Group, CheckSquare } from "lucide-react"
+import { useLanguage } from "@/lib/language-context"
 
 interface SidebarProps {
   open: boolean
@@ -15,6 +16,7 @@ interface SidebarProps {
 
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
+  const { t } = useLanguage()
 
   // Determine user role based on URL path
   const isAdmin = pathname.includes("/admin")
@@ -117,14 +119,14 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 icon={<Home className="h-4 w-4" />}
                 active={pathname === "/manager/dashboard"}
               >
-                Dashboard
+                {t("dashboard")}
               </NavItem>
               <NavItem
                 href="/manager/electives"
                 icon={<BookOpen className="h-4 w-4" />}
                 active={pathname.startsWith("/manager/electives")}
               >
-                Electives
+                {t("manager.dashboard.courseElectives")}
               </NavItem>
             </>
           )}
@@ -137,21 +139,21 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 icon={<Home className="h-4 w-4" />}
                 active={pathname === "/student/dashboard"}
               >
-                Dashboard
+                {t("dashboard")}
               </NavItem>
               <NavItem
                 href="/student/courses"
                 icon={<BookOpen className="h-4 w-4" />}
                 active={pathname.startsWith("/student/courses")}
               >
-                Course Selection
+                {t("courseSelection")}
               </NavItem>
               <NavItem
                 href="/student/exchange"
                 icon={<Globe className="h-4 w-4" />}
                 active={pathname.startsWith("/student/exchange")}
               >
-                Exchange Selection
+                {t("exchangeSelection")}
               </NavItem>
             </>
           )}
@@ -179,7 +181,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               <polyline points="16 17 21 12 16 7"></polyline>
               <line x1="21" y1="12" x2="9" y2="12"></line>
             </svg>
-            Logout
+            {t("logout")}
           </Link>
         </div>
       </div>
