@@ -16,8 +16,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
 import Link from "next/link"
 
+// First, import the useLanguage hook
+import { useLanguage } from "@/lib/language-context"
+
+// Add the useLanguage hook to the component
 export default function ElectivePackBuilderPage() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [activeStep, setActiveStep] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
@@ -159,7 +164,11 @@ export default function ElectivePackBuilderPage() {
   }
 
   // Updated steps for the 3-step wizard
-  const steps = [{ title: "Basic Information" }, { title: "Add Courses" }, { title: "Review & Publish" }]
+  const steps = [
+    { title: t("manager.courseBuilder.step1") },
+    { title: t("manager.courseBuilder.step2") },
+    { title: t("manager.courseBuilder.step3") },
+  ]
 
   // Add a computed pack name function
   const getPackName = () => {
@@ -209,6 +218,7 @@ export default function ElectivePackBuilderPage() {
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="space-y-6">
+        {/* Replace the header section with this updated version (removing the subtitle) */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
             <Link href="/manager/electives">
@@ -217,12 +227,11 @@ export default function ElectivePackBuilderPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Create Elective Course Selection</h1>
-              <p className="text-muted-foreground">Build a new elective course selection for students to select from</p>
+              <h1 className="text-3xl font-bold tracking-tight">{t("manager.courseBuilder.title")}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">Draft</Badge>
+            <Badge variant="outline">{t("manager.courseBuilder.draft")}</Badge>
           </div>
         </div>
 
@@ -253,7 +262,7 @@ export default function ElectivePackBuilderPage() {
         <div className="md:hidden">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium">
-              Step {activeStep + 1} of {steps.length}
+              {t("manager.courseBuilder.step")} {activeStep + 1} {t("manager.courseBuilder.of")} {steps.length}
             </p>
             <p className="text-sm font-medium">{steps[activeStep].title}</p>
           </div>
@@ -276,25 +285,25 @@ export default function ElectivePackBuilderPage() {
               <div className="space-y-6">
                 {/* Basic Information Section */}
                 <div>
-                  <h3 className="text-lg font-medium mb-4">Course Selection Information</h3>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.courseInfo")}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="semester">Semester</Label>
+                      <Label htmlFor="semester">{t("manager.courseBuilder.semester")}</Label>
                       <Select
                         value={packDetails.semester}
                         onValueChange={(value) => handleSelectChange("semester", value)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select semester" />
+                          <SelectValue placeholder={t("manager.courseBuilder.semester")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="fall">Fall</SelectItem>
-                          <SelectItem value="spring">Spring</SelectItem>
+                          <SelectItem value="fall">{t("manager.courseBuilder.fall")}</SelectItem>
+                          <SelectItem value="spring">{t("manager.courseBuilder.spring")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="year">Year</Label>
+                      <Label htmlFor="year">{t("manager.courseBuilder.year")}</Label>
                       <Input
                         id="year"
                         name="year"
@@ -311,7 +320,7 @@ export default function ElectivePackBuilderPage() {
                       <div className="flex items-center gap-2">
                         <Info className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium">Course Selection Name Preview</p>
+                          <p className="text-sm font-medium">{t("manager.courseBuilder.namePreview")}</p>
                           <p className="text-lg font-semibold">{getPackName()}</p>
                         </div>
                       </div>
@@ -321,10 +330,10 @@ export default function ElectivePackBuilderPage() {
 
                 {/* Selection Rules Section */}
                 <div>
-                  <h3 className="text-lg font-medium mb-4">Selection Rules</h3>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.selectionRules")}</h3>
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="maxSelections">Maximum Selections</Label>
+                      <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections")}</Label>
                       <div className="flex items-center gap-2">
                         <Input
                           id="maxSelections"
@@ -335,12 +344,14 @@ export default function ElectivePackBuilderPage() {
                           value={packDetails.maxSelections}
                           onChange={handleInputChange}
                         />
-                        <span className="text-sm text-muted-foreground">courses per student</span>
+                        <span className="text-sm text-muted-foreground">
+                          {t("manager.courseBuilder.coursesPerStudent")}
+                        </span>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="startDate">Selection Start Date</Label>
+                        <Label htmlFor="startDate">{t("manager.courseBuilder.startDate")}</Label>
                         <Input
                           id="startDate"
                           name="startDate"
@@ -350,7 +361,7 @@ export default function ElectivePackBuilderPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="endDate">Selection End Date</Label>
+                        <Label htmlFor="endDate">{t("manager.courseBuilder.endDate")}</Label>
                         <Input
                           id="endDate"
                           name="endDate"
@@ -364,11 +375,10 @@ export default function ElectivePackBuilderPage() {
                       <div className="flex items-start gap-2">
                         <Info className="h-5 w-5 text-amber-500 mt-0.5" />
                         <div>
-                          <p className="text-sm font-medium text-amber-800">Important Note</p>
-                          <p className="text-sm text-amber-700">
-                            Students will only be able to select courses during the specified date range. Make sure to
-                            communicate these dates to students in advance.
+                          <p className="text-sm font-medium text-amber-800">
+                            {t("manager.courseBuilder.importantNote")}
                           </p>
+                          <p className="text-sm text-amber-700">{t("manager.courseBuilder.dateRangeNote")}</p>
                         </div>
                       </div>
                     </div>
@@ -385,14 +395,16 @@ export default function ElectivePackBuilderPage() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Search courses..."
+                      placeholder={t("manager.courseBuilder.searchCourses")}
                       className="pl-8 w-full md:w-[300px]"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">{selectedCourses.length} courses selected</span>
+                    <span className="text-sm text-muted-foreground">
+                      {selectedCourses.length} {t("manager.courseBuilder.coursesSelected")}
+                    </span>
                   </div>
                 </div>
 
@@ -401,16 +413,20 @@ export default function ElectivePackBuilderPage() {
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="w-[50px] py-3 px-4 text-left text-sm font-medium"></th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Teacher</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Max Students</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseBuilder.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseBuilder.teacher")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseBuilder.maxStudents")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredCourses.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                            No courses found matching your search.
+                            {t("manager.courseBuilder.noCoursesFound")}
                           </td>
                         </tr>
                       ) : (
@@ -446,26 +462,28 @@ export default function ElectivePackBuilderPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="text-lg font-medium mb-2">Course Selection Details</h3>
+                    <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.courseSelectionDetails")}</h3>
                     <dl className="space-y-2">
                       <div className="flex justify-between">
-                        <dt className="font-medium">Name:</dt>
-                        <dd>{getPackName() || "Not specified"}</dd>
+                        <dt className="font-medium">{t("manager.courseBuilder.name")}:</dt>
+                        <dd>{getPackName() || t("manager.courseBuilder.notSpecified")}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="font-medium">Max Selections:</dt>
-                        <dd>{packDetails.maxSelections} courses</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="font-medium">Selection Period:</dt>
+                        <dt className="font-medium">{t("manager.courseBuilder.maxSelectionsLabel")}</dt>
                         <dd>
-                          {packDetails.startDate && packDetails.endDate
-                            ? `${new Date(packDetails.startDate).toLocaleDateString()} - ${new Date(packDetails.endDate).toLocaleDateString()}`
-                            : "Not specified"}
+                          {packDetails.maxSelections} {t("manager.courseBuilder.courses")}
                         </dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="font-medium">Courses:</dt>
+                        <dt className="font-medium">{t("manager.courseBuilder.selectionPeriod")}</dt>
+                        <dd>
+                          {packDetails.startDate && packDetails.endDate
+                            ? `${new Date(packDetails.startDate).toLocaleDateString()} - ${new Date(packDetails.endDate).toLocaleDateString()}`
+                            : t("manager.courseBuilder.notSpecified")}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="font-medium">{t("manager.courseBuilder.courses")}</dt>
                         <dd>{selectedCourses.length}</dd>
                       </div>
                     </dl>
@@ -473,23 +491,27 @@ export default function ElectivePackBuilderPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Selected Courses</h3>
+                  <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.selectedCourses")}</h3>
                   {selectedCourses.length === 0 ? (
                     <div className="text-center py-8 border rounded-md">
                       <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">No Courses Selected</h3>
-                      <p className="mt-2 text-muted-foreground">
-                        Go back to add courses to this elective course selection.
-                      </p>
+                      <h3 className="mt-4 text-lg font-semibold">{t("manager.courseBuilder.noCoursesSelected")}</h3>
+                      <p className="mt-2 text-muted-foreground">{t("manager.courseBuilder.goBackToAdd")}</p>
                     </div>
                   ) : (
                     <div className="rounded-md border">
                       <table className="w-full">
                         <thead>
                           <tr className="border-b bg-muted/50">
-                            <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">Teacher</th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">Max Students</th>
+                            <th className="py-3 px-4 text-left text-sm font-medium">
+                              {t("manager.courseBuilder.name")}
+                            </th>
+                            <th className="py-3 px-4 text-left text-sm font-medium">
+                              {t("manager.courseBuilder.teacher")}
+                            </th>
+                            <th className="py-3 px-4 text-left text-sm font-medium">
+                              {t("manager.courseBuilder.maxStudents")}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -518,13 +540,13 @@ export default function ElectivePackBuilderPage() {
                     <div className="flex items-start gap-2">
                       <Info className="h-5 w-5 text-amber-500 mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium text-amber-800">Missing Information</p>
+                        <p className="text-sm font-medium text-amber-800">{t("manager.courseBuilder.missingInfo")}</p>
                         <ul className="text-sm text-amber-700 list-disc list-inside">
-                          {!packDetails.semester && <li>Semester is required</li>}
-                          {!packDetails.year && <li>Year is required</li>}
-                          {!packDetails.startDate && <li>Start date is required</li>}
-                          {!packDetails.endDate && <li>End date is required</li>}
-                          {selectedCourses.length === 0 && <li>At least one course must be selected</li>}
+                          {!packDetails.semester && <li>{t("manager.courseBuilder.semesterRequired")}</li>}
+                          {!packDetails.year && <li>{t("manager.courseBuilder.yearRequired")}</li>}
+                          {!packDetails.startDate && <li>{t("manager.courseBuilder.startDateRequired")}</li>}
+                          {!packDetails.endDate && <li>{t("manager.courseBuilder.endDateRequired")}</li>}
+                          {selectedCourses.length === 0 && <li>{t("manager.courseBuilder.courseRequired")}</li>}
                         </ul>
                       </div>
                     </div>
@@ -538,17 +560,17 @@ export default function ElectivePackBuilderPage() {
               {activeStep > 0 && (
                 <Button variant="outline" onClick={handlePrevStep}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
+                  {t("manager.courseBuilder.back")}
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleSaveAsDraft}>
-                Save as Draft
+                {t("manager.courseBuilder.saveAsDraft")}
               </Button>
               {activeStep < steps.length - 1 ? (
                 <Button onClick={handleNextStep}>
-                  Next
+                  {t("manager.courseBuilder.next")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
@@ -562,7 +584,7 @@ export default function ElectivePackBuilderPage() {
                     selectedCourses.length === 0
                   }
                 >
-                  Publish Course Selection
+                  {t("manager.courseBuilder.publishCourseSelection")}
                 </Button>
               )}
             </div>

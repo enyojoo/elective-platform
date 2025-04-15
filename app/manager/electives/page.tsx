@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,80 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { UserRole } from "@/lib/types"
 import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
+
+// Move mock data outside the component to avoid recreating it on each render
+const courseElectivePacks = [
+  {
+    id: "1",
+    title: "Fall 2023",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "active",
+    courses: 12,
+    selections: 45,
+    createdBy: "John Doe",
+    createdAt: "2023-09-01",
+  },
+  {
+    id: "2",
+    title: "Spring 2024",
+    program: "Master in Business Analytics",
+    programCode: "MiBA",
+    status: "active",
+    courses: 8,
+    selections: 32,
+    createdBy: "Jane Smith",
+    createdAt: "2023-09-02",
+  },
+  {
+    id: "3",
+    title: "Spring 2023",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "inactive",
+    courses: 10,
+    selections: 38,
+    createdBy: "John Doe",
+    createdAt: "2022-09-01",
+  },
+]
+
+// Mock data for exchange programs
+const exchangePrograms = [
+  {
+    id: "1",
+    title: "Fall 2023",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "active",
+    universities: 8,
+    selections: 30,
+    createdBy: "John Doe",
+    createdAt: "2023-09-01",
+  },
+  {
+    id: "2",
+    title: "Spring 2024",
+    program: "Master in Business Analytics",
+    programCode: "MiBA",
+    status: "active",
+    universities: 6,
+    selections: 25,
+    createdBy: "Jane Smith",
+    createdAt: "2023-09-02",
+  },
+  {
+    id: "3",
+    title: "Spring 2023",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "inactive",
+    universities: 7,
+    selections: 28,
+    createdBy: "John Doe",
+    createdAt: "2022-09-01",
+  },
+]
 
 export default function ManageElectivesPage() {
   const searchParams = useSearchParams()
@@ -30,129 +104,61 @@ export default function ManageElectivesPage() {
     setActiveTab(tabParam === "exchange" ? "exchange" : "courses")
   }, [tabParam])
 
-  // Mock data for course elective packs
-  const courseElectivePacks = [
-    {
-      id: "1",
-      title: "Fall 2023",
-      program: "Master in Management",
-      programCode: "MiM",
-      status: "active",
-      courses: 12,
-      selections: 45,
-      createdBy: "John Doe",
-      createdAt: "2023-09-01",
-    },
-    {
-      id: "2",
-      title: "Spring 2024",
-      program: "Master in Business Analytics",
-      programCode: "MiBA",
-      status: "active",
-      courses: 8,
-      selections: 32,
-      createdBy: "Jane Smith",
-      createdAt: "2023-09-02",
-    },
-    {
-      id: "3",
-      title: "Spring 2023",
-      program: "Master in Management",
-      programCode: "MiM",
-      status: "inactive",
-      courses: 10,
-      selections: 38,
-      createdBy: "John Doe",
-      createdAt: "2022-09-01",
-    },
-  ]
+  // Use useMemo to avoid recalculating filtered data on every render
+  const filteredCoursePacks = useMemo(() => {
+    return courseElectivePacks.filter((pack) => {
+      return (
+        (searchTerm === "" ||
+          pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (programFilter === "all" || pack.programCode === programFilter) &&
+        (semesterFilter === "all" || pack.title === semesterFilter) &&
+        (statusFilter === "all" || pack.status === statusFilter)
+      )
+    })
+  }, [searchTerm, programFilter, semesterFilter, statusFilter])
 
-  // Mock data for exchange programs
-  const exchangePrograms = [
-    {
-      id: "1",
-      title: "Fall 2023",
-      program: "Master in Management",
-      programCode: "MiM",
-      status: "active",
-      universities: 8,
-      selections: 30,
-      createdBy: "John Doe",
-      createdAt: "2023-09-01",
-    },
-    {
-      id: "2",
-      title: "Spring 2024",
-      program: "Master in Business Analytics",
-      programCode: "MiBA",
-      status: "active",
-      universities: 6,
-      selections: 25,
-      createdBy: "Jane Smith",
-      createdAt: "2023-09-02",
-    },
-    {
-      id: "3",
-      title: "Spring 2023",
-      program: "Master in Management",
-      programCode: "MiM",
-      status: "inactive",
-      universities: 7,
-      selections: 28,
-      createdBy: "John Doe",
-      createdAt: "2022-09-01",
-    },
-  ]
+  // Use useMemo for exchange programs as well
+  const filteredExchangePrograms = useMemo(() => {
+    return exchangePrograms.filter((pack) => {
+      return (
+        (searchTerm === "" ||
+          pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (programFilter === "all" || pack.programCode === programFilter) &&
+        (semesterFilter === "all" || pack.title === semesterFilter) &&
+        (statusFilter === "all" || pack.status === statusFilter)
+      )
+    })
+  }, [searchTerm, programFilter, semesterFilter, statusFilter])
 
-  // Filter packs based on search term and filters
-  const filteredCoursePacks = courseElectivePacks.filter((pack) => {
-    return (
-      (searchTerm === "" ||
-        pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (programFilter === "all" || pack.programCode === programFilter) &&
-      (semesterFilter === "all" || pack.title === semesterFilter) &&
-      (statusFilter === "all" || pack.status === statusFilter)
-    )
-  })
-
-  // Filter exchange programs based on search term and filters
-  const filteredExchangePrograms = exchangePrograms.filter((pack) => {
-    return (
-      (searchTerm === "" ||
-        pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (programFilter === "all" || pack.programCode === programFilter) &&
-      (semesterFilter === "all" || pack.title === semesterFilter) &&
-      (statusFilter === "all" || pack.status === statusFilter)
-    )
-  })
-
-  // Get status badge based on status
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("manager.electives.active")}
-          </Badge>
-        )
-      case "inactive":
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("manager.electives.inactive")}
-          </Badge>
-        )
-      case "draft":
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("manager.electives.draft")}
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
+  // Get status badge based on status - memoize this function to avoid recreating it on each render
+  const getStatusBadge = useMemo(() => {
+    return (status: string) => {
+      switch (status) {
+        case "active":
+          return (
+            <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+              {t("manager.electives.active")}
+            </Badge>
+          )
+        case "inactive":
+          return (
+            <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+              {t("manager.electives.inactive")}
+            </Badge>
+          )
+        case "draft":
+          return (
+            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
+              {t("manager.electives.draft")}
+            </Badge>
+          )
+        default:
+          return <Badge variant="outline">{status}</Badge>
+      }
     }
-  }
+  }, [t])
 
   // Handle tab change
   const handleTabChange = (value: string) => {
@@ -175,7 +181,7 @@ export default function ManageElectivesPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <Tabs defaultValue={activeTab} value={activeTab} onValueChange={handleTabChange}>
               <div className="flex justify-between items-center mb-4">
                 <TabsList>
                   <TabsTrigger value="courses">{t("manager.electives.courseElectives")}</TabsTrigger>
@@ -307,7 +313,11 @@ export default function ManageElectivesPage() {
                                       ? t("manager.electives.inactive")
                                       : t("manager.electives.active")}
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>{t("manager.electives.edit")}</DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/course/${pack.id}/edit`}>
+                                      {t("manager.electives.edit")}
+                                    </Link>
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

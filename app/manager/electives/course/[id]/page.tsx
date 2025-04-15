@@ -262,9 +262,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
           </div>
           <div className="flex items-center gap-2">
             {getStatusBadge(electiveCourse.status)}
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              {t("manager.courseDetails.edit")}
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/manager/electives/course/${params.id}/edit`}>
+                <Edit className="mr-2 h-4 w-4" />
+                {t("manager.courseDetails.edit")}
+              </Link>
             </Button>
           </div>
         </div>
