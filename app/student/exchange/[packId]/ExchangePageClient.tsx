@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -36,24 +36,33 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [viewingUniversity, setViewingUniversity] = useState<any>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Ensure packId is available and valid
+  const packId = params?.packId || ""
 
   // Mock exchange data
   const exchangeData = {
-    id: params.packId,
+    id: packId,
     name:
-      params.packId === "fall-2023"
+      packId === "fall-2023"
         ? "Fall 2023"
-        : params.packId === "spring-2024"
+        : packId === "spring-2024"
           ? "Spring 2024"
-          : params.packId === "fall-2024"
+          : packId === "fall-2024"
             ? "Fall 2024"
             : "Spring 2025",
-    semester: params.packId.includes("fall") ? "Fall" : "Spring",
-    year: params.packId.includes("2023") ? 2023 : params.packId.includes("2024") ? 2024 : 2025,
+    semester: packId && typeof packId === "string" && packId.includes("fall") ? "Fall" : "Spring",
+    year:
+      packId && typeof packId === "string" && packId.includes("2023")
+        ? 2023
+        : packId && typeof packId === "string" && packId.includes("2024")
+          ? 2024
+          : 2025,
     maxSelections: 3,
-    status: params.packId === "spring-2025" ? "draft" : "published",
-    startDate: params.packId.includes("fall") ? "2023-08-01" : "2024-01-10",
-    endDate: params.packId.includes("fall") ? "2023-08-15" : "2024-01-25",
+    status: packId === "spring-2025" ? "draft" : "published",
+    startDate: packId && typeof packId === "string" && packId.includes("fall") ? "2023-08-01" : "2024-01-10",
+    endDate: packId && typeof packId === "string" && packId.includes("fall") ? "2023-08-15" : "2024-01-25",
   }
 
   // Mock universities data
@@ -164,34 +173,63 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
     },
   ]
 
-  // Mock student selection data
-  const existingSelection =
-    params.packId === "fall-2023"
-      ? {
-          packId: params.packId,
-          selectedUniversityIds: ["1", "3"],
-          status: SelectionStatus.APPROVED,
-          authorizedBy: "Alex Johnson",
-          createdAt: "2023-08-05",
-        }
-      : params.packId === "spring-2024"
-        ? {
-            packId: params.packId,
-            selectedUniversityIds: ["5"],
-            status: SelectionStatus.PENDING,
-            authorizedBy: "Alex Johnson",
-            createdAt: "2024-01-12",
-          }
-        : null
+  // Mock student selection data - with safe fallbacks
+  let existingSelectionData = null
+  if (packId === "fall-2023") {
+    existingSelectionData = {
+      packId: packId,
+      selectedUniversityIds: ["1", "3"],
+      status: SelectionStatus.APPROVED,
+      authorizedBy: "Alex Johnson",
+      createdAt: "2023-08-05",
+    }
+  } else if (packId === "spring-2024") {
+    existingSelectionData = {
+      packId: packId,
+      selectedUniversityIds: ["5"],
+      status: SelectionStatus.PENDING,
+      authorizedBy: "Alex Johnson",
+      createdAt: "2024-01-12",
+    }
+  }
 
-  // State for selected universities
-  const [selectedUniversities, setSelectedUniversities] = useState<string[]>(
-    existingSelection ? existingSelection.selectedUniversityIds || [] : [],
-  )
+  const existingSelection = existingSelectionData
 
-  // Handle university selection
+  // Initialize state with empty array as default
+  const [selectedUniversities, setSelectedUniversities] = useState<string[]>([])
+
+  // Use useEffect to safely set the initial state after component mounts
+  useEffect(() => {
+    if (!isInitialized) {
+      // Safely initialize the selected universities
+      const initialSelection =
+        existingSelection &&
+        existingSelection.selectedUniversityIds &&
+        Array.isArray(existingSelection.selectedUniversityIds)
+          ? existingSelection.selectedUniversityIds
+          : []
+
+      setSelectedUniversities(initialSelection)
+      setIsInitialized(true)
+    }
+  }, [existingSelection, isInitialized])
+
+  // Safe version of includes check
+  const isUniversitySelected = (universityId: string): boolean => {
+    if (!selectedUniversities || !Array.isArray(selectedUniversities)) {
+      return false
+    }
+    return selectedUniversities.includes(universityId)
+  }
+
+  // Handle university selection with safety checks
   const toggleUniversitySelection = (universityId: string) => {
-    if (selectedUniversities.includes(universityId)) {
+    if (!selectedUniversities || !Array.isArray(selectedUniversities)) {
+      setSelectedUniversities([universityId])
+      return
+    }
+
+    if (isUniversitySelected(universityId)) {
       setSelectedUniversities(selectedUniversities.filter((id) => id !== universityId))
     } else {
       if (selectedUniversities.length < exchangeData.maxSelections) {
@@ -214,12 +252,18 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
   // Format date helper
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    try {
+      const date = new Date(dateString)
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    } catch (e) {
+      return dateString
+    }
   }
 
-  // Calculate selection progress
-  const selectionProgress = (selectedUniversities.length / exchangeData.maxSelections) * 100
+  // Calculate selection progress with safety check
+  const selectionProgress = Array.isArray(selectedUniversities)
+    ? (selectedUniversities.length / exchangeData.maxSelections) * 100
+    : 0
 
   // Get status alert
   const getStatusAlert = () => {
@@ -263,13 +307,18 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
     }
   }
 
-  // Get card style based on selection status
+  // Get card style based on selection status with safety checks
   const getCardStyle = (universityId: string) => {
-    const isSelected = selectedUniversities?.includes(universityId) || false
-    const isFull =
-      universities.find((u) => u.id === universityId)?.currentStudents >=
-      universities.find((u) => u.id === universityId)?.maxStudents
-    const isDisabled = !isSelected && (selectedUniversities.length >= exchangeData.maxSelections || isFull)
+    const isSelected = isUniversitySelected(universityId)
+
+    const university = universities.find((u) => u.id === universityId)
+    const maxStudents = university?.maxStudents || 0
+    const currentStudents = university?.currentStudents || 0
+
+    const isFull = currentStudents >= maxStudents
+    const isDisabled =
+      !isSelected &&
+      (!Array.isArray(selectedUniversities) || selectedUniversities.length >= exchangeData.maxSelections || isFull)
 
     if (isSelected) {
       if (existingSelection?.status === SelectionStatus.APPROVED) {
@@ -283,6 +332,17 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
       return "opacity-60"
     }
     return ""
+  }
+
+  // If we're still initializing, show a simple loading state
+  if (!isInitialized) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="flex items-center justify-center h-[60vh]">
+          <p>Loading...</p>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -316,7 +376,8 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           <CardHeader>
             <CardTitle>{t("student.exchange.selectionProgress")}</CardTitle>
             <CardDescription>
-              {t("student.exchange.selectedOutOf")} {selectedUniversities.length} {t("student.exchange.out")}{" "}
+              {t("student.exchange.selectedOutOf")}{" "}
+              {Array.isArray(selectedUniversities) ? selectedUniversities.length : 0} {t("student.exchange.out")}{" "}
               {exchangeData.maxSelections} {t("student.exchange.allowedUniversities")}
             </CardDescription>
           </CardHeader>
@@ -339,10 +400,12 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
               }
             />
             <p className="mt-2 text-sm text-muted-foreground">
-              {selectedUniversities.length === exchangeData.maxSelections
+              {Array.isArray(selectedUniversities) && selectedUniversities.length === exchangeData.maxSelections
                 ? t("student.exchange.maxSelections")
-                : `${t("student.exchange.canSelectMore")} ${exchangeData.maxSelections - selectedUniversities.length} ${
-                    exchangeData.maxSelections - selectedUniversities.length === 1
+                : `${t("student.exchange.canSelectMore")} ${exchangeData.maxSelections - (Array.isArray(selectedUniversities) ? selectedUniversities.length : 0)} ${
+                    exchangeData.maxSelections -
+                      (Array.isArray(selectedUniversities) ? selectedUniversities.length : 0) ===
+                    1
                       ? t("student.exchange.moreUniversity")
                       : t("student.exchange.moreUniversities")
                   }`}
@@ -352,9 +415,13 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {universities.map((university) => {
-            const isSelected = selectedUniversities?.includes(university.id) || false
+            const isSelected = isUniversitySelected(university.id)
             const isFull = university.currentStudents >= university.maxStudents
-            const isDisabled = !isSelected && (selectedUniversities.length >= exchangeData.maxSelections || isFull)
+            const isDisabled =
+              !isSelected &&
+              (!Array.isArray(selectedUniversities) ||
+                selectedUniversities.length >= exchangeData.maxSelections ||
+                isFull)
             const isApproved = existingSelection?.status === SelectionStatus.APPROVED
 
             return (
@@ -427,6 +494,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
               <DialogTrigger asChild>
                 <Button
                   disabled={
+                    !Array.isArray(selectedUniversities) ||
                     selectedUniversities.length === 0 ||
                     selectedUniversities.length > exchangeData.maxSelections ||
                     exchangeData.status === "draft"
@@ -445,15 +513,16 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   <div>
                     <h4 className="text-sm font-medium mb-2">{t("student.exchange.selectedUniversities")}:</h4>
                     <ul className="space-y-2">
-                      {selectedUniversities.map((universityId) => {
-                        const university = universities.find((u) => u.id === universityId)
-                        return (
-                          <li key={universityId} className="text-sm flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            {university?.name} ({university?.city}, {university?.country})
-                          </li>
-                        )
-                      })}
+                      {Array.isArray(selectedUniversities) &&
+                        selectedUniversities.map((universityId) => {
+                          const university = universities.find((u) => u.id === universityId)
+                          return (
+                            <li key={universityId} className="text-sm flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              {university?.name} ({university?.city}, {university?.country})
+                            </li>
+                          )
+                        })}
                     </ul>
                   </div>
                   <div className="space-y-2">
@@ -499,14 +568,16 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">{t("student.exchange.availablePrograms")}</h4>
                 <div className="flex flex-wrap gap-1">
-                  {viewingUniversity?.programs.map((program: string, index: number) => (
-                    <Badge key={index} variant="outline">
-                      {program}
-                    </Badge>
-                  ))}
+                  {viewingUniversity?.programs &&
+                    Array.isArray(viewingUniversity.programs) &&
+                    viewingUniversity.programs.map((program: string, index: number) => (
+                      <Badge key={index} variant="outline">
+                        {program}
+                      </Badge>
+                    ))}
                 </div>
               </div>
-              {selectedUniversities?.includes(viewingUniversity?.id) && (
+              {viewingUniversity && viewingUniversity.id && isUniversitySelected(viewingUniversity.id) && (
                 <div className="flex justify-end">
                   <Badge
                     variant="outline"
