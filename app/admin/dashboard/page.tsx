@@ -3,20 +3,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Users, GraduationCap, BookOpen, CheckSquare, Layers, Building } from "lucide-react"
+import { Users, GraduationCap, BookOpen, Globe, Layers } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 
 export default function AdminDashboard() {
   const { language } = useLanguage()
   const translations = {
-    title: language === "en" ? "Admin Dashboard" : "Панель администратора",
-    welcome: language === "en" ? "System administration and configuration" : "Администрирование и настройка системы",
+    title: language === "en" ? "Dashboard" : "Панель управления",
 
-    // Electives
-    electives: language === "en" ? "Electives" : "Элективы",
-    totalElectives: language === "en" ? "Elective packs available" : "Доступные пакеты элективов",
-    manageElectives: language === "en" ? "Manage Electives" : "Управление элективами",
+    // Course Electives
+    courseElectives: language === "en" ? "Course Electives" : "Элективные курсы",
+    totalCourseElectives: language === "en" ? "Total course elective selections" : "Всего выборов элективных курсов",
+    manageCourseElectives: language === "en" ? "Manage Course Electives" : "Управление элективными курсами",
+
+    // Exchange Programs
+    exchangePrograms: language === "en" ? "Exchange Programs" : "Программы обмена",
+    totalExchangePrograms: language === "en" ? "Total exchange programs available" : "Всего доступных программ обмена",
+    manageExchangePrograms: language === "en" ? "Manage Exchange Programs" : "Управление программами обмена",
 
     // Courses
     courses: language === "en" ? "Courses" : "Курсы",
@@ -49,21 +53,35 @@ export default function AdminDashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{translations.title}</h1>
-          <p className="text-muted-foreground">{translations.welcome}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3">
-          {/* Electives Card */}
+          {/* Course Electives Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.electives}</CardTitle>
-              <CheckSquare className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">{translations.courseElectives}</CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">{translations.totalElectives}</p>
+              <p className="text-xs text-muted-foreground">{translations.totalCourseElectives}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/electives">{translations.manageElectives}</Link>
+                <Link href="/admin/electives?tab=courses">{translations.manageCourseElectives}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Exchange Programs Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{translations.exchangePrograms}</CardTitle>
+              <Globe className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">8</div>
+              <p className="text-xs text-muted-foreground">{translations.totalExchangePrograms}</p>
+              <Button asChild className="w-full mt-4" size="sm">
+                <Link href="/admin/electives?tab=exchange">{translations.manageExchangePrograms}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -109,21 +127,6 @@ export default function AdminDashboard() {
               <p className="text-xs text-muted-foreground">{translations.totalGroups}</p>
               <Button asChild className="w-full mt-4" size="sm">
                 <Link href="/admin/groups">{translations.manageGroups}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Degrees Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.degrees}</CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">4</div>
-              <p className="text-xs text-muted-foreground">{translations.totalDegrees}</p>
-              <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/degrees">{translations.manageDegrees}</Link>
               </Button>
             </CardContent>
           </Card>
