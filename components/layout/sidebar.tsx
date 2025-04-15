@@ -70,49 +70,49 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 icon={<Home className="h-4 w-4" />}
                 active={pathname === "/admin/dashboard"}
               >
-                Dashboard
+                {t("admin.sidebar.dashboard")}
               </NavItem>
               <NavItem
                 href="/admin/electives"
                 icon={<CheckSquare className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/electives")}
               >
-                Electives
+                {t("admin.sidebar.electives")}
               </NavItem>
               <NavItem
                 href="/admin/courses"
                 icon={<BookMarked className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/courses")}
               >
-                Courses
+                {t("admin.sidebar.courses")}
               </NavItem>
               <NavItem
                 href="/admin/programs"
                 icon={<GraduationCap className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/programs")}
               >
-                Programs
+                {t("admin.sidebar.programs")}
               </NavItem>
               <NavItem
                 href="/admin/groups"
                 icon={<Group className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/groups")}
               >
-                Groups
+                {t("admin.sidebar.groups")}
               </NavItem>
               <NavItem
                 href="/admin/degrees"
                 icon={<Book className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/degrees")}
               >
-                Degrees
+                {t("admin.sidebar.degrees")}
               </NavItem>
               <NavItem
                 href="/admin/users"
                 icon={<Users className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/users")}
               >
-                Users
+                {t("admin.sidebar.users")}
               </NavItem>
             </>
           )}

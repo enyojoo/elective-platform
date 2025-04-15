@@ -416,6 +416,14 @@ const translations: Translations = {
     "manager.exchangeBuilder.spring": "Spring",
     "manager.courseBuilder.editTitle": "Edit Elective Course Selection",
     "manager.exchangeBuilder.editTitle": "Edit Exchange Program",
+    "admin.sidebar.dashboard": "Dashboard",
+    "admin.sidebar.electives": "Electives",
+    "admin.sidebar.courses": "Courses",
+    "admin.sidebar.programs": "Programs",
+    "admin.sidebar.groups": "Groups",
+    "admin.sidebar.degrees": "Degrees",
+    "admin.sidebar.users": "Users",
+    "manager.exchangeBuilder.editExchangeProgram": "Edit Exchange Program",
   },
   ru: {
     "home.title": "Расписание ВШМ",
@@ -577,6 +585,7 @@ const translations: Translations = {
     "student.exchange.confirmYourSelection": "Подтвердите ваш выбор",
     "student.exchange.reviewSelection":
       "Пожалуйста, проверьте ваш выбор и введите ваше полное имя для авторизации этой заявки.",
+    "student.exchange.selectedUniversities": "Выбранные университеты",
     "student.exchange.yourFullName": "Ваше полное имя",
     "student.exchange.toAuthorize": "для авторизации",
     "student.exchange.enterFullName": "Введите ваше полное имя",
@@ -804,6 +813,14 @@ const translations: Translations = {
     "manager.exchangeBuilder.spring": "Весенний",
     "manager.courseBuilder.editTitle": "Редактирование выбора элективных курсов",
     "manager.exchangeBuilder.editTitle": "Редактировать программу обмена",
+    "admin.sidebar.dashboard": "Панель управления",
+    "admin.sidebar.electives": "Элективы",
+    "admin.sidebar.courses": "Курсы",
+    "admin.sidebar.programs": "Программы",
+    "admin.sidebar.groups": "Группы",
+    "admin.sidebar.degrees": "Степени",
+    "admin.sidebar.users": "Пользователи",
+    "manager.exchangeBuilder.editExchangeProgram": "Редактировать программу обмена",
   },
 }
 
