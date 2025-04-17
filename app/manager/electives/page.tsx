@@ -1,16 +1,15 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Filter, Eye, MoreHorizontal, Plus } from "lucide-react"
+import { Search, Filter, Eye, Plus } from "lucide-react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { UserRole } from "@/lib/types"
 import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
@@ -20,72 +19,54 @@ const courseElectivePacks = [
   {
     id: "1",
     title: "Fall 2023",
-    program: "Master in Management",
-    programCode: "MiM",
     status: "active",
     courses: 12,
     selections: 45,
-    createdBy: "John Doe",
-    createdAt: "2023-09-01",
+    deadline: "2023-09-15",
   },
   {
     id: "2",
     title: "Spring 2024",
-    program: "Master in Business Analytics",
-    programCode: "MiBA",
     status: "active",
     courses: 8,
     selections: 32,
-    createdBy: "Jane Smith",
-    createdAt: "2023-09-02",
+    deadline: "2023-12-15",
   },
   {
     id: "3",
     title: "Spring 2023",
-    program: "Master in Management",
-    programCode: "MiM",
     status: "inactive",
     courses: 10,
     selections: 38,
-    createdBy: "John Doe",
-    createdAt: "2022-09-01",
+    deadline: "2022-12-15",
   },
 ]
 
-// Mock data for exchange programs
+// Update the exchangePrograms array to include deadline information
 const exchangePrograms = [
   {
     id: "1",
     title: "Fall 2023",
-    program: "Master in Management",
-    programCode: "MiM",
     status: "active",
     universities: 8,
     selections: 30,
-    createdBy: "John Doe",
-    createdAt: "2023-09-01",
+    deadline: "2023-09-10",
   },
   {
     id: "2",
     title: "Spring 2024",
-    program: "Master in Business Analytics",
-    programCode: "MiBA",
     status: "active",
     universities: 6,
     selections: 25,
-    createdBy: "Jane Smith",
-    createdAt: "2023-09-02",
+    deadline: "2023-12-10",
   },
   {
     id: "3",
     title: "Spring 2023",
-    program: "Master in Management",
-    programCode: "MiM",
     status: "inactive",
     universities: 7,
     selections: 28,
-    createdBy: "John Doe",
-    createdAt: "2022-09-01",
+    deadline: "2022-12-10",
   },
 ]
 
@@ -108,29 +89,23 @@ export default function ManageElectivesPage() {
   const filteredCoursePacks = useMemo(() => {
     return courseElectivePacks.filter((pack) => {
       return (
-        (searchTerm === "" ||
-          pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (programFilter === "all" || pack.programCode === programFilter) &&
+        (searchTerm === "" || pack.title.toLowerCase().includes(searchTerm.toLowerCase())) &&
         (semesterFilter === "all" || pack.title === semesterFilter) &&
         (statusFilter === "all" || pack.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter])
+  }, [searchTerm, semesterFilter, statusFilter])
 
   // Use useMemo for exchange programs as well
   const filteredExchangePrograms = useMemo(() => {
     return exchangePrograms.filter((pack) => {
       return (
-        (searchTerm === "" ||
-          pack.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          pack.program.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (programFilter === "all" || pack.programCode === programFilter) &&
+        (searchTerm === "" || pack.title.toLowerCase().includes(searchTerm.toLowerCase())) &&
         (semesterFilter === "all" || pack.title === semesterFilter) &&
         (statusFilter === "all" || pack.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter])
+  }, [searchTerm, semesterFilter, statusFilter])
 
   // Get status badge based on status - memoize this function to avoid recreating it on each render
   const getStatusBadge = useMemo(() => {
@@ -222,18 +197,6 @@ export default function ManageElectivesPage() {
                     />
                   </div>
                   <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <Select value={programFilter} onValueChange={setProgramFilter}>
-                      <SelectTrigger className="w-[180px]">
-                        <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder={t("manager.electives.program")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("manager.electives.allPrograms")}</SelectItem>
-                        <SelectItem value="MiM">Master in Management</SelectItem>
-                        <SelectItem value="MiBA">Master in Business Analytics</SelectItem>
-                      </SelectContent>
-                    </Select>
-
                     <Select value={semesterFilter} onValueChange={setSemesterFilter}>
                       <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
@@ -272,9 +235,7 @@ export default function ManageElectivesPage() {
                               <CardTitle className="text-xl">{pack.title}</CardTitle>
                               {getStatusBadge(pack.status)}
                             </div>
-                            <CardDescription>
-                              {pack.program} ({pack.programCode})
-                            </CardDescription>
+                            {/* Remove CardDescription with program information */}
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
@@ -287,40 +248,18 @@ export default function ManageElectivesPage() {
                                 <p className="text-lg font-medium">{pack.selections}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}</p>
-                                <p className="text-sm">
-                                  {pack.createdBy} {t("manager.electives.on")}{" "}
-                                  {new Date(pack.createdAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
+                                <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
                               </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-center">
                               <Button asChild variant="outline">
                                 <Link href={`/manager/electives/course/${pack.id}`}>
                                   <Eye className="mr-2 h-4 w-4" />
                                   {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem>
-                                    {pack.status === "active"
-                                      ? t("manager.electives.inactive")
-                                      : t("manager.electives.active")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/manager/electives/course/${pack.id}/edit`}>
-                                      {t("manager.electives.edit")}
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {/* Remove the DropdownMenu component */}
                             </div>
                           </CardContent>
                         </Card>
@@ -349,9 +288,7 @@ export default function ManageElectivesPage() {
                               <CardTitle className="text-xl">{pack.title}</CardTitle>
                               {getStatusBadge(pack.status)}
                             </div>
-                            <CardDescription>
-                              {pack.program} ({pack.programCode})
-                            </CardDescription>
+                            {/* Remove CardDescription with program information */}
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
@@ -364,40 +301,18 @@ export default function ManageElectivesPage() {
                                 <p className="text-lg font-medium">{pack.selections}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}</p>
-                                <p className="text-sm">
-                                  {pack.createdBy} {t("manager.electives.on")}{" "}
-                                  {new Date(pack.createdAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
+                                <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
                               </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-center">
                               <Button asChild variant="outline">
                                 <Link href={`/manager/electives/exchange/${pack.id}`}>
                                   <Eye className="mr-2 h-4 w-4" />
                                   {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem>
-                                    {pack.status === "active"
-                                      ? t("manager.electives.inactive")
-                                      : t("manager.electives.active")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/manager/electives/exchange/${pack.id}/edit`}>
-                                      {t("manager.electives.edit")}
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>{t("manager.electives.exportData")}</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {/* Remove the DropdownMenu component */}
                             </div>
                           </CardContent>
                         </Card>

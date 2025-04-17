@@ -210,14 +210,9 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           : []
 
       setSelectedUniversities(initialSelection)
-
-      // Log the state for debugging
-      console.log("Initializing with selection:", existingSelection)
-      console.log("Exchange data status:", exchangeData.status)
-
       setIsInitialized(true)
     }
-  }, [existingSelection, isInitialized, exchangeData.status])
+  }, [existingSelection, isInitialized])
 
   // Safe version of includes check
   const isUniversitySelected = (universityId: string): boolean => {
@@ -272,7 +267,6 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
 
   // Get status alert
   const getStatusAlert = () => {
-    // First check if we have an existing selection with a status
     if (existingSelection && existingSelection.status === SelectionStatus.APPROVED) {
       return (
         <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -289,10 +283,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           <AlertDescription>{t("student.exchange.selectionPendingDesc")}</AlertDescription>
         </Alert>
       )
-    }
-
-    // If no existing selection, check the exchange program status
-    if (exchangeData.status === "draft") {
+    } else if (exchangeData.status === "draft") {
       return (
         <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <Info className="h-4 w-4" />
@@ -303,7 +294,6 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
         </Alert>
       )
     } else {
-      // Only show "Selection Period Active" if there's no existing selection and the program is published
       return (
         <Alert>
           <Info className="h-4 w-4" />

@@ -15,7 +15,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import {
+  ArrowLeft,
+  Edit,
+  Eye,
+  MoreVertical,
+  Search,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  FileDown,
+} from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -246,6 +257,91 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     setDialogOpen(true)
   }
 
+  // Update the export functions to use translated content based on the selected language
+
+  // Function to export course enrollments to CSV
+  const exportCourseEnrollmentsToCSV = (courseName: string) => {
+    // Find students who selected this course
+    const studentsInCourse = studentSelections.filter((student) => student.selectedCourses.includes(courseName))
+
+    // Create CSV header with translated column names
+    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
+
+    // Create CSV content with translated status
+    const csvContent = studentsInCourse
+      .map((student) => {
+        // Translate status based on current language
+        const translatedStatus =
+          language === "ru"
+            ? student.status === SelectionStatus.APPROVED
+              ? "Утверждено"
+              : student.status === SelectionStatus.PENDING
+                ? "На рассмотрении"
+                : "Отклонено"
+            : student.status
+
+        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},${formatDate(student.selectionDate)},${translatedStatus}`
+      })
+      .join("\n")
+
+    // Combine header and content
+    const csv = csvHeader + csvContent
+
+    // Create a blob and download
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `${courseName.replace(/\s+/g, "_")}_${language === "ru" ? "зачисления" : "enrollments"}.csv`,
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Function to export all student selections to CSV
+  const exportAllSelectionsToCSV = () => {
+    // Create CSV header with translated column names
+    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
+
+    // Create CSV content with translated status
+    const csvContent = studentSelections
+      .map((student) => {
+        // Translate status based on current language
+        const translatedStatus =
+          language === "ru"
+            ? student.status === SelectionStatus.APPROVED
+              ? "Утверждено"
+              : student.status === SelectionStatus.PENDING
+                ? "На рассмотрении"
+                : "Отклонено"
+            : student.status
+
+        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},"${student.selectedCourses.join("; ")}",${formatDate(student.selectionDate)},${translatedStatus}`
+      })
+      .join("\n")
+
+    // Combine header and content
+    const csv = csvHeader + csvContent
+
+    // Create a blob and download
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `${electiveCourse.name.replace(/\s+/g, "_")}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="space-y-6">
@@ -331,10 +427,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           {t("manager.courseDetails.professor")}
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.credits")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
                           {t("manager.courseDetails.enrollment")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.courseDetails.export")}
                         </th>
                       </tr>
                     </thead>
@@ -343,11 +439,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         <tr key={course.id} className="border-b">
                           <td className="py-3 px-4 text-sm">{course.name}</td>
                           <td className="py-3 px-4 text-sm">{course.professor}</td>
-                          <td className="py-3 px-4 text-sm">{course.credits}</td>
                           <td className="py-3 px-4 text-sm">
                             <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
                               {course.currentStudents}/{course.maxStudents}
                             </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => exportCourseEnrollmentsToCSV(course.name)}
+                              className="flex items-center gap-1 mx-auto"
+                            >
+                              <FileDown className="h-4 w-4" />
+                              {t("manager.courseDetails.download")}
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -373,9 +479,9 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                     />
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
-                    {t("manager.courseDetails.export")}
+                    {t("manager.courseDetails.exportAll")}
                   </Button>
                 </div>
               </CardHeader>

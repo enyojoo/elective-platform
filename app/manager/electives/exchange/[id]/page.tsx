@@ -278,6 +278,118 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     setDialogOpen(true)
   }
 
+  // Function to export a single university to CSV
+  const exportUniversityToCSV = (university: any) => {
+    // Define column headers based on language
+    const headers = {
+      en: ["Name", "Location", "Language", "Enrollment", "Programs"],
+      ru: ["Название", "Местоположение", "Язык", "Зачисление", "Программы"],
+    }
+
+    // Create CSV content
+    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+
+    // Add data row
+    const location = `${university.city}, ${university.country}`
+    const enrollment = `${university.currentStudents}/${university.maxStudents}`
+    const programs = university.programs.join("; ")
+
+    // Escape fields that might contain commas
+    const row = [`"${university.name}"`, `"${location}"`, `"${university.language}"`, enrollment, `"${programs}"`]
+
+    csvContent += row.join(",") + "\n"
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Function to export student selections to CSV
+  const exportStudentSelectionsToCSV = () => {
+    // Define column headers based on language
+    const headers = {
+      en: [
+        "Student Name",
+        "Student ID",
+        "Group",
+        "Program",
+        "Email",
+        "Selected Universities",
+        "Selection Date",
+        "Status",
+      ],
+      ru: [
+        "Имя студента",
+        "ID студента",
+        "Группа",
+        "Программа",
+        "Электронная почта",
+        "Выбранные университеты",
+        "Дата выбора",
+        "Статус",
+      ],
+    }
+
+    // Status translations
+    const statusTranslations = {
+      en: {
+        [SelectionStatus.APPROVED]: "Approved",
+        [SelectionStatus.PENDING]: "Pending",
+        [SelectionStatus.REJECTED]: "Rejected",
+      },
+      ru: {
+        [SelectionStatus.APPROVED]: "Утверждено",
+        [SelectionStatus.PENDING]: "На рассмотрении",
+        [SelectionStatus.REJECTED]: "Отклонено",
+      },
+    }
+
+    // Create CSV content
+    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+
+    // Add data rows
+    studentSelections.forEach((selection) => {
+      const selectedUniversities = selection.selectedUniversities.join("; ")
+      const status = statusTranslations[language as keyof typeof statusTranslations][selection.status]
+
+      // Escape fields that might contain commas
+      const row = [
+        `"${selection.studentName}"`,
+        selection.studentId,
+        selection.group,
+        `"${selection.program}"`,
+        selection.email,
+        `"${selectedUniversities}"`,
+        formatDate(selection.selectionDate),
+        `"${status}"`,
+      ]
+
+      csvContent += row.join(",") + "\n"
+    })
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="space-y-6">
@@ -349,7 +461,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
           <TabsContent value="universities" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>{t("manager.exchangeDetails.universities")}</CardTitle>
+                <CardTitle>{t("manager.exchangeDetails.universitiesTab")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
@@ -365,6 +477,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium">
                           {t("manager.exchangeDetails.enrollment")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.exchangeDetails.export")}
                         </th>
                       </tr>
                     </thead>
@@ -384,6 +499,17 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                             >
                               {university.currentStudents}/{university.maxStudents}
                             </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => exportUniversityToCSV(university)}
+                              className="flex mx-auto"
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              {t("manager.exchangeDetails.download")}
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -409,9 +535,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                     />
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={exportStudentSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
-                    {t("manager.exchangeDetails.export")}
+                    {t("manager.exchangeDetails.exportAll")}
                   </Button>
                 </div>
               </CardHeader>
