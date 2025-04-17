@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -287,7 +287,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
 
     // Create CSV content
-    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+    let universityContent = headers[language as keyof typeof headers].join(",") + "\n"
 
     // Add data row
     const location = `${university.city}, ${university.country}`
@@ -297,10 +297,10 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     // Escape fields that might contain commas
     const row = [`"${university.name}"`, `"${location}"`, `"${university.language}"`, enrollment, `"${programs}"`]
 
-    csvContent += row.join(",") + "\n"
+    universityContent += row.join(",") + "\n"
 
     // Create and download the file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([universityContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -354,7 +354,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
 
     // Create CSV content
-    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+    let selectionsContent = headers[language as keyof typeof headers].join(",") + "\n"
 
     // Add data rows
     studentSelections.forEach((selection) => {
@@ -373,11 +373,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
         `"${status}"`,
       ]
 
-      csvContent += row.join(",") + "\n"
+      selectionsContent += row.join(",") + "\n"
     })
 
     // Create and download the file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([selectionsContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -524,7 +524,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>{t("manager.exchangeDetails.studentSelections")}</CardTitle>
-                  <CardDescription>{t("manager.exchangeDetails.manageStudentSelections")}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">

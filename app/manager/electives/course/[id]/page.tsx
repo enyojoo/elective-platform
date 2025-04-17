@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -268,7 +268,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
 
     // Create CSV content with translated status
-    const csvContent = studentsInCourse
+    const courseContent = studentsInCourse
       .map((student) => {
         // Translate status based on current language
         const translatedStatus =
@@ -285,7 +285,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       .join("\n")
 
     // Combine header and content
-    const csv = csvHeader + csvContent
+    const csv = csvHeader + courseContent
 
     // Create a blob and download
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -308,7 +308,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
 
     // Create CSV content with translated status
-    const csvContent = studentSelections
+    const allSelectionsContent = studentSelections
       .map((student) => {
         // Translate status based on current language
         const translatedStatus =
@@ -325,7 +325,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       .join("\n")
 
     // Combine header and content
-    const csv = csvHeader + csvContent
+    const csv = csvHeader + allSelectionsContent
 
     // Create a blob and download
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -468,7 +468,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>{t("manager.courseDetails.studentSelections")}</CardTitle>
-                  <CardDescription>{t("manager.courseDetails.manageStudentSelections")}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">

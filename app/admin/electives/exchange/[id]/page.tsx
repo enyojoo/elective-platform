@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -18,8 +18,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-
-// Add the language import first
 import { useLanguage } from "@/lib/language-context"
 
 interface ExchangeProgramDetailPageProps {
@@ -221,7 +219,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     },
   ]
 
-  // Replace the existing formatDate function with this one:
+  // Format date helper
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
@@ -235,13 +233,13 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
   const getStatusBadge = (status: ElectivePackStatus) => {
     switch (status) {
       case ElectivePackStatus.DRAFT:
-        return <Badge variant="outline">Draft</Badge>
+        return <Badge variant="outline">{t("manager.status.draft")}</Badge>
       case ElectivePackStatus.PUBLISHED:
-        return <Badge variant="secondary">Published</Badge>
+        return <Badge variant="secondary">{t("manager.status.published")}</Badge>
       case ElectivePackStatus.CLOSED:
-        return <Badge variant="destructive">Closed</Badge>
+        return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
       case ElectivePackStatus.ARCHIVED:
-        return <Badge variant="default">Archived</Badge>
+        return <Badge variant="default">{t("manager.status.archived")}</Badge>
       default:
         return null
     }
@@ -254,21 +252,21 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
-            Approved
+            {t("manager.exchangeDetails.approved")}
           </Badge>
         )
       case SelectionStatus.PENDING:
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
-            Pending
+            {t("manager.exchangeDetails.pending")}
           </Badge>
         )
       case SelectionStatus.REJECTED:
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
-            Rejected
+            {t("manager.exchangeDetails.rejected")}
           </Badge>
         )
       default:
@@ -280,6 +278,118 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
   const openStudentDialog = (student: any) => {
     setSelectedStudent(student)
     setDialogOpen(true)
+  }
+
+  // Function to export a single university to CSV
+  const exportUniversityToCSV = (university: any) => {
+    // Define column headers based on language
+    const headers = {
+      en: ["Name", "Location", "Language", "Enrollment", "Programs"],
+      ru: ["Название", "Местоположение", "Язык", "Зачисление", "Программы"],
+    }
+
+    // Create CSV content
+    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+
+    // Add data row
+    const location = `${university.city}, ${university.country}`
+    const enrollment = `${university.currentStudents}/${university.maxStudents}`
+    const programs = university.programs.join("; ")
+
+    // Escape fields that might contain commas
+    const row = [`"${university.name}"`, `"${location}"`, `"${university.language}"`, enrollment, `"${programs}"`]
+
+    csvContent += row.join(",") + "\n"
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Function to export student selections to CSV
+  const exportStudentSelectionsToCSV = () => {
+    // Define column headers based on language
+    const headers = {
+      en: [
+        "Student Name",
+        "Student ID",
+        "Group",
+        "Program",
+        "Email",
+        "Selected Universities",
+        "Selection Date",
+        "Status",
+      ],
+      ru: [
+        "Имя студента",
+        "ID студента",
+        "Группа",
+        "Программа",
+        "Электронная почта",
+        "Выбранные университеты",
+        "Дата выбора",
+        "Статус",
+      ],
+    }
+
+    // Status translations
+    const statusTranslations = {
+      en: {
+        [SelectionStatus.APPROVED]: "Approved",
+        [SelectionStatus.PENDING]: "Pending",
+        [SelectionStatus.REJECTED]: "Rejected",
+      },
+      ru: {
+        [SelectionStatus.APPROVED]: "Утверждено",
+        [SelectionStatus.PENDING]: "На рассмотрении",
+        [SelectionStatus.REJECTED]: "Отклонено",
+      },
+    }
+
+    // Create CSV content
+    let csvContent = headers[language as keyof typeof headers].join(",") + "\n"
+
+    // Add data rows
+    studentSelections.forEach((selection) => {
+      const selectedUniversities = selection.selectedUniversities.join("; ")
+      const status = statusTranslations[language as keyof typeof statusTranslations][selection.status]
+
+      // Escape fields that might contain commas
+      const row = [
+        `"${selection.studentName}"`,
+        selection.studentId,
+        selection.group,
+        `"${selection.program}"`,
+        selection.email,
+        `"${selectedUniversities}"`,
+        formatDate(selection.selectionDate),
+        `"${status}"`,
+      ]
+
+      csvContent += row.join(",") + "\n"
+    })
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -301,35 +411,37 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
         <Card>
           <CardHeader>
-            <CardTitle>Program Details</CardTitle>
+            <CardTitle>{t("manager.exchangeDetails.programDetails")}</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="font-medium">Selection Period:</dt>
+                <dt className="font-medium">{t("manager.exchangeDetails.selectionPeriod")}:</dt>
                 <dd>
                   {formatDate(exchangeProgram.startDate)} - {formatDate(exchangeProgram.endDate)}
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Max Selections:</dt>
-                <dd>{exchangeProgram.maxSelections} universities</dd>
+                <dt className="font-medium">{t("manager.exchangeDetails.maxSelections")}:</dt>
+                <dd>
+                  {exchangeProgram.maxSelections} {t("manager.exchangeDetails.universities")}
+                </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Universities:</dt>
+                <dt className="font-medium">{t("manager.exchangeDetails.universities")}:</dt>
                 <dd>{exchangeProgram.universitiesCount}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Students Enrolled:</dt>
+                <dt className="font-medium">{t("manager.exchangeDetails.studentsEnrolled")}:</dt>
                 <dd>{exchangeProgram.studentsEnrolled}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">Created:</dt>
+                <dt className="font-medium">{t("manager.exchangeDetails.created")}:</dt>
                 <dd>{formatDate(exchangeProgram.createdAt)}</dd>
               </div>
               {/* Update the status display in the program details card */}
               <div className="flex justify-between">
-                <dt className="font-medium">Status:</dt>
+                <dt className="font-medium">{t("manager.exchangeDetails.status")}:</dt>
                 <dd>{t(`manager.status.${exchangeProgram.status.toLowerCase()}`)}</dd>
               </div>
             </dl>
@@ -338,23 +450,32 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
         <Tabs defaultValue="universities">
           <TabsList>
-            <TabsTrigger value="universities">Universities</TabsTrigger>
-            <TabsTrigger value="students">Student Selections</TabsTrigger>
+            <TabsTrigger value="universities">{t("manager.exchangeDetails.universitiesTab")}</TabsTrigger>
+            <TabsTrigger value="students">{t("manager.exchangeDetails.studentsTab")}</TabsTrigger>
           </TabsList>
           <TabsContent value="universities" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Universities</CardTitle>
+                <CardTitle>{t("manager.exchangeDetails.universitiesTab")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Location</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Language</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.exchangeDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.location")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.language")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.enrollment")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.exchangeDetails.export")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -374,6 +495,17 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                               {university.currentStudents}/{university.maxStudents}
                             </Badge>
                           </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => exportUniversityToCSV(university)}
+                              className="flex mx-auto"
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              {t("manager.exchangeDetails.download")}
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -386,21 +518,20 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Student Selections</CardTitle>
-                  <CardDescription>Manage student selections for this exchange program</CardDescription>
+                  <CardTitle>{t("manager.exchangeDetails.studentSelections")}</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="search"
-                      placeholder="Search students..."
+                      placeholder={t("manager.exchangeDetails.searchStudents")}
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                     />
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={exportStudentSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
-                    Export
+                    {t("manager.exchangeDetails.exportAll")}
                   </Button>
                 </div>
               </CardHeader>
@@ -409,12 +540,22 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Group</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">View</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.exchangeDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.group")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.selectionDate")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.exchangeDetails.status")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.exchangeDetails.view")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.exchangeDetails.actions")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -439,17 +580,17 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <Edit className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t("manager.exchangeDetails.edit")}
                                 </DropdownMenuItem>
                                 {selection.status === SelectionStatus.PENDING && (
                                   <>
                                     <DropdownMenuItem className="text-green-600">
                                       <CheckCircle className="mr-2 h-4 w-4" />
-                                      Approve
+                                      {t("manager.exchangeDetails.approve")}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem className="text-red-600">
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      Reject
+                                      {t("manager.exchangeDetails.reject")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -473,40 +614,41 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
           {selectedStudent && (
             <>
               <DialogHeader>
-                <DialogTitle>Student Selection Details</DialogTitle>
+                <DialogTitle>{t("manager.exchangeDetails.studentDetails")}</DialogTitle>
                 <DialogDescription>
-                  View details for {selectedStudent.studentName}'s exchange selection
+                  {t("manager.exchangeDetails.viewDetailsFor")} {selectedStudent.studentName}
+                  {t("manager.exchangeDetails.exchangeSelection")}
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-medium">Student Information</h3>
+                    <h3 className="text-sm font-medium">{t("manager.exchangeDetails.studentInformation")}</h3>
                     <div className="mt-2 space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="font-medium">Name:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.name")}:</span>
                         <span>{selectedStudent.studentName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">ID:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.id")}:</span>
                         <span>{selectedStudent.studentId}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">Email:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.email")}:</span>
                         <span>{selectedStudent.email}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">Group:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.group")}:</span>
                         <span>{selectedStudent.group}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">Program:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.program")}:</span>
                         <span>{selectedStudent.program}</span>
                       </div>
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium">Selected Universities</h3>
+                    <h3 className="text-sm font-medium">{t("manager.exchangeDetails.selectedUniversities")}</h3>
                     <div className="mt-2 space-y-2">
                       {selectedStudent.selectedUniversities.map((university: string, index: number) => (
                         <div key={index} className="rounded-md border p-2">
@@ -520,14 +662,14 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium">Selection Information</h3>
+                    <h3 className="text-sm font-medium">{t("manager.exchangeDetails.selectionInformation")}</h3>
                     <div className="mt-2 space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="font-medium">Date:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.date")}:</span>
                         <span>{formatDate(selectedStudent.selectionDate)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">Status:</span>
+                        <span className="font-medium">{t("manager.exchangeDetails.status")}:</span>
                         <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
                       </div>
                     </div>
@@ -543,7 +685,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       onClick={() => console.log("Approve selection")}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
-                      Approve
+                      {t("manager.exchangeDetails.approve")}
                     </Button>
                     <Button
                       variant="outline"
@@ -551,12 +693,12 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       onClick={() => console.log("Reject selection")}
                     >
                       <XCircle className="mr-2 h-4 w-4" />
-                      Reject
+                      {t("manager.exchangeDetails.reject")}
                     </Button>
                   </>
                 )}
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  Close
+                  {t("manager.exchangeDetails.close")}
                 </Button>
               </DialogFooter>
             </>
