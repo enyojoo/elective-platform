@@ -13,12 +13,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 interface ExchangeProgramDetailPageProps {
   params: {
@@ -30,7 +33,13 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   // State for dialog
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  // Add a new state for the edit dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [studentToEdit, setStudentToEdit] = useState<any>(null)
+
   const { t, language } = useLanguage()
+  const { toast } = useToast()
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -278,6 +287,25 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     setDialogOpen(true)
   }
 
+  // Add this function after the openStudentDialog function
+  // Function to open edit dialog for a student selection
+  const openEditDialog = (student: any) => {
+    setStudentToEdit({
+      ...student,
+      // Create a copy of the selected universities for editing
+      editedUniversities: [...student.selectedUniversities],
+    })
+    setEditDialogOpen(true)
+  }
+
+  // Clean up function to ensure dialogs are properly closed
+  useEffect(() => {
+    return () => {
+      setDialogOpen(false)
+      setEditDialogOpen(false)
+    }
+  }, [])
+
   // Function to export a single university to CSV
   const exportUniversityToCSV = (university: any) => {
     // Define column headers based on language
@@ -388,6 +416,31 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // Add this function before the return statement
+  // Function to handle saving edited student selection
+  const saveStudentSelection = () => {
+    // In a real application, this would make an API call to update the database
+    console.log("Saving edited selection for student:", studentToEdit)
+
+    // Update the local state for demo purposes
+    const updatedSelections = studentSelections.map((student) =>
+      student.id === studentToEdit.id
+        ? { ...student, selectedUniversities: studentToEdit.editedUniversities }
+        : student,
+    )
+
+    // Close the dialog
+    setEditDialogOpen(false)
+
+    // Show toast notification with translated messages
+    window.setTimeout(() => {
+      toast({
+        title: t("toast.selection.updated"),
+        description: t("toast.selection.updated.exchange.description").replace("{0}", studentToEdit.studentName),
+      })
+    }, 100)
   }
 
   return (
@@ -583,21 +636,60 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   {t("manager.exchangeDetails.edit")}
                                 </DropdownMenuItem>
                                 {selection.status === SelectionStatus.PENDING && (
                                   <>
-                                    <DropdownMenuItem className="text-green-600">
+                                    <DropdownMenuItem
+                                      className="text-green-600"
+                                      onClick={() => {
+                                        toast({
+                                          title: t("toast.selection.approved"),
+                                          description: t("toast.selection.approved.description").replace(
+                                            "{0}",
+                                            selection.studentName,
+                                          ),
+                                        })
+                                      }}
+                                    >
                                       <CheckCircle className="mr-2 h-4 w-4" />
                                       {t("manager.exchangeDetails.approve")}
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-red-600">
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() => {
+                                        toast({
+                                          title: t("toast.selection.rejected"),
+                                          description: t("toast.selection.rejected.description").replace(
+                                            "{0}",
+                                            selection.studentName,
+                                          ),
+                                        })
+                                      }}
+                                    >
                                       <XCircle className="mr-2 h-4 w-4" />
                                       {t("manager.exchangeDetails.reject")}
                                     </DropdownMenuItem>
                                   </>
+                                )}
+                                {selection.status === SelectionStatus.APPROVED && (
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => {
+                                      toast({
+                                        title: t("toast.selection.withdrawn"),
+                                        description: t("toast.selection.withdrawn.description").replace(
+                                          "{0}",
+                                          selection.studentName,
+                                        ),
+                                      })
+                                    }}
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    {t("manager.exchangeDetails.withdraw")}
+                                  </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -614,7 +706,18 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       </div>
 
       {/* Student Details Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            // Small delay to ensure the dialog is fully closed before resetting state
+            setTimeout(() => {
+              setSelectedStudent(null)
+            }, 300)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[500px]">
           {selectedStudent && (
             <>
@@ -682,34 +785,154 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                 </div>
               </div>
               <DialogFooter>
-                {selectedStudent.status === SelectionStatus.PENDING && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => console.log("Approve selection")}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => console.log("Reject selection")}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.reject")}
-                    </Button>
-                  </>
-                )}
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  {t("manager.exchangeDetails.close")}
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                  onClick={() => {
+                    toast({
+                      title: t("toast.selection.approved"),
+                      description: t("toast.selection.approved.description").replace(
+                        "{0}",
+                        selectedStudent.studentName,
+                      ),
+                    })
+                    setDialogOpen(false)
+                  }}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.approve")}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                  onClick={() => {
+                    toast({
+                      title: t("toast.selection.rejected"),
+                      description: t("toast.selection.rejected.description").replace(
+                        "{0}",
+                        selectedStudent.studentName,
+                      ),
+                    })
+                    setDialogOpen(false)
+                  }}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.reject")}
                 </Button>
               </DialogFooter>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Student Selection Edit Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open)
+          if (!open) {
+            // Small delay to ensure the dialog is fully closed before resetting state
+            setTimeout(() => {
+              setStudentToEdit(null)
+            }, 300)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          {studentToEdit && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t("manager.exchangeDetails.editStudentSelection")}</DialogTitle>
+                <DialogDescription>
+                  {t("manager.exchangeDetails.editSelectionFor")} {studentToEdit.studentName}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium">{t("manager.exchangeDetails.studentInformation")}</h3>
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="font-medium">{t("manager.exchangeDetails.name")}:</span>
+                        <span>{studentToEdit.studentName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">{t("manager.exchangeDetails.id")}:</span>
+                        <span>{studentToEdit.studentId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">{t("manager.exchangeDetails.group")}:</span>
+                        <span>{studentToEdit.group}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">{t("manager.exchangeDetails.editUniversities")}</h3>
+                    <p className="text-sm text-muted-foreground mt-1 mb-2">
+                      {t("manager.exchangeDetails.selectUpTo")} {exchangeProgram.maxSelections}{" "}
+                      {t("manager.exchangeDetails.universities")}
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {universities.map((university) => (
+                        <div key={university.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`university-${university.id}`}
+                            checked={studentToEdit.editedUniversities.includes(university.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                // Add university if not exceeding max selections
+                                if (studentToEdit.editedUniversities.length < exchangeProgram.maxSelections) {
+                                  setStudentToEdit({
+                                    ...studentToEdit,
+                                    editedUniversities: [...studentToEdit.editedUniversities, university.name],
+                                  })
+                                }
+                              } else {
+                                // Remove university
+                                setStudentToEdit({
+                                  ...studentToEdit,
+                                  editedUniversities: studentToEdit.editedUniversities.filter(
+                                    (name: string) => name !== university.name,
+                                  ),
+                                })
+                              }
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
+                            disabled={
+                              !studentToEdit.editedUniversities.includes(university.name) &&
+                              studentToEdit.editedUniversities.length >= exchangeProgram.maxSelections
+                            }
+                          />
+                          <label htmlFor={`university-${university.id}`} className="text-sm font-medium">
+                            {university.name}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({university.city}, {university.country})
+                            </span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    {t("manager.exchangeDetails.cancel")}
+                  </Button>
+                </DialogClose>
+                <Button onClick={saveStudentSelection} disabled={studentToEdit.editedUniversities.length === 0}>
+                  {t("manager.exchangeDetails.saveChanges")}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Toaster component directly in the page for testing */}
+      <Toaster />
     </DashboardLayout>
   )
 }
