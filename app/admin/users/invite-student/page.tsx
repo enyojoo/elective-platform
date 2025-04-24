@@ -14,6 +14,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
+import { useLanguage } from "@/lib/language-context"
 
 // Mock degrees data
 const mockDegrees: DegreeType[] = [
@@ -32,7 +33,9 @@ const mockPrograms: ProgramType[] = [
   { id: 6, name: "Management", code: "MGT", degreeId: 3 },
 ]
 
+// Replace the InviteStudentPage component with this updated version that uses translations
 export default function InviteStudentPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [formData, setFormData] = useState({
     name: "",
@@ -99,7 +102,7 @@ export default function InviteStudentPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Invite Student</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.inviteStudentTitle")}</h1>
           </div>
         </div>
 
@@ -108,10 +111,10 @@ export default function InviteStudentPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">{t("admin.users.fullName")}</Label>
                   <Input
                     id="name"
-                    placeholder="Enter student's full name"
+                    placeholder={t("admin.users.fullName")}
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     required
@@ -119,11 +122,11 @@ export default function InviteStudentPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="email">{t("admin.users.emailAddress")}</Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Enter student's email address"
+                    placeholder={t("admin.users.emailAddress")}
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     required
@@ -133,13 +136,13 @@ export default function InviteStudentPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="degree">Degree</Label>
+                  <Label htmlFor="degree">{t("admin.users.degree")}</Label>
                   <Select
                     value={formData.degreeId ? formData.degreeId.toString() : ""}
                     onValueChange={handleDegreeChange}
                   >
                     <SelectTrigger id="degree">
-                      <SelectValue placeholder="Select degree" />
+                      <SelectValue placeholder={t("admin.users.selectDegree")} />
                     </SelectTrigger>
                     <SelectContent>
                       {degrees.map((degree) => (
@@ -152,14 +155,18 @@ export default function InviteStudentPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="program">Program</Label>
+                  <Label htmlFor="program">{t("admin.users.program")}</Label>
                   <Select
                     value={formData.programId ? formData.programId.toString() : ""}
                     onValueChange={(value) => handleInputChange("programId", Number(value))}
                     disabled={!formData.degreeId}
                   >
                     <SelectTrigger id="program">
-                      <SelectValue placeholder={formData.degreeId ? "Select program" : "Select a degree first"} />
+                      <SelectValue
+                        placeholder={
+                          formData.degreeId ? t("admin.users.selectProgram") : t("admin.users.selectDegreeFirst")
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredPrograms.map((program) => (
@@ -172,13 +179,13 @@ export default function InviteStudentPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="enrollmentYear">Enrollment Year</Label>
+                  <Label htmlFor="enrollmentYear">{t("admin.users.enrollmentYear")}</Label>
                   <Select
                     value={formData.enrollmentYear}
                     onValueChange={(value) => handleInputChange("enrollmentYear", value)}
                   >
                     <SelectTrigger id="enrollmentYear">
-                      <SelectValue placeholder="Select enrollment year" />
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
                     </SelectTrigger>
                     <SelectContent>
                       {enrollmentYears.map((year) => (
@@ -198,14 +205,13 @@ export default function InviteStudentPage() {
                     checked={formData.sendInvitation}
                     onCheckedChange={(checked) => handleInputChange("sendInvitation", !!checked)}
                   />
-                  <Label htmlFor="sendInvitation">Send invitation email to the student</Label>
+                  <Label htmlFor="sendInvitation">{t("admin.users.sendStudentInvitation")}</Label>
                 </div>
 
                 {formData.sendInvitation && (
                   <div className="p-4 bg-muted rounded-md">
                     <p className="text-sm text-muted-foreground">
-                      An email will be sent to {formData.email || "the student"} with instructions to set up their
-                      account.
+                      {t("admin.users.studentEmailInfo").replace("{0}", formData.email || t("admin.users.student"))}
                     </p>
                   </div>
                 )}
@@ -215,11 +221,11 @@ export default function InviteStudentPage() {
 
           <div className="mt-6 flex justify-between">
             <Button variant="outline" type="button" onClick={() => router.push("/admin/users")}>
-              Cancel
+              {t("admin.users.cancel")}
             </Button>
             <Button type="submit">
               <Send className="mr-2 h-4 w-4" />
-              Send Invitation
+              {t("admin.users.sendInvitation")}
             </Button>
           </div>
         </form>

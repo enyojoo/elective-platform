@@ -36,7 +36,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:z-0",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:z-0 h-screen flex flex-col",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -61,7 +61,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             <span className="sr-only">Close</span>
           </button>
         </div>
-        <div className="flex flex-col gap-1 p-2">
+        <div className="flex flex-col gap-1 p-2 overflow-y-auto flex-grow">
           {/* Admin Navigation */}
           {isAdmin && (
             <>

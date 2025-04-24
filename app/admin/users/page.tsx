@@ -20,6 +20,8 @@ import { Search, MoreHorizontal, Filter, UserPlus } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
+// Add the useLanguage import at the top with other imports
+import { useLanguage } from "@/lib/language-context"
 
 // Mock degrees data
 const mockDegrees: DegreeType[] = [
@@ -122,7 +124,9 @@ const mockUsers = [
   },
 ]
 
+// Replace the UsersPage component with this updated version that uses translations
 export default function UsersPage() {
+  const { t } = useLanguage()
   const [users, setUsers] = useState(mockUsers)
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
@@ -176,11 +180,21 @@ export default function UsersPage() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case UserRole.ADMIN:
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{role}</Badge>
+        return (
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{t("admin.users.admin")}</Badge>
+        )
       case UserRole.PROGRAM_MANAGER:
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">Manager</Badge>
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
+            {t("admin.users.manager")}
+          </Badge>
+        )
       case UserRole.STUDENT:
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">{role}</Badge>
+        return (
+          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+            {t("admin.users.student")}
+          </Badge>
+        )
       default:
         return <Badge>{role}</Badge>
     }
@@ -190,11 +204,23 @@ export default function UsersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">{status}</Badge>
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            {t("admin.users.active")}
+          </Badge>
+        )
       case "inactive":
-        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">{status}</Badge>
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            {t("admin.users.inactive")}
+          </Badge>
+        )
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">{status}</Badge>
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
+            {t("admin.users.pending")}
+          </Badge>
+        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -205,20 +231,20 @@ export default function UsersPage() {
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-            <p className="text-muted-foreground mt-2">Manage all users in the system</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
           </div>
           <div className="flex gap-2">
             <Link href="/admin/users/invite">
               <Button variant="outline">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Invite Manager
+                {t("admin.users.inviteManager")}
               </Button>
             </Link>
             <Link href="/admin/users/invite-student">
               <Button variant="outline">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Invite Student
+                {t("admin.users.inviteStudent")}
               </Button>
             </Link>
           </div>
@@ -231,7 +257,7 @@ export default function UsersPage() {
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search users..."
+                    placeholder={t("admin.users.searchUsers")}
                     className="pl-8"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -241,26 +267,26 @@ export default function UsersPage() {
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Role" />
+                      <SelectValue placeholder={t("admin.users.role")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value={UserRole.STUDENT}>Student</SelectItem>
-                      <SelectItem value={UserRole.PROGRAM_MANAGER}>Manager</SelectItem>
-                      <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                      <SelectItem value="all">{t("admin.users.allRoles")}</SelectItem>
+                      <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
+                      <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("admin.users.manager")}</SelectItem>
+                      <SelectItem value={UserRole.ADMIN}>{t("admin.users.admin")}</SelectItem>
                     </SelectContent>
                   </Select>
 
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder={t("admin.users.status")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="all">{t("admin.users.allStatus")}</SelectItem>
+                      <SelectItem value="active">{t("admin.users.active")}</SelectItem>
+                      <SelectItem value="inactive">{t("admin.users.inactive")}</SelectItem>
+                      <SelectItem value="pending">{t("admin.users.pending")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -270,21 +296,21 @@ export default function UsersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Degree</TableHead>
-                      <TableHead>Program</TableHead>
-                      <TableHead>Enrollment Year</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[80px]">Action</TableHead>
+                      <TableHead>{t("admin.users.name")}</TableHead>
+                      <TableHead>{t("admin.users.email")}</TableHead>
+                      <TableHead>{t("admin.users.role")}</TableHead>
+                      <TableHead>{t("admin.users.degree")}</TableHead>
+                      <TableHead>{t("admin.users.program")}</TableHead>
+                      <TableHead>{t("admin.users.enrollmentYear")}</TableHead>
+                      <TableHead>{t("admin.users.status")}</TableHead>
+                      <TableHead className="w-[80px]">{t("admin.users.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {users.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No users found
+                          {t("admin.users.noUsersFound")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -306,14 +332,18 @@ export default function UsersPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
-                                  <Link href={`/admin/users/${user.id}`}>Edit</Link>
+                                  <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
                                 </DropdownMenuItem>
                                 {user.role === UserRole.PROGRAM_MANAGER && (
                                   <DropdownMenuItem>
-                                    <Link href={`/admin/users/${user.id}/assign`}>Reassign Program</Link>
+                                    <Link href={`/admin/users/${user.id}/assign`}>
+                                      {t("admin.users.reassignProgram")}
+                                    </Link>
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem className="text-destructive">Deactivate</DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive">
+                                  {t("admin.users.deactivate")}
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

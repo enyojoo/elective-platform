@@ -304,13 +304,23 @@ export default function GroupsPage() {
 
   // Helper function to get degree badge
   const getDegreeBadge = (degree: string) => {
+    // Map the English degree names to translation keys
+    const degreeKey = degree === "Bachelor's" ? "degree.bachelor" : degree === "Master's" ? "degree.master" : ""
+
+    // Get the translated degree name
+    const translatedDegree = degreeKey ? t(degreeKey) : degree
+
     switch (degree) {
       case "Bachelor's":
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">{degree}</Badge>
+        return (
+          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+            {translatedDegree}
+          </Badge>
+        )
       case "Master's":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">{degree}</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">{translatedDegree}</Badge>
       default:
-        return <Badge>{degree}</Badge>
+        return <Badge>{translatedDegree}</Badge>
     }
   }
 

@@ -15,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/components/ui/use-toast"
+// Add the useLanguage import at the top with other imports
+import { useLanguage } from "@/lib/language-context"
 
 // Mock degrees data
 const mockDegrees: DegreeType[] = [
@@ -33,7 +35,9 @@ const mockPrograms: ProgramType[] = [
   { id: 6, name: "Management", code: "MGT", degreeId: 3 },
 ]
 
+// Replace the InviteManagerPage component with this updated version that uses translations
 export default function InviteManagerPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const currentYear = new Date().getFullYear()
 
@@ -145,7 +149,7 @@ export default function InviteManagerPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Invite Program Manager</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.inviteManagerTitle")}</h1>
           </div>
         </div>
 
@@ -156,23 +160,23 @@ export default function InviteManagerPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">{t("admin.users.fullName")}</Label>
                     <Input
                       id="name"
                       name="name"
-                      placeholder="Enter full name"
+                      placeholder={t("admin.users.fullName")}
                       value={formData.name}
                       onChange={handleInputChange}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email">{t("admin.users.emailAddress")}</Label>
                     <Input
                       id="email"
                       name="email"
                       type="email"
-                      placeholder="Enter email address"
+                      placeholder={t("admin.users.emailAddress")}
                       value={formData.email}
                       onChange={handleInputChange}
                       required
@@ -185,14 +189,14 @@ export default function InviteManagerPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="degree">Degree</Label>
+                    <Label htmlFor="degree">{t("admin.users.degree")}</Label>
                     <Select
                       value={formData.degreeId}
                       onValueChange={(value) => handleSelectChange("degreeId", value)}
                       required
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select degree" />
+                        <SelectValue placeholder={t("admin.users.selectDegree")} />
                       </SelectTrigger>
                       <SelectContent>
                         {degrees.map((degree) => (
@@ -205,7 +209,7 @@ export default function InviteManagerPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="program">Program</Label>
+                    <Label htmlFor="program">{t("admin.users.program")}</Label>
                     <Select
                       value={formData.programId}
                       onValueChange={(value) => handleSelectChange("programId", value)}
@@ -213,7 +217,11 @@ export default function InviteManagerPage() {
                       required
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={formData.degreeId ? "Select program" : "Select a degree first"} />
+                        <SelectValue
+                          placeholder={
+                            formData.degreeId ? t("admin.users.selectProgram") : t("admin.users.selectDegreeFirst")
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {filteredPrograms.map((program) => (
@@ -226,14 +234,14 @@ export default function InviteManagerPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="enrollmentYear">Enrollment Year</Label>
+                    <Label htmlFor="enrollmentYear">{t("admin.users.enrollmentYear")}</Label>
                     <Select
                       value={formData.enrollmentYear}
                       onValueChange={(value) => handleSelectChange("enrollmentYear", value)}
                       required
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select year" />
+                        <SelectValue placeholder={t("admin.users.selectYear")} />
                       </SelectTrigger>
                       <SelectContent>
                         {enrollmentYears.map((year) => (
@@ -255,14 +263,13 @@ export default function InviteManagerPage() {
                     checked={formData.sendInvitation}
                     onCheckedChange={handleCheckboxChange}
                   />
-                  <Label htmlFor="sendInvitation">Send email invitation to the program manager</Label>
+                  <Label htmlFor="sendInvitation">{t("admin.users.sendEmailInvitation")}</Label>
                 </div>
 
                 {formData.sendInvitation && (
                   <div className="p-4 bg-muted rounded-md">
                     <p className="text-sm text-muted-foreground">
-                      An email will be sent to {formData.email || "the manager"} with instructions to set up their
-                      account.
+                      {t("admin.users.emailInvitationInfo").replace("{0}", formData.email || t("admin.users.manager"))}
                     </p>
                   </div>
                 )}
@@ -270,15 +277,15 @@ export default function InviteManagerPage() {
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button variant="outline" type="button" onClick={() => router.push("/admin/users")}>
-                Cancel
+                {t("admin.users.cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
-                  "Sending Invitation..."
+                  t("admin.users.sending")
                 ) : (
                   <>
                     <UserPlus className="mr-2 h-4 w-4" />
-                    Invite Manager
+                    {t("admin.users.inviteManagerButton")}
                   </>
                 )}
               </Button>

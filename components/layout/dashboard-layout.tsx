@@ -14,11 +14,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen h-screen overflow-hidden">
       <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col h-full">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 p-6 md:p-8">{children}</main>
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto">{children}</main>
       </div>
       <Toaster />
     </div>
