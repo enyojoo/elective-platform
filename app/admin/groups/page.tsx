@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, Users, Filter } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, Users, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useLanguage } from "@/lib/language-context"
 
 // Mock groups data
 const initialGroups = [
@@ -67,6 +68,67 @@ const initialGroups = [
     students: 22,
     status: "inactive",
   },
+  // Adding more mock data to test pagination
+  {
+    id: "6",
+    name: "22.B01-vshm",
+    displayName: "B01",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2022",
+    students: 26,
+    status: "inactive",
+  },
+  {
+    id: "7",
+    name: "22.B02-vshm",
+    displayName: "B02",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2022",
+    students: 24,
+    status: "inactive",
+  },
+  {
+    id: "8",
+    name: "23.M01-vshm",
+    displayName: "M01",
+    program: "Management",
+    degree: "Master's",
+    year: "2023",
+    students: 19,
+    status: "active",
+  },
+  {
+    id: "9",
+    name: "22.M01-vshm",
+    displayName: "M01",
+    program: "Management",
+    degree: "Master's",
+    year: "2022",
+    students: 20,
+    status: "inactive",
+  },
+  {
+    id: "10",
+    name: "24.B03-vshm",
+    displayName: "B03",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2024",
+    students: 22,
+    status: "active",
+  },
+  {
+    id: "11",
+    name: "24.B04-vshm",
+    displayName: "B04",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2024",
+    students: 21,
+    status: "active",
+  },
 ]
 
 // Mock programs data
@@ -89,6 +151,7 @@ interface GroupFormData {
 }
 
 export default function GroupsPage() {
+  const { t } = useLanguage()
   const [groups, setGroups] = useState(initialGroups)
   const [filteredGroups, setFilteredGroups] = useState(initialGroups)
   const [searchTerm, setSearchTerm] = useState("")
@@ -102,6 +165,10 @@ export default function GroupsPage() {
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Filters
   const [programFilter, setProgramFilter] = useState("")
@@ -142,7 +209,14 @@ export default function GroupsPage() {
     }
 
     setFilteredGroups(result)
+    setCurrentPage(1) // Reset to first page when filters change
   }, [groups, searchTerm, programFilter, yearFilter, degreeFilter])
+
+  // Get current page items
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentItems = filteredGroups.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
   const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
@@ -202,7 +276,7 @@ export default function GroupsPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this group?")) {
+    if (confirm(t("admin.groups.deleteConfirm"))) {
       setGroups(groups.filter((group) => group.id !== id))
     }
   }
@@ -244,9 +318,17 @@ export default function GroupsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">{status}</Badge>
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            {t("admin.groups.active")}
+          </Badge>
+        )
       case "inactive":
-        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">{status}</Badge>
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            {t("admin.groups.inactive")}
+          </Badge>
+        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -257,12 +339,12 @@ export default function GroupsPage() {
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Student Groups</h1>
-            <p className="text-muted-foreground mt-2">Manage student groups across all programs and years</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.groups.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("admin.groups.subtitle")}</p>
           </div>
           <Button onClick={() => handleOpenDialog()}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Group
+            {t("admin.groups.addGroup")}
           </Button>
         </div>
 
@@ -275,7 +357,7 @@ export default function GroupsPage() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Search groups..."
+                      placeholder={t("admin.groups.searchGroups")}
                       className="pl-8"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -285,10 +367,10 @@ export default function GroupsPage() {
                     <Select value={programFilter || "all"} onValueChange={setProgramFilter}>
                       <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Program" />
+                        <SelectValue placeholder={t("admin.groups.program")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Programs</SelectItem>
+                        <SelectItem value="all">{t("admin.groups.allPrograms")}</SelectItem>
                         {programs.map((program) => (
                           <SelectItem key={program} value={program}>
                             {program}
@@ -300,10 +382,10 @@ export default function GroupsPage() {
                     <Select value={yearFilter || "all"} onValueChange={setYearFilter}>
                       <SelectTrigger className="w-[130px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Year" />
+                        <SelectValue placeholder={t("admin.groups.year")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Years</SelectItem>
+                        <SelectItem value="all">{t("admin.groups.allYears")}</SelectItem>
                         {years.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
@@ -315,10 +397,10 @@ export default function GroupsPage() {
                     <Select value={degreeFilter || "all"} onValueChange={setDegreeFilter}>
                       <SelectTrigger className="w-[150px]">
                         <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Degree" />
+                        <SelectValue placeholder={t("admin.groups.degree")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Degrees</SelectItem>
+                        <SelectItem value="all">{t("admin.groups.allDegrees")}</SelectItem>
                         {degrees.map((degree) => (
                           <SelectItem key={degree} value={degree}>
                             {degree}
@@ -334,25 +416,25 @@ export default function GroupsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Group Code</TableHead>
-                      <TableHead>Display Name</TableHead>
-                      <TableHead>Program</TableHead>
-                      <TableHead>Degree</TableHead>
-                      <TableHead>Year</TableHead>
-                      <TableHead>Students</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[80px]">Action</TableHead>
+                      <TableHead>{t("admin.groups.groupCode")}</TableHead>
+                      <TableHead>{t("admin.groups.displayName")}</TableHead>
+                      <TableHead>{t("admin.groups.program")}</TableHead>
+                      <TableHead>{t("admin.groups.degree")}</TableHead>
+                      <TableHead>{t("admin.groups.year")}</TableHead>
+                      <TableHead>{t("admin.groups.students")}</TableHead>
+                      <TableHead>{t("admin.groups.status")}</TableHead>
+                      <TableHead className="w-[80px]">{t("admin.groups.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGroups.length === 0 ? (
+                    {currentItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No groups found
+                          {t("admin.groups.noGroups")}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredGroups.map((group) => (
+                      currentItems.map((group) => (
                         <TableRow key={group.id}>
                           <TableCell className="font-medium">{group.name}</TableCell>
                           <TableCell>{group.displayName}</TableCell>
@@ -376,14 +458,16 @@ export default function GroupsPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenDialog(group)}>
                                   <Pencil className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t("admin.groups.edit")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(group.id)}>
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                  {t("admin.groups.delete")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => toggleStatus(group.id)}>
-                                  {group.status === "active" ? "Deactivate" : "Activate"}
+                                  {group.status === "active"
+                                    ? t("admin.groups.deactivate")
+                                    : t("admin.groups.activate")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -394,6 +478,37 @@ export default function GroupsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination */}
+              {filteredGroups.length > itemsPerPage && (
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    aria-label={t("pagination.previous")}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-2" />
+                    {t("pagination.previous")}
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium">
+                      {currentPage} / {totalPages}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    aria-label={t("pagination.next")}
+                  >
+                    {t("pagination.next")}
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -402,36 +517,36 @@ export default function GroupsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Group" : "Add New Group"}</DialogTitle>
+            <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Group Code</Label>
+                <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
                 <Input
                   id="name"
                   name="name"
                   value={currentGroup.name}
                   onChange={handleInputChange}
-                  placeholder="e.g., 24.B01-vshm"
+                  placeholder={t("admin.groups.groupCodePlaceholder")}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="displayName">Display Name</Label>
+                <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
                 <Input
                   id="displayName"
                   name="displayName"
                   value={currentGroup.displayName}
                   onChange={handleInputChange}
-                  placeholder="e.g., B01"
+                  placeholder={t("admin.groups.displayNamePlaceholder")}
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="program">Program</Label>
+              <Label htmlFor="program">{t("admin.groups.program")}</Label>
               <select
                 id="program"
                 name="program"
@@ -440,7 +555,7 @@ export default function GroupsPage() {
                 onChange={handleInputChange}
                 required
               >
-                <option value="">Select Program</option>
+                <option value="">{t("admin.groups.selectProgram")}</option>
                 {mockPrograms.map((program) => (
                   <option key={program.id} value={program.name}>
                     {program.name} ({program.degree})
@@ -451,7 +566,7 @@ export default function GroupsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="degree">Degree</Label>
+                <Label htmlFor="degree">{t("admin.groups.degree")}</Label>
                 <select
                   id="degree"
                   name="degree"
@@ -460,7 +575,7 @@ export default function GroupsPage() {
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">Select Degree</option>
+                  <option value="">{t("admin.groups.selectDegree")}</option>
                   {degrees.map((degree) => (
                     <option key={degree} value={degree}>
                       {degree}
@@ -469,7 +584,7 @@ export default function GroupsPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
+                <Label htmlFor="year">{t("admin.groups.year")}</Label>
                 <select
                   id="year"
                   name="year"
@@ -478,7 +593,7 @@ export default function GroupsPage() {
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">Select Year</option>
+                  <option value="">{t("admin.groups.selectYear")}</option>
                   {years.map((year) => (
                     <option key={year} value={year}>
                       {year}
@@ -489,7 +604,7 @@ export default function GroupsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("admin.groups.status")}</Label>
               <select
                 id="status"
                 name="status"
@@ -497,16 +612,16 @@ export default function GroupsPage() {
                 value={currentGroup.status}
                 onChange={handleInputChange}
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">{t("admin.groups.active")}</option>
+                <option value="inactive">{t("admin.groups.inactive")}</option>
               </select>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
+                {t("admin.groups.cancel")}
               </Button>
-              <Button type="submit">{isEditing ? "Update" : "Create"}</Button>
+              <Button type="submit">{isEditing ? t("admin.groups.update") : t("admin.groups.create")}</Button>
             </div>
           </form>
         </DialogContent>

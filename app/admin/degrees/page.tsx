@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { useLanguage } from "@/lib/language-context"
 
 // Mock degree data
 const initialDegrees = [
@@ -52,6 +53,7 @@ interface DegreeFormData {
 }
 
 export default function DegreesPage() {
+  const { t } = useLanguage()
   const [degrees, setDegrees] = useState(initialDegrees)
   const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
   const [searchTerm, setSearchTerm] = useState("")
@@ -126,7 +128,7 @@ export default function DegreesPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this degree?")) {
+    if (confirm(t("admin.degrees.deleteConfirm"))) {
       setDegrees(degrees.filter((degree) => degree.id !== id))
     }
   }
@@ -149,9 +151,17 @@ export default function DegreesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">{status}</Badge>
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            {t(`admin.degrees.${status}`)}
+          </Badge>
+        )
       case "inactive":
-        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">{status}</Badge>
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            {t(`admin.degrees.${status}`)}
+          </Badge>
+        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -162,12 +172,12 @@ export default function DegreesPage() {
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Degree Management</h1>
-            <p className="text-muted-foreground mt-2">Manage academic degrees offered by the institution</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.degrees.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("admin.degrees.subtitle")}</p>
           </div>
           <Button onClick={() => handleOpenDialog()}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Degree
+            {t("admin.degrees.addDegree")}
           </Button>
         </div>
 
@@ -177,7 +187,7 @@ export default function DegreesPage() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search degrees..."
+                  placeholder={t("admin.degrees.searchDegrees")}
                   className="pl-8 max-w-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -188,19 +198,19 @@ export default function DegreesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name (English)</TableHead>
-                      <TableHead>Name (Russian)</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Duration (Years)</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[80px]">Action</TableHead>
+                      <TableHead>{t("admin.degrees.nameEn")}</TableHead>
+                      <TableHead>{t("admin.degrees.nameRu")}</TableHead>
+                      <TableHead>{t("admin.degrees.code")}</TableHead>
+                      <TableHead>{t("admin.degrees.duration")}</TableHead>
+                      <TableHead>{t("admin.degrees.status")}</TableHead>
+                      <TableHead className="w-[80px]">{t("admin.degrees.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          No degrees found
+                          {t("admin.degrees.noDegreesFound")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -221,14 +231,16 @@ export default function DegreesPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenDialog(degree)}>
                                   <Pencil className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t("admin.degrees.edit")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(degree.id)}>
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                  {t("admin.degrees.delete")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => toggleStatus(degree.id)}>
-                                  {degree.status === "active" ? "Deactivate" : "Activate"}
+                                  {degree.status === "active"
+                                    ? t("admin.degrees.deactivate")
+                                    : t("admin.degrees.activate")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -247,26 +259,26 @@ export default function DegreesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Degree" : "Add New Degree"}</DialogTitle>
+            <DialogTitle>{isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name (English)</Label>
+                <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
                 <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="nameRu">Name (Russian)</Label>
+                <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
                 <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
+                <Label htmlFor="code">{t("admin.degrees.code")}</Label>
                 <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="durationYears">Duration (Years)</Label>
+                <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
                 <Input
                   id="durationYears"
                   name="durationYears"
@@ -280,7 +292,7 @@ export default function DegreesPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("admin.degrees.status")}</Label>
               <select
                 id="status"
                 name="status"
@@ -288,15 +300,15 @@ export default function DegreesPage() {
                 value={currentDegree.status}
                 onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">{t("admin.degrees.active")}</option>
+                <option value="inactive">{t("admin.degrees.inactive")}</option>
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
+                {t("admin.degrees.cancel")}
               </Button>
-              <Button type="submit">{isEditing ? "Update" : "Create"}</Button>
+              <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
             </div>
           </form>
         </DialogContent>

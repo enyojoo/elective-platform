@@ -20,6 +20,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 
+// First, import the useLanguage hook at the top of the file with the other imports
+import { useLanguage } from "@/lib/language-context"
+
 // Mock courses data
 const mockCourses = [
   {
@@ -97,13 +100,15 @@ const mockPrograms = [
   { id: 5, name: "Bachelor in Management", code: "BiM" },
 ]
 
+// Then, inside the CoursesPage component, add the useLanguage hook after the useState declarations
 export default function CoursesPage() {
   const [courses, setCourses] = useState(mockCourses)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [programFilter, setProgramFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
+  const itemsPerPage = 10
+  const { t } = useLanguage()
 
   // Filter courses based on search term and filters
   useEffect(() => {
@@ -135,19 +140,19 @@ export default function CoursesPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            Active
+            {t("admin.courses.status.active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            Inactive
+            {t("admin.courses.status.inactive")}
           </Badge>
         )
       case "draft":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            Draft
+            {t("admin.courses.status.draft")}
           </Badge>
         )
       default:
@@ -161,18 +166,19 @@ export default function CoursesPage() {
   const currentItems = courses.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(courses.length / itemsPerPage)
 
+  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Course Management</h1>
-            <p className="text-muted-foreground mt-2">Manage elective courses and their assignments</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.courses.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("admin.courses.subtitle")}</p>
           </div>
           <Link href="/admin/courses/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Add Course
+              {t("admin.courses.addCourse")}
             </Button>
           </Link>
         </div>
@@ -185,7 +191,7 @@ export default function CoursesPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="Search courses..."
+                    placeholder={t("admin.courses.search")}
                     className="pl-8"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -195,23 +201,23 @@ export default function CoursesPage() {
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder={t("admin.courses.status")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="all">{t("admin.courses.allStatus")}</SelectItem>
+                      <SelectItem value="active">{t("admin.courses.active")}</SelectItem>
+                      <SelectItem value="inactive">{t("admin.courses.inactive")}</SelectItem>
+                      <SelectItem value="draft">{t("admin.courses.draft")}</SelectItem>
                     </SelectContent>
                   </Select>
 
                   <Select value={programFilter} onValueChange={setProgramFilter}>
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Program" />
+                      <SelectValue placeholder={t("admin.courses.program")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Programs</SelectItem>
+                      <SelectItem value="all">{t("admin.courses.allPrograms")}</SelectItem>
                       {mockPrograms.map((program) => (
                         <SelectItem key={program.id} value={program.name}>
                           {program.name}
@@ -226,11 +232,11 @@ export default function CoursesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Instructor</TableHead>
-                      <TableHead>Program</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[80px]">Action</TableHead>
+                      <TableHead>{t("admin.courses.name")}</TableHead>
+                      <TableHead>{t("admin.courses.instructor")}</TableHead>
+                      <TableHead>{t("admin.courses.program")}</TableHead>
+                      <TableHead>{t("admin.courses.status")}</TableHead>
+                      <TableHead className="w-[80px]">{t("admin.courses.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -254,13 +260,17 @@ export default function CoursesPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <Link href={`/admin/courses/${course.id}`} className="w-full">
-                                    Edit
+                                    {t("admin.courses.edit")}
                                   </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
-                                  {course.status === "active" ? "Deactivate" : "Activate"}
+                                  {course.status === "active"
+                                    ? t("admin.courses.deactivate")
+                                    : t("admin.courses.activate")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600">
+                                  {t("admin.courses.delete")}
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -269,7 +279,7 @@ export default function CoursesPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center">
-                          No courses found.
+                          {t("admin.courses.noCoursesFound")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -288,7 +298,10 @@ export default function CoursesPage() {
                           if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                      />
+                        aria-label={t("pagination.previous")}
+                      >
+                        {t("pagination.previous")}
+                      </PaginationPrevious>
                     </PaginationItem>
 
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -300,6 +313,7 @@ export default function CoursesPage() {
                             e.preventDefault()
                             setCurrentPage(page)
                           }}
+                          aria-label={`${t("pagination.page")} ${page}`}
                         >
                           {page}
                         </PaginationLink>
@@ -314,7 +328,10 @@ export default function CoursesPage() {
                           if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                      />
+                        aria-label={t("pagination.next")}
+                      >
+                        {t("pagination.next")}
+                      </PaginationNext>
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useLanguage } from "@/lib/language-context"
 
 // Define the Degree type
 interface Degree {
@@ -23,6 +24,7 @@ interface Degree {
 }
 
 export default function NewProgramPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [degrees, setDegrees] = useState<Degree[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +111,7 @@ export default function NewProgramPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Create New Program</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{t("admin.newProgram.title")}</h1>
             </div>
           </div>
         </div>
@@ -117,34 +119,34 @@ export default function NewProgramPage() {
         <form onSubmit={handleSubmit}>
           <Card>
             <CardHeader>
-              <CardTitle>Program Details</CardTitle>
+              <CardTitle>{t("admin.newProgram.programDetails")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">
-                      Program Name (English) <span className="text-destructive">*</span>
+                      {t("admin.newProgram.nameEn")} <span className="text-destructive">*</span>
                     </Label>
                     <Input id="name" name="name" value={program.name} onChange={handleInputChange} required />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="code">
-                      Program Code <span className="text-destructive">*</span>
+                      {t("admin.newProgram.code")} <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="code"
                       name="code"
                       value={program.code}
                       onChange={handleInputChange}
-                      placeholder="A unique code for the program (e.g., MiM, BBA)"
+                      placeholder={t("admin.newProgram.codePlaceholder")}
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description (English)</Label>
+                    <Label htmlFor="description">{t("admin.newProgram.descriptionEn")}</Label>
                     <Textarea
                       id="description"
                       name="description"
@@ -158,14 +160,14 @@ export default function NewProgramPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="nameRu">
-                      Program Name (Russian) <span className="text-destructive">*</span>
+                      {t("admin.newProgram.nameRu")} <span className="text-destructive">*</span>
                     </Label>
                     <Input id="nameRu" name="nameRu" value={program.nameRu} onChange={handleInputChange} required />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="degreeId">
-                      Degree <span className="text-destructive">*</span>
+                      {t("admin.newProgram.degree")} <span className="text-destructive">*</span>
                     </Label>
                     <Select
                       value={program.degreeId}
@@ -173,7 +175,7 @@ export default function NewProgramPage() {
                       disabled={loading}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a degree" />
+                        <SelectValue placeholder={t("admin.newProgram.selectDegree")} />
                       </SelectTrigger>
                       <SelectContent>
                         {degrees.map((degree) => (
@@ -186,7 +188,7 @@ export default function NewProgramPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="descriptionRu">Description (Russian)</Label>
+                    <Label htmlFor="descriptionRu">{t("admin.newProgram.descriptionRu")}</Label>
                     <Textarea
                       id="descriptionRu"
                       name="descriptionRu"
@@ -199,23 +201,23 @@ export default function NewProgramPage() {
               </div>
 
               <div className="mt-6 space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">{t("admin.newProgram.status")}</Label>
                 <Select value={program.status} onValueChange={(value) => handleSelectChange("status", value)}>
                   <SelectTrigger className="w-full max-w-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="active">{t("admin.programs.active")}</SelectItem>
+                    <SelectItem value="inactive">{t("admin.programs.inactive")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="flex justify-end mt-8 gap-4">
                 <Link href="/admin/programs">
-                  <Button variant="outline">Cancel</Button>
+                  <Button variant="outline">{t("admin.newProgram.cancel")}</Button>
                 </Link>
-                <Button type="submit">Create Program</Button>
+                <Button type="submit">{t("admin.newProgram.create")}</Button>
               </div>
             </CardContent>
           </Card>

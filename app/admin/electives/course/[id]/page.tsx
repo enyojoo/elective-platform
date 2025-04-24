@@ -682,38 +682,42 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                  onClick={() => {
-                    setViewDialogOpen(false)
-                    window.setTimeout(() => {
-                      toast({
-                        title: "Selection approved",
-                        description: `The selection for ${selectedStudent.studentName} has been approved.`,
-                      })
-                    }, 100)
-                  }}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  {t("manager.exchangeDetails.approve")}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                  onClick={() => {
-                    setViewDialogOpen(false)
-                    window.setTimeout(() => {
-                      toast({
-                        title: "Selection rejected",
-                        description: `The selection for ${selectedStudent.studentName} has been rejected.`,
-                      })
-                    }, 100)
-                  }}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  {t("manager.exchangeDetails.reject")}
-                </Button>
+                {selectedStudent.status === SelectionStatus.PENDING && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                      onClick={() => {
+                        setViewDialogOpen(false)
+                        window.setTimeout(() => {
+                          toast({
+                            title: "Selection approved",
+                            description: `The selection for ${selectedStudent.studentName} has been approved.`,
+                          })
+                        }, 100)
+                      }}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      {t("manager.exchangeDetails.approve")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                      onClick={() => {
+                        setViewDialogOpen(false)
+                        window.setTimeout(() => {
+                          toast({
+                            title: "Selection rejected",
+                            description: `The selection for ${selectedStudent.studentName} has been rejected.`,
+                          })
+                        }, 100)
+                      }}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      {t("manager.exchangeDetails.reject")}
+                    </Button>
+                  </>
+                )}
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   {t("manager.courseDetails.close")}
                 </Button>

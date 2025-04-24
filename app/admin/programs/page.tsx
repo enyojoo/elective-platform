@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/pagination"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useLanguage } from "@/lib/language-context"
 
 // Mock programs data
 const mockPrograms = [
@@ -106,11 +107,12 @@ const mockDegrees = [
 ]
 
 export default function ProgramsPage() {
+  const { t } = useLanguage()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [levelFilter, setLevelFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
+  const itemsPerPage = 10
 
   // Filter programs based on search term and filters
   const filteredPrograms = mockPrograms.filter((program) => {
@@ -135,13 +137,13 @@ export default function ProgramsPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            Active
+            {t("admin.programs.active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            Inactive
+            {t("admin.programs.inactive")}
           </Badge>
         )
       default:
@@ -154,13 +156,13 @@ export default function ProgramsPage() {
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Programs</h1>
-            <p className="text-muted-foreground mt-2">Manage degree programs and their configurations</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("admin.programs.title")}</h1>
+            <p className="text-muted-foreground mt-2">{t("admin.programs.subtitle")}</p>
           </div>
           <Link href="/admin/programs/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Add Program
+              {t("admin.programs.addProgram")}
             </Button>
           </Link>
         </div>
@@ -173,7 +175,7 @@ export default function ProgramsPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="Search programs..."
+                    placeholder={t("admin.programs.searchPrograms")}
                     className="pl-8"
                     value={searchTerm}
                     onChange={(e) => {
@@ -192,12 +194,12 @@ export default function ProgramsPage() {
                   >
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder={t("admin.programs.status")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="all">{t("admin.programs.allStatus")}</SelectItem>
+                      <SelectItem value="active">{t("admin.programs.active")}</SelectItem>
+                      <SelectItem value="inactive">{t("admin.programs.inactive")}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -210,12 +212,12 @@ export default function ProgramsPage() {
                   >
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Level" />
+                      <SelectValue placeholder={t("admin.programs.level")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Levels</SelectItem>
-                      <SelectItem value="bachelor">Bachelor's</SelectItem>
-                      <SelectItem value="master">Master's</SelectItem>
+                      <SelectItem value="all">{t("admin.programs.allLevels")}</SelectItem>
+                      <SelectItem value="bachelor">{t("admin.programs.bachelors")}</SelectItem>
+                      <SelectItem value="master">{t("admin.programs.masters")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -225,13 +227,13 @@ export default function ProgramsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Students</TableHead>
-                      <TableHead>Courses</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[80px]">Action</TableHead>
+                      <TableHead>{t("admin.programs.name")}</TableHead>
+                      <TableHead>{t("admin.programs.code")}</TableHead>
+                      <TableHead>{t("admin.programs.level")}</TableHead>
+                      <TableHead>{t("admin.programs.students")}</TableHead>
+                      <TableHead>{t("admin.programs.courses")}</TableHead>
+                      <TableHead>{t("admin.programs.status")}</TableHead>
+                      <TableHead className="w-[80px]">{t("admin.programs.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -240,7 +242,9 @@ export default function ProgramsPage() {
                         <TableRow key={program.id}>
                           <TableCell className="font-medium">{program.name}</TableCell>
                           <TableCell>{program.code}</TableCell>
-                          <TableCell>{program.level === "bachelor" ? "Bachelor's" : "Master's"}</TableCell>
+                          <TableCell>
+                            {program.level === "bachelor" ? t("admin.programs.bachelors") : t("admin.programs.masters")}
+                          </TableCell>
                           <TableCell>{program.students}</TableCell>
                           <TableCell>{program.courses}</TableCell>
                           <TableCell>{getStatusBadge(program.status)}</TableCell>
@@ -255,16 +259,18 @@ export default function ProgramsPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <Link href={`/admin/programs/${program.id}/edit`} className="w-full">
-                                    Edit
+                                    {t("admin.programs.edit")}
                                   </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
                                   <Link href={`/admin/programs/${program.id}/students`} className="w-full">
-                                    View Students
+                                    {t("admin.programs.viewStudents")}
                                   </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
-                                  {program.status === "active" ? "Deactivate" : "Activate"}
+                                  {program.status === "active"
+                                    ? t("admin.programs.deactivate")
+                                    : t("admin.programs.activate")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -274,7 +280,7 @@ export default function ProgramsPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
-                          No programs found.
+                          {t("admin.programs.noPrograms")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -293,6 +299,8 @@ export default function ProgramsPage() {
                           if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                        aria-disabled={currentPage === 1}
+                        aria-label={t("pagination.previous")}
                       />
                     </PaginationItem>
 
@@ -305,6 +313,7 @@ export default function ProgramsPage() {
                             setCurrentPage(page)
                           }}
                           isActive={currentPage === page}
+                          aria-label={`${t("pagination.page")} ${page}`}
                         >
                           {page}
                         </PaginationLink>
@@ -319,6 +328,8 @@ export default function ProgramsPage() {
                           if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                        aria-disabled={currentPage === totalPages}
+                        aria-label={t("pagination.next")}
                       />
                     </PaginationItem>
                   </PaginationContent>

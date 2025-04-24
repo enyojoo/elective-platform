@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
+// First, import the useLanguage hook at the top of the file with the other imports
+import { useLanguage } from "@/lib/language-context"
+
 // Mock programs data
 const mockPrograms = [
   { id: 1, name: "Master in Management", code: "MiM" },
@@ -30,10 +33,12 @@ const statusOptions = [
   { value: "draft", label: "Draft" },
 ]
 
+// Then, inside the NewCoursePage component, add the useLanguage hook after the useState declarations
 export default function NewCoursePage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [programs, setPrograms] = useState(mockPrograms)
+  const { t } = useLanguage()
   const [course, setCourse] = useState({
     nameEn: "",
     nameRu: "",
@@ -81,6 +86,7 @@ export default function NewCoursePage() {
     }
   }
 
+  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -90,7 +96,7 @@ export default function NewCoursePage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Add New Course</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.newCourse.title")}</h1>
         </div>
 
         <Card>
@@ -98,7 +104,7 @@ export default function NewCoursePage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="nameEn">Course Name (English)</Label>
+                  <Label htmlFor="nameEn">{t("admin.newCourse.nameEn")}</Label>
                   <Input
                     id="nameEn"
                     name="nameEn"
@@ -109,7 +115,7 @@ export default function NewCoursePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nameRu">Course Name (Russian)</Label>
+                  <Label htmlFor="nameRu">{t("admin.newCourse.nameRu")}</Label>
                   <Input
                     id="nameRu"
                     name="nameRu"
@@ -123,10 +129,10 @@ export default function NewCoursePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="programId">Program</Label>
+                  <Label htmlFor="programId">{t("admin.newCourse.program")}</Label>
                   <Select value={course.programId} onValueChange={handleProgramChange} required>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a program" />
+                      <SelectValue placeholder={t("admin.newCourse.selectProgram")} />
                     </SelectTrigger>
                     <SelectContent>
                       {programs.map((program) => (
@@ -138,15 +144,15 @@ export default function NewCoursePage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
+                  <Label htmlFor="status">{t("admin.newCourse.status")}</Label>
                   <Select value={course.status} onValueChange={handleStatusChange} required>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("admin.newCourse.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
                       {statusOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                          {t(`admin.courses.${option.value}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -156,7 +162,7 @@ export default function NewCoursePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="instructorEn">Instructor Name (English)</Label>
+                  <Label htmlFor="instructorEn">{t("admin.newCourse.instructorEn")}</Label>
                   <Input
                     id="instructorEn"
                     name="instructorEn"
@@ -167,7 +173,7 @@ export default function NewCoursePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="instructorRu">Instructor Name (Russian)</Label>
+                  <Label htmlFor="instructorRu">{t("admin.newCourse.instructorRu")}</Label>
                   <Input
                     id="instructorRu"
                     name="instructorRu"
@@ -181,11 +187,11 @@ export default function NewCoursePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="descriptionEn">Description (English)</Label>
+                  <Label htmlFor="descriptionEn">{t("admin.newCourse.descriptionEn")}</Label>
                   <Textarea
                     id="descriptionEn"
                     name="descriptionEn"
-                    placeholder="Course description in English"
+                    placeholder={t("admin.newCourse.courseDescEn")}
                     value={course.descriptionEn}
                     onChange={handleChange}
                     rows={4}
@@ -193,11 +199,11 @@ export default function NewCoursePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="descriptionRu">Description (Russian)</Label>
+                  <Label htmlFor="descriptionRu">{t("admin.newCourse.descriptionRu")}</Label>
                   <Textarea
                     id="descriptionRu"
                     name="descriptionRu"
-                    placeholder="Описание курса на русском языке"
+                    placeholder={t("admin.newCourse.courseDescRu")}
                     value={course.descriptionRu}
                     onChange={handleChange}
                     rows={4}
@@ -208,10 +214,10 @@ export default function NewCoursePage() {
 
               <div className="flex justify-end gap-4">
                 <Button variant="outline" type="button" onClick={() => router.push("/admin/courses")}>
-                  Cancel
+                  {t("admin.newCourse.cancel")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Creating..." : "Create Course"}
+                  {isSubmitting ? t("admin.newCourse.creating") : t("admin.newCourse.create")}
                 </Button>
               </div>
             </form>
