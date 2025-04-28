@@ -1,8 +1,11 @@
 "use client"
 
+import type React from "react"
+
 import { DialogFooter } from "@/components/ui/dialog"
 
 import { useState } from "react"
+import { Download, CheckCircle, Clock, Info, Users, BookOpen, ArrowLeft, Loader2 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -21,9 +24,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, CheckCircle, Clock, Info, Users, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/hooks/use-toast"
 
 interface ElectivePageProps {
   params: {
@@ -33,10 +36,14 @@ interface ElectivePageProps {
 
 export default function ElectivePage({ params }: ElectivePageProps) {
   const { t } = useLanguage()
+  const { toast } = useToast()
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [viewingCourse, setViewingCourse] = useState<any>(null)
+  const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [downloadingStatement, setDownloadingStatement] = useState(false)
 
   // Mock elective data
   const electiveData = {
@@ -164,6 +171,10 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     setTimeout(() => {
       setSubmitting(false)
       setConfirmDialogOpen(false)
+      toast({
+        title: "Selection submitted",
+        description: "Your course selection has been submitted successfully.",
+      })
       // In a real app, you would redirect or show success message
       window.location.href = "/student/electives"
     }, 1500)
@@ -242,6 +253,47 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     return ""
   }
 
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.type !== "application/pdf") {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload a PDF file",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setIsUploading(true)
+      // Simulate upload delay
+      setTimeout(() => {
+        setUploadedStatement(file)
+        setIsUploading(false)
+        toast({
+          title: "Statement uploaded",
+          description: `File "${file.name}" uploaded successfully.`,
+        })
+      }, 1000)
+    }
+  }
+
+  // Handle statement download
+  const handleDownloadStatement = () => {
+    setDownloadingStatement(true)
+    // Simulate download delay
+    setTimeout(() => {
+      // In a real app, this would download the actual statement
+      console.log("Downloading statement")
+      toast({
+        title: "Statement downloaded",
+        description: "The statement has been downloaded successfully.",
+      })
+      setDownloadingStatement(false)
+    }, 1000)
+  }
+
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
@@ -307,6 +359,67 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           </CardContent>
         </Card>
 
+        {/* Statement Download and Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("student.statement.title")}</CardTitle>
+            <CardDescription>{t("student.statement.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 w-full sm:w-[120px] h-10"
+                  onClick={handleDownloadStatement}
+                  disabled={downloadingStatement || electiveData.status === "draft"}
+                >
+                  {downloadingStatement ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{t("student.statement.download")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      <span>{t("student.statement.download")}</span>
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative w-full">
+                  <Input
+                    id="statement-upload"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    disabled={
+                      isUploading ||
+                      existingSelection?.status === SelectionStatus.APPROVED ||
+                      electiveData.status === "draft"
+                    }
+                    className="cursor-pointer"
+                  />
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{t("student.statement.uploading")}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {uploadedStatement && (
+                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm">
+                    {t("student.statement.fileUploaded")} <span className="font-medium">{uploadedStatement.name}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {electiveCourses.map((course) => {
             const isSelected = selectedCourses.includes(course.id)
@@ -368,9 +481,19 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   disabled={
                     selectedCourses.length === 0 ||
                     selectedCourses.length > electiveData.maxSelections ||
-                    electiveData.status === "draft"
+                    electiveData.status === "draft" ||
+                    !uploadedStatement
                   }
                   className="px-8"
+                  onClick={() => {
+                    if (selectedCourses.length > 0 && !uploadedStatement) {
+                      toast({
+                        title: "Statement required",
+                        description: "Please upload your signed statement before confirming your selection.",
+                        variant: "destructive",
+                      })
+                    }
+                  }}
                 >
                   {existingSelection ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
                 </Button>
@@ -395,6 +518,18 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                       })}
                     </ul>
                   </div>
+
+                  {/* Statement Information */}
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-2">Statement:</h4>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span>
+                        {uploadedStatement?.name} ({Math.round(uploadedStatement?.size / 1024)} KB)
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="student-name">
                       {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
@@ -408,7 +543,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting}>
+                  <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !uploadedStatement}>
                     {submitting ? t("student.courses.submitting") : t("student.courses.submitSelection")}
                   </Button>
                 </DialogFooter>

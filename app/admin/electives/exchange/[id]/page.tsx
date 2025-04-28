@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download, File } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -190,6 +190,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       selectedUniversities: ["University of Amsterdam", "Copenhagen Business School"],
       selectionDate: "2023-08-05",
       status: SelectionStatus.APPROVED,
+      statementFile: "alex_johnson_exchange_statement.pdf",
     },
     {
       id: "2",
@@ -201,6 +202,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       selectedUniversities: ["HEC Paris", "Stockholm School of Economics"],
       selectionDate: "2023-08-06",
       status: SelectionStatus.APPROVED,
+      statementFile: "maria_petrova_exchange_statement.pdf",
     },
     {
       id: "3",
@@ -212,6 +214,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       selectedUniversities: ["Bocconi University", "Vienna University of Economics and Business"],
       selectionDate: "2023-08-07",
       status: SelectionStatus.PENDING,
+      statementFile: "ivan_sokolov_exchange_statement.pdf",
     },
     {
       id: "4",
@@ -223,6 +226,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       selectedUniversities: ["University of Amsterdam", "Vienna University of Economics and Business"],
       selectionDate: "2023-08-08",
       status: SelectionStatus.PENDING,
+      statementFile: null,
     },
   ]
 
@@ -357,6 +361,24 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     document.body.removeChild(link)
   }
 
+  // Function to download student statement
+  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
+    if (!fileName) {
+      toast({
+        title: "No statement available",
+        description: `${studentName} has not uploaded a statement yet.`,
+      })
+      return
+    }
+
+    // In a real app, this would download the actual file
+    // For this demo, we'll just show a toast
+    toast({
+      title: "Downloading statement",
+      description: `Downloading ${fileName}`,
+    })
+  }
+
   // Function to export student selections to CSV
   const exportStudentSelectionsToCSV = () => {
     // Define column headers based on language
@@ -370,6 +392,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
         "Selected Universities",
         "Selection Date",
         "Status",
+        "Statement",
       ],
       ru: [
         "Имя студента",
@@ -380,6 +403,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
         "Выбранные университеты",
         "Дата выбора",
         "Статус",
+        "Заявление",
       ],
     }
 
@@ -405,6 +429,11 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       const selectedUniversities = selection.selectedUniversities.join("; ")
       const status = statusTranslations[language as keyof typeof statusTranslations][selection.status]
 
+      // Create a download link for the statement if available
+      const statementLink = selection.statementFile
+        ? `${window.location.origin}/api/statements/${selection.statementFile}`
+        : "Not uploaded"
+
       // Escape fields that might contain commas
       const row = [
         `"${selection.studentName}"`,
@@ -415,6 +444,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
         `"${selectedUniversities}"`,
         formatDate(selection.selectionDate),
         `"${status}"`,
+        `"${statementLink}"`,
       ]
 
       selectionsContent += row.join(",") + "\n"
@@ -591,6 +621,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <th className="py-3 px-4 text-left text-sm font-medium">
                           {t("manager.exchangeDetails.status")}
                         </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">
                           {t("manager.exchangeDetails.view")}
                         </th>
@@ -606,6 +637,19 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                           <td className="py-3 px-4 text-sm">{selection.group}</td>
                           <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
                           <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            {selection.statementFile ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-sm text-center">
                             <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
                               <Eye className="h-4 w-4" />
@@ -743,6 +787,28 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <span className="font-medium">{t("manager.exchangeDetails.status")}:</span>
                         <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Statement File Section */}
+                  <div>
+                    <h3 className="text-sm font-medium">Statement File</h3>
+                    <div className="mt-2">
+                      {selectedStudent.statementFile ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full flex items-center gap-2"
+                          onClick={() =>
+                            downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
+                          }
+                        >
+                          <File className="h-4 w-4" />
+                          Download Statement
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
+                      )}
                     </div>
                   </div>
                 </div>

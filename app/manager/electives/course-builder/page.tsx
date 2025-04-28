@@ -384,6 +384,32 @@ export default function ElectivePackBuilderPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Statement Template Upload Section */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.statementTemplate")}</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="statementTemplate">Upload Statement Template (PDF)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="statementTemplate"
+                          name="statementTemplate"
+                          type="file"
+                          accept=".pdf"
+                          className="flex-1"
+                          onChange={(e) => {
+                            // In a real app, you would handle the file upload here
+                            console.log("File selected:", e.target.files?.[0]?.name)
+                          }}
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Upload a blank statement template that students will download, sign, and re-upload.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

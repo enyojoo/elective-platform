@@ -376,6 +376,32 @@ export default function ExchangeBuilderPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Statement Upload Section */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.exchangeBuilder.statementUpload")}</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="statementFile">Upload Statement File (PDF)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="statementFile"
+                          name="statementFile"
+                          type="file"
+                          accept=".pdf"
+                          className="flex-1"
+                          onChange={(e) => {
+                            // In a real app, you would handle the file upload here
+                            console.log("File selected:", e.target.files?.[0]?.name)
+                          }}
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Upload a blank statement file that students will download, sign, and re-upload.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

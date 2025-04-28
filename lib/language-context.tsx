@@ -251,6 +251,15 @@ const translations: Translations = {
     "manager.electives.createNewExchangeProgram": "Create New Exchange Program",
     "manager.electives.edit": "Edit",
     "manager.electives.exportData": "Export Data",
+    "manager.exchangeBuilder.statementUpload": "Statement Upload",
+    "manager.exchangeBuilder.uploadStatementFile": "Upload Statement File (PDF)",
+    "manager.exchangeBuilder.statementDescription":
+      "Upload a blank statement file that students will download, sign, and re-upload.",
+    "student.statement.title": "Statement Form",
+    "student.statement.description": "Download the statement, sign it, and upload the completed form",
+    "student.statement.download": "Download",
+    "student.statement.uploading": "Uploading...",
+    "student.statement.fileUploaded": "File uploaded:",
 
     // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Back to Electives",
@@ -869,6 +878,15 @@ const translations: Translations = {
     "manager.electives.createNewExchangeProgram": "Создать новую программу обмена",
     "manager.electives.edit": "Редактировать",
     "manager.electives.exportData": "Экспорт данных",
+    "manager.exchangeBuilder.statementUpload": "Загрузка заявления",
+    "manager.exchangeBuilder.uploadStatementFile": "Загрузить файл заявления (PDF)",
+    "manager.exchangeBuilder.statementDescription":
+      "Загрузите пустой файл заявления, который студенты скачают, подпишут и загрузят обратно.",
+    "student.statement.title": "Форма заявления",
+    "student.statement.description": "Скачайте заявление, подпишите его и загрузите заполненную форму",
+    "student.statement.download": "Скачать",
+    "student.statement.uploading": "Загрузка...",
+    "student.statement.fileUploaded": "Файл загружен:",
 
     // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Назад к элективам",
@@ -1086,10 +1104,6 @@ const translations: Translations = {
     "admin.newCourse.descriptionEn": "Описание (английский)",
     "admin.newCourse.descriptionRu": "Описание (русский)",
     "admin.newCourse.cancel": "Отмена",
-    "admin.newCourse.create": "Создать курс",
-    "admin.newCourse.creating": "Создание...",
-    "admin.newCourse.courseDescEn": "Описание курса на английском языке",
-    "admin.newCourse.courseDescRu": "Описание курса на русском языке",
     "manager.courseDetails.withdraw": "Отозвать",
     "manager.exchangeDetails.withdraw": "Отозвать",
     "toast.selection.withdrawn": "Выбор отозван",

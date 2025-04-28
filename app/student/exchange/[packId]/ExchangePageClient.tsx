@@ -1,12 +1,16 @@
 "use client"
 
+import { CardFooter } from "@/components/ui/card"
+
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -20,9 +24,22 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, CheckCircle, Clock, Info, Users, Globe, MapPin, GraduationCap, ExternalLink } from "lucide-react"
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Info,
+  Users,
+  Globe,
+  MapPin,
+  GraduationCap,
+  ExternalLink,
+  Download,
+  Loader2,
+} from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/hooks/use-toast"
 
 interface ExchangePageProps {
   params: {
@@ -32,11 +49,15 @@ interface ExchangePageProps {
 
 export default function ExchangePageClient({ params }: ExchangePageProps) {
   const { t } = useLanguage()
+  const { toast } = useToast()
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [viewingUniversity, setViewingUniversity] = useState<any>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [downloadingStatement, setDownloadingStatement] = useState(false)
 
   // Ensure packId is available and valid
   const packId = params?.packId || ""
@@ -238,6 +259,47 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
     }
   }
 
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.type !== "application/pdf") {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload a PDF file",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setIsUploading(true)
+      // Simulate upload delay
+      setTimeout(() => {
+        setUploadedStatement(file)
+        setIsUploading(false)
+        toast({
+          title: "Statement uploaded",
+          description: `File "${file.name}" uploaded successfully.`,
+        })
+      }, 1000)
+    }
+  }
+
+  // Handle statement download
+  const handleDownloadStatement = () => {
+    setDownloadingStatement(true)
+    // Simulate download delay
+    setTimeout(() => {
+      // In a real app, this would download the actual statement
+      console.log("Downloading statement")
+      toast({
+        title: "Statement downloaded",
+        description: "The statement has been downloaded successfully.",
+      })
+      setDownloadingStatement(false)
+    }, 1000)
+  }
+
   // Handle submission
   const handleSubmit = () => {
     setSubmitting(true)
@@ -245,6 +307,10 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
     setTimeout(() => {
       setSubmitting(false)
       setConfirmDialogOpen(false)
+      toast({
+        title: "Selection submitted",
+        description: "Your university selection has been submitted successfully.",
+      })
       // In a real app, you would redirect or show success message
       window.location.href = "/student/exchange"
     }, 1500)
@@ -413,6 +479,68 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
           </CardContent>
         </Card>
 
+        {/* Statement Download and Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("student.statement.title")}</CardTitle>
+            <CardDescription>{t("student.statement.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 w-full sm:w-[120px] h-10"
+                  onClick={handleDownloadStatement}
+                  disabled={downloadingStatement || exchangeData.status === "draft"}
+                >
+                  {downloadingStatement ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{t("student.statement.download")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      <span>{t("student.statement.download")}</span>
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative w-full">
+                  <Input
+                    id="statement-upload"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    disabled={
+                      isUploading ||
+                      existingSelection?.status === SelectionStatus.APPROVED ||
+                      exchangeData.status === "draft"
+                    }
+                    className="cursor-pointer"
+                  />
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{t("student.statement.uploading")}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {uploadedStatement && (
+                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm">
+                    {t("student.statement.fileUploaded")} <span className="font-medium">{uploadedStatement.name}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {universities.map((university) => {
             const isSelected = isUniversitySelected(university.id)
@@ -497,9 +625,19 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                     !Array.isArray(selectedUniversities) ||
                     selectedUniversities.length === 0 ||
                     selectedUniversities.length > exchangeData.maxSelections ||
-                    exchangeData.status === "draft"
+                    exchangeData.status === "draft" ||
+                    !uploadedStatement
                   }
                   className="px-8"
+                  onClick={() => {
+                    if (Array.isArray(selectedUniversities) && selectedUniversities.length > 0 && !uploadedStatement) {
+                      toast({
+                        title: "Statement required",
+                        description: "Please upload your signed statement before confirming your selection.",
+                        variant: "destructive",
+                      })
+                    }
+                  }}
                 >
                   {existingSelection ? t("student.exchange.updateSelection") : t("student.exchange.confirmSelection")}
                 </Button>
@@ -525,6 +663,18 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                         })}
                     </ul>
                   </div>
+
+                  {/* Statement Information */}
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-2">Statement:</h4>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span>
+                        {uploadedStatement?.name} ({Math.round(uploadedStatement?.size / 1024)} KB)
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="student-name">
                       {t("student.exchange.yourFullName")} ({t("student.exchange.toAuthorize")})
@@ -538,7 +688,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting}>
+                  <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !uploadedStatement}>
                     {submitting ? t("student.exchange.submitting") : t("student.exchange.submitSelection")}
                   </Button>
                 </DialogFooter>

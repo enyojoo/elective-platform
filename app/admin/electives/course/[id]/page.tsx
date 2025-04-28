@@ -26,6 +26,7 @@ import {
   Clock,
   Download,
   FileDown,
+  File,
 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
@@ -168,6 +169,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
       selectedCourses: ["Strategic Management", "Financial Management"],
       selectionDate: "2023-08-05",
       status: SelectionStatus.APPROVED,
+      statementFile: "alex_johnson_statement.pdf",
     },
     {
       id: "2",
@@ -179,6 +181,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
       selectedCourses: ["International Marketing", "Supply Chain Management"],
       selectionDate: "2023-08-06",
       status: SelectionStatus.APPROVED,
+      statementFile: "maria_petrova_statement.pdf",
     },
     {
       id: "3",
@@ -190,6 +193,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
       selectedCourses: ["Organizational Behavior", "Business Ethics"],
       selectionDate: "2023-08-07",
       status: SelectionStatus.PENDING,
+      statementFile: "ivan_sokolov_statement.pdf",
     },
     {
       id: "4",
@@ -201,6 +205,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
       selectedCourses: ["Strategic Management", "Business Ethics"],
       selectionDate: "2023-08-08",
       status: SelectionStatus.PENDING,
+      statementFile: null,
     },
   ]
 
@@ -343,10 +348,28 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     document.body.removeChild(link)
   }
 
+  // Function to download student statement
+  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
+    if (!fileName) {
+      toast({
+        title: "No statement available",
+        description: `${studentName} has not uploaded a statement yet.`,
+      })
+      return
+    }
+
+    // In a real app, this would download the actual file
+    // For this demo, we'll just show a toast
+    toast({
+      title: "Downloading statement",
+      description: `Downloading ${fileName}`,
+    })
+  }
+
   // Function to export all student selections to CSV
   const exportAllSelectionsToCSV = () => {
     // Create CSV header with translated column names
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
+    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"},${language === "ru" ? "Заявление" : "Statement"}\n`
 
     // Create CSV content with translated status
     const allSelectionsContent = studentSelections
@@ -361,7 +384,12 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                 : "Отклонено"
             : student.status
 
-        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},"${student.selectedCourses.join("; ")}",${formatDate(student.selectionDate)},${translatedStatus}`
+        // Create a download link for the statement if available
+        const statementLink = student.statementFile
+          ? `${window.location.origin}/api/statements/${student.statementFile}`
+          : "Not uploaded"
+
+        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},"${student.selectedCourses.join("; ")}",${formatDate(student.selectionDate)},${translatedStatus},"${statementLink}"`
       })
       .join("\n")
 
@@ -528,6 +556,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                           {t("manager.courseDetails.selectionDate")}
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">
                           {t("manager.courseDetails.actions")}
@@ -541,6 +570,19 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                           <td className="py-3 px-4 text-sm">{selection.group}</td>
                           <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
                           <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            {selection.statementFile ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
+                              >
+                                <FileDown className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-sm text-center">
                             <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
                               <Eye className="h-4 w-4" />
@@ -677,6 +719,28 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                         <span className="font-medium">{t("manager.courseDetails.status")}:</span>
                         <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Statement File Section */}
+                  <div>
+                    <h3 className="text-sm font-medium">Statement File</h3>
+                    <div className="mt-2">
+                      {selectedStudent.statementFile ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full flex items-center gap-2"
+                          onClick={() =>
+                            downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
+                          }
+                        >
+                          <File className="h-4 w-4" />
+                          Download Statement
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
+                      )}
                     </div>
                   </div>
                 </div>
