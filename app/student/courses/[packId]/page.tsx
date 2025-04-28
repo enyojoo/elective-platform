@@ -71,7 +71,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "Business Ethics",
       description:
         "Explore ethical principles and moral challenges in business decision-making. This course examines the ethical dimensions of corporate behavior and the responsibilities of businesses to stakeholders. Students will analyze case studies of ethical dilemmas in various business contexts and develop frameworks for ethical decision-making. Topics include corporate social responsibility, whistleblowing, environmental ethics, and global business ethics.",
-      credits: 3,
       maxStudents: 30,
       currentStudents: electiveData.status === "draft" ? 0 : 18,
       teacher: "Dr. Anna Ivanova",
@@ -81,7 +80,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "Digital Marketing",
       description:
         "Learn modern digital marketing strategies and tools for business growth. This comprehensive course covers social media marketing, search engine optimization, content marketing, email campaigns, and analytics. Students will develop practical skills in creating and implementing digital marketing plans, measuring campaign effectiveness, and optimizing online presence. The course includes hands-on projects with real-world applications and current industry tools.",
-      credits: 4,
       maxStudents: 25,
       currentStudents: electiveData.status === "draft" ? 0 : 25,
       teacher: "Prof. Mikhail Petrov",
@@ -91,7 +89,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "Sustainable Business",
       description:
         "Study sustainable business practices and their impact on the environment and society. This course explores how businesses can integrate sustainability into their operations, strategy, and culture. Students will learn about circular economy principles, sustainable supply chain management, green marketing, and ESG (Environmental, Social, and Governance) reporting. Case studies of leading sustainable businesses will be analyzed to identify best practices and innovation opportunities.",
-      credits: 3,
       maxStudents: 35,
       currentStudents: electiveData.status === "draft" ? 0 : 12,
       teacher: "Dr. Elena Smirnova",
@@ -101,7 +98,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "Project Management",
       description:
         "Master the principles and methodologies of effective project management. This course covers the entire project lifecycle from initiation to closure, including planning, scheduling, budgeting, risk management, and stakeholder communication. Students will learn both traditional and agile project management approaches, with emphasis on practical applications. The course includes team-based project simulations and preparation for professional certifications like PMP and CAPM.",
-      credits: 4,
       maxStudents: 30,
       currentStudents: electiveData.status === "draft" ? 0 : 28,
       teacher: "Prof. Sergei Kuznetsov",
@@ -111,7 +107,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "International Business Law",
       description:
         "Understand legal frameworks governing international business operations. This course examines the legal aspects of conducting business across borders, including international contracts, dispute resolution, intellectual property protection, and trade regulations. Students will analyze the legal implications of global business strategies and learn how to navigate complex regulatory environments. Special attention is given to emerging legal issues in international e-commerce and digital business.",
-      credits: 3,
       maxStudents: 25,
       currentStudents: electiveData.status === "draft" ? 0 : 15,
       teacher: "Dr. Olga Volkova",
@@ -121,7 +116,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       name: "Financial Markets",
       description:
         "Analyze financial markets, instruments, and investment strategies. This course provides a comprehensive overview of equity markets, fixed income securities, derivatives, and alternative investments. Students will develop skills in portfolio construction, risk assessment, and financial analysis. The course combines theoretical frameworks with practical applications, including market simulations and case studies of investment decisions. Current trends in fintech and sustainable finance are also explored.",
-      credits: 4,
       maxStudents: 30,
       currentStudents: electiveData.status === "draft" ? 0 : 22,
       teacher: "Prof. Dmitry Sokolov",
@@ -176,7 +170,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         description: "Your course selection has been submitted successfully.",
       })
       // In a real app, you would redirect or show success message
-      window.location.href = "/student/electives"
+      window.location.href = "/student/courses"
     }, 1500)
   }
 
@@ -512,7 +506,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                         return (
                           <li key={courseId} className="text-sm flex items-center gap-2">
                             <CheckCircle className="h-4 w-4 text-green-600" />
-                            {course?.name} ({course?.credits} {t("student.courses.credits")})
+                            {course?.name}
                           </li>
                         )
                       })}

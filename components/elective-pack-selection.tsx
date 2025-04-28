@@ -56,7 +56,7 @@ export function ElectivePackSelection({
                 htmlFor={`course-${course.id}`}
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                {course.name} - {course.teacher} ({course.credits} credits)
+                {course.name} - {course.teacher}
               </label>
             </div>
           ))}
