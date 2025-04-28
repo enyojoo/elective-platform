@@ -811,6 +811,16 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       )}
                     </div>
                   </div>
+
+                  {/* Digital Authorization Section */}
+                  <div className="mt-4">
+                    <h3 className="text-sm font-medium">Digital Authorization</h3>
+                    <div className="mt-2">
+                      <p className="text-sm">
+                        <span className="font-medium">Digitally authorized by:</span> {selectedStudent.studentName}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
