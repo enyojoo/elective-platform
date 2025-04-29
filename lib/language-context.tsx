@@ -29,7 +29,9 @@ const LANGUAGE_STORAGE_KEY = "gsom-timetable-language"
 
 const translations: Translations = {
   en: {
+    // Existing translations...
     "home.title": "GSOM Timetable",
+    // ... other existing translations
     "home.subtitle": "Select your degree, program, year and group",
     "timetable.program": "Timetable",
     "timetable.group": "Group",
@@ -260,6 +262,9 @@ const translations: Translations = {
     "student.statement.download": "Download",
     "student.statement.uploading": "Uploading...",
     "student.statement.fileUploaded": "File uploaded:",
+    statement: "Statement",
+    statementFile: "Statement File",
+    downloadStatement: "Download Statement",
 
     // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Back to Electives",
@@ -511,6 +516,30 @@ const translations: Translations = {
     "toast.selection.updated": "Selection updated successfully",
     "toast.selection.updated.course.description": "The course selection for {0} has been updated.",
     "toast.selection.updated.exchange.description": "The university selection for {0} has been updated.",
+
+    // Authorization related toast notifications
+    "toast.authorization.success": "Authorization successful",
+    "toast.authorization.success.description": "Digital authorization for {0} has been recorded.",
+    "toast.authorization.invalid": "Invalid authorization",
+    "toast.authorization.invalid.description": "The name provided does not match our records for {0}.",
+    "toast.authorization.required": "Authorization required",
+    "toast.authorization.required.description": "Please provide your full name to authorize this selection.",
+    "toast.statement.download.success": "Statement downloaded",
+    "toast.statement.download.success.description": "The statement file has been downloaded successfully.",
+    "toast.statement.download.error": "Download error",
+    "toast.statement.download.error.description": "There was an error downloading the statement file.",
+    "toast.statement.notAvailable": "Statement not available",
+    "toast.statement.notAvailable.description": "{0} has not uploaded a statement yet.",
+
+    // Digital Authorization section
+    "student.authorization.title": "Digital Authorization",
+    "student.authorization.authorizedBy": "Digitally authorized by:",
+    "student.authorization.fullName": "Your Full Name",
+    "student.authorization.toAuthorize": "to authorize",
+    "student.authorization.date": "Authorization date:",
+    "student.authorization.verified": "Verification status:",
+    "student.authorization.verified.yes": "Verified",
+    "student.authorization.verified.no": "Not verified",
     "pagination.previous": "Previous",
     "pagination.next": "Next",
     "pagination.page": "Page",
@@ -584,7 +613,7 @@ const translations: Translations = {
     "admin.groups.cancel": "Cancel",
     "admin.groups.create": "Create",
     "admin.groups.update": "Update",
-    "admin.groups.deleteConfirm": "Are you sure you want to delete this group?",
+    "admin.groups.deleteConfirm": "Are you sure you want to delete this degree?",
     "admin.degrees.title": "Degree Management",
     "admin.degrees.subtitle": "Manage academic degrees offered by the institution",
     "admin.degrees.addDegree": "Add Degree",
@@ -649,9 +678,19 @@ const translations: Translations = {
     "admin.users.studentEmailInfo": "An email will be sent to {0} with instructions to set up their account.",
     "admin.users.sendInvitation": "Send Invitation",
     "admin.users.selectDegreeFirst": "Select a degree first",
+    "student.authorization.title": "Digital Authorization",
+    "student.authorization.authorizedBy": "Digitally authorized by:",
+    "student.authorization.fullName": "Your Full Name",
+    "student.authorization.toAuthorize": "to authorize",
+    "student.authorization.date": "Authorization date:",
+    "student.authorization.verified": "Verification status:",
+    "student.authorization.verified.yes": "Verified",
+    "student.authorization.verified.no": "Not verified",
   },
   ru: {
+    // Existing translations...
     "home.title": "Расписание ВШМ",
+    // ... other existing translations
     "home.subtitle": "Выберите степень, программу, год и группу",
     "timetable.program": "Расписание",
     "timetable.group": "Группа",
@@ -887,6 +926,9 @@ const translations: Translations = {
     "student.statement.download": "Скачать",
     "student.statement.uploading": "Загрузка...",
     "student.statement.fileUploaded": "Файл загружен:",
+    statement: "Заявление",
+    statementFile: "Файл заявления",
+    downloadStatement: "Скачать заявление",
 
     // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Назад к элективам",
@@ -1104,6 +1146,10 @@ const translations: Translations = {
     "admin.newCourse.descriptionEn": "Описание (английский)",
     "admin.newCourse.descriptionRu": "Описание (русский)",
     "admin.newCourse.cancel": "Отмена",
+    "admin.newCourse.create": "Создать курс",
+    "admin.newCourse.creating": "Создание...",
+    "admin.newCourse.courseDescEn": "Course description in English",
+    "admin.newCourse.courseDescRu": "Описание курса на русском языке",
     "manager.courseDetails.withdraw": "Отозвать",
     "manager.exchangeDetails.withdraw": "Отозвать",
     "toast.selection.withdrawn": "Выбор отозван",
@@ -1115,6 +1161,33 @@ const translations: Translations = {
     "toast.selection.updated": "Выбор успешно обновлен",
     "toast.selection.updated.course.description": "Выбор курсов для {0} был обновлен.",
     "toast.selection.updated.exchange.description": "Выбор университетов для {0} был обновлен.",
+    "manager.courseDetails.exportAll": "Экспортировать все",
+    "manager.exchangeDetails.exportAll": "Экспортировать все",
+    "manager.courseDetails.download": "Скачать",
+    "manager.courseDetails.export": "Экспорт",
+    // Authorization related toast notifications
+    "toast.authorization.success": "Авторизация успешна",
+    "toast.authorization.success.description": "Цифровая авторизация для {0} была зарегистрирована.",
+    "toast.authorization.invalid": "Недействительная авторизация",
+    "toast.authorization.invalid.description": "Указанное имя не соответствует нашим записям для {0}.",
+    "toast.authorization.required": "Требуется авторизация",
+    "toast.authorization.required.description": "Пожалуйста, укажите ваше полное имя для авторизации этого выбора.",
+    "toast.statement.download.success": "Заявление загружено",
+    "toast.statement.download.success.description": "Файл заявления был успешно загружен.",
+    "toast.statement.download.error": "Ошибка загрузки",
+    "toast.statement.download.error.description": "Произошла ошибка при загрузке файла заявления.",
+    "toast.statement.notAvailable": "Заявление недоступно",
+    "toast.statement.notAvailable.description": "{0} еще не загрузил(а) заявление.",
+
+    // Digital Authorization section
+    "student.authorization.title": "Цифровая авторизация",
+    "student.authorization.authorizedBy": "Авторизовано пользователем:",
+    "student.authorization.fullName": "Ваше полное имя",
+    "student.authorization.toAuthorize": "для авторизации",
+    "student.authorization.date": "Дата авторизации:",
+    "student.authorization.verified": "Статус проверки:",
+    "student.authorization.verified.yes": "Проверено",
+    "student.authorization.verified.no": "Не проверено",
     "pagination.previous": "Предыдущая",
     "pagination.next": "Следующая",
     "pagination.page": "Страница",
@@ -1255,6 +1328,14 @@ const translations: Translations = {
       "Электронное письмо будет отправлено на адрес {0} с инструкциями по настройке учетной записи.",
     "admin.users.sendInvitation": "Отправить приглашение",
     "admin.users.selectDegreeFirst": "Сначала выберите степень",
+    "student.authorization.title": "Цифровая авторизация",
+    "student.authorization.authorizedBy": "Авторизовано пользователем:",
+    "student.authorization.fullName": "Ваше полное имя",
+    "student.authorization.toAuthorize": "для авторизации",
+    "student.authorization.date": "Дата авторизации:",
+    "student.authorization.verified": "Статус проверки:",
+    "student.authorization.verified.yes": "Проверено",
+    "student.authorization.verified.no": "Не проверено",
   },
 }
 

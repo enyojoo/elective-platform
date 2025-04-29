@@ -16,7 +16,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download, File } from "lucide-react"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -331,7 +331,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     universityContent += row.join(",") + "\n"
 
     // Create and download the file
-    const blob = new Blob([universityContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), universityContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -348,8 +348,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const downloadStudentStatement = (studentName: string, fileName: string | null) => {
     if (!fileName) {
       toast({
-        title: "No statement available",
-        description: `${studentName} has not uploaded a statement yet.`,
+        title: t("toast.statement.notAvailable"),
+        description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
       })
       return
     }
@@ -357,8 +357,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     // In a real app, this would download the actual file
     // For this demo, we'll just show a toast
     toast({
-      title: "Downloading statement",
-      description: `Downloading ${fileName}`,
+      title: t("toast.statement.download.success"),
+      description: t("toast.statement.download.success.description"),
     })
   }
 
@@ -434,7 +434,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     })
 
     // Create and download the file
-    const blob = new Blob([selectionsContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), selectionsContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -637,7 +637,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                         <th className="py-3 px-4 text-left text-sm font-medium">
                           {t("manager.exchangeDetails.status")}
                         </th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">
                           {t("manager.exchangeDetails.view")}
                         </th>
@@ -828,7 +828,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
                   {/* Statement File Section */}
                   <div>
-                    <h3 className="text-sm font-medium">Statement File</h3>
+                    <h3 className="text-sm font-medium">{t("statementFile")}</h3>
                     <div className="mt-2">
                       {selectedStudent.statementFile ? (
                         <Button
@@ -839,8 +839,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }
                         >
-                          <File className="h-4 w-4" />
-                          Download Statement
+                          <Download className="h-4 w-4" />
+                          {t("downloadStatement")}
                         </Button>
                       ) : (
                         <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
@@ -850,10 +850,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
                   {/* Digital Authorization Section */}
                   <div className="mt-4">
-                    <h3 className="text-sm font-medium">Digital Authorization</h3>
+                    <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
                     <div className="mt-2">
                       <p className="text-sm">
-                        <span className="font-medium">Digitally authorized by:</span> {selectedStudent.studentName}
+                        <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
+                        {selectedStudent.studentName}
                       </p>
                     </div>
                   </div>

@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download, File } from "lucide-react"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -326,7 +326,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     }, 100)
   }
 
-  // Function to export a single university to CSV
+  // Also update the exportUniversityToCSV function to ensure consistent formatting
+  // Replace the entire exportUniversityToCSV function with this corrected version:
+
   const exportUniversityToCSV = (university: any) => {
     // Define column headers based on language
     const headers = {
@@ -335,7 +337,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     }
 
     // Create CSV content
-    let universityContent = headers[language as keyof typeof headers].join(",") + "\n"
+    let universityContent = headers[language as keyof typeof headers].map((header) => `"${header}"`).join(",") + "\n"
 
     // Add data row
     const location = `${university.city}, ${university.country}`
@@ -343,12 +345,18 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     const programs = university.programs.join("; ")
 
     // Escape fields that might contain commas
-    const row = [`"${university.name}"`, `"${location}"`, `"${university.language}"`, enrollment, `"${programs}"`]
+    const row = [
+      `"${university.name}"`,
+      `"${location}"`,
+      `"${university.language}"`,
+      `"${enrollment}"`,
+      `"${programs}"`,
+    ]
 
     universityContent += row.join(",") + "\n"
 
     // Create and download the file
-    const blob = new Blob([universityContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), universityContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -361,12 +369,12 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     document.body.removeChild(link)
   }
 
-  // Function to download student statement
+  // Function to export a single university to CSV
   const downloadStudentStatement = (studentName: string, fileName: string | null) => {
     if (!fileName) {
       toast({
-        title: "No statement available",
-        description: `${studentName} has not uploaded a statement yet.`,
+        title: t("toast.statement.notAvailable"),
+        description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
       })
       return
     }
@@ -374,12 +382,14 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     // In a real app, this would download the actual file
     // For this demo, we'll just show a toast
     toast({
-      title: "Downloading statement",
-      description: `Downloading ${fileName}`,
+      title: t("toast.statement.download.success"),
+      description: t("toast.statement.download.success.description"),
     })
   }
 
-  // Function to export student selections to CSV
+  // Update the exportStudentSelectionsToCSV function to fix the date and column alignment issues
+  // Replace the entire exportStudentSelectionsToCSV function with this corrected version:
+
   const exportStudentSelectionsToCSV = () => {
     // Define column headers based on language
     const headers = {
@@ -429,20 +439,25 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       const selectedUniversities = selection.selectedUniversities.join("; ")
       const status = statusTranslations[language as keyof typeof statusTranslations][selection.status]
 
+      // Format date properly
+      const formattedDate = formatDate(selection.selectionDate)
+
       // Create a download link for the statement if available
       const statementLink = selection.statementFile
         ? `${window.location.origin}/api/statements/${selection.statementFile}`
-        : "Not uploaded"
+        : language === "ru"
+          ? "Не загружено"
+          : "Not uploaded"
 
-      // Escape fields that might contain commas
+      // Properly escape all fields with quotes to ensure correct column alignment
       const row = [
         `"${selection.studentName}"`,
-        selection.studentId,
-        selection.group,
+        `"${selection.studentId}"`,
+        `"${selection.group}"`,
         `"${selection.program}"`,
-        selection.email,
+        `"${selection.email}"`,
         `"${selectedUniversities}"`,
-        formatDate(selection.selectionDate),
+        `"${formattedDate}"`,
         `"${status}"`,
         `"${statementLink}"`,
       ]
@@ -451,7 +466,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     })
 
     // Create and download the file
-    const blob = new Blob([selectionsContent], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), selectionsContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
@@ -621,7 +636,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <th className="py-3 px-4 text-left text-sm font-medium">
                           {t("manager.exchangeDetails.status")}
                         </th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">
                           {t("manager.exchangeDetails.view")}
                         </th>
@@ -792,7 +807,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
                   {/* Statement File Section */}
                   <div>
-                    <h3 className="text-sm font-medium">Statement File</h3>
+                    <h3 className="text-sm font-medium">{t("statementFile")}</h3>
                     <div className="mt-2">
                       {selectedStudent.statementFile ? (
                         <Button
@@ -803,8 +818,8 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }
                         >
-                          <File className="h-4 w-4" />
-                          Download Statement
+                          <Download className="h-4 w-4" />
+                          {t("downloadStatement")}
                         </Button>
                       ) : (
                         <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
@@ -814,10 +829,11 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
                   {/* Digital Authorization Section */}
                   <div className="mt-4">
-                    <h3 className="text-sm font-medium">Digital Authorization</h3>
+                    <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
                     <div className="mt-2">
                       <p className="text-sm">
-                        <span className="font-medium">Digitally authorized by:</span> {selectedStudent.studentName}
+                        <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
+                        {selectedStudent.studentName}
                       </p>
                     </div>
                   </div>

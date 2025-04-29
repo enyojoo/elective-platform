@@ -26,7 +26,6 @@ import {
   Clock,
   Download,
   FileDown,
-  File,
 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
@@ -305,7 +304,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     const studentsInCourse = studentSelections.filter((student) => student.selectedCourses.includes(courseName))
 
     // Create CSV header with translated column names
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}\n`
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}"\n`
 
     // Create CSV content with translated status
     const courseContent = studentsInCourse
@@ -318,9 +317,16 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
               : student.status === SelectionStatus.PENDING
                 ? "На рассмотрении"
                 : "Отклонено"
-            : student.status
+            : student.status === SelectionStatus.APPROVED
+              ? "Approved"
+              : student.status === SelectionStatus.PENDING
+                ? "Pending"
+                : "Rejected"
 
-        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},${formatDate(student.selectionDate)},${translatedStatus}`
+        // Format date properly
+        const formattedDate = formatDate(student.selectionDate)
+
+        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${formattedDate}","${translatedStatus}"`
       })
       .join("\n")
 
@@ -328,7 +334,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     const csv = csvHeader + courseContent
 
     // Create a blob and download
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
@@ -346,8 +352,8 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   const downloadStudentStatement = (studentName: string, fileName: string | null) => {
     if (!fileName) {
       toast({
-        title: "No statement available",
-        description: `${studentName} has not uploaded a statement yet.`,
+        title: t("toast.statement.notAvailable"),
+        description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
       })
       return
     }
@@ -355,8 +361,8 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     // In a real app, this would download the actual file
     // For this demo, we'll just show a toast
     toast({
-      title: "Downloading statement",
-      description: `Downloading ${fileName}`,
+      title: t("toast.statement.download.success"),
+      description: t("toast.statement.download.success.description"),
     })
   }
 
@@ -378,12 +384,18 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                 : "Отклонено"
             : student.status
 
+        // Format date properly
+        const formattedDate = formatDate(student.selectionDate)
+
         // Create a download link for the statement if available
         const statementLink = student.statementFile
           ? `${window.location.origin}/api/statements/${student.statementFile}`
-          : "Not uploaded"
+          : language === "ru"
+            ? "Не загружено"
+            : "Not uploaded"
 
-        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},"${student.selectedCourses.join("; ")}",${formatDate(student.selectionDate)},${translatedStatus},"${statementLink}"`
+        // Properly escape fields that might contain commas and ensure correct column alignment
+        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${student.selectedCourses.join("; ")}","${formattedDate}","${translatedStatus}","${statementLink}"`
       })
       .join("\n")
 
@@ -391,7 +403,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     const csv = csvHeader + allSelectionsContent
 
     // Create a blob and download
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
@@ -550,7 +562,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                           {t("manager.courseDetails.selectionDate")}
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">
                           {t("manager.courseDetails.actions")}
@@ -571,7 +583,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                                 size="icon"
                                 onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
                               >
-                                <FileDown className="h-4 w-4" />
+                                <Download className="h-4 w-4" />
                               </Button>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -718,7 +730,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
 
                   {/* Statement File Section */}
                   <div>
-                    <h3 className="text-sm font-medium">Statement File</h3>
+                    <h3 className="text-sm font-medium">{t("statementFile")}</h3>
                     <div className="mt-2">
                       {selectedStudent.statementFile ? (
                         <Button
@@ -729,8 +741,8 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }
                         >
-                          <File className="h-4 w-4" />
-                          Download Statement
+                          <Download className="h-4 w-4" />
+                          {t("downloadStatement")}
                         </Button>
                       ) : (
                         <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
@@ -739,10 +751,11 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                   </div>
                   {/* Digital Authorization Section */}
                   <div className="mt-4">
-                    <h3 className="text-sm font-medium">Digital Authorization</h3>
+                    <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
                     <div className="mt-2">
                       <p className="text-sm">
-                        <span className="font-medium">Digitally authorized by:</span> {selectedStudent.studentName}
+                        <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
+                        {selectedStudent.studentName}
                       </p>
                     </div>
                   </div>
