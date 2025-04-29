@@ -333,54 +333,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     })
   }
 
-  // Function to export course enrollments to CSV
-  const exportCourseEnrollmentsToCSV = (courseName: string) => {
-    // Find students who selected this course
-    const studentsInCourse = studentSelections.filter((student) => student.selectedCourses.includes(courseName))
-
-    // Create CSV header with translated column names
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"}
-`
-
-    // Create CSV content with translated status
-    const courseContent = studentsInCourse
-      .map((student) => {
-        // Translate status based on current language
-        const translatedStatus =
-          language === "ru"
-            ? student.status === SelectionStatus.APPROVED
-              ? "Утверждено"
-              : student.status === SelectionStatus.PENDING
-                ? "На рассмотрении"
-                : "Отклонено"
-            : student.status
-
-        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},${formatDate(student.selectionDate)},${translatedStatus}`
-      })
-      .join("\n")
-
-    // Combine header and content
-    const csv = csvHeader + courseContent
-
-    // Create a blob and download
-    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${courseName.replace(/\s+/g, "_")}_${language === "ru" ? "зачисления" : "enrollments"}.csv`,
-    )
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
+  // Replace the exportAllSelectionsToCSV function with this improved version
   // Function to export all student selections to CSV
   const exportAllSelectionsToCSV = () => {
-    // Define column headers based on language
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"},${language === "ru" ? "Заявление" : "Statement"}\n`
+    // Create CSV header with translated column names
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
 
     // Create CSV content with translated status
     const allSelectionsContent = studentSelections
@@ -398,9 +355,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         // Create a download link for the statement if available
         const statementLink = student.statementFile
           ? `${window.location.origin}/api/statements/${student.statementFile}`
-          : "Not uploaded"
+          : language === "ru"
+            ? "Не загружено"
+            : "Not uploaded"
 
-        return `${student.studentName},${student.studentId},${student.group},${student.program},${student.email},"${student.selectedCourses.join("; ")}",${formatDate(student.selectionDate)},${translatedStatus},"${statementLink}"`
+        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${student.selectedCourses.join("; ")}","${formatDate(student.selectionDate)}","${translatedStatus}","${statementLink}"`
       })
       .join("\n")
 
@@ -415,6 +374,50 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     link.setAttribute(
       "download",
       `${electiveCourse.name.replace(/\s+/g, "_")}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Replace the exportCourseEnrollmentsToCSV function with this improved version
+  // Function to export course enrollments to CSV
+  const exportCourseEnrollmentsToCSV = (courseName: string) => {
+    // Find students who selected this course
+    const studentsInCourse = studentSelections.filter((student) => student.selectedCourses.includes(courseName))
+
+    // Create CSV header with translated column names
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}"\n`
+
+    // Create CSV content with translated status
+    const courseContent = studentsInCourse
+      .map((student) => {
+        // Translate status based on current language
+        const translatedStatus =
+          language === "ru"
+            ? student.status === SelectionStatus.APPROVED
+              ? "Утверждено"
+              : student.status === SelectionStatus.PENDING
+                ? "На рассмотрении"
+                : "Отклонено"
+            : student.status
+
+        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${formatDate(student.selectionDate)}","${translatedStatus}"`
+      })
+      .join("\n")
+
+    // Combine header and content
+    const csv = csvHeader + courseContent
+
+    // Create a blob and download
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `${courseName.replace(/\s+/g, "_")}_${language === "ru" ? "зачисления" : "enrollments"}.csv`,
     )
     link.style.visibility = "hidden"
     document.body.appendChild(link)

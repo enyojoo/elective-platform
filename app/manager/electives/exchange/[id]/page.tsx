@@ -309,6 +309,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
   }, [])
 
+  // Replace the exportUniversityToCSV function with this improved version
   // Function to export a single university to CSV
   const exportUniversityToCSV = (university: any) => {
     // Define column headers based on language
@@ -318,7 +319,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
 
     // Create CSV content
-    let universityContent = headers[language as keyof typeof headers].join(",") + "\n"
+    let universityContent = headers[language as keyof typeof headers].map((header) => `"${header}"`).join(",") + "\n"
 
     // Add data row
     const location = `${university.city}, ${university.country}`
@@ -326,7 +327,13 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     const programs = university.programs.join("; ")
 
     // Escape fields that might contain commas
-    const row = [`"${university.name}"`, `"${location}"`, `"${university.language}"`, enrollment, `"${programs}"`]
+    const row = [
+      `"${university.name}"`,
+      `"${location}"`,
+      `"${university.language}"`,
+      `"${enrollment}"`,
+      `"${programs}"`,
+    ]
 
     universityContent += row.join(",") + "\n"
 
@@ -362,79 +369,42 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     })
   }
 
+  // Replace the exportStudentSelectionsToCSV function with this improved version
   // Function to export student selections to CSV
   const exportStudentSelectionsToCSV = () => {
-    // Define column headers based on language
-    const headers = {
-      en: [
-        "Student Name",
-        "Student ID",
-        "Group",
-        "Program",
-        "Email",
-        "Selected Universities",
-        "Selection Date",
-        "Status",
-        "Statement",
-      ],
-      ru: [
-        "Имя студента",
-        "ID студента",
-        "Группа",
-        "Программа",
-        "Электронная почта",
-        "Выбранные университеты",
-        "Дата выбора",
-        "Статус",
-        "Заявление",
-      ],
-    }
+    // Create CSV header with translated column names
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
 
-    // Status translations
-    const statusTranslations = {
-      en: {
-        [SelectionStatus.APPROVED]: "Approved",
-        [SelectionStatus.PENDING]: "Pending",
-        [SelectionStatus.REJECTED]: "Rejected",
-      },
-      ru: {
-        [SelectionStatus.APPROVED]: "Утверждено",
-        [SelectionStatus.PENDING]: "На рассмотрении",
-        [SelectionStatus.REJECTED]: "Отклонено",
-      },
-    }
+    // Create CSV content with translated status
+    const selectionsContent = studentSelections
+      .map((selection) => {
+        // Translate status based on current language
+        const translatedStatus =
+          language === "ru"
+            ? selection.status === SelectionStatus.APPROVED
+              ? "Утверждено"
+              : selection.status === SelectionStatus.PENDING
+                ? "На рассмотрении"
+                : "Отклонено"
+            : selection.status
 
-    // Create CSV content
-    let selectionsContent = headers[language as keyof typeof headers].join(",") + "\n"
+        // Create a download link for the statement if available
+        const statementLink = selection.statementFile
+          ? `${window.location.origin}/api/statements/${selection.statementFile}`
+          : language === "ru"
+            ? "Не загружено"
+            : "Not uploaded"
 
-    // Add data rows
-    studentSelections.forEach((selection) => {
-      const selectedUniversities = selection.selectedUniversities.join("; ")
-      const status = statusTranslations[language as keyof typeof statusTranslations][selection.status]
+        // Escape fields that might contain commas
+        return `"${selection.studentName}","${selection.studentId}","${selection.group}","${selection.program}","${selection.email}","${selection.selectedUniversities.join("; ")}","${formatDate(selection.selectionDate)}","${translatedStatus}","${statementLink}"`
+      })
+      .join("\n")
 
-      // Create a download link for the statement if available
-      const statementLink = selection.statementFile
-        ? `${window.location.origin}/api/statements/${selection.statementFile}`
-        : "Not uploaded"
-
-      // Escape fields that might contain commas
-      const row = [
-        `"${selection.studentName}"`,
-        selection.studentId,
-        selection.group,
-        `"${selection.program}"`,
-        selection.email,
-        `"${selectedUniversities}"`,
-        formatDate(selection.selectionDate),
-        `"${status}"`,
-        `"${statementLink}"`,
-      ]
-
-      selectionsContent += row.join(",") + "\n"
-    })
+    // Combine header and content
+    const csv = csvHeader + selectionsContent
 
     // Create and download the file
-    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), selectionsContent], { type: "text/csv;charset=utf-8" })
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
