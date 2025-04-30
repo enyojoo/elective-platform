@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MoreHorizontal, Plus } from "lucide-react"
 import Link from "next/link"
 
 export default function TenantsPage() {
@@ -71,11 +72,7 @@ export default function TenantsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>All Tenants</CardTitle>
-          <CardDescription>A list of all tenants registered on the platform</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="rounded-md border">
             <div className="grid grid-cols-7 border-b bg-muted/50 px-4 py-3 text-sm font-medium">
               <div>Name</div>
@@ -115,13 +112,23 @@ export default function TenantsPage() {
                       {tenant.status === "active" ? "Active" : "Pending"}
                     </span>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/super-admin/tenants/${tenant.id}`}>View</Link>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/super-admin/tenants/${tenant.id}/edit`}>Edit</Link>
-                    </Button>
+                  <div className="flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/super-admin/tenants/${tenant.id}`}>View Details</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/super-admin/tenants/${tenant.id}/edit`}>Edit</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>{tenant.status === "active" ? "Deactivate" : "Activate"}</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}

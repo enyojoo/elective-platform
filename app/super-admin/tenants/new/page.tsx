@@ -3,32 +3,28 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClient } from "@supabase/supabase-js"
-import { SubscriptionPlan } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 export default function NewTenantPage() {
   const router = useRouter()
-  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
-    subdomain: "",
+    domain: "",
     adminEmail: "",
     adminPassword: "",
-    plan: SubscriptionPlan.STANDARD,
+    plan: "standard",
     customDomain: "",
     maxUsers: 50,
     maxPrograms: 20,
   })
-
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -43,68 +39,26 @@ export default function NewTenantPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    try {
-      // 1. Create tenant record
-      const { data: tenant, error: tenantError } = await supabase
-        .from("tenants")
-        .insert({
-          name: formData.name,
-          subdomain: formData.subdomain,
-          plan: formData.plan,
-          custom_domain: formData.customDomain || null,
-          max_users: formData.maxUsers,
-          max_programs: formData.maxPrograms,
-          is_active: true,
-        })
-        .select()
-        .single()
-
-      if (tenantError) throw tenantError
-
-      // 2. Create admin user for the tenant
-      const { data: auth, error: authError } = await supabase.auth.signUp({
-        email: formData.adminEmail,
-        password: formData.adminPassword,
-        options: {
-          data: {
-            tenant_id: tenant.id,
-            role: "admin",
-          },
-        },
-      })
-
-      if (authError) throw authError
-
-      // 3. Create admin record
-      const { error: adminError } = await supabase.from("admins").insert({
-        user_id: auth.user.id,
-        tenant_id: tenant.id,
-        email: formData.adminEmail,
-      })
-
-      if (adminError) throw adminError
-
-      toast({
-        title: "Tenant created successfully",
-        description: `${formData.name} has been added to the platform.`,
-      })
-
-      router.push("/super-admin/tenants")
-    } catch (error) {
-      console.error("Error creating tenant:", error)
-      toast({
-        title: "Error creating tenant",
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
+    // Simulate API call
+    setTimeout(() => {
       setIsLoading(false)
-    }
+      router.push("/super-admin/tenants")
+    }, 1000)
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Add New Tenant</h1>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" asChild>
+          <Link href="/super-admin/tenants">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Add New Tenant</h1>
+          <p className="text-muted-foreground">Create a new tenant on the platform</p>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit}>
         <Tabs defaultValue="basic" className="w-full">
@@ -116,28 +70,16 @@ export default function NewTenantPage() {
 
           <TabsContent value="basic">
             <Card>
-              <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-                <CardDescription>Enter the tenant's basic details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Institution Name</Label>
                   <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="subdomain">Subdomain</Label>
+                  <Label htmlFor="domain">Domain</Label>
                   <div className="flex items-center">
-                    <Input
-                      id="subdomain"
-                      name="subdomain"
-                      value={formData.subdomain}
-                      onChange={handleChange}
-                      required
-                      className="rounded-r-none"
-                    />
-                    <span className="bg-muted px-3 py-2 border border-l-0 rounded-r-md">.electivepro.com</span>
+                    <Input id="domain" name="domain" value={formData.domain} onChange={handleChange} required />
                   </div>
                 </div>
 
@@ -157,11 +99,7 @@ export default function NewTenantPage() {
 
           <TabsContent value="admin">
             <Card>
-              <CardHeader>
-                <CardTitle>Admin Account</CardTitle>
-                <CardDescription>Create the initial admin account for this tenant</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="adminEmail">Admin Email</Label>
                   <Input
@@ -194,11 +132,7 @@ export default function NewTenantPage() {
 
           <TabsContent value="limits">
             <Card>
-              <CardHeader>
-                <CardTitle>Subscription & Limits</CardTitle>
-                <CardDescription>Set the tenant's subscription plan and usage limits</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="plan">Subscription Plan</Label>
                   <Select value={formData.plan} onValueChange={(value) => handleSelectChange("plan", value)}>
@@ -206,10 +140,10 @@ export default function NewTenantPage() {
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={SubscriptionPlan.FREE}>Free</SelectItem>
-                      <SelectItem value={SubscriptionPlan.STANDARD}>Standard</SelectItem>
-                      <SelectItem value={SubscriptionPlan.PROFESSIONAL}>Professional</SelectItem>
-                      <SelectItem value={SubscriptionPlan.ENTERPRISE}>Enterprise</SelectItem>
+                      <SelectItem value="free">Free</SelectItem>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="enterprise">Enterprise</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
