@@ -12,22 +12,22 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
 
-  // Skip layout on login page
-  if (pathname === "/super-admin/login") {
-    return <SuperAdminAuthProvider>{children}</SuperAdminAuthProvider>
-  }
+  // Don't render the layout on the login page
+  const isLoginPage = pathname === "/super-admin/login"
 
   return (
     <SuperAdminAuthProvider>
-      <div className="flex min-h-screen flex-col">
-        <div className="flex flex-1">
-          <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
-          <div className="flex flex-1 flex-col">
-            <SuperAdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      {isLoginPage ? (
+        children
+      ) : (
+        <div className="flex min-h-screen flex-col">
+          <SuperAdminHeader setOpen={setSidebarOpen} />
+          <div className="flex flex-1">
+            <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
             <main className="flex-1 p-4 md:p-6">{children}</main>
           </div>
         </div>
-      </div>
+      )}
     </SuperAdminAuthProvider>
   )
 }

@@ -7,6 +7,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { LayoutDashboard, Users, Settings, BookOpen, Globe, Server, X } from "lucide-react"
+import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
 
 interface SuperAdminSidebarProps {
   open: boolean
@@ -15,6 +16,7 @@ interface SuperAdminSidebarProps {
 
 export default function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
   const pathname = usePathname()
+  const { logout } = useSuperAdminAuth()
 
   // Skip rendering sidebar on login page
   if (pathname === "/super-admin/login") {
@@ -43,9 +45,9 @@ export default function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarPr
             <Image
               src="/images/elective-pro-logo.svg"
               alt="ElectivePRO Logo"
-              width={110}
-              height={30}
-              className="h-7 w-auto"
+              width={90}
+              height={24}
+              className="h-6 w-auto"
             />
             <span className="rounded-md bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
               Admin
@@ -106,9 +108,9 @@ export default function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarPr
 
         {/* Logout link at bottom */}
         <div className="mt-auto p-4 border-t">
-          <Link
-            href="/auth/login"
-            className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+          <button
+            onClick={logout}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -127,7 +129,7 @@ export default function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarPr
               <line x1="21" y1="12" x2="9" y2="12"></line>
             </svg>
             Logout
-          </Link>
+          </button>
         </div>
       </div>
     </>

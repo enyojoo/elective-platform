@@ -44,7 +44,7 @@ export default function SuperAdminLoginPage() {
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-8">
-          <Image src="/images/elective-pro-logo.svg" alt="ElectivePRO" width={110} height={30} className="h-7 w-auto" />
+          <Image src="/images/elective-pro-logo.svg" alt="ElectivePRO" width={90} height={24} className="h-6 w-auto" />
         </div>
         <Card>
           <CardHeader>
