@@ -1,4 +1,5 @@
 "use client"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -36,7 +37,7 @@ export default function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperA
             <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle menu</span>
           </Button>
-          <Link href="/super-admin/dashboard" className="flex items-center gap-2">
+          <Link href="/super-admin/dashboard" className="flex items-center gap-2 md:hidden">
             <Image
               src="/images/elective-pro-logo.svg"
               alt="ElectivePRO"
@@ -44,11 +45,18 @@ export default function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperA
               height={24}
               className="h-6 w-auto"
             />
-            <span className="text-xl font-bold">ElectivePRO</span>
             <span className="rounded-md bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
               Admin
             </span>
           </Link>
+          <div className="hidden md:block text-lg font-semibold">
+            {pathname.includes("/dashboard") && "Dashboard"}
+            {pathname.includes("/institutions") && "Institutions"}
+            {pathname.includes("/users") && "Users"}
+            {pathname.includes("/plans") && "Plans"}
+            {pathname.includes("/domains") && "Domains"}
+            {pathname.includes("/settings") && "Settings"}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -73,50 +81,6 @@ export default function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperA
           </DropdownMenu>
         </div>
       </div>
-
-      {false && (
-        <div className="md:hidden border-t p-4">
-          <nav className="flex flex-col space-y-2">
-            <Link
-              href="/super-admin/dashboard"
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setSidebarOpen(false)}
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/super-admin/tenants"
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setSidebarOpen(false)}
-            >
-              Tenants
-            </Link>
-            <Link
-              href="/super-admin/users"
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setSidebarOpen(false)}
-            >
-              Users
-            </Link>
-            <Link
-              href="/super-admin/settings"
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setSidebarOpen(false)}
-            >
-              Settings
-            </Link>
-            <button
-              onClick={() => {
-                setSidebarOpen(false)
-                logout()
-              }}
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted text-left"
-            >
-              Logout
-            </button>
-          </nav>
-        </div>
-      )}
     </header>
   )
 }

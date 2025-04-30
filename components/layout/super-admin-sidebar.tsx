@@ -45,9 +45,9 @@ export default function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarPr
             <Image
               src="/images/elective-pro-logo.svg"
               alt="ElectivePRO Logo"
-              width={110}
-              height={30}
-              className="h-7 w-auto"
+              width={90}
+              height={24}
+              className="h-6 w-auto"
             />
             <span className="rounded-md bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
               Admin
