@@ -2,6 +2,7 @@ export enum UserRole {
   STUDENT = "student",
   PROGRAM_MANAGER = "program_manager",
   ADMIN = "admin",
+  SUPER_ADMIN = "super_admin",
 }
 
 export enum Degree {
@@ -28,6 +29,13 @@ export enum ElectivePackStatus {
   ARCHIVED = "archived",
 }
 
+export enum SubscriptionPlan {
+  FREE = "free",
+  STANDARD = "standard",
+  PROFESSIONAL = "professional",
+  ENTERPRISE = "enterprise",
+}
+
 export interface DegreeType {
   id: number
   name: string
@@ -45,4 +53,22 @@ export interface UserProgramAssignment {
   degreeId: number
   programId: number
   enrollmentYear: number
+}
+
+export interface Institution {
+  id: number
+  name: string
+  domain: string
+  plan: SubscriptionPlan
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SuperAdmin {
+  id: number
+  userId: string
+  email: string
+  name: string
+  createdAt: string
 }
