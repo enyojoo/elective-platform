@@ -45,6 +45,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             href={isAdmin ? "/admin/dashboard" : isManager ? "/manager/dashboard" : "/student/dashboard"}
             className="flex items-center gap-2"
           >
+            {/* Ensure the logo path is correct and the dimensions are appropriate */}
             <Image
               src="/images/elective-pro-logo.svg"
               alt="ElectivePRO Logo"

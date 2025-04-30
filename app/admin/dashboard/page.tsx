@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     manageCourseElectives: language === "en" ? "Manage" : "Управлять",
 
     // Exchange Programs
-    exchangePrograms: language === "en" ? "Exchange Programs" : "Программы обмена",
+    exchangePrograms: language === "en" ? "Exchange Programs" : "Про��раммы обмена",
     totalExchangePrograms: language === "en" ? "Total exchange programs available" : "Всего доступных программ обмена",
     manageExchangePrograms: language === "en" ? "Manage" : "Управлять",
 
