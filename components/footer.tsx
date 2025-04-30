@@ -9,7 +9,7 @@ export function Footer() {
   return (
     <footer className="mt-2 py-6 px-4 border-t border-gray-200 text-center text-sm text-gray-600">
       <div className="max-w-4xl mx-auto space-y-2">
-        <p className="text-center font-medium mb-2">GSOM Elective Course Platform</p>
+        <p className="text-center font-medium mb-2">ElectivePRO</p>
         <p>
           {language === "en" ? (
             <>

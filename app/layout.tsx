@@ -7,8 +7,9 @@ import { LanguageProvider } from "@/lib/language-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "GSOM Elective Platform",
-  description: "Graduate School of Management Elective Course Selection Platform",
+  title: "ElectivePRO",
+  description:
+    "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
