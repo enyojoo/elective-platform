@@ -1,6 +1,4 @@
 "use client"
-
-import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -16,9 +14,13 @@ import { LogOut, Menu, User } from "lucide-react"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
 import Image from "next/image"
 
-export default function SuperAdminHeader() {
+interface SuperAdminHeaderProps {
+  sidebarOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+}
+
+export default function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperAdminHeaderProps) {
   const pathname = usePathname()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { logout } = useSuperAdminAuth()
 
   // Skip rendering header on login page
@@ -30,12 +32,7 @@ export default function SuperAdminHeader() {
     <header className="sticky top-0 z-50 w-full border-b bg-background">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
             <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle menu</span>
           </Button>
@@ -77,40 +74,40 @@ export default function SuperAdminHeader() {
         </div>
       </div>
 
-      {isMobileMenuOpen && (
+      {false && (
         <div className="md:hidden border-t p-4">
           <nav className="flex flex-col space-y-2">
             <Link
               href="/super-admin/dashboard"
               className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setSidebarOpen(false)}
             >
               Dashboard
             </Link>
             <Link
               href="/super-admin/tenants"
               className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setSidebarOpen(false)}
             >
               Tenants
             </Link>
             <Link
               href="/super-admin/users"
               className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setSidebarOpen(false)}
             >
               Users
             </Link>
             <Link
               href="/super-admin/settings"
               className="rounded-md px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setSidebarOpen(false)}
             >
               Settings
             </Link>
             <button
               onClick={() => {
-                setIsMobileMenuOpen(false)
+                setSidebarOpen(false)
                 logout()
               }}
               className="rounded-md px-3 py-2 text-sm hover:bg-muted text-left"
