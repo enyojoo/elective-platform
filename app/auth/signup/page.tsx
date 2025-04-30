@@ -32,7 +32,7 @@ const mockYears = ["2023", "2024", "2025"]
 
 const mockGroups = [
   { id: "1", name: "24.B01-vshm", displayName: "B01", program: "Management", degree: "Bachelor's", year: "2024" },
-  { id: "2", name: "24.B02-vshm", displayName: "B02", program: "Management", degree: "Bachelor's", year: "2024" },
+  { id: "2", name: "24.B02-vshm", displayName: "B02", program: "Management", degree: "Master's", year: "2024" },
   { id: "3", name: "23.B01-vshm", displayName: "B01", program: "Management", degree: "Bachelor's", year: "2023" },
   { id: "4", name: "24.M01-vshm", displayName: "M01", program: "Management", degree: "Master's", year: "2024" },
   {
@@ -101,7 +101,7 @@ export default function SignupPage() {
     e.preventDefault()
 
     // Basic validation
-    if (!email.endsWith("@student.spbu.ru") && !email.endsWith("@gsom.spbu.ru")) {
+    if (!email.includes("@")) {
       setError(t("auth.error.invalidEmail"))
       return
     }
@@ -121,11 +121,11 @@ export default function SignupPage() {
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
           <Image
-            src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
-            alt="GSOM Logo"
-            width={200}
-            height={60}
-            className="h-12 w-auto"
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={160}
+            height={45}
+            className="h-10 w-auto"
           />
         </div>
         <Card>
@@ -142,13 +142,12 @@ export default function SignupPage() {
                 <input
                   id="email"
                   type="email"
-                  placeholder="email@student.spbu.ru"
+                  placeholder=""
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <p className="text-xs text-muted-foreground">{t("auth.signup.emailHint")}</p>
               </div>
 
               <div className="space-y-2">

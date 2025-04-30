@@ -319,7 +319,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           <CardHeader>
             <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
             <CardDescription>
-              {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.out")}{" "}
+              {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.of")}{" "}
               {electiveData.maxSelections} {t("student.courses.allowedCourses")}
             </CardDescription>
           </CardHeader>

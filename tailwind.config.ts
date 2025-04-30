@@ -26,7 +26,7 @@ const config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#c1272d", // GSOM brand red color
+          DEFAULT: "#027659", // New brand green color
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {

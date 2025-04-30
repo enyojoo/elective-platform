@@ -39,11 +39,11 @@ export default function LoginPage() {
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
           <Image
-            src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
-            alt="GSOM Logo"
-            width={200}
-            height={60}
-            className="h-12 w-auto"
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={160}
+            height={45}
+            className="h-10 w-auto"
           />
         </div>
         <Card>
@@ -63,7 +63,7 @@ export default function LoginPage() {
                 <input
                   id="email"
                   type="email"
-                  placeholder="email@student.spbu.ru"
+                  placeholder=""
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

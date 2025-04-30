@@ -443,7 +443,7 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
             <CardTitle>{t("student.exchange.selectionProgress")}</CardTitle>
             <CardDescription>
               {t("student.exchange.selectedOutOf")}{" "}
-              {Array.isArray(selectedUniversities) ? selectedUniversities.length : 0} {t("student.exchange.out")}{" "}
+              {Array.isArray(selectedUniversities) ? selectedUniversities.length : 0} {t("student.exchange.of")}{" "}
               {exchangeData.maxSelections} {t("student.exchange.allowedUniversities")}
             </CardDescription>
           </CardHeader>

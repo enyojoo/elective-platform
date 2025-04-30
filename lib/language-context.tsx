@@ -66,7 +66,6 @@ const translations: Translations = {
     "auth.signup.title": "Sign Up for Access",
     "auth.signup.description": "Create a new account with your university email",
     "auth.signup.email": "Email",
-    "auth.signup.emailHint": "Must end with @student.spbu.ru or @gsom.spbu.ru",
     "auth.signup.name": "Full Name",
     "auth.signup.degree": "Degree",
     "auth.signup.program": "Program",
@@ -80,7 +79,7 @@ const translations: Translations = {
     "auth.signup.selectProgram": "Select program",
     "auth.signup.selectYear": "Select year",
     "auth.signup.selectGroup": "Select group",
-    "auth.error.invalidEmail": "Email must end with @student.spbu.ru or @gsom.spbu.ru",
+    "auth.error.invalidEmail": "Please enter a valid email address",
     "auth.error.incompleteFields": "Please complete all required fields",
     dashboard: "Dashboard",
     courseSelection: "Course Selection",
@@ -153,6 +152,7 @@ const translations: Translations = {
     "student.courses.close": "Close",
     "student.courses.removeSelection": "Remove Selection",
     "student.courses.selectCourse": "Select Course",
+    "student.courses.of": "of",
 
     // Student Exchange
     "student.exchange.title": "Exchange Program Selection",
@@ -203,6 +203,7 @@ const translations: Translations = {
     "student.exchange.visitWebsite": "Visit Website",
     "student.exchange.comingSoonDesc":
       "Exchange selection is not open yet. You can preview the available universities, but selection will be available starting",
+    "student.exchange.of": "of",
 
     // Manager Dashboard
     "manager.dashboard.title": "Dashboard",
@@ -725,7 +726,6 @@ const translations: Translations = {
     "auth.signup.title": "Регистрация доступа",
     "auth.signup.description": "Создайте новый аккаунт с вашей университетской почтой",
     "auth.signup.email": "Электронная почта",
-    "auth.signup.emailHint": "Должна заканчиваться на @student.spbu.ru или @gsom.spbu.ru",
     "auth.signup.name": "Полное имя",
     "auth.signup.degree": "Степень",
     "auth.signup.program": "Программа",
@@ -739,7 +739,7 @@ const translations: Translations = {
     "auth.signup.selectProgram": "Выберите программу",
     "auth.signup.selectYear": "Выберите год",
     "auth.signup.selectGroup": "Выберите группу",
-    "auth.error.invalidEmail": "Почта должна заканчиваться на @student.spbu.ru или @gsom.spbu.ru",
+    "auth.error.invalidEmail": "Пожалуйста, введите действительный адрес электронной почты",
     "auth.error.incompleteFields": "Пожалуйста, заполните все обязательные поля",
     dashboard: "Панель управления",
     courseSelection: "Выбор курсов",
@@ -817,6 +817,7 @@ const translations: Translations = {
     "student.courses.close": "Закрыть",
     "student.courses.removeSelection": "Удалить выбор",
     "student.courses.selectCourse": "Выбрать курс",
+    "student.courses.of": "из",
 
     // Student Exchange
     "student.exchange.title": "Выбор программы обмена",
@@ -867,6 +868,7 @@ const translations: Translations = {
     "student.exchange.visitWebsite": "Посетить сайт",
     "student.exchange.comingSoonDesc":
       "Выбор обмена еще не открыт. Вы можете просмотреть доступные университеты, но выбор будет доступен начиная с",
+    "student.exchange.of": "из",
 
     // Manager Dashboard
     "manager.dashboard.title": "Панель управления",

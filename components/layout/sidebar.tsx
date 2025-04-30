@@ -46,11 +46,11 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             className="flex items-center gap-2"
           >
             <Image
-              src={language === "ru" ? "/images/gsom-logo-ru.png" : "/images/gsom-logo-en.png"}
-              alt="GSOM Logo"
-              width={130}
-              height={40}
-              className="h-9 w-auto"
+              src="/images/elective-pro-logo.svg"
+              alt="ElectivePRO Logo"
+              width={110}
+              height={30}
+              className="h-7 w-auto"
             />
           </Link>
           <button
