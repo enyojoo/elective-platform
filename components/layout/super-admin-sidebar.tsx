@@ -33,11 +33,12 @@ export function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - fixed on desktop */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:z-0 h-screen flex flex-col",
-          open ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r md:sticky md:top-0 md:h-screen flex flex-col",
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          "transition-transform duration-200 ease-in-out",
         )}
       >
         <div className="flex h-16 items-center justify-center border-b px-4">
@@ -106,7 +107,7 @@ export function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
         {/* Logout link at bottom */}
         <div className="mt-auto p-4 border-t">
           <Link
-            href="/auth/login"
+            href="/super-admin/login"
             onClick={(e) => {
               e.preventDefault()
               logout()

@@ -19,10 +19,13 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   return (
     <SuperAdminAuthProvider>
-      <div className="flex min-h-screen flex-col">
-        <SuperAdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="flex flex-1">
-          <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      <div className="flex min-h-screen">
+        {/* Fixed sidebar */}
+        <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+
+        {/* Content area with header */}
+        <div className="flex flex-col flex-1">
+          <SuperAdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="flex-1 p-6">{children}</main>
         </div>
       </div>
