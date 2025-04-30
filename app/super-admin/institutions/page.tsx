@@ -7,8 +7,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Plus } from "lucide-react"
 import Link from "next/link"
 
-export default function TenantsPage() {
-  const [tenants] = useState([
+export default function InstitutionsPage() {
+  const [institutions] = useState([
     {
       id: "1",
       name: "University of Technology",
@@ -60,13 +60,13 @@ export default function TenantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tenants</h1>
-          <p className="text-muted-foreground">Manage all tenants using ElectivePRO</p>
+          <h1 className="text-3xl font-bold tracking-tight">Institutions</h1>
+          <p className="text-muted-foreground">Manage all institutions using ElectivePRO</p>
         </div>
         <Button asChild>
-          <Link href="/super-admin/tenants/new">
+          <Link href="/super-admin/institutions/new">
             <Plus className="mr-2 h-4 w-4" />
-            Add Tenant
+            Add Institution
           </Link>
         </Button>
       </div>
@@ -84,32 +84,34 @@ export default function TenantsPage() {
               <div className="text-right">Actions</div>
             </div>
             <div className="divide-y">
-              {tenants.map((tenant) => (
-                <div key={tenant.id} className="grid grid-cols-7 items-center px-4 py-3">
-                  <div className="font-medium">{tenant.name}</div>
-                  <div className="text-sm">{tenant.domain}</div>
+              {institutions.map((institution) => (
+                <div key={institution.id} className="grid grid-cols-7 items-center px-4 py-3">
+                  <div className="font-medium">{institution.name}</div>
+                  <div className="text-sm">{institution.domain}</div>
                   <div>
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        tenant.plan === "Enterprise"
+                        institution.plan === "Enterprise"
                           ? "bg-purple-100 text-purple-800"
-                          : tenant.plan === "Professional"
+                          : institution.plan === "Professional"
                             ? "bg-blue-100 text-blue-800"
                             : "bg-green-100 text-green-800"
                       }`}
                     >
-                      {tenant.plan}
+                      {institution.plan}
                     </span>
                   </div>
-                  <div className="text-center">{tenant.students}</div>
-                  <div className="text-center">{tenant.programs}</div>
+                  <div className="text-center">{institution.students}</div>
+                  <div className="text-center">{institution.programs}</div>
                   <div className="text-center">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        tenant.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                        institution.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {tenant.status === "active" ? "Active" : "Pending"}
+                      {institution.status === "active" ? "Active" : "Pending"}
                     </span>
                   </div>
                   <div className="flex justify-end">
@@ -121,12 +123,14 @@ export default function TenantsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/super-admin/tenants/${tenant.id}`}>View Details</Link>
+                          <Link href={`/super-admin/institutions/${institution.id}`}>View Details</Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/super-admin/tenants/${tenant.id}/edit`}>Edit</Link>
+                          <Link href={`/super-admin/institutions/${institution.id}/edit`}>Edit</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>{tenant.status === "active" ? "Deactivate" : "Activate"}</DropdownMenuItem>
+                        <DropdownMenuItem>
+                          {institution.status === "active" ? "Deactivate" : "Activate"}
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

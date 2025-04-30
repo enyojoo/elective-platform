@@ -1,18 +1,13 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { usePathname } from "next/navigation"
-import SuperAdminSidebar from "@/components/layout/super-admin-sidebar"
+import type { ReactNode } from "react"
 import SuperAdminHeader from "@/components/layout/super-admin-header"
+import SuperAdminSidebar from "@/components/layout/super-admin-sidebar"
 import { SuperAdminAuthProvider } from "@/lib/super-admin-auth-context"
+import { usePathname } from "next/navigation"
 
-export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+export default function SuperAdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-
-  // Don't render the layout on the login page
   const isLoginPage = pathname === "/super-admin/login"
 
   return (
@@ -21,10 +16,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         children
       ) : (
         <div className="flex min-h-screen flex-col">
-          <SuperAdminHeader setOpen={setSidebarOpen} />
+          <SuperAdminHeader />
           <div className="flex flex-1">
-            <SuperAdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
-            <main className="flex-1 p-4 md:p-6">{children}</main>
+            <SuperAdminSidebar />
+            <main className="flex-1 p-6 md:p-8">{children}</main>
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
-export default function NewTenantPage() {
+export default function NewInstitutionPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -42,7 +42,7 @@ export default function NewTenantPage() {
     // Simulate API call
     setTimeout(() => {
       setIsLoading(false)
-      router.push("/super-admin/tenants")
+      router.push("/super-admin/institutions")
     }, 1000)
   }
 
@@ -50,13 +50,13 @@ export default function NewTenantPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
-          <Link href="/super-admin/tenants">
+          <Link href="/super-admin/institutions">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Add New Tenant</h1>
-          <p className="text-muted-foreground">Create a new tenant on the platform</p>
+          <h1 className="text-3xl font-bold tracking-tight">Add New Institution</h1>
+          <p className="text-muted-foreground">Create a new institution on the platform</p>
         </div>
       </div>
 
@@ -173,11 +173,11 @@ export default function NewTenantPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push("/super-admin/tenants")}>
+                <Button type="button" variant="outline" onClick={() => router.push("/super-admin/institutions")}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Creating..." : "Create Tenant"}
+                  {isLoading ? "Creating..." : "Create Institution"}
                 </Button>
               </CardFooter>
             </Card>

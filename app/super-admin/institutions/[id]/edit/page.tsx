@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
-export default function EditTenantPage({ params }) {
+export default function EditInstitutionPage({ params }) {
   const router = useRouter()
   const { id } = params
   const [isLoading, setIsLoading] = useState(true)
@@ -66,25 +66,25 @@ export default function EditTenantPage({ params }) {
     // Simulate API call
     setTimeout(() => {
       setIsSaving(false)
-      router.push(`/super-admin/tenants/${id}`)
+      router.push(`/super-admin/institutions/${id}`)
     }, 1000)
   }
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">Loading tenant data...</div>
+    return <div className="flex items-center justify-center h-64">Loading institution data...</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
-          <Link href={`/super-admin/tenants/${id}`}>
+          <Link href={`/super-admin/institutions/${id}`}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Tenant</h1>
-          <p className="text-muted-foreground">Update tenant information and settings</p>
+          <h1 className="text-3xl font-bold tracking-tight">Edit Institution</h1>
+          <p className="text-muted-foreground">Update institution information and settings</p>
         </div>
       </div>
 
@@ -162,7 +162,7 @@ export default function EditTenantPage({ params }) {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/tenants/${id}`)}>
+                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/institutions/${id}`)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isSaving}>
@@ -200,7 +200,7 @@ export default function EditTenantPage({ params }) {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/tenants/${id}`)}>
+                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/institutions/${id}`)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isSaving}>

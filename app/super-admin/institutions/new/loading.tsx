@@ -2,24 +2,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export default function EditTenantLoading() {
+export default function NewInstitutionLoading() {
   return (
     <div className="container mx-auto py-10">
-      <div className="flex items-center gap-4 mb-6">
-        <Skeleton className="h-10 w-10 rounded-md" />
-        <Skeleton className="h-8 w-[150px]" />
-      </div>
+      <Skeleton className="h-10 w-[200px] mb-6" />
 
       <Tabs defaultValue="basic" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="basic" disabled>
             Basic Information
           </TabsTrigger>
-          <TabsTrigger value="subscription" disabled>
-            Subscription
+          <TabsTrigger value="admin" disabled>
+            Admin Account
           </TabsTrigger>
           <TabsTrigger value="limits" disabled>
-            Limits
+            Subscription & Limits
           </TabsTrigger>
         </TabsList>
 
@@ -34,7 +31,7 @@ export default function EditTenantLoading() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="space-y-2">
                   <Skeleton className="h-4 w-[100px]" />
                   <Skeleton className="h-10 w-full" />

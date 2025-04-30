@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-export default function TenantsLoading() {
+export default function InstitutionsLoading() {
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">

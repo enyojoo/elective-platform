@@ -1,8 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export default function TenantDetailsLoading() {
+export default function InstitutionDetailsLoading() {
   return (
     <div className="container mx-auto py-10">
       <div className="flex items-center gap-4 mb-6">
@@ -48,15 +48,7 @@ export default function TenantDetailsLoading() {
 
         <TabsContent value="details">
           <Card>
-            <CardHeader>
-              <CardTitle>
-                <Skeleton className="h-6 w-[150px]" />
-              </CardTitle>
-              <CardDescription>
-                <Skeleton className="h-4 w-[250px]" />
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {Array.from({ length: 2 }).map((_, i) => (
                   <div key={i}>

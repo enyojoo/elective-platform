@@ -9,16 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Edit, Users, BookOpen, Calendar, Activity } from "lucide-react"
 import Link from "next/link"
 
-export default function TenantDetailsPage({ params }) {
+export default function InstitutionDetailsPage({ params }) {
   const router = useRouter()
   const { id } = params
-  const [tenant, setTenant] = useState(null)
+  const [institution, setInstitution] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     // Simulate API call
     setTimeout(() => {
-      setTenant({
+      setInstitution({
         id,
         name: "University of Technology",
         domain: "unitech.edu",
@@ -41,38 +41,38 @@ export default function TenantDetailsPage({ params }) {
   }, [id])
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">Loading tenant details...</div>
+    return <div className="flex items-center justify-center h-64">Loading institution details...</div>
   }
 
-  if (!tenant) {
-    return <div className="flex items-center justify-center h-64">Tenant not found</div>
+  if (!institution) {
+    return <div className="flex items-center justify-center h-64">Institution not found</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => router.push("/super-admin/tenants")}>
+        <Button variant="outline" size="icon" onClick={() => router.push("/super-admin/institutions")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{tenant.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{institution.name}</h1>
           <p className="text-muted-foreground">
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                tenant.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                institution.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
               }`}
             >
-              {tenant.status === "active" ? "Active" : "Pending"}
+              {institution.status === "active" ? "Active" : "Pending"}
             </span>
             <span className="mx-2">•</span>
-            <span>{tenant.plan} Plan</span>
+            <span>{institution.plan} Plan</span>
           </p>
         </div>
         <div className="ml-auto">
-          <Link href={`/super-admin/tenants/${id}/edit`}>
+          <Link href={`/super-admin/institutions/${id}/edit`}>
             <Button>
               <Edit className="mr-2 h-4 w-4" />
-              Edit Tenant
+              Edit Institution
             </Button>
           </Link>
         </div>
@@ -87,7 +87,7 @@ export default function TenantDetailsPage({ params }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{tenant.stats.totalUsers}</p>
+                <p className="text-2xl font-bold">{institution.stats.totalUsers}</p>
               </div>
             </div>
           </CardContent>
@@ -101,7 +101,7 @@ export default function TenantDetailsPage({ params }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Programs</p>
-                <p className="text-2xl font-bold">{tenant.stats.totalPrograms}</p>
+                <p className="text-2xl font-bold">{institution.stats.totalPrograms}</p>
               </div>
             </div>
           </CardContent>
@@ -115,7 +115,7 @@ export default function TenantDetailsPage({ params }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Courses</p>
-                <p className="text-2xl font-bold">{tenant.stats.totalCourses}</p>
+                <p className="text-2xl font-bold">{institution.stats.totalCourses}</p>
               </div>
             </div>
           </CardContent>
@@ -129,7 +129,7 @@ export default function TenantDetailsPage({ params }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Active Elective Packs</p>
-                <p className="text-2xl font-bold">{tenant.stats.activeElectivePacks}</p>
+                <p className="text-2xl font-bold">{institution.stats.activeElectivePacks}</p>
               </div>
             </div>
           </CardContent>
@@ -153,16 +153,16 @@ export default function TenantDetailsPage({ params }) {
                   <div className="space-y-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Name</p>
-                      <p className="font-medium">{tenant.name}</p>
+                      <p className="font-medium">{institution.name}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Domain</p>
-                      <p className="font-medium">{tenant.domain}</p>
+                      <p className="font-medium">{institution.domain}</p>
                     </div>
-                    {tenant.customDomain && (
+                    {institution.customDomain && (
                       <div>
                         <p className="text-sm text-muted-foreground">Custom Domain</p>
-                        <p className="font-medium">{tenant.customDomain}</p>
+                        <p className="font-medium">{institution.customDomain}</p>
                       </div>
                     )}
                   </div>
@@ -173,16 +173,16 @@ export default function TenantDetailsPage({ params }) {
                   <div className="space-y-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Plan</p>
-                      <p className="font-medium">{tenant.plan}</p>
+                      <p className="font-medium">{institution.plan}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Created On</p>
-                      <p className="font-medium">{new Date(tenant.createdAt).toLocaleDateString()}</p>
+                      <p className="font-medium">{new Date(institution.createdAt).toLocaleDateString()}</p>
                     </div>
-                    {tenant.subscriptionEndDate && (
+                    {institution.subscriptionEndDate && (
                       <div>
                         <p className="text-sm text-muted-foreground">Subscription Ends</p>
-                        <p className="font-medium">{new Date(tenant.subscriptionEndDate).toLocaleDateString()}</p>
+                        <p className="font-medium">{new Date(institution.subscriptionEndDate).toLocaleDateString()}</p>
                       </div>
                     )}
                   </div>
@@ -224,13 +224,13 @@ export default function TenantDetailsPage({ params }) {
                   <div className="flex justify-between mb-2">
                     <span className="text-sm font-medium">Users</span>
                     <span className="text-sm text-muted-foreground">
-                      {tenant.stats.totalUsers} / {tenant.maxUsers}
+                      {institution.stats.totalUsers} / {institution.maxUsers}
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary"
-                      style={{ width: `${(tenant.stats.totalUsers / tenant.maxUsers) * 100}%` }}
+                      style={{ width: `${(institution.stats.totalUsers / institution.maxUsers) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -239,13 +239,13 @@ export default function TenantDetailsPage({ params }) {
                   <div className="flex justify-between mb-2">
                     <span className="text-sm font-medium">Programs</span>
                     <span className="text-sm text-muted-foreground">
-                      {tenant.stats.totalPrograms} / {tenant.maxPrograms}
+                      {institution.stats.totalPrograms} / {institution.maxPrograms}
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary"
-                      style={{ width: `${(tenant.stats.totalPrograms / tenant.maxPrograms) * 100}%` }}
+                      style={{ width: `${(institution.stats.totalPrograms / institution.maxPrograms) * 100}%` }}
                     />
                   </div>
                 </div>
