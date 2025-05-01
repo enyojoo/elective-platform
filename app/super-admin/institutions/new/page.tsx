@@ -20,7 +20,7 @@ export default function NewInstitutionPage() {
     adminEmail: "",
     adminPassword: "",
     plan: "standard",
-    customDomain: "",
+    subdomain: "",
     subscriptionStartDate: new Date().toISOString().split("T")[0],
     subscriptionEndDate: "",
   })
@@ -76,13 +76,13 @@ export default function NewInstitutionPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customDomain">Custom Domain (Optional)</Label>
+                  <Label htmlFor="subdomain">Subdomain</Label>
                   <Input
-                    id="customDomain"
-                    name="customDomain"
-                    value={formData.customDomain}
+                    id="subdomain"
+                    name="subdomain"
+                    value={formData.subdomain}
                     onChange={handleChange}
-                    placeholder="electives.university.edu"
+                    placeholder="universityname.electivepro.net"
                   />
                 </div>
               </div>

@@ -20,7 +20,7 @@ export default function EditInstitutionPage({ params }) {
   const [formData, setFormData] = useState({
     name: "",
     domain: "",
-    customDomain: "",
+    subdomain: "",
     adminEmail: "",
     adminPassword: "",
     plan: "",
@@ -35,7 +35,7 @@ export default function EditInstitutionPage({ params }) {
       setFormData({
         name: "University of Technology",
         domain: "unitech.edu",
-        customDomain: "electives.unitech.edu",
+        subdomain: "unitech.electivepro.net",
         adminEmail: "admin@unitech.edu",
         adminPassword: "",
         plan: "enterprise",
@@ -106,13 +106,13 @@ export default function EditInstitutionPage({ params }) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customDomain">Custom Domain (Optional)</Label>
+                  <Label htmlFor="subdomain">Subdomain</Label>
                   <Input
-                    id="customDomain"
-                    name="customDomain"
-                    value={formData.customDomain}
+                    id="subdomain"
+                    name="subdomain"
+                    value={formData.subdomain}
                     onChange={handleChange}
-                    placeholder="electives.university.edu"
+                    placeholder="universityname.electivepro.net"
                   />
                 </div>
 
