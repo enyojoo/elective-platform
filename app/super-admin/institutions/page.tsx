@@ -121,11 +121,6 @@ export default function InstitutionsPage() {
                         <DropdownMenuItem asChild>
                           <Link href={`/super-admin/institutions/${institution.subdomain}/edit`}>Edit</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/super-admin/institutions/${institution.subdomain}/subscription`}>
-                            Manage Subscription
-                          </Link>
-                        </DropdownMenuItem>
                         <DropdownMenuItem>
                           {institution.status === "active" ? "Deactivate" : "Activate"}
                         </DropdownMenuItem>
