@@ -10,48 +10,43 @@ import Link from "next/link"
 export default function InstitutionsPage() {
   const [institutions] = useState([
     {
-      id: "1",
-      name: "University of Technology",
+      subdomain: "unitech",
+      name: "University of Technology and Applied Sciences with Extended Name",
       domain: "unitech.edu",
       plan: "Enterprise",
-      students: 1500,
-      programs: 18,
+      totalUsers: 1500,
       status: "active",
     },
     {
-      id: "2",
+      subdomain: "citycollege",
       name: "City College",
       domain: "citycollege.edu",
       plan: "Professional",
-      students: 950,
-      programs: 12,
+      totalUsers: 950,
       status: "active",
     },
     {
-      id: "3",
+      subdomain: "globaluni",
       name: "Global University",
       domain: "globaluni.edu",
       plan: "Standard",
-      students: 750,
-      programs: 8,
+      totalUsers: 750,
       status: "pending",
     },
     {
-      id: "4",
+      subdomain: "techinst",
       name: "Technical Institute",
       domain: "techinst.edu",
       plan: "Professional",
-      students: 600,
-      programs: 7,
+      totalUsers: 600,
       status: "active",
     },
     {
-      id: "5",
+      subdomain: "artsacad",
       name: "Arts Academy",
       domain: "artsacad.edu",
       plan: "Standard",
-      students: 420,
-      programs: 5,
+      totalUsers: 420,
       status: "active",
     },
   ])
@@ -74,21 +69,20 @@ export default function InstitutionsPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="rounded-md border">
-            <div className="grid grid-cols-7 border-b bg-muted/50 px-4 py-3 text-sm font-medium">
-              <div>Name</div>
-              <div>Domain</div>
-              <div>Plan</div>
-              <div className="text-center">Students</div>
-              <div className="text-center">Programs</div>
-              <div className="text-center">Status</div>
-              <div className="text-right">Actions</div>
+            <div className="grid grid-cols-12 border-b bg-muted/50 px-4 py-3 text-sm font-medium">
+              <div className="col-span-4">Name</div>
+              <div className="col-span-2">Subdomain</div>
+              <div className="col-span-2">Plan</div>
+              <div className="col-span-1 text-center">Users</div>
+              <div className="col-span-2 text-center">Status</div>
+              <div className="col-span-1 text-right">Actions</div>
             </div>
             <div className="divide-y">
               {institutions.map((institution) => (
-                <div key={institution.id} className="grid grid-cols-7 items-center px-4 py-3">
-                  <div className="font-medium">{institution.name}</div>
-                  <div className="text-sm">{institution.domain}</div>
-                  <div>
+                <div key={institution.subdomain} className="grid grid-cols-12 items-center px-4 py-3">
+                  <div className="col-span-4 font-medium truncate pr-4">{institution.name}</div>
+                  <div className="col-span-2 text-sm">{institution.subdomain}</div>
+                  <div className="col-span-2">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         institution.plan === "Enterprise"
@@ -101,9 +95,8 @@ export default function InstitutionsPage() {
                       {institution.plan}
                     </span>
                   </div>
-                  <div className="text-center">{institution.students}</div>
-                  <div className="text-center">{institution.programs}</div>
-                  <div className="text-center">
+                  <div className="col-span-1 text-center">{institution.totalUsers}</div>
+                  <div className="col-span-2 text-center">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         institution.status === "active"
@@ -114,7 +107,7 @@ export default function InstitutionsPage() {
                       {institution.status === "active" ? "Active" : "Pending"}
                     </span>
                   </div>
-                  <div className="flex justify-end">
+                  <div className="col-span-1 flex justify-end">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
@@ -123,10 +116,15 @@ export default function InstitutionsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/super-admin/institutions/${institution.id}`}>View Details</Link>
+                          <Link href={`/super-admin/institutions/${institution.subdomain}`}>View Details</Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/super-admin/institutions/${institution.id}/edit`}>Edit</Link>
+                          <Link href={`/super-admin/institutions/${institution.subdomain}/edit`}>Edit</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/super-admin/institutions/${institution.subdomain}/subscription`}>
+                            Manage Subscription
+                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           {institution.status === "active" ? "Deactivate" : "Activate"}

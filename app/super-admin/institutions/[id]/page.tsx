@@ -6,39 +6,143 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Edit, Users, BookOpen, Calendar, Activity } from "lucide-react"
+import { ArrowLeft, Edit, Users, BookOpen, Calendar, Globe, Package } from "lucide-react"
 import Link from "next/link"
+
+// Dummy data for institutions
+const dummyInstitutions = [
+  {
+    subdomain: "unitech",
+    name: "University of Technology",
+    domain: "unitech.edu",
+    plan: "Enterprise",
+    status: "active",
+    createdAt: "2023-01-15T00:00:00Z",
+    subscriptionEndDate: "2024-01-15T00:00:00Z",
+    maxUsers: 2000,
+    maxPrograms: 30,
+    stats: {
+      totalUsers: 1500,
+      totalPrograms: 18,
+      totalCourses: 124,
+      activeElectivePacks: 8,
+      partnerUniversities: 12,
+    },
+    electivePacks: [
+      {
+        id: 1,
+        name: "Computer Science Electives 2023",
+        type: "course",
+        studentsCount: 156,
+        status: "active",
+      },
+      {
+        id: 2,
+        name: "Business Administration Spring 2023",
+        type: "course",
+        studentsCount: 98,
+        status: "active",
+      },
+      {
+        id: 3,
+        name: "Engineering Exchange Program",
+        type: "exchange",
+        studentsCount: 210,
+        status: "active",
+      },
+      {
+        id: 4,
+        name: "Arts and Humanities Exchange",
+        type: "exchange",
+        studentsCount: 87,
+        status: "active",
+      },
+    ],
+  },
+  {
+    subdomain: "citycollege",
+    name: "City College",
+    domain: "citycollege.edu",
+    plan: "Professional",
+    status: "active",
+    createdAt: "2023-02-20T00:00:00Z",
+    subscriptionEndDate: "2024-02-20T00:00:00Z",
+    maxUsers: 1000,
+    maxPrograms: 20,
+    stats: {
+      totalUsers: 950,
+      totalPrograms: 12,
+      totalCourses: 78,
+      activeElectivePacks: 5,
+      partnerUniversities: 8,
+    },
+    electivePacks: [
+      {
+        id: 1,
+        name: "Social Sciences Spring 2023",
+        type: "course",
+        studentsCount: 112,
+        status: "active",
+      },
+      {
+        id: 2,
+        name: "Medical Sciences Exchange 2023",
+        type: "exchange",
+        studentsCount: 76,
+        status: "active",
+      },
+    ],
+  },
+  {
+    subdomain: "globaluni",
+    name: "Global University",
+    domain: "globaluni.edu",
+    plan: "Standard",
+    status: "pending",
+    createdAt: "2023-03-10T00:00:00Z",
+    subscriptionEndDate: "2024-03-10T00:00:00Z",
+    maxUsers: 800,
+    maxPrograms: 15,
+    stats: {
+      totalUsers: 750,
+      totalPrograms: 8,
+      totalCourses: 45,
+      activeElectivePacks: 3,
+      partnerUniversities: 5,
+    },
+    electivePacks: [
+      {
+        id: 1,
+        name: "International Relations 2023",
+        type: "course",
+        studentsCount: 68,
+        status: "active",
+      },
+      {
+        id: 2,
+        name: "Environmental Sciences Exchange",
+        type: "exchange",
+        studentsCount: 42,
+        status: "active",
+      },
+    ],
+  },
+]
 
 export default function InstitutionDetailsPage({ params }) {
   const router = useRouter()
-  const { id } = params
+  const { id: subdomain } = params
   const [institution, setInstitution] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate API call
+    // Simulate API call with dummy data
     setTimeout(() => {
-      setInstitution({
-        id,
-        name: "University of Technology",
-        domain: "unitech.edu",
-        customDomain: "electives.unitech.edu",
-        plan: "Enterprise",
-        status: "active",
-        createdAt: "2023-01-15T00:00:00Z",
-        subscriptionEndDate: "2024-01-15T00:00:00Z",
-        maxUsers: 2000,
-        maxPrograms: 30,
-        stats: {
-          totalUsers: 1500,
-          totalPrograms: 18,
-          totalCourses: 124,
-          activeElectivePacks: 8,
-        },
-      })
+      const foundInstitution = dummyInstitutions.find((inst) => inst.subdomain === subdomain)
+      setInstitution(foundInstitution || null)
       setIsLoading(false)
     }, 500)
-  }, [id])
+  }, [subdomain])
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Loading institution details...</div>
@@ -69,7 +173,7 @@ export default function InstitutionDetailsPage({ params }) {
           </p>
         </div>
         <div className="ml-auto">
-          <Link href={`/super-admin/institutions/${id}/edit`}>
+          <Link href={`/super-admin/institutions/${subdomain}/edit`}>
             <Button>
               <Edit className="mr-2 h-4 w-4" />
               Edit Institution
@@ -78,7 +182,7 @@ export default function InstitutionDetailsPage({ params }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -87,7 +191,10 @@ export default function InstitutionDetailsPage({ params }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{institution.stats.totalUsers}</p>
+                <p className="text-2xl font-bold">
+                  {institution.stats.totalUsers}{" "}
+                  <span className="text-sm text-muted-foreground font-normal">of {institution.maxUsers}</span>
+                </p>
               </div>
             </div>
           </CardContent>
@@ -125,10 +232,24 @@ export default function InstitutionDetailsPage({ params }) {
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-2 rounded-full bg-green-100">
-                <Activity className="h-6 w-6 text-green-700" />
+                <Globe className="h-6 w-6 text-green-700" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Active Elective Packs</p>
+                <p className="text-sm text-muted-foreground">Universities</p>
+                <p className="text-2xl font-bold">{institution.stats.partnerUniversities}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 rounded-full bg-indigo-100">
+                <Package className="h-6 w-6 text-indigo-700" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Elective Packs</p>
                 <p className="text-2xl font-bold">{institution.stats.activeElectivePacks}</p>
               </div>
             </div>
@@ -137,10 +258,9 @@ export default function InstitutionDetailsPage({ params }) {
       </div>
 
       <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="usage">Usage & Limits</TabsTrigger>
           <TabsTrigger value="logs">Activity Logs</TabsTrigger>
         </TabsList>
 
@@ -156,15 +276,13 @@ export default function InstitutionDetailsPage({ params }) {
                       <p className="font-medium">{institution.name}</p>
                     </div>
                     <div>
+                      <p className="text-sm text-muted-foreground">Subdomain</p>
+                      <p className="font-medium">{institution.subdomain}.electivepro.net</p>
+                    </div>
+                    <div>
                       <p className="text-sm text-muted-foreground">Domain</p>
                       <p className="font-medium">{institution.domain}</p>
                     </div>
-                    {institution.customDomain && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Custom Domain</p>
-                        <p className="font-medium">{institution.customDomain}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -212,44 +330,6 @@ export default function InstitutionDetailsPage({ params }) {
                   </TableRow>
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="usage">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Users</span>
-                    <span className="text-sm text-muted-foreground">
-                      {institution.stats.totalUsers} / {institution.maxUsers}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary"
-                      style={{ width: `${(institution.stats.totalUsers / institution.maxUsers) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Programs</span>
-                    <span className="text-sm text-muted-foreground">
-                      {institution.stats.totalPrograms} / {institution.maxPrograms}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary"
-                      style={{ width: `${(institution.stats.totalPrograms / institution.maxPrograms) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
