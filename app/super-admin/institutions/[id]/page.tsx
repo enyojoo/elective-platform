@@ -15,9 +15,11 @@ const dummyInstitutions = [
     subdomain: "unitech",
     name: "University of Technology",
     domain: "unitech.edu",
+    adminEmail: "admin@unitech.edu",
     plan: "Enterprise",
     status: "active",
     createdAt: "2023-01-15T00:00:00Z",
+    subscriptionStartDate: "2023-01-15T00:00:00Z",
     subscriptionEndDate: "2024-01-15T00:00:00Z",
     maxUsers: 2000,
     maxPrograms: 30,
@@ -283,6 +285,10 @@ export default function InstitutionDetailsPage({ params }) {
                       <p className="text-sm text-muted-foreground">Domain</p>
                       <p className="font-medium">{institution.domain}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Admin Email</p>
+                      <p className="font-medium">admin@{institution.domain}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -297,6 +303,14 @@ export default function InstitutionDetailsPage({ params }) {
                       <p className="text-sm text-muted-foreground">Created On</p>
                       <p className="font-medium">{new Date(institution.createdAt).toLocaleDateString()}</p>
                     </div>
+                    {institution.subscriptionStartDate && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Subscription Starts</p>
+                        <p className="font-medium">
+                          {new Date(institution.subscriptionStartDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
                     {institution.subscriptionEndDate && (
                       <div>
                         <p className="text-sm text-muted-foreground">Subscription Ends</p>

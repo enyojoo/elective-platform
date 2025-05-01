@@ -7,7 +7,6 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -22,8 +21,8 @@ export default function NewInstitutionPage() {
     adminPassword: "",
     plan: "standard",
     customDomain: "",
-    maxUsers: 50,
-    maxPrograms: 20,
+    subscriptionStartDate: new Date().toISOString().split("T")[0],
+    subscriptionEndDate: "",
   })
 
   const handleChange = (e) => {
@@ -61,16 +60,11 @@ export default function NewInstitutionPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="basic">Basic Information</TabsTrigger>
-            <TabsTrigger value="admin">Admin Account</TabsTrigger>
-            <TabsTrigger value="limits">Subscription & Limits</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="basic">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
+        <Card>
+          <CardContent className="pt-6 space-y-6">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Institution Information</h3>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Institution Name</Label>
                   <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
@@ -78,9 +72,7 @@ export default function NewInstitutionPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="domain">Domain</Label>
-                  <div className="flex items-center">
-                    <Input id="domain" name="domain" value={formData.domain} onChange={handleChange} required />
-                  </div>
+                  <Input id="domain" name="domain" value={formData.domain} onChange={handleChange} required />
                 </div>
 
                 <div className="space-y-2">
@@ -93,13 +85,12 @@ export default function NewInstitutionPage() {
                     placeholder="electives.university.edu"
                   />
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
 
-          <TabsContent value="admin">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Admin Account</h3>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="adminEmail">Admin Email</Label>
                   <Input
@@ -126,13 +117,12 @@ export default function NewInstitutionPage() {
                     The admin will be prompted to change this password on first login.
                   </p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
 
-          <TabsContent value="limits">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Subscription</h3>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="plan">Subscription Plan</Label>
                   <Select value={formData.plan} onValueChange={(value) => handleSelectChange("plan", value)}>
@@ -149,40 +139,38 @@ export default function NewInstitutionPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="maxUsers">Maximum Users</Label>
+                  <Label htmlFor="subscriptionStartDate">Subscription Start Date</Label>
                   <Input
-                    id="maxUsers"
-                    name="maxUsers"
-                    type="number"
-                    value={formData.maxUsers}
+                    id="subscriptionStartDate"
+                    name="subscriptionStartDate"
+                    type="date"
+                    value={formData.subscriptionStartDate || new Date().toISOString().split("T")[0]}
                     onChange={handleChange}
-                    required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="maxPrograms">Maximum Programs</Label>
+                  <Label htmlFor="subscriptionEndDate">Subscription End Date</Label>
                   <Input
-                    id="maxPrograms"
-                    name="maxPrograms"
-                    type="number"
-                    value={formData.maxPrograms}
+                    id="subscriptionEndDate"
+                    name="subscriptionEndDate"
+                    type="date"
+                    value={formData.subscriptionEndDate}
                     onChange={handleChange}
-                    required
                   />
                 </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push("/super-admin/institutions")}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Creating..." : "Create Institution"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button type="button" variant="outline" onClick={() => router.push("/super-admin/institutions")}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Creating..." : "Create Institution"}
+            </Button>
+          </CardFooter>
+        </Card>
       </form>
     </div>
   )

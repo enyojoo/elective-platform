@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -22,10 +21,11 @@ export default function EditInstitutionPage({ params }) {
     name: "",
     domain: "",
     customDomain: "",
+    adminEmail: "",
+    adminPassword: "",
     plan: "",
-    maxUsers: 0,
-    maxPrograms: 0,
     isActive: true,
+    subscriptionStartDate: "",
     subscriptionEndDate: "",
   })
 
@@ -36,10 +36,11 @@ export default function EditInstitutionPage({ params }) {
         name: "University of Technology",
         domain: "unitech.edu",
         customDomain: "electives.unitech.edu",
+        adminEmail: "admin@unitech.edu",
+        adminPassword: "",
         plan: "enterprise",
-        maxUsers: 2000,
-        maxPrograms: 30,
         isActive: true,
+        subscriptionStartDate: "2023-01-15",
         subscriptionEndDate: "2024-01-15",
       })
       setIsLoading(false)
@@ -89,16 +90,11 @@ export default function EditInstitutionPage({ params }) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="basic">Basic Information</TabsTrigger>
-            <TabsTrigger value="subscription">Subscription</TabsTrigger>
-            <TabsTrigger value="limits">Limits</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="basic">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
+        <Card>
+          <CardContent className="pt-6 space-y-6">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Institution Information</h3>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Institution Name</Label>
                   <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
@@ -128,13 +124,44 @@ export default function EditInstitutionPage({ params }) {
                   />
                   <Label htmlFor="isActive">Active</Label>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
 
-          <TabsContent value="subscription">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Admin Account</h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="adminEmail">Admin Email</Label>
+                  <Input
+                    id="adminEmail"
+                    name="adminEmail"
+                    type="email"
+                    value={formData.adminEmail}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminPassword">Reset Password (Optional)</Label>
+                  <Input
+                    id="adminPassword"
+                    name="adminPassword"
+                    type="password"
+                    value={formData.adminPassword}
+                    onChange={handleChange}
+                    placeholder="Leave blank to keep current password"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    The admin will be prompted to change this password on next login.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-medium mb-4">Subscription</h3>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="plan">Subscription Plan</Label>
                   <Select value={formData.plan} onValueChange={(value) => handleSelectChange("plan", value)}>
@@ -151,6 +178,17 @@ export default function EditInstitutionPage({ params }) {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="subscriptionStartDate">Subscription Start Date</Label>
+                  <Input
+                    id="subscriptionStartDate"
+                    name="subscriptionStartDate"
+                    type="date"
+                    value={formData.subscriptionStartDate}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="subscriptionEndDate">Subscription End Date</Label>
                   <Input
                     id="subscriptionEndDate"
@@ -160,56 +198,18 @@ export default function EditInstitutionPage({ params }) {
                     onChange={handleChange}
                   />
                 </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/institutions/${id}`)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="limits">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="maxUsers">Maximum Users</Label>
-                  <Input
-                    id="maxUsers"
-                    name="maxUsers"
-                    type="number"
-                    value={formData.maxUsers}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="maxPrograms">Maximum Programs</Label>
-                  <Input
-                    id="maxPrograms"
-                    name="maxPrograms"
-                    type="number"
-                    value={formData.maxPrograms}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/institutions/${id}`)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button type="button" variant="outline" onClick={() => router.push(`/super-admin/institutions/${id}`)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </CardFooter>
+        </Card>
       </form>
     </div>
   )
