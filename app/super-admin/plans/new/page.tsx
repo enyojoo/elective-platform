@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ArrowLeft } from "lucide-react"
 
@@ -17,7 +16,6 @@ export default function CreatePlanPage() {
     name: "",
     userLimit: "",
     price: "",
-    description: "",
     isActive: true,
   })
 
@@ -109,18 +107,6 @@ export default function CreatePlanPage() {
                   <Switch id="isActive" checked={formData.isActive} onCheckedChange={handleSwitchChange} />
                 </div>
                 <p className="text-sm text-muted-foreground">Only active plans can be assigned to institutions</p>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  placeholder="Describe the features and benefits of this plan..."
-                  value={formData.description}
-                  onChange={handleChange}
-                  rows={4}
-                />
               </div>
             </div>
 

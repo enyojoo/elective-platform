@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ArrowLeft } from "lucide-react"
 
@@ -23,7 +22,6 @@ export default function EditPlanPage() {
     name: "",
     userLimit: 0,
     price: 0,
-    description: "",
     isActive: true,
   })
 
@@ -41,7 +39,6 @@ export default function EditPlanPage() {
                 : "Enterprise",
         userLimit: planId === "free" ? 100 : planId === "standard" ? 1000 : planId === "premium" ? 2000 : 5000,
         price: planId === "free" ? 0 : planId === "standard" ? 99 : planId === "premium" ? 199 : 499,
-        description: "This plan provides access to all features with a limit on the number of users.",
         isActive: true,
       }
 
@@ -50,7 +47,7 @@ export default function EditPlanPage() {
     }, 1000)
   }, [planId])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -130,17 +127,6 @@ export default function EditPlanPage() {
                   required
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                rows={4}
-              />
             </div>
 
             <div className="flex items-center space-x-2">
