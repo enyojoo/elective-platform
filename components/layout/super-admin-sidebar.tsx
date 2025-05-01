@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, Settings, BookOpen, Globe, Building2, X } from "lucide-react"
+import { LayoutDashboard, Settings, BookOpen, Globe, Building2, X } from "lucide-react"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
 
 interface SuperAdminSidebarProps {
@@ -73,13 +73,6 @@ export function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
             active={pathname.startsWith("/super-admin/institutions")}
           >
             Institutions
-          </NavItem>
-          <NavItem
-            href="/super-admin/users"
-            icon={<Users className="h-4 w-4" />}
-            active={pathname.startsWith("/super-admin/users")}
-          >
-            Users
           </NavItem>
           <NavItem
             href="/super-admin/plans"
