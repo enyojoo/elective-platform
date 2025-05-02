@@ -769,6 +769,7 @@ const translations: Translations = {
     "settings.title": "Settings",
     "settings.tabs.branding": "Branding",
     "settings.tabs.account": "Account",
+    "admin.sidebar.settings": "Settings",
     "settings.branding.title": "Branding Settings",
     "settings.branding.subtitle": "Customize your institution's branding",
     "settings.branding.logo": "Logo",
@@ -796,8 +797,6 @@ const translations: Translations = {
     "settings.account.confirmPassword": "Confirm New Password",
     "settings.account.changePassword": "Change Password",
     "settings.account.changing": "Changing...",
-    "settings.branding.institutionName": "Institution Name",
-    "settings.branding.institutionNamePlaceholder": "Enter your institution name",
     "settings.branding.subdomainRequired": "Subdomain is required",
     "settings.branding.subdomainTaken": "This subdomain is already taken",
     "settings.branding.updateSuccess": "Branding updated",
@@ -814,6 +813,17 @@ const translations: Translations = {
     "settings.toast.logoUploadedDesc": 'File "{0}" has been selected.',
     "settings.toast.faviconUploaded": "Favicon uploaded",
     "settings.toast.faviconUploadedDesc": 'File "{0}" has been selected.',
+    "auth.forgotPassword.title": "Forgot Password",
+    "auth.forgotPassword.description": "Enter your email address and we'll send you a link to reset your password",
+    "auth.forgotPassword.sendResetLink": "Send Reset Link",
+    "auth.forgotPassword.sending": "Sending...",
+    "auth.forgotPassword.backToLogin": "Back to Login",
+    "auth.forgotPassword.checkEmail": "Check Your Email",
+    "auth.forgotPassword.resetLinkSent": "We've sent a password reset link to {email}",
+    "auth.forgotPassword.checkEmailInstructions":
+      "Please check your email and follow the instructions to reset your password",
+    "auth.forgotPassword.errorMessage": "Failed to send reset email",
+    "auth.common.email": "Email",
   },
   ru: {
     // Existing translations...
@@ -1602,6 +1612,17 @@ const translations: Translations = {
     "settings.toast.logoUploadedDesc": 'Файл "{0}" выбран.',
     "settings.toast.faviconUploaded": "Фавикон загружен",
     "settings.toast.faviconUploadedDesc": 'Файл "{0}" выбран.',
+    "auth.forgotPassword.title": "Восстановление пароля",
+    "auth.forgotPassword.description": "Введите ваш email, и мы отправим вам ссылку для сброса пароля",
+    "auth.forgotPassword.sendResetLink": "Отправить ссылку",
+    "auth.forgotPassword.sending": "Отправка...",
+    "auth.forgotPassword.backToLogin": "Вернуться к входу",
+    "auth.forgotPassword.checkEmail": "Проверьте вашу почту",
+    "auth.forgotPassword.resetLinkSent": "Мы отправили ссылку для сброса пароля на {email}",
+    "auth.forgotPassword.checkEmailInstructions":
+      "Пожалуйста, проверьте вашу почту и следуйте инструкциям для сброса пароля",
+    "auth.forgotPassword.errorMessage": "Не удалось отправить email для сброса пароля",
+    "auth.common.email": "Email",
   },
 }
 
