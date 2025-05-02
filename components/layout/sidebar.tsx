@@ -17,7 +17,7 @@ import {
   Book,
   Group,
   CheckSquare,
-  Palette,
+  Settings,
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 
@@ -34,6 +34,15 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   const isAdmin = pathname.includes("/admin")
   const isManager = pathname.includes("/manager")
   const isStudent = pathname.includes("/student")
+
+  // Set the appropriate logout route based on user role
+  const logoutRoute = isAdmin
+    ? "/admin/login"
+    : isManager
+      ? "/manager/login"
+      : isStudent
+        ? "/student/login"
+        : "/auth/login"
 
   return (
     <>
@@ -128,11 +137,11 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 {t("admin.sidebar.users")}
               </NavItem>
               <NavItem
-                href="/admin/settings/branding"
-                icon={<Palette className="h-4 w-4" />}
-                active={pathname.startsWith("/admin/settings/branding")}
+                href="/admin/settings"
+                icon={<Settings className="h-4 w-4" />}
+                active={pathname.startsWith("/admin/settings")}
               >
-                {t("admin.sidebar.branding")}
+                {t("admin.sidebar.settings")}
               </NavItem>
             </>
           )}
@@ -185,10 +194,10 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           )}
         </div>
 
-        {/* Logout link at bottom */}
+        {/* Logout link at bottom with role-specific route */}
         <div className="mt-auto p-4 border-t">
           <Link
-            href="/auth/login"
+            href={logoutRoute}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
           >
             <svg
