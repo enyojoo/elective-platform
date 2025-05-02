@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@supabase/supabase-js"
 import Link from "next/link"
+import Image from "next/image"
+import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -41,8 +43,17 @@ export default function ForgotPasswordPage() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
         <div className="mx-auto max-w-md space-y-6 w-full">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/images/elective-pro-logo.svg"
+              alt="ElectivePRO Logo"
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Check Your Email</CardTitle>
@@ -61,14 +72,26 @@ export default function ForgotPasswordPage() {
               </Link>
             </CardFooter>
           </Card>
+          <div className="flex justify-center mt-6">
+            <AuthLanguageSwitcher />
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={48}
+            height={48}
+            className="h-12 w-12"
+          />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Forgot Password</CardTitle>
@@ -96,6 +119,9 @@ export default function ForgotPasswordPage() {
             </CardFooter>
           </form>
         </Card>
+        <div className="flex justify-center mt-6">
+          <AuthLanguageSwitcher />
+        </div>
       </div>
     </div>
   )

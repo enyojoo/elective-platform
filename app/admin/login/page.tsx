@@ -9,8 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
+import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
+import { useLanguage } from "@/lib/language-context"
 
 export default function InstitutionLoginPage() {
+  const { t } = useLanguage()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -39,22 +43,31 @@ export default function InstitutionLoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={160}
+            height={45}
+            className="h-10 w-auto"
+          />
+        </div>
         <Card>
           <CardHeader>
-            <CardTitle>Institution Admin Login</CardTitle>
-            <CardDescription>Sign in to your ElectivePRO account</CardDescription>
+            <CardTitle>{t("admin.login.title")}</CardTitle>
+            <CardDescription>{t("admin.login.description")}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("admin.login.email")}</Label>
                 <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("admin.login.password")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -68,24 +81,27 @@ export default function InstitutionLoginPage() {
 
               <div className="text-sm text-right">
                 <Link href="/admin/forgot-password" className="text-primary hover:underline">
-                  Forgot password?
+                  {t("admin.login.forgotPassword")}
                 </Link>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? t("admin.login.loggingIn") : t("admin.login.button")}
               </Button>
 
               <p className="text-sm text-center">
-                Don't have an account?{" "}
+                {t("admin.login.noAccount")}{" "}
                 <Link href="/admin/signup" className="text-primary hover:underline">
-                  Register your institution
+                  {t("admin.login.register")}
                 </Link>
               </p>
             </CardFooter>
           </form>
         </Card>
+        <div className="flex justify-center mt-6">
+          <AuthLanguageSwitcher />
+        </div>
       </div>
     </div>
   )

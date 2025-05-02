@@ -9,8 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
+import Image from "next/image"
+import Link from "next/link"
+import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
+import { useLanguage } from "@/lib/language-context"
 
 export default function InstitutionSignupPage() {
+  const { t } = useLanguage()
   const [institutionName, setInstitutionName] = useState("")
   const [subdomain, setSubdomain] = useState("")
   const [adminEmail, setAdminEmail] = useState("")
@@ -37,8 +42,8 @@ export default function InstitutionSignupPage() {
 
       if (error) throw error
 
-      // Redirect to the institution setup wizard
-      router.push(`https://${subdomain}.electivepro.net/setup`)
+      // Redirect directly to the admin dashboard instead of setup
+      router.push("/admin/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create institution")
     } finally {
@@ -47,17 +52,26 @@ export default function InstitutionSignupPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={160}
+            height={45}
+            className="h-10 w-auto"
+          />
+        </div>
         <Card>
           <CardHeader>
-            <CardTitle>Register Your Institution</CardTitle>
-            <CardDescription>Create your ElectivePRO account</CardDescription>
+            <CardTitle>{t("admin.signup.title")}</CardTitle>
+            <CardDescription>{t("admin.signup.description")}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="institutionName">Institution Name</Label>
+                <Label htmlFor="institutionName">{t("admin.signup.institutionName")}</Label>
                 <Input
                   id="institutionName"
                   value={institutionName}
@@ -67,7 +81,7 @@ export default function InstitutionSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subdomain">Subdomain</Label>
+                <Label htmlFor="subdomain">{t("admin.signup.subdomain")}</Label>
                 <div className="flex items-center">
                   <Input
                     id="subdomain"
@@ -81,7 +95,7 @@ export default function InstitutionSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="adminEmail">Admin Email</Label>
+                <Label htmlFor="adminEmail">{t("admin.signup.adminEmail")}</Label>
                 <Input
                   id="adminEmail"
                   type="email"
@@ -92,7 +106,7 @@ export default function InstitutionSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="adminPassword">Admin Password</Label>
+                <Label htmlFor="adminPassword">{t("admin.signup.adminPassword")}</Label>
                 <Input
                   id="adminPassword"
                   type="password"
@@ -104,13 +118,23 @@ export default function InstitutionSignupPage() {
 
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating..." : "Create Account"}
+                {isLoading ? t("admin.signup.creating") : t("admin.signup.button")}
               </Button>
+
+              <p className="text-sm text-center">
+                {t("admin.signup.hasAccount")}{" "}
+                <Link href="/admin/login" className="text-primary hover:underline">
+                  {t("admin.signup.login")}
+                </Link>
+              </p>
             </CardFooter>
           </form>
         </Card>
+        <div className="flex justify-center mt-6">
+          <AuthLanguageSwitcher />
+        </div>
       </div>
     </div>
   )
