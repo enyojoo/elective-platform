@@ -6,7 +6,19 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import { BookOpen, Home, Users, GraduationCap, BookMarked, X, Globe, Book, Group, CheckSquare } from "lucide-react"
+import {
+  BookOpen,
+  Home,
+  Users,
+  GraduationCap,
+  BookMarked,
+  X,
+  Globe,
+  Book,
+  Group,
+  CheckSquare,
+  Palette,
+} from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 
 interface SidebarProps {
@@ -114,6 +126,13 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 active={pathname.startsWith("/admin/users")}
               >
                 {t("admin.sidebar.users")}
+              </NavItem>
+              <NavItem
+                href="/admin/settings/branding"
+                icon={<Palette className="h-4 w-4" />}
+                active={pathname.startsWith("/admin/settings/branding")}
+              >
+                {t("admin.sidebar.branding")}
               </NavItem>
             </>
           )}

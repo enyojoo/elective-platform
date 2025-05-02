@@ -10,6 +10,7 @@ type Institution = {
   logo_url?: string
   favicon_url?: string
   primary_color?: string
+  secondary_color?: string
   created_at: string
 }
 

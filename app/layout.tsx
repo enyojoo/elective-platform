@@ -5,6 +5,7 @@ import "./globals.css"
 import { Providers } from "./providers"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { DynamicBranding } from "@/components/dynamic-branding"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <Providers>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+            <DynamicBranding />
             {children}
             <Toaster />
           </ThemeProvider>
