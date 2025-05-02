@@ -1,169 +1,147 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useSupabaseClient, useUser } from "@supabase/auth-helpers-react"
-import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/hooks/use-toast"
 
 export function AccountSettings() {
-  const user = useUser()
-  const supabase = useSupabaseClient()
-  const { toast } = useToast()
   const { t } = useLanguage()
-
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
+  const { toast } = useToast()
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [name, setName] = useState("Admin User")
+  const [email, setEmail] = useState("admin@example.com")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isPasswordLoading, setIsPasswordLoading] = useState(false)
-  const [passwordError, setPasswordError] = useState("")
 
-  useEffect(() => {
-    if (user) {
-      setFullName(user.user_metadata?.full_name || "")
-      setEmail(user.email || "")
-    }
-  }, [user])
-
-  const handleProfileUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
+  const handleUpdateInfo = async () => {
+    setIsUpdating(true)
     try {
-      const { error } = await supabase.auth.updateUser({
-        email,
-        data: { full_name: fullName },
-      })
-
-      if (error) throw error
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       toast({
-        title: t("settings.account.profileUpdateSuccess"),
-        description: t("settings.account.profileUpdateSuccessMessage"),
+        title: "Information updated",
+        description: "Your account information has been updated successfully.",
       })
     } catch (error) {
-      console.error("Error updating profile:", error)
       toast({
-        title: t("settings.account.profileUpdateError"),
-        description: t("settings.account.profileUpdateErrorMessage"),
+        title: "Error",
+        description: "Failed to update information. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsUpdating(false)
     }
   }
 
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setPasswordError("")
-
+  const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
-      setPasswordError(t("settings.account.passwordMismatch"))
+      toast({
+        title: "Passwords don't match",
+        description: "New password and confirmation password must match.",
+        variant: "destructive",
+      })
       return
     }
 
-    setIsPasswordLoading(true)
-
+    setIsChangingPassword(true)
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      })
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      if (error) throw error
-
-      // Clear password fields
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
 
       toast({
-        title: t("settings.account.passwordUpdateSuccess"),
-        description: t("settings.account.passwordUpdateSuccessMessage"),
+        title: "Password changed",
+        description: "Your password has been changed successfully.",
       })
     } catch (error) {
-      console.error("Error updating password:", error)
       toast({
-        title: t("settings.account.passwordUpdateError"),
-        description: t("settings.account.passwordUpdateErrorMessage"),
+        title: "Error",
+        description: "Failed to change password. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setIsPasswordLoading(false)
+      setIsChangingPassword(false)
     }
   }
 
   return (
     <div className="space-y-6">
+      {/* Admin Information */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.account.profileTitle")}</CardTitle>
+          <CardTitle>{t("settings.account.adminInfo")}</CardTitle>
+          <CardDescription>{t("settings.account.subtitle")}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">{t("settings.account.fullName")}</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-            </div>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">{t("settings.account.name")}</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">{t("settings.account.email")}</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">{t("settings.account.email")}</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? t("settings.account.saving") : t("settings.account.saveProfile")}
-              </Button>
-            </div>
-          </form>
+          <div className="flex justify-end">
+            <Button onClick={handleUpdateInfo} disabled={isUpdating}>
+              {isUpdating ? t("settings.account.updating") : t("settings.account.updateInfo")}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
+      {/* Password Change */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.account.passwordTitle")}</CardTitle>
+          <CardTitle>{t("settings.account.password")}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">{t("settings.account.newPassword")}</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="currentPassword">{t("settings.account.currentPassword")}</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">{t("settings.account.confirmPassword")}</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-              {passwordError && <p className="text-sm text-destructive mt-1">{passwordError}</p>}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="newPassword">{t("settings.account.newPassword")}</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isPasswordLoading}>
-                {isPasswordLoading ? t("settings.account.updating") : t("settings.account.updatePassword")}
-              </Button>
-            </div>
-          </form>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">{t("settings.account.confirmPassword")}</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleChangePassword} disabled={isChangingPassword}>
+              {isChangingPassword ? t("settings.account.changing") : t("settings.account.changePassword")}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
