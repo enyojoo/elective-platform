@@ -129,3 +129,43 @@ export async function signOut() {
   await supabase.auth.signOut()
   redirect("/")
 }
+
+// Add a new function to ensure a user profile exists
+export async function ensureUserProfile(userId: string, email: string, role: string, institutionId?: string) {
+  const supabase = createServerActionClient({ cookies })
+
+  // Check if profile exists
+  const { data: existingProfile, error: fetchError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .single()
+
+  if (fetchError && fetchError.code === "PGRST116") {
+    // Profile doesn't exist, create it
+    const profileData: any = {
+      id: userId,
+      email: email,
+      role: role,
+      created_at: new Date().toISOString(),
+    }
+
+    if (institutionId) {
+      profileData.institution_id = institutionId
+    }
+
+    const { error: insertError } = await supabase.from("profiles").insert(profileData)
+
+    if (insertError) {
+      console.error("Error creating profile:", insertError)
+      return { success: false, error: "Failed to create user profile" }
+    }
+
+    return { success: true }
+  } else if (fetchError) {
+    console.error("Error checking profile:", fetchError)
+    return { success: false, error: "Error checking user profile" }
+  }
+
+  return { success: true }
+}

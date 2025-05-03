@@ -37,51 +37,80 @@ export default function ManagerLoginPage() {
     }
   }, [institutionLoading, isSubdomainAccess])
 
+  // Update the handleLogin function to handle missing profiles
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     try {
-      // Sign in with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (authError) throw new Error(authError.message)
-
-      if (!authData.user) throw new Error(t("auth.error.invalidCredentials"))
-
-      // Check if user has manager role for this institution
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", authData.user.id)
-        .eq("role", "manager")
-        .single()
-
-      if (profileError || !profileData) {
-        // Sign out if not a manager
-        await supabase.auth.signOut()
-        throw new Error(t("auth.error.notManager"))
+      if (error) {
+        setError(error.message)
+        return
       }
 
-      // Check if manager belongs to the correct institution
-      if (institution && profileData.institution_id !== institution.id) {
-        await supabase.auth.signOut()
-        throw new Error(t("auth.error.wrongInstitution"))
+      if (data.session) {
+        // Check if the user is a manager
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role, institution_id")
+          .eq("id", data.session.user.id)
+          .single()
+
+        if (profileError) {
+          console.error("Error fetching profile:", profileError)
+
+          // If the profile doesn't exist and we have an institution, create a manager profile
+          if (profileError.code === "PGRST116" && institution?.id) {
+            const { error: insertError } = await supabase.from("profiles").insert({
+              id: data.session.user.id,
+              email: email,
+              role: "manager",
+              institution_id: institution.id,
+              created_at: new Date().toISOString(),
+            })
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError)
+              await supabase.auth.signOut()
+              setError("Failed to create user profile")
+            } else {
+              // Successfully created profile
+              toast({
+                title: "Login successful",
+                description: "Welcome to the manager dashboard",
+              })
+              router.push("/manager/dashboard")
+            }
+          } else {
+            await supabase.auth.signOut()
+            setError("Error verifying user role: " + profileError.message)
+          }
+        } else if (profile && profile.role === "manager") {
+          // If accessed via subdomain, check if manager belongs to this institution
+          if (isSubdomainAccess && profile.institution_id !== institution?.id) {
+            await supabase.auth.signOut()
+            setError("You don't have access to this institution")
+          } else {
+            toast({
+              title: "Login successful",
+              description: "Welcome to the manager dashboard",
+            })
+            router.push("/manager/dashboard")
+          }
+        } else {
+          // User is authenticated but not a manager
+          await supabase.auth.signOut()
+          setError("You do not have manager access")
+        }
       }
-
-      toast({
-        title: t("auth.login.success"),
-        description: t("auth.login.welcomeBack"),
-      })
-
-      // Redirect to manager dashboard
-      router.push("/manager/dashboard")
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.error.loginFailed"))
+      setError("Login failed. Please try again.")
     } finally {
       setIsLoading(false)
     }

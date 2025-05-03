@@ -40,8 +40,32 @@ export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
 
           if (error) {
             console.error("Error fetching profile:", error)
-            setIsAuthenticated(false)
-            setSession(null)
+
+            // If the profile doesn't exist, create one with super_admin role
+            if (error.code === "PGRST116") {
+              const { data: userData } = await supabase.auth.getUser()
+              if (userData && userData.user) {
+                const { error: insertError } = await supabase.from("profiles").insert({
+                  id: session.user.id,
+                  email: userData.user.email,
+                  role: "super_admin",
+                  created_at: new Date().toISOString(),
+                })
+
+                if (insertError) {
+                  console.error("Error creating profile:", insertError)
+                  setIsAuthenticated(false)
+                  setSession(null)
+                } else {
+                  // Successfully created profile
+                  setIsAuthenticated(true)
+                  setSession(session)
+                }
+              }
+            } else {
+              setIsAuthenticated(false)
+              setSession(null)
+            }
           } else if (profile && profile.role === "super_admin") {
             setIsAuthenticated(true)
             setSession(session)
@@ -136,8 +160,30 @@ export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error("Error fetching profile:", profileError)
+
+          // If the profile doesn't exist, create one with super_admin role
+          if (profileError.code === "PGRST116") {
+            const { error: insertError } = await supabase.from("profiles").insert({
+              id: data.session.user.id,
+              email: email,
+              role: "super_admin",
+              created_at: new Date().toISOString(),
+            })
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError)
+              await supabase.auth.signOut()
+              return { success: false, error: "Failed to create user profile" }
+            }
+
+            // Successfully created profile
+            setIsAuthenticated(true)
+            setSession(data.session)
+            return { success: true }
+          }
+
           await supabase.auth.signOut()
-          return { success: false, error: "Error verifying user role" }
+          return { success: false, error: "Error verifying user role: " + profileError.message }
         }
 
         if (profile && profile.role === "super_admin") {
