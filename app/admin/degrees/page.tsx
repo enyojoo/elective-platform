@@ -18,6 +18,7 @@ import { useInstitution } from "@/lib/institution-context"
 import { useToast } from "@/hooks/use-toast"
 import { createDegree, deleteDegree, getDegrees, updateDegree, type DegreeFormData } from "@/app/actions/degrees"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { supabase } from "@/lib/supabase"
 
 interface Degree {
   id: string
@@ -33,7 +34,7 @@ interface Degree {
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const { institution } = useInstitution()
+  const { institution, isLoading: isInstitutionLoading } = useInstitution()
   const { toast } = useToast()
 
   const [degrees, setDegrees] = useState<Degree[]>([])
@@ -52,34 +53,74 @@ export default function DegreesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // For direct Supabase query (fallback if server action fails)
+  const fetchDegreesDirectly = async (institutionId: string) => {
+    try {
+      console.log("Fetching degrees directly for institution:", institutionId)
+      const { data, error } = await supabase
+        .from("degrees")
+        .select("*")
+        .eq("institution_id", institutionId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Direct query error:", error)
+        return { degrees: [], error: error.message }
+      }
+
+      console.log("Direct query result:", data)
+      return { degrees: data || [], error: null }
+    } catch (err) {
+      console.error("Exception in direct query:", err)
+      return { degrees: [], error: "Failed to fetch degrees directly" }
+    }
+  }
+
   // Fetch degrees on component mount
   useEffect(() => {
     async function fetchDegrees() {
-      if (!institution?.id) return
+      if (isInstitutionLoading) {
+        console.log("Institution is still loading, waiting...")
+        return
+      }
 
+      if (!institution?.id) {
+        console.log("No institution ID available")
+        setIsLoading(false)
+        return
+      }
+
+      console.log("Institution loaded, ID:", institution.id)
       setIsLoading(true)
+
       try {
-        const { degrees, error } = await getDegrees(institution.id)
+        // Try server action first
+        const { degrees: serverDegrees, error: serverError } = await getDegrees(institution.id)
 
-        console.log("Fetched degrees:", degrees) // Debug log
+        if (serverError || !Array.isArray(serverDegrees)) {
+          console.warn("Server action failed, trying direct query:", serverError)
 
-        if (error) {
-          console.error("Error fetching degrees:", error)
-          toast({
-            title: t("common.error"),
-            description: error,
-            variant: "destructive",
-          })
-        } else if (Array.isArray(degrees)) {
-          setDegrees(degrees)
-          setFilteredDegrees(degrees)
+          // Fallback to direct query
+          const { degrees: directDegrees, error: directError } = await fetchDegreesDirectly(institution.id)
+
+          if (directError) {
+            console.error("Both methods failed to fetch degrees")
+            toast({
+              title: t("common.error"),
+              description: directError,
+              variant: "destructive",
+            })
+            setDegrees([])
+            setFilteredDegrees([])
+          } else {
+            console.log("Degrees fetched via direct query:", directDegrees)
+            setDegrees(directDegrees)
+            setFilteredDegrees(directDegrees)
+          }
         } else {
-          console.error("Unexpected degrees data format:", degrees)
-          toast({
-            title: t("common.error"),
-            description: "Unexpected data format received",
-            variant: "destructive",
-          })
+          console.log("Degrees fetched via server action:", serverDegrees)
+          setDegrees(serverDegrees)
+          setFilteredDegrees(serverDegrees)
         }
       } catch (err) {
         console.error("Exception in fetchDegrees:", err)
@@ -94,7 +135,7 @@ export default function DegreesPage() {
     }
 
     fetchDegrees()
-  }, [institution?.id, toast, t])
+  }, [institution?.id, isInstitutionLoading, toast, t])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -304,6 +345,12 @@ export default function DegreesPage() {
     }
   }
 
+  // Determine if we're in a loading state
+  const showLoading = isInstitutionLoading || isLoading
+
+  // Determine if the Add Degree button should be disabled
+  const addButtonDisabled = isInstitutionLoading || !institution?.id
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -311,8 +358,12 @@ export default function DegreesPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t("admin.degrees.title")}</h1>
             <p className="text-muted-foreground mt-2">{t("admin.degrees.subtitle")}</p>
+            {isInstitutionLoading && <p className="text-sm text-amber-500 mt-1">Loading institution data...</p>}
+            {!isInstitutionLoading && !institution?.id && (
+              <p className="text-sm text-red-500 mt-1">No institution found. Please check your configuration.</p>
+            )}
           </div>
-          <Button onClick={() => handleOpenDialog()} disabled={!institution?.id}>
+          <Button onClick={() => handleOpenDialog()} disabled={addButtonDisabled}>
             <Plus className="mr-2 h-4 w-4" />
             {t("admin.degrees.addDegree")}
           </Button>
@@ -344,10 +395,16 @@ export default function DegreesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
+                    {showLoading ? (
                       <TableRow>
                         <TableCell colSpan={6} className="p-0 border-0">
                           <PageSkeleton type="table" itemCount={5} />
+                        </TableCell>
+                      </TableRow>
+                    ) : !institution?.id ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No institution selected. Please check your configuration.
                         </TableCell>
                       </TableRow>
                     ) : filteredDegrees.length === 0 ? (

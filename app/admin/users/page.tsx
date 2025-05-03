@@ -22,9 +22,9 @@ import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { supabase } from "@/lib/supabase"
 
 // Define user type
 type User = {
@@ -42,7 +42,7 @@ type User = {
 
 export default function UsersPage() {
   const { t } = useLanguage()
-  const { institution } = useInstitution()
+  const { institution, isLoading: isInstitutionLoading } = useInstitution()
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
@@ -56,22 +56,37 @@ export default function UsersPage() {
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
   // Fetch users, degrees, and programs
   useEffect(() => {
-    if (!institution) return
+    if (isInstitutionLoading) {
+      console.log("Institution is still loading, waiting...")
+      return
+    }
+
+    if (!institution?.id) {
+      console.log("No institution ID available for users page")
+      setIsLoading(false)
+      return
+    }
+
+    console.log("Institution loaded for users page, ID:", institution.id)
 
     const fetchData = async () => {
       setIsLoading(true)
       try {
+        console.log("Fetching data for institution:", institution.id)
+
         // Fetch degrees
         const { data: degreesData, error: degreesError } = await supabase
           .from("degrees")
           .select("id, name, code")
           .eq("institution_id", institution.id)
 
-        if (degreesError) throw degreesError
+        if (degreesError) {
+          console.error("Error fetching degrees:", degreesError)
+          throw degreesError
+        }
+        console.log("Fetched degrees:", degreesData)
         setDegrees(degreesData || [])
 
         // Fetch programs
@@ -80,7 +95,11 @@ export default function UsersPage() {
           .select("id, name, code, degree_id")
           .eq("institution_id", institution.id)
 
-        if (programsError) throw programsError
+        if (programsError) {
+          console.error("Error fetching programs:", programsError)
+          throw programsError
+        }
+        console.log("Fetched programs:", programsData)
         setPrograms(programsData || [])
 
         // Fetch profiles for this institution
@@ -98,7 +117,11 @@ export default function UsersPage() {
           `)
           .eq("institution_id", institution.id)
 
-        if (profilesError) throw profilesError
+        if (profilesError) {
+          console.error("Error fetching profiles:", profilesError)
+          throw profilesError
+        }
+        console.log("Fetched profiles:", profilesData?.length || 0)
 
         // Transform profiles data
         const transformedUsers = (profilesData || []).map((profile) => ({
@@ -114,6 +137,7 @@ export default function UsersPage() {
           programName: profile.program_id ? programsData?.find((p) => p.id === profile.program_id)?.name || "-" : "-",
         }))
 
+        console.log("Transformed users:", transformedUsers.length)
         setUsers(transformedUsers)
         setFilteredUsers(transformedUsers)
         setTotalPages(Math.ceil(transformedUsers.length / itemsPerPage))
@@ -130,7 +154,7 @@ export default function UsersPage() {
     }
 
     fetchData()
-  }, [institution, supabase, toast])
+  }, [institution?.id, isInstitutionLoading, toast, t])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -240,6 +264,9 @@ export default function UsersPage() {
     }
   }
 
+  // Determine if we're in a loading state
+  const showLoading = isInstitutionLoading || isLoading
+
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="flex flex-col gap-6">
@@ -247,16 +274,20 @@ export default function UsersPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.title")}</h1>
             <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
+            {isInstitutionLoading && <p className="text-sm text-amber-500 mt-1">Loading institution data...</p>}
+            {!isInstitutionLoading && !institution?.id && (
+              <p className="text-sm text-red-500 mt-1">No institution found. Please check your configuration.</p>
+            )}
           </div>
           <div className="flex gap-2">
             <Link href="/admin/users/invite">
-              <Button variant="outline">
+              <Button variant="outline" disabled={!institution?.id}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 {t("admin.users.inviteManager")}
               </Button>
             </Link>
             <Link href="/admin/users/invite-student">
-              <Button variant="outline">
+              <Button variant="outline" disabled={!institution?.id}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 {t("admin.users.inviteStudent")}
               </Button>
@@ -321,7 +352,7 @@ export default function UsersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
+                    {showLoading ? (
                       // Skeleton loading state
                       Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={`skeleton-${index}`}>
@@ -351,6 +382,12 @@ export default function UsersPage() {
                           </TableCell>
                         </TableRow>
                       ))
+                    ) : !institution?.id ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No institution selected. Please check your configuration.
+                        </TableCell>
+                      </TableRow>
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
