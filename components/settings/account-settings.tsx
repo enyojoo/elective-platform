@@ -26,13 +26,13 @@ export function AccountSettings() {
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       toast({
-        title: "Information updated",
-        description: "Your account information has been updated successfully.",
+        title: t("settings.account.updateSuccess"),
+        description: t("settings.account.updateSuccessMessage"),
       })
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to update information. Please try again.",
+        title: t("settings.toast.error"),
+        description: t("settings.toast.errorDesc"),
         variant: "destructive",
       })
     } finally {
@@ -43,8 +43,8 @@ export function AccountSettings() {
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       toast({
-        title: "Passwords don't match",
-        description: "New password and confirmation password must match.",
+        title: t("settings.account.passwordMismatch"),
+        description: t("settings.account.passwordMismatchMessage"),
         variant: "destructive",
       })
       return
@@ -60,13 +60,13 @@ export function AccountSettings() {
       setConfirmPassword("")
 
       toast({
-        title: "Password changed",
-        description: "Your password has been changed successfully.",
+        title: t("settings.account.passwordChanged"),
+        description: t("settings.account.passwordChangedMessage"),
       })
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to change password. Please try again.",
+        title: t("settings.toast.error"),
+        description: t("settings.toast.errorDesc"),
         variant: "destructive",
       })
     } finally {
