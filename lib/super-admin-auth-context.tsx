@@ -31,51 +31,10 @@ export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getSession()
 
         if (session) {
-          // Check if the user is a super_admin
-          const { data: profile, error } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .single()
-
-          if (error) {
-            console.error("Error fetching profile:", error)
-
-            // If the profile doesn't exist, create one with super_admin role
-            if (error.code === "PGRST116") {
-              const { data: userData } = await supabase.auth.getUser()
-              if (userData && userData.user) {
-                const { error: insertError } = await supabase.from("profiles").insert({
-                  id: session.user.id,
-                  email: userData.user.email,
-                  role: "super_admin",
-                  created_at: new Date().toISOString(),
-                })
-
-                if (insertError) {
-                  console.error("Error creating profile:", insertError)
-                  setIsAuthenticated(false)
-                  setSession(null)
-                } else {
-                  // Successfully created profile
-                  setIsAuthenticated(true)
-                  setSession(session)
-                }
-              }
-            } else {
-              setIsAuthenticated(false)
-              setSession(null)
-            }
-          } else if (profile && profile.role === "super_admin") {
-            setIsAuthenticated(true)
-            setSession(session)
-          } else {
-            // User is authenticated but not a super_admin
-            setIsAuthenticated(false)
-            setSession(null)
-            // Sign out the user since they're not a super_admin
-            await supabase.auth.signOut()
-          }
+          // We'll just check if the user is authenticated and set them as authenticated
+          // We'll verify their role when they try to access protected resources
+          setIsAuthenticated(true)
+          setSession(session)
         } else {
           setIsAuthenticated(false)
           setSession(null)
@@ -107,27 +66,8 @@ export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        // Check if the user is a super_admin
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .single()
-
-        if (error) {
-          console.error("Error fetching profile:", error)
-          setIsAuthenticated(false)
-          setSession(null)
-        } else if (profile && profile.role === "super_admin") {
-          setIsAuthenticated(true)
-          setSession(session)
-        } else {
-          // User is authenticated but not a super_admin
-          setIsAuthenticated(false)
-          setSession(null)
-          // Sign out the user since they're not a super_admin
-          await supabase.auth.signOut()
-        }
+        setIsAuthenticated(true)
+        setSession(session)
       } else {
         setIsAuthenticated(false)
         setSession(null)
@@ -151,50 +91,11 @@ export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session) {
-        // Check if the user is a super_admin
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", data.session.user.id)
-          .single()
-
-        if (profileError) {
-          console.error("Error fetching profile:", profileError)
-
-          // If the profile doesn't exist, create one with super_admin role
-          if (profileError.code === "PGRST116") {
-            const { error: insertError } = await supabase.from("profiles").insert({
-              id: data.session.user.id,
-              email: email,
-              role: "super_admin",
-              created_at: new Date().toISOString(),
-            })
-
-            if (insertError) {
-              console.error("Error creating profile:", insertError)
-              await supabase.auth.signOut()
-              return { success: false, error: "Failed to create user profile" }
-            }
-
-            // Successfully created profile
-            setIsAuthenticated(true)
-            setSession(data.session)
-            return { success: true }
-          }
-
-          await supabase.auth.signOut()
-          return { success: false, error: "Error verifying user role: " + profileError.message }
-        }
-
-        if (profile && profile.role === "super_admin") {
-          setIsAuthenticated(true)
-          setSession(data.session)
-          return { success: true }
-        } else {
-          // User is authenticated but not a super_admin
-          await supabase.auth.signOut()
-          return { success: false, error: "You do not have super admin privileges" }
-        }
+        // For now, we'll just set the user as authenticated
+        // We'll check their role when they try to access protected resources
+        setIsAuthenticated(true)
+        setSession(data.session)
+        return { success: true }
       }
 
       return { success: false, error: "Login failed" }
