@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
 import Image from "next/image"
 import Link from "next/link"
-import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
 
 export default function InstitutionSignupPage() {
@@ -133,7 +133,7 @@ export default function InstitutionSignupPage() {
           </form>
         </Card>
         <div className="flex justify-center mt-6">
-          <AuthLanguageSwitcher />
+          <LanguageSwitcher />
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
 import Image from "next/image"
+import { useInstitution } from "@/lib/institution-context"
 
 export default function SuperAdminLoginPage() {
   const [email, setEmail] = useState("")
@@ -18,6 +19,15 @@ export default function SuperAdminLoginPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const { login } = useSuperAdminAuth()
+  const { isSubdomainAccess, isLoading: institutionLoading } = useInstitution()
+
+  // Redirect to subdomain if accessed via subdomain
+  useEffect(() => {
+    if (!institutionLoading && isSubdomainAccess) {
+      // If accessed via subdomain, redirect to student login
+      window.location.href = "/student/login"
+    }
+  }, [institutionLoading, isSubdomainAccess])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,11 +50,21 @@ export default function SuperAdminLoginPage() {
     }
   }
 
+  if (institutionLoading) {
+    return <div className="min-h-screen grid place-items-center">Loading...</div>
+  }
+
   return (
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-8">
-          <Image src="/images/elective-pro-logo.svg" alt="ElectivePRO" width={140} height={45} className="h-10 w-auto" />
+          <Image
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO"
+            width={140}
+            height={45}
+            className="h-10 w-auto"
+          />
         </div>
         <Card>
           <CardHeader>

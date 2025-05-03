@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -12,16 +12,26 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
-import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useInstitution } from "@/lib/institution-context"
 
 export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  // Redirect to main domain if not accessed via subdomain
+  useEffect(() => {
+    if (!institutionLoading && !isSubdomainAccess) {
+      // If not accessed via subdomain, redirect to the main app
+      window.location.href = "https://app.electivepro.net/admin/login"
+    }
+  }, [institutionLoading, isSubdomainAccess])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +46,7 @@ export default function ManagerLoginPage() {
 
       toast({
         title: "Login successful",
-        description: "Welcome back to the Elective Platform",
+        description: "Welcome back to ElectivePRO",
       })
 
       // Redirect to manager dashboard
@@ -79,24 +89,42 @@ export default function ManagerLoginPage() {
     }
   }
 
+  if (institutionLoading) {
+    return <div className="min-h-screen grid place-items-center">Loading...</div>
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center space-y-2 text-center">
-          <Image
-            src="/images/elective-pro-logo.svg"
-            alt="Elective Pro Logo"
-            width={160}
-            height={45}
-            className="h-10 w-auto"
-          />
+          {institution?.logo_url ? (
+            <Image
+              src={institution.logo_url || "/placeholder.svg"}
+              alt={`${institution.name} Logo`}
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          ) : (
+            <Image
+              src="/images/elective-pro-logo.svg"
+              alt="Elective Pro Logo"
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          )}
           <h1 className="text-3xl font-bold"></h1>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>{t("auth.login.managerLogin")}</CardTitle>
-            <CardDescription>{t("auth.login.managerLoginDescription")}</CardDescription>
+            <CardDescription>
+              {institution
+                ? `${t("auth.login.managerLoginDescription")} - ${institution.name}`
+                : t("auth.login.managerLoginDescription")}
+            </CardDescription>
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
@@ -158,7 +186,7 @@ export default function ManagerLoginPage() {
           </div>
         </div>
         <div className="flex justify-center mt-8">
-          <AuthLanguageSwitcher />
+          <LanguageSwitcher />
         </div>
       </div>
     </div>

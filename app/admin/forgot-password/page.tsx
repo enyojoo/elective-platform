@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { createClient } from "@supabase/supabase-js"
 import Link from "next/link"
 import Image from "next/image"
-import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
 
 export default function ForgotPasswordPage() {
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
             </CardFooter>
           </Card>
           <div className="flex justify-center mt-6">
-            <AuthLanguageSwitcher />
+            <LanguageSwitcher />
           </div>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function ForgotPasswordPage() {
           </form>
         </Card>
         <div className="flex justify-center mt-6">
-          <AuthLanguageSwitcher />
+          <LanguageSwitcher />
         </div>
       </div>
     </div>

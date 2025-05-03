@@ -900,7 +900,7 @@ const translations: Translations = {
 
     // Student Dashboard
     "student.dashboard.title": "Панель управления",
-    "student.dashboard.requiredElectives": "Требуемые элективы",
+    "student.dashboard.requiredElectives": "Требуемые элект��вы",
     "student.dashboard.selectedElectives": "Выбранные элективы",
     "student.dashboard.pendingSelections": "Ожидающие выборы",
     "student.dashboard.courses": "курсов",
