@@ -179,9 +179,11 @@ export default function UniversitiesPage() {
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("admin.universities.title", "Universities")}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {t("admin.universities.title", "Partner Universities")}
+            </h1>
             <p className="text-muted-foreground mt-2">
-              {t("admin.universities.subtitle", "Manage partner universities for exchange programs")}
+              {t("admin.universities.subtitle", "Manage partner universities for student exchange programs")}
             </p>
           </div>
           <Link href="/admin/universities/new">
@@ -269,6 +271,11 @@ export default function UniversitiesPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <Link href={`/admin/universities/${university.id}`} className="w-full">
+                                    {t("admin.universities.view", "View Details")}
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Link href={`/admin/universities/${university.id}/edit`} className="w-full">
                                     {t("admin.universities.edit", "Edit")}
                                   </Link>
                                 </DropdownMenuItem>
@@ -288,7 +295,7 @@ export default function UniversitiesPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">
-                          {t("admin.universities.noUniversitiesFound", "No universities found")}
+                          {t("admin.universities.noUniversitiesFound", "No universities found matching your criteria")}
                         </TableCell>
                       </TableRow>
                     )}

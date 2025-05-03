@@ -46,11 +46,14 @@ export default function NewUniversityPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { t } = useLanguage()
   const [university, setUniversity] = useState({
-    name: "",
+    nameEn: "",
+    nameRu: "",
     country: "",
-    city: "",
+    cityEn: "",
+    cityRu: "",
     website: "",
-    description: "",
+    descriptionEn: "",
+    descriptionRu: "",
     status: "active", // Default status
   })
 
@@ -99,16 +102,29 @@ export default function NewUniversityPage() {
         <Card>
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.newUniversity.name", "University Name")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder="Harvard University"
-                  value={university.name}
-                  onChange={handleChange}
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="nameEn">{t("admin.newUniversity.nameEn", "University Name (English)")}</Label>
+                  <Input
+                    id="nameEn"
+                    name="nameEn"
+                    placeholder="Harvard University"
+                    value={university.nameEn}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nameRu">{t("admin.newUniversity.nameRu", "University Name (Russian)")}</Label>
+                  <Input
+                    id="nameRu"
+                    name="nameRu"
+                    placeholder="Гарвардский университет"
+                    value={university.nameRu}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -128,12 +144,23 @@ export default function NewUniversityPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="city">{t("admin.newUniversity.city", "City")}</Label>
+                  <Label htmlFor="cityEn">{t("admin.newUniversity.cityEn", "City (English)")}</Label>
                   <Input
-                    id="city"
-                    name="city"
+                    id="cityEn"
+                    name="cityEn"
                     placeholder="Cambridge"
-                    value={university.city}
+                    value={university.cityEn}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cityRu">{t("admin.newUniversity.cityRu", "City (Russian)")}</Label>
+                  <Input
+                    id="cityRu"
+                    name="cityRu"
+                    placeholder="Кембридж"
+                    value={university.cityRu}
                     onChange={handleChange}
                     required
                   />
@@ -147,7 +174,7 @@ export default function NewUniversityPage() {
                     id="website"
                     name="website"
                     type="url"
-                    placeholder="https://www.harvard.edu"
+                    placeholder={t("admin.newUniversity.websitePlaceholder", "https://www.harvard.edu")}
                     value={university.website}
                     onChange={handleChange}
                     required
@@ -170,20 +197,35 @@ export default function NewUniversityPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">{t("admin.newUniversity.description", "Description")}</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  placeholder={t(
-                    "admin.newUniversity.descriptionPlaceholder",
-                    "Brief description of the university and partnership details...",
-                  )}
-                  value={university.description}
-                  onChange={handleChange}
-                  rows={4}
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="descriptionEn">
+                    {t("admin.newUniversity.descriptionEn", "Description (English)")}
+                  </Label>
+                  <Textarea
+                    id="descriptionEn"
+                    name="descriptionEn"
+                    placeholder="Brief description of the university and partnership details..."
+                    value={university.descriptionEn}
+                    onChange={handleChange}
+                    rows={4}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="descriptionRu">
+                    {t("admin.newUniversity.descriptionRu", "Description (Russian)")}
+                  </Label>
+                  <Textarea
+                    id="descriptionRu"
+                    name="descriptionRu"
+                    placeholder="Краткое описание университета и деталей партнерства..."
+                    value={university.descriptionRu}
+                    onChange={handleChange}
+                    rows={4}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-4">

@@ -109,6 +109,13 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                 {t("admin.sidebar.courses")}
               </NavItem>
               <NavItem
+                href="/admin/universities"
+                icon={<Globe className="h-4 w-4" />}
+                active={pathname.startsWith("/admin/universities")}
+              >
+                {t("admin.sidebar.universities")}
+              </NavItem>
+              <NavItem
                 href="/admin/programs"
                 icon={<GraduationCap className="h-4 w-4" />}
                 active={pathname.startsWith("/admin/programs")}
