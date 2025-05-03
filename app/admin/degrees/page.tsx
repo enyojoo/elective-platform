@@ -51,42 +51,41 @@ export default function DegreesPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // Fetch degrees on component mount
   useEffect(() => {
     async function fetchDegrees() {
-      if (!institution?.id) {
-        console.log("No institution ID available yet")
-        return
-      }
+      if (!institution?.id) return
 
       setIsLoading(true)
-      setError(null)
-
       try {
-        console.log("Fetching degrees for institution:", institution.id)
-        const { degrees: fetchedDegrees, error: fetchError } = await getDegrees(institution.id)
+        const { degrees, error } = await getDegrees(institution.id)
 
-        if (fetchError) {
-          console.error("Error fetching degrees:", fetchError)
-          setError(fetchError)
+        console.log("Fetched degrees:", degrees) // Debug log
+
+        if (error) {
+          console.error("Error fetching degrees:", error)
           toast({
             title: t("common.error"),
-            description: fetchError,
+            description: error,
             variant: "destructive",
           })
+        } else if (Array.isArray(degrees)) {
+          setDegrees(degrees)
+          setFilteredDegrees(degrees)
         } else {
-          console.log("Successfully fetched degrees:", fetchedDegrees?.length || 0)
-          setDegrees(fetchedDegrees || [])
-          setFilteredDegrees(fetchedDegrees || [])
+          console.error("Unexpected degrees data format:", degrees)
+          toast({
+            title: t("common.error"),
+            description: "Unexpected data format received",
+            variant: "destructive",
+          })
         }
       } catch (err) {
         console.error("Exception in fetchDegrees:", err)
-        setError("An unexpected error occurred")
         toast({
           title: t("common.error"),
-          description: "An unexpected error occurred",
+          description: "Failed to fetch degrees",
           variant: "destructive",
         })
       } finally {
@@ -94,11 +93,7 @@ export default function DegreesPage() {
       }
     }
 
-    if (institution?.id) {
-      fetchDegrees()
-    } else {
-      setIsLoading(false)
-    }
+    fetchDegrees()
   }, [institution?.id, toast, t])
 
   // Filter degrees based on search term
@@ -309,39 +304,6 @@ export default function DegreesPage() {
     }
   }
 
-  // Show skeleton during initial loading
-  if (isLoading && degrees.length === 0) {
-    return (
-      <DashboardLayout>
-        <PageSkeleton type="table" itemCount={5} />
-      </DashboardLayout>
-    )
-  }
-
-  // Show error state if there's an error
-  if (error && !isLoading && degrees.length === 0) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{t("admin.degrees.title")}</h1>
-              <p className="text-muted-foreground mt-2">{t("admin.degrees.subtitle")}</p>
-            </div>
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center py-12">
-                <p className="text-red-500 mb-4">{error}</p>
-                <Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -384,11 +346,8 @@ export default function DegreesPage() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-24">
-                          <div className="w-full flex items-center justify-center">
-                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                            {t("common.loading")}
-                          </div>
+                        <TableCell colSpan={6} className="p-0 border-0">
+                          <PageSkeleton type="table" itemCount={5} />
                         </TableCell>
                       </TableRow>
                     ) : filteredDegrees.length === 0 ? (

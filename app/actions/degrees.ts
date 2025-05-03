@@ -13,10 +13,13 @@ export interface DegreeFormData {
   institution_id: string
 }
 
-// Add more detailed error logging to help debug the issue
 export async function getDegrees(institutionId: string) {
   try {
     console.log("Fetching degrees for institution:", institutionId)
+
+    // Check if the table exists and log available tables for debugging
+    const { data: tableList } = await supabase.from("degrees").select("id").limit(1)
+    console.log("Table check result:", tableList)
 
     const { data, error } = await supabase
       .from("degrees")
@@ -29,7 +32,7 @@ export async function getDegrees(institutionId: string) {
       return { degrees: [], error: error.message }
     }
 
-    console.log("Fetched degrees:", data?.length || 0)
+    console.log("Degrees data from Supabase:", data)
     return { degrees: data || [], error: null }
   } catch (error) {
     console.error("Error in getDegrees:", error)
@@ -40,6 +43,15 @@ export async function getDegrees(institutionId: string) {
 export async function createDegree(formData: DegreeFormData) {
   try {
     const { id, ...degreeData } = formData
+
+    console.log("Creating degree with data:", {
+      institution_id: degreeData.institution_id,
+      name: degreeData.name,
+      name_ru: degreeData.nameRu,
+      code: degreeData.code,
+      duration_years: degreeData.durationYears,
+      status: degreeData.status,
+    })
 
     const { data, error } = await supabaseAdmin
       .from("degrees")
@@ -59,6 +71,7 @@ export async function createDegree(formData: DegreeFormData) {
       return { success: false, error: error.message }
     }
 
+    console.log("Created degree:", data)
     revalidatePath("/admin/degrees")
     return { success: true, data }
   } catch (error) {
@@ -74,6 +87,14 @@ export async function updateDegree(formData: DegreeFormData) {
     if (!id) {
       return { success: false, error: "Degree ID is required for update" }
     }
+
+    console.log("Updating degree with ID:", id, "and data:", {
+      name: degreeData.name,
+      name_ru: degreeData.nameRu,
+      code: degreeData.code,
+      duration_years: degreeData.durationYears,
+      status: degreeData.status,
+    })
 
     const { data, error } = await supabaseAdmin
       .from("degrees")
@@ -93,6 +114,7 @@ export async function updateDegree(formData: DegreeFormData) {
       return { success: false, error: error.message }
     }
 
+    console.log("Updated degree:", data)
     revalidatePath("/admin/degrees")
     return { success: true, data }
   } catch (error) {
