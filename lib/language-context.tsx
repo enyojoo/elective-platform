@@ -25,23 +25,18 @@ type Translations = {
   ru: TranslationDictionary
 }
 
-const LANGUAGE_STORAGE_KEY = "gsom-timetable-language"
+const LANGUAGE_STORAGE_KEY = "epro-language"
 
 const translations: Translations = {
   en: {
     // Existing translations...
-    "home.title": "GSOM Timetable",
+    "home.title": "ElectivePRO",
     // ... other existing translations
     "home.subtitle": "Select your degree, program, year and group",
-    "timetable.program": "Timetable",
-    "timetable.group": "Group",
-    "timetable.return": "Return to Selection",
-    "timetable.thisWeek": "This Week",
-    "timetable.noClasses": "No classes scheduled for this day.",
     "language.switch": "Switch Language",
     "room.label": "Room",
     "footer.feedback": "Found a mistake or want to suggest an improvement?",
-    "footer.gsomStudent": "Developed by a GSOM Student",
+    "footer.developer": "Developed by ElectivePRO Team",
     "footer.telegramMessage": "Send a message via Telegram",
     "programs.internationalManagement": "International Management",
     "programs.management": "Management",
@@ -851,18 +846,13 @@ const translations: Translations = {
   },
   ru: {
     // Existing translations...
-    "home.title": "Расписание ВШМ",
+    "home.title": "ElectivePRO",
     // ... other existing translations
     "home.subtitle": "Выберите степень, программу, год и группу",
-    "timetable.program": "Расписание",
-    "timetable.group": "Группа",
-    "timetable.return": "Вернуться к выбору",
-    "timetable.thisWeek": "Эта неделя",
-    "timetable.noClasses": "В этот день занятий не запланировано.",
     "language.switch": "Сменить язык",
     "room.label": "Аудитория",
     "footer.feedback": "Нашли ошибку или хотите предложить улучшение?",
-    "footer.gsomStudent": "Разработано студентом ВШМ",
+    "footer.developer": "Разработано командой ElectivePRO",
     "footer.telegramMessage": "Отправить сообщение через Telegram",
     "programs.internationalManagement": "Международный менеджмент",
     "programs.management": "Менеджмент",
