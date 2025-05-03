@@ -151,18 +151,15 @@ export function BrandingSettings() {
 
       const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
 
-      // Since favicon_url column doesn't exist, we'll use a different approach
-      // For now, we'll just show a success message but not actually update the database
-      // In a real implementation, you would need to add the favicon_url column to your database
+      // Update institution with new favicon URL
+      await updateInstitution({
+        favicon_url: faviconUrl,
+      })
+
       toast({
         title: t("settings.toast.faviconUploaded"),
         description: t("settings.toast.faviconUploadedDesc").replace("{0}", file.name),
       })
-
-      // Comment out the updateInstitution call since the column doesn't exist
-      // await updateInstitution({
-      //   favicon_url: faviconUrl,
-      // });
     } catch (error) {
       console.error("Favicon upload error:", error)
       toast({
@@ -264,7 +261,15 @@ export function BrandingSettings() {
               <Label>{t("settings.branding.favicon")}</Label>
               <div className="flex items-center gap-2">
                 <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  <span className="text-xs text-muted-foreground">Icon</span>
+                  {institution?.favicon_url ? (
+                    <img
+                      src={institution.favicon_url || "/placeholder.svg"}
+                      alt="Favicon"
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Icon</span>
+                  )}
                 </div>
                 <label htmlFor="favicon-upload" className="cursor-pointer">
                   <Button
