@@ -12,50 +12,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { useToast } from "@/hooks/use-toast"
+import { createDegree, deleteDegree, getDegrees, updateDegree, type DegreeFormData } from "@/app/actions/degrees"
 
-// Mock degree data
-const initialDegrees = [
-  {
-    id: "1",
-    name: "Bachelor's",
-    nameRu: "Бакалавриат",
-    code: "bachelor",
-    durationYears: 4,
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Master's",
-    nameRu: "Магистратура",
-    code: "master",
-    durationYears: 2,
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Executive MBA",
-    nameRu: "Исполнительный MBA",
-    code: "emba",
-    durationYears: 1.5,
-    status: "inactive",
-  },
-]
-
-interface DegreeFormData {
-  id?: string
+interface Degree {
+  id: string
   name: string
-  nameRu: string
+  name_ru: string | null
   code: string
-  durationYears: number
+  duration_years: number
   status: string
+  institution_id: string
+  created_at: string
+  updated_at: string
 }
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const [degrees, setDegrees] = useState(initialDegrees)
-  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
+  const { institution } = useInstitution()
+  const { toast } = useToast()
+
+  const [degrees, setDegrees] = useState<Degree[]>([])
+  const [filteredDegrees, setFilteredDegrees] = useState<Degree[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentDegree, setCurrentDegree] = useState<DegreeFormData>({
@@ -64,8 +45,36 @@ export default function DegreesPage() {
     code: "",
     durationYears: 2,
     status: "active",
+    institution_id: "",
   })
   const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fetch degrees on component mount
+  useEffect(() => {
+    async function fetchDegrees() {
+      if (!institution?.id) return
+
+      setIsLoading(true)
+      const { degrees, error } = await getDegrees(institution.id)
+
+      if (error) {
+        toast({
+          title: t("common.error"),
+          description: error,
+          variant: "destructive",
+        })
+      } else {
+        setDegrees(degrees)
+        setFilteredDegrees(degrees)
+      }
+
+      setIsLoading(false)
+    }
+
+    fetchDegrees()
+  }, [institution?.id, toast, t])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -77,16 +86,33 @@ export default function DegreesPage() {
     const filtered = degrees.filter(
       (degree) =>
         degree.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        degree.nameRu.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (degree.name_ru && degree.name_ru.toLowerCase().includes(searchTerm.toLowerCase())) ||
         degree.code.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 
     setFilteredDegrees(filtered)
   }, [degrees, searchTerm])
 
-  const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
+  const handleOpenDialog = (degree?: Degree) => {
+    if (!institution?.id) {
+      toast({
+        title: t("common.error"),
+        description: t("admin.degrees.institutionRequired"),
+        variant: "destructive",
+      })
+      return
+    }
+
     if (degree) {
-      setCurrentDegree(degree)
+      setCurrentDegree({
+        id: degree.id,
+        name: degree.name,
+        nameRu: degree.name_ru,
+        code: degree.code,
+        durationYears: degree.duration_years,
+        status: degree.status,
+        institution_id: degree.institution_id,
+      })
       setIsEditing(true)
     } else {
       setCurrentDegree({
@@ -95,6 +121,7 @@ export default function DegreesPage() {
         code: "",
         durationYears: 2,
         status: "active",
+        institution_id: institution.id,
       })
       setIsEditing(false)
     }
@@ -109,42 +136,132 @@ export default function DegreesPage() {
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
 
-    if (isEditing) {
-      // Update existing degree
-      setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
-    } else {
-      // Add new degree
-      const newDegree = {
-        ...currentDegree,
-        id: Math.random().toString(36).substring(2, 9),
-      }
-      setDegrees([...degrees, newDegree])
-    }
+    try {
+      if (isEditing) {
+        // Update existing degree
+        const result = await updateDegree(currentDegree)
+        if (result.success) {
+          toast({
+            title: t("admin.degrees.updateSuccess"),
+            description: t("admin.degrees.degreeUpdated"),
+          })
 
-    setIsDialogOpen(false)
-  }
-
-  const handleDelete = (id: string) => {
-    if (confirm(t("admin.degrees.deleteConfirm"))) {
-      setDegrees(degrees.filter((degree) => degree.id !== id))
-    }
-  }
-
-  const toggleStatus = (id: string) => {
-    setDegrees(
-      degrees.map((degree) => {
-        if (degree.id === id) {
-          return {
-            ...degree,
-            status: degree.status === "active" ? "inactive" : "active",
-          }
+          // Update local state
+          setDegrees(
+            degrees.map((degree) =>
+              degree.id === currentDegree.id
+                ? {
+                    ...degree,
+                    name: currentDegree.name,
+                    name_ru: currentDegree.nameRu,
+                    code: currentDegree.code,
+                    duration_years: currentDegree.durationYears,
+                    status: currentDegree.status,
+                  }
+                : degree,
+            ),
+          )
+        } else {
+          toast({
+            title: t("common.error"),
+            description: result.error || t("admin.degrees.updateError"),
+            variant: "destructive",
+          })
         }
-        return degree
-      }),
-    )
+      } else {
+        // Add new degree
+        const result = await createDegree(currentDegree)
+        if (result.success) {
+          toast({
+            title: t("admin.degrees.createSuccess"),
+            description: t("admin.degrees.degreeCreated"),
+          })
+
+          // Add to local state
+          if (result.data) {
+            setDegrees([result.data, ...degrees])
+          } else {
+            // Refetch if we don't have the data
+            const { degrees: updatedDegrees } = await getDegrees(institution!.id)
+            setDegrees(updatedDegrees)
+          }
+        } else {
+          toast({
+            title: t("common.error"),
+            description: result.error || t("admin.degrees.createError"),
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error submitting degree:", error)
+      toast({
+        title: t("common.error"),
+        description: t("admin.degrees.submissionError"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+      setIsDialogOpen(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm(t("admin.degrees.deleteConfirm"))) {
+      const result = await deleteDegree(id)
+
+      if (result.success) {
+        toast({
+          title: t("admin.degrees.deleteSuccess"),
+          description: t("admin.degrees.degreeDeleted"),
+        })
+
+        // Update local state
+        setDegrees(degrees.filter((degree) => degree.id !== id))
+      } else {
+        toast({
+          title: t("common.error"),
+          description: result.error || t("admin.degrees.deleteError"),
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const toggleStatus = async (degree: Degree) => {
+    const newStatus = degree.status === "active" ? "inactive" : "active"
+
+    const updateData: DegreeFormData = {
+      id: degree.id,
+      name: degree.name,
+      nameRu: degree.name_ru,
+      code: degree.code,
+      durationYears: degree.duration_years,
+      status: newStatus,
+      institution_id: degree.institution_id,
+    }
+
+    const result = await updateDegree(updateData)
+
+    if (result.success) {
+      toast({
+        title: t("admin.degrees.statusUpdateSuccess"),
+        description: t(`admin.degrees.${newStatus}Success`),
+      })
+
+      // Update local state
+      setDegrees(degrees.map((d) => (d.id === degree.id ? { ...d, status: newStatus } : d)))
+    } else {
+      toast({
+        title: t("common.error"),
+        description: result.error || t("admin.degrees.statusUpdateError"),
+        variant: "destructive",
+      })
+    }
   }
 
   // Helper function to get status badge
@@ -175,7 +292,7 @@ export default function DegreesPage() {
             <h1 className="text-3xl font-bold tracking-tight">{t("admin.degrees.title")}</h1>
             <p className="text-muted-foreground mt-2">{t("admin.degrees.subtitle")}</p>
           </div>
-          <Button onClick={() => handleOpenDialog()}>
+          <Button onClick={() => handleOpenDialog()} disabled={!institution?.id}>
             <Plus className="mr-2 h-4 w-4" />
             {t("admin.degrees.addDegree")}
           </Button>
@@ -207,19 +324,28 @@ export default function DegreesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredDegrees.length === 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <div className="flex justify-center items-center">
+                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                            {t("common.loading")}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          {t("admin.degrees.noDegreesFound")}
+                          {searchTerm ? t("admin.degrees.noDegreesFound") : t("admin.degrees.noDegreesYet")}
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredDegrees.map((degree) => (
                         <TableRow key={degree.id}>
                           <TableCell className="font-medium">{degree.name}</TableCell>
-                          <TableCell>{degree.nameRu}</TableCell>
+                          <TableCell>{degree.name_ru}</TableCell>
                           <TableCell>{degree.code}</TableCell>
-                          <TableCell>{degree.durationYears}</TableCell>
+                          <TableCell>{degree.duration_years}</TableCell>
                           <TableCell>{getStatusBadge(degree.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -237,7 +363,7 @@ export default function DegreesPage() {
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   {t("admin.degrees.delete")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toggleStatus(degree.id)}>
+                                <DropdownMenuItem onClick={() => toggleStatus(degree)}>
                                   {degree.status === "active"
                                     ? t("admin.degrees.deactivate")
                                     : t("admin.degrees.activate")}
@@ -269,7 +395,7 @@ export default function DegreesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
-                <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
+                <Input id="nameRu" name="nameRu" value={currentDegree.nameRu || ""} onChange={handleInputChange} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -305,10 +431,21 @@ export default function DegreesPage() {
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
                 {t("admin.degrees.cancel")}
               </Button>
-              <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("common.processing")}
+                  </>
+                ) : isEditing ? (
+                  t("admin.degrees.update")
+                ) : (
+                  t("admin.degrees.create")
+                )}
+              </Button>
             </div>
           </form>
         </DialogContent>
