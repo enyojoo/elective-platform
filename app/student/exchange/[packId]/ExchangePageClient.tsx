@@ -36,10 +36,12 @@ import {
   ExternalLink,
   Download,
   Loader2,
+  Trash,
 } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { uploadStatement } from "@/lib/file-utils"
 
 interface ExchangePageProps {
   params: {
@@ -260,28 +262,80 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
   }
 
   // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      if (file.type !== "application/pdf") {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload a PDF file",
-          variant: "destructive",
-        })
-        return
-      }
+    if (!file) return
 
-      setIsUploading(true)
-      // Simulate upload delay
-      setTimeout(() => {
-        setUploadedStatement(file)
-        setIsUploading(false)
-        toast({
-          title: "Statement uploaded",
-          description: `File "${file.name}" uploaded successfully.`,
-        })
-      }, 1000)
+    // Validate file type
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUploading(true)
+
+    try {
+      // Upload the statement to Supabase Storage
+      const { url, path } = await uploadStatement(file, `exchange_${packId}_${Date.now()}`)
+
+      setUploadedStatement(file)
+
+      // In a real app, you would save the URL to your database
+      // Example: await updateStudentExchangeApplication(packId, { statementUrl: url, statementPath: path })
+
+      toast({
+        title: "Statement uploaded",
+        description: `File "${file.name}" uploaded successfully.`,
+      })
+    } catch (error) {
+      console.error("Error uploading statement:", error)
+      toast({
+        title: "Upload failed",
+        description: "There was an error uploading your statement. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  // Handle statement deletion
+  const handleDeleteStatement = async () => {
+    if (!uploadedStatement) return
+
+    try {
+      // In a real app, you would get the path from your database
+      // const statementPath = await getStudentStatementPath(packId)
+      // if (statementPath) {
+      //   await deleteFile(statementPath)
+      // }
+
+      setUploadedStatement(null)
+      toast({
+        title: "Statement deleted",
+        description: "Your statement has been deleted successfully.",
+      })
+    } catch (error) {
+      console.error("Error deleting statement:", error)
+      toast({
+        title: "Deletion failed",
+        description: "There was an error deleting your statement. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -530,11 +584,24 @@ export default function ExchangePageClient({ params }: ExchangePageProps) {
               </div>
 
               {uploadedStatement && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm">
-                    {t("student.statement.fileUploaded")} <span className="font-medium">{uploadedStatement.name}</span>
-                  </span>
+                <div className="flex items-center justify-between gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm">
+                      {t("student.statement.fileUploaded")}{" "}
+                      <span className="font-medium">{uploadedStatement.name}</span>
+                    </span>
+                  </div>
+                  {existingSelection?.status !== SelectionStatus.APPROVED && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDeleteStatement}
+                      className="h-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/10"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

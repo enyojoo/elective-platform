@@ -16,6 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { DocumentUpload } from "@/components/document-upload"
+import { useToast } from "@/hooks/use-toast"
 
 interface ExchangeEditPageProps {
   params: {
@@ -30,6 +32,8 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUniversities, setSelectedUniversities] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+  const [documents, setDocuments] = useState<Array<{ name: string; url: string; path: string }>>([])
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -227,6 +231,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
     { title: t("manager.exchangeBuilder.step1") },
     { title: t("manager.exchangeBuilder.step2") },
     { title: t("manager.exchangeBuilder.step3") },
+    { title: t("manager.exchangeBuilder.documents") },
   ]
 
   // Add a computed pack name function
@@ -642,6 +647,44 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Step 4: Document Management */}
+            {activeStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.exchangeBuilder.programDocuments")}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {t("manager.exchangeBuilder.documentsDescription")}
+                  </p>
+
+                  <DocumentUpload
+                    bucketName="documents"
+                    folderPath={`exchange/${params.id}`}
+                    allowedFileTypes={[".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"]}
+                    maxFileSizeMB={10}
+                    onUploadComplete={(file) => {
+                      // In a real app, you would save the document to your database
+                      // Example: await addExchangeDocument(params.id, file)
+                      setDocuments([...documents, file])
+                      toast({
+                        title: "Document uploaded",
+                        description: `${file.name} has been uploaded successfully.`,
+                      })
+                    }}
+                    onDeleteComplete={(path) => {
+                      // In a real app, you would remove the document from your database
+                      // Example: await removeExchangeDocument(params.id, path)
+                      setDocuments(documents.filter((doc) => doc.path !== path))
+                      toast({
+                        title: "Document deleted",
+                        description: "The document has been deleted successfully.",
+                      })
+                    }}
+                    existingFiles={documents}
+                  />
+                </div>
               </div>
             )}
           </CardContent>

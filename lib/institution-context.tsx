@@ -1,138 +1,116 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { type ReactNode, createContext, useContext, useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
 
-type Institution = {
+export interface Institution {
   id: string
   name: string
   subdomain: string
   logo_url?: string
   favicon_url?: string
   primary_color?: string
-  secondary_color?: string
-  created_at: string
+  is_active: boolean
 }
 
-type InstitutionContextType = {
+interface InstitutionContextType {
   institution: Institution | null
+  setInstitution: (institution: Institution | null) => void
+  updateInstitution: (data: Partial<Institution>) => Promise<void>
   isLoading: boolean
-  error: string | null
-  refreshInstitution: () => Promise<void>
   isSubdomainAccess: boolean
+  error: string | null
 }
 
-const InstitutionContext = createContext<InstitutionContextType>({
-  institution: null,
-  isLoading: true,
-  error: null,
-  refreshInstitution: async () => {},
-  isSubdomainAccess: false,
-})
+const InstitutionContext = createContext<InstitutionContextType | undefined>(undefined)
 
-export function useInstitution() {
-  return useContext(InstitutionContext)
+interface InstitutionProviderProps {
+  children: ReactNode
+  initialInstitution?: Institution | null
 }
 
-export function InstitutionProvider({ children }: { children: ReactNode }) {
-  const [institution, setInstitution] = useState<Institution | null>(null)
+export function InstitutionProvider({ children, initialInstitution = null }: InstitutionProviderProps) {
+  const [institution, setInstitution] = useState<Institution | null>(initialInstitution)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const updateInstitution = async (data: Partial<Institution>) => {
+    if (!institution?.id) {
+      throw new Error("No institution found")
+    }
 
-  const fetchInstitution = async () => {
-    setIsLoading(true)
-    setError(null)
+    const { error } = await supabase.from("institutions").update(data).eq("id", institution.id)
 
-    try {
-      // Get current user
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    if (error) {
+      throw error
+    }
 
-      // Get institution based on the current hostname
-      const hostname = window.location.hostname
-      let subdomain
+    // Update the local state
+    setInstitution({
+      ...institution,
+      ...data,
+    })
 
-      // Check if we're on a subdomain
-      if (hostname.includes(".electivepro.net") && hostname !== "app.electivepro.net") {
-        // For institution subdomains, get the institution based on the subdomain
-        subdomain = hostname.split(".")[0]
-        setIsSubdomainAccess(true)
-
-        // Fetch institution data
-        const { data, error: fetchError } = await supabase
-          .from("institutions")
-          .select("*")
-          .eq("subdomain", subdomain)
-          .single()
-
-        if (fetchError) {
-          throw fetchError
-        }
-
-        setInstitution(data)
-      } else if (hostname === "app.electivepro.net" || hostname === "localhost") {
-        // For the main app domain
-        setIsSubdomainAccess(false)
-
-        // If user is logged in, try to get their institution
-        if (session) {
-          const { data: adminInstitution, error: adminError } = await supabase
-            .from("institutions")
-            .select("*")
-            .eq("admin_user_id", session.user.id)
-            .single()
-
-          if (!adminError) {
-            setInstitution(adminInstitution)
-          }
-        }
-      } else if (hostname === "localhost") {
-        // For local development, you might want to use a query param
-        const urlParams = new URLSearchParams(window.location.search)
-        subdomain = urlParams.get("subdomain")
-
-        if (subdomain) {
-          setIsSubdomainAccess(true)
-
-          // Fetch institution data
-          const { data, error: fetchError } = await supabase
-            .from("institutions")
-            .select("*")
-            .eq("subdomain", subdomain)
-            .single()
-
-          if (fetchError) {
-            throw fetchError
-          }
-
-          setInstitution(data)
-        } else {
-          setIsSubdomainAccess(false)
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch institution")
-      console.error("Error fetching institution:", err)
-    } finally {
-      setIsLoading(false)
+    // Set primary color as CSS variable if it's updated
+    if (data.primary_color) {
+      document.documentElement.style.setProperty("--primary", data.primary_color)
     }
   }
 
   useEffect(() => {
-    fetchInstitution()
+    async function loadInstitution() {
+      try {
+        const hostname = window.location.hostname
+        const isSubdomain =
+          hostname.includes(".electivepro.net") && !hostname.startsWith("www") && !hostname.startsWith("app")
+
+        setIsSubdomainAccess(isSubdomain)
+
+        if (isSubdomain) {
+          const subdomain = hostname.split(".")[0]
+
+          const { data, error } = await supabase
+            .from("institutions")
+            .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
+            .eq("subdomain", subdomain)
+            .eq("is_active", true)
+            .single()
+
+          if (error) throw error
+
+          if (data) {
+            setInstitution(data)
+            // Set primary color as CSS variable
+            if (data.primary_color) {
+              document.documentElement.style.setProperty("--primary", data.primary_color)
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading institution:", err)
+        setError("Failed to load institution")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadInstitution()
   }, [])
 
-  const refreshInstitution = async () => {
-    await fetchInstitution()
-  }
-
   return (
-    <InstitutionContext.Provider value={{ institution, isLoading, error, refreshInstitution, isSubdomainAccess }}>
+    <InstitutionContext.Provider
+      value={{ institution, setInstitution, updateInstitution, isLoading, isSubdomainAccess, error }}
+    >
       {children}
     </InstitutionContext.Provider>
   )
+}
+
+export function useInstitution() {
+  const context = useContext(InstitutionContext)
+  if (context === undefined) {
+    throw new Error("useInstitution must be used within an InstitutionProvider")
+  }
+  return context
 }

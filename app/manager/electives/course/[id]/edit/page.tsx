@@ -16,6 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { DocumentUpload } from "@/components/document-upload"
+import { useToast } from "@/components/ui/use-toast"
 
 interface ElectiveCourseEditPageProps {
   params: {
@@ -30,6 +32,7 @@ export default function ElectiveCourseEditPage({ params }: ElectiveCourseEditPag
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
 
   // Form state
   const [packDetails, setPackDetails] = useState({
@@ -641,6 +644,33 @@ export default function ElectiveCourseEditPage({ params }: ElectiveCourseEditPag
             </div>
           </CardFooter>
         </Card>
+        <div className="mt-6">
+          <DocumentUpload
+            courseId={params.id}
+            onUploadComplete={(url, fileName) => {
+              // In a real app, you would save this to the database
+              console.log("Document uploaded:", url, fileName)
+              toast({
+                title: "Document uploaded",
+                description: `${fileName} has been uploaded successfully.`,
+              })
+            }}
+            existingDocuments={
+              [
+                // In a real app, you would fetch these from the database
+                // This is just a placeholder
+              ]
+            }
+            onDelete={(id) => {
+              // In a real app, you would delete this from the database and storage
+              console.log("Delete document:", id)
+              toast({
+                title: "Document deleted",
+                description: "The document has been deleted successfully.",
+              })
+            }}
+          />
+        </div>
       </div>
     </DashboardLayout>
   )

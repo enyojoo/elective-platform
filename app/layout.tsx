@@ -1,11 +1,14 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import { cookies, headers } from "next/headers"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import "./globals.css"
 import { Providers } from "./providers"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { DynamicBranding } from "@/components/dynamic-branding"
+import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,11 +24,43 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const supabase = createServerComponentClient({ cookies })
+  const headersList = headers()
+  const host = headersList.get("host") || ""
+  const subdomain = getSubdomain(host)
+
+  // If subdomain exists, fetch institution data
+  let institution = null
+  if (subdomain) {
+    const { data } = await supabase
+      .from("institutions")
+      .select("id, name, subdomain, logo_url, primary_color")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .single()
+
+    institution = data
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {institution?.primary_color && (
+          <style>{`
+            :root {
+              --primary: ${institution.primary_color};
+              --primary-foreground: #ffffff;
+            }
+          `}</style>
+        )}
+      </head>
       <body className={inter.className}>
-        <Providers>
+        <Providers institution={institution}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <DynamicBranding />
             {children}

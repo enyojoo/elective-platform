@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -7,20 +9,34 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { uploadLogo } from "@/lib/file-utils"
+import { useInstitution } from "@/lib/institution-context"
+import { Loader2 } from "lucide-react"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
   const { toast } = useToast()
+  const { institution, updateInstitution } = useInstitution()
   const [isLoading, setIsLoading] = useState(false)
-  const [primaryColor, setPrimaryColor] = useState("#027659")
-  const [institutionName, setInstitutionName] = useState("")
-  const [subdomain, setSubdomain] = useState("yourinstitution")
+  const [isLogoUploading, setIsLogoUploading] = useState(false)
+  const [isFaviconUploading, setIsFaviconUploading] = useState(false)
+  const [primaryColor, setPrimaryColor] = useState(institution?.primary_color || "#027659")
+  const [institutionName, setInstitutionName] = useState(institution?.name || "")
+  const [subdomain, setSubdomain] = useState(institution?.subdomain || "yourinstitution")
 
   const handleSaveChanges = async () => {
     setIsLoading(true)
     try {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      // In a real implementation, you would update the institution record
+      if (institution?.id) {
+        await updateInstitution({
+          name: institutionName,
+          primary_color: primaryColor,
+        })
+      }
 
       toast({
         title: t("settings.toast.changesSaved"),
@@ -39,13 +55,121 @@ export function BrandingSettings() {
 
   const handleResetDefaults = () => {
     setPrimaryColor("#027659")
-    setInstitutionName("")
-    setSubdomain("yourinstitution")
+    setInstitutionName(institution?.name || "")
+    setSubdomain(institution?.subdomain || "yourinstitution")
 
     toast({
       title: t("settings.toast.resetDefaults"),
       description: t("settings.toast.resetDefaultsDesc"),
     })
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/svg+xml"]
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: t("settings.toast.invalidFileType"),
+        description: t("settings.toast.invalidFileTypeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: t("settings.toast.fileTooLarge"),
+        description: t("settings.toast.fileTooLargeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLogoUploading(true)
+    try {
+      if (!institution?.id) {
+        throw new Error("Institution ID not found")
+      }
+
+      const logoUrl = await uploadLogo(file, institution.id)
+
+      // Update institution with new logo URL
+      await updateInstitution({
+        logo_url: logoUrl,
+      })
+
+      toast({
+        title: t("settings.toast.logoUploaded"),
+        description: t("settings.toast.logoUploadedDesc").replace("{0}", file.name),
+      })
+    } catch (error) {
+      console.error("Logo upload error:", error)
+      toast({
+        title: t("settings.toast.uploadError"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLogoUploading(false)
+    }
+  }
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ["image/png", "image/x-icon", "image/svg+xml"]
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: t("settings.toast.invalidFileType"),
+        description: t("settings.toast.invalidFileTypeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file size (max 1MB)
+    if (file.size > 1 * 1024 * 1024) {
+      toast({
+        title: t("settings.toast.fileTooLarge"),
+        description: t("settings.toast.fileTooLargeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsFaviconUploading(true)
+    try {
+      if (!institution?.id) {
+        throw new Error("Institution ID not found")
+      }
+
+      const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
+
+      // Update institution with new favicon URL
+      await updateInstitution({
+        favicon_url: faviconUrl,
+      })
+
+      toast({
+        title: t("settings.toast.faviconUploaded"),
+        description: t("settings.toast.faviconUploadedDesc").replace("{0}", file.name),
+      })
+    } catch (error) {
+      console.error("Favicon upload error:", error)
+      toast({
+        title: t("settings.toast.uploadError"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFaviconUploading(false)
+    }
   }
 
   return (
@@ -76,6 +200,7 @@ export function BrandingSettings() {
                   value={subdomain}
                   onChange={(e) => setSubdomain(e.target.value)}
                   className="rounded-r-none"
+                  disabled={true} // Subdomain cannot be changed after creation
                 />
                 <div className="bg-muted px-3 py-2 border border-l-0 border-input rounded-r-md text-muted-foreground">
                   .electivepro.net
@@ -90,8 +215,16 @@ export function BrandingSettings() {
             <div className="space-y-2">
               <Label>{t("settings.branding.logo")}</Label>
               <div className="flex items-center gap-2">
-                <div className="h-10 w-16 bg-muted rounded flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">Logo</span>
+                <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
+                  {institution?.logo_url ? (
+                    <img
+                      src={institution.logo_url || "/placeholder.svg"}
+                      alt="Logo"
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Logo</span>
+                  )}
                 </div>
                 <label htmlFor="logo-upload" className="cursor-pointer">
                   <Button
@@ -99,26 +232,25 @@ export function BrandingSettings() {
                     size="sm"
                     className="h-10"
                     type="button"
+                    disabled={isLogoUploading}
                     onClick={() => document.getElementById("logo-upload")?.click()}
                   >
-                    Upload
+                    {isLogoUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("settings.branding.uploading")}
+                      </>
+                    ) : (
+                      t("settings.branding.upload")
+                    )}
                   </Button>
                   <input
                     id="logo-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/svg+xml"
                     className="hidden"
-                    onChange={(e) => {
-                      // Handle file upload logic here
-                      if (e.target.files && e.target.files[0]) {
-                        // You would typically upload this file to your server or storage
-                        const fileName = e.target.files[0].name
-                        toast({
-                          title: t("settings.toast.logoUploaded"),
-                          description: t("settings.toast.logoUploadedDesc").replace("{0}", fileName),
-                        })
-                      }
-                    }}
+                    onChange={handleLogoUpload}
+                    disabled={isLogoUploading}
                   />
                 </label>
               </div>
@@ -128,8 +260,16 @@ export function BrandingSettings() {
             <div className="space-y-2">
               <Label>{t("settings.branding.favicon")}</Label>
               <div className="flex items-center gap-2">
-                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">Icon</span>
+                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
+                  {institution?.favicon_url ? (
+                    <img
+                      src={institution.favicon_url || "/placeholder.svg"}
+                      alt="Favicon"
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Icon</span>
+                  )}
                 </div>
                 <label htmlFor="favicon-upload" className="cursor-pointer">
                   <Button
@@ -137,26 +277,25 @@ export function BrandingSettings() {
                     size="sm"
                     className="h-10"
                     type="button"
+                    disabled={isFaviconUploading}
                     onClick={() => document.getElementById("favicon-upload")?.click()}
                   >
-                    Upload
+                    {isFaviconUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("settings.branding.uploading")}
+                      </>
+                    ) : (
+                      t("settings.branding.upload")
+                    )}
                   </Button>
                   <input
                     id="favicon-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/x-icon,image/svg+xml"
                     className="hidden"
-                    onChange={(e) => {
-                      // Handle file upload logic here
-                      if (e.target.files && e.target.files[0]) {
-                        // You would typically upload this file to your server or storage
-                        const fileName = e.target.files[0].name
-                        toast({
-                          title: t("settings.toast.faviconUploaded"),
-                          description: t("settings.toast.faviconUploadedDesc").replace("{0}", fileName),
-                        })
-                      }
-                    }}
+                    onChange={handleFaviconUpload}
+                    disabled={isFaviconUploading}
                   />
                 </label>
               </div>
@@ -203,7 +342,14 @@ export function BrandingSettings() {
               {t("settings.branding.reset")}
             </Button>
             <Button onClick={handleSaveChanges} disabled={isLoading}>
-              {isLoading ? t("settings.branding.saving") : t("settings.branding.save")}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("settings.branding.saving")}
+                </>
+              ) : (
+                t("settings.branding.save")
+              )}
             </Button>
           </div>
         </CardContent>

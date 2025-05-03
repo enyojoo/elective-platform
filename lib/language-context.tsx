@@ -844,6 +844,13 @@ const translations: Translations = {
     "admin.dashboard.universities": "Universities",
     "admin.dashboard.totalUniversities": "Partner universities in the system",
     "admin.dashboard.manageUniversities": "Manage Universities",
+    "settings.branding.upload": "Upload",
+    "settings.branding.uploading": "Uploading...",
+    "settings.toast.invalidFileType": "Invalid file type",
+    "settings.toast.invalidFileTypeDesc": "Please upload a valid image file (JPEG, PNG, or SVG).",
+    "settings.toast.fileTooLarge": "File too large",
+    "settings.toast.fileTooLargeDesc": "Please upload a file smaller than 2MB.",
+    "settings.toast.uploadError": "Upload error",
   },
   ru: {
     // Existing translations...
@@ -900,7 +907,7 @@ const translations: Translations = {
 
     // Student Dashboard
     "student.dashboard.title": "Панель управления",
-    "student.dashboard.requiredElectives": "Требуемые элект��вы",
+    "student.dashboard.requiredElectives": "Требуемые электвы",
     "student.dashboard.selectedElectives": "Выбранные элективы",
     "student.dashboard.pendingSelections": "Ожидающие выборы",
     "student.dashboard.courses": "курсов",
@@ -939,7 +946,7 @@ const translations: Translations = {
     "student.courses.moreCourses": "курсов",
     "student.courses.selectionApproved": "Выбор утвержден",
     "student.courses.selectionApprovedDesc":
-      "Ваш выбор элективных курсов был утвержден. Вы можете просмотреть выбранные курсы ниже.",
+      "Ваш выбор элективных курсов ыл утвержден. Вы можете просмотреть выбранные курсы ниже.",
     "student.courses.selectionPending": "Выбор на рассмотрении",
     "student.courses.selectionPendingDesc":
       "Ваш выбор элективных курсов находится на рассмотрении. Вы все еще можете изменить свой выбор до истечения срока.",
@@ -1698,6 +1705,13 @@ const translations: Translations = {
     "auth.common.email": "Электронная почта",
     "admin.login.email": "Электронная почта",
     "admin.login.password": "Пароль",
+    "settings.branding.upload": "Загрузить",
+    "settings.branding.uploading": "Загрузка...",
+    "settings.toast.invalidFileType": "Недопустимый тип файла",
+    "settings.toast.invalidFileTypeDesc": "Пожалуйста, загрузите допустимый файл изображения (JPEG, PNG или SVG).",
+    "settings.toast.fileTooLarge": "Файл слишком большой",
+    "settings.toast.fileTooLargeDesc": "Пожалуйста, загрузите файл размером менее 2 МБ.",
+    "settings.toast.uploadError": "Ошибка загрузки",
   },
 }
 

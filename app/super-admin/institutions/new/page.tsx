@@ -9,10 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { createInstitution } from "@/app/actions/super-admin"
+import { useToast } from "@/hooks/use-toast"
 
 export default function NewInstitutionPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
   const [formData, setFormData] = useState({
     name: "",
@@ -38,11 +41,47 @@ export default function NewInstitutionPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Create a FormData object to pass to the server action
+      const formDataObj = new FormData()
+      formDataObj.append("name", formData.name)
+      formDataObj.append("subdomain", formData.subdomain)
+      formDataObj.append("domain", formData.domain)
+      formDataObj.append("plan", formData.plan)
+
+      // Call the server action
+      const result = await createInstitution(formDataObj)
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Success",
+          description: "Institution created successfully",
+        })
+
+        // If we have the institution ID and admin details, we can proceed to create the admin
+        if (result.institution && formData.adminEmail && formData.adminPassword) {
+          // This would be handled in a second step or automatically
+          // For now, we'll just redirect to the institutions page
+          router.push("/super-admin/institutions")
+        } else {
+          router.push("/super-admin/institutions")
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
       setIsLoading(false)
-      router.push("/super-admin/institutions")
-    }, 1000)
+    }
   }
 
   return (
@@ -72,7 +111,10 @@ export default function NewInstitutionPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="domain">Domain</Label>
-                  <Input id="domain" name="domain" value={formData.domain} onChange={handleChange} required />
+                  <Input id="domain" name="domain" value={formData.domain} onChange={handleChange} />
+                  <p className="text-sm text-muted-foreground">
+                    Optional: The institution's primary domain (e.g., university.edu)
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -82,8 +124,12 @@ export default function NewInstitutionPage() {
                     name="subdomain"
                     value={formData.subdomain}
                     onChange={handleChange}
-                    placeholder="universityname.electivepro.net"
+                    placeholder="universityname"
+                    required
                   />
+                  <p className="text-sm text-muted-foreground">
+                    This will be used as {formData.subdomain || "subdomain"}.electivepro.net
+                  </p>
                 </div>
               </div>
             </div>
@@ -99,7 +145,6 @@ export default function NewInstitutionPage() {
                     type="email"
                     value={formData.adminEmail}
                     onChange={handleChange}
-                    required
                   />
                 </div>
 
@@ -111,7 +156,6 @@ export default function NewInstitutionPage() {
                     type="password"
                     value={formData.adminPassword}
                     onChange={handleChange}
-                    required
                   />
                   <p className="text-sm text-muted-foreground">
                     The admin will be prompted to change this password on first login.

@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { uploadStatement } from "@/lib/file-utils"
 
 interface ElectivePageProps {
   params: {
@@ -34,6 +35,68 @@ interface ElectivePageProps {
   }
 }
 
+// Update the handleFileUpload function to use real file uploads
+const handleFileUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>,
+  userId: string,
+  packId: string,
+  setIsUploading: React.Dispatch<React.SetStateAction<boolean>>,
+  setUploadedStatement: React.Dispatch<React.SetStateAction<File | null>>,
+  toast: any,
+) => {
+  const file = e.target.files?.[0]
+  if (file) {
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      // Upload the file to Supabase storage
+      const statementUrl = await uploadStatement(file, userId, packId)
+
+      // In a real app, you would save this URL to the database
+      // For example:
+      // await supabase
+      //   .from('student_selections')
+      //   .update({ statement_url: statementUrl })
+      //   .eq('user_id', userId)
+      //   .eq('pack_id', packId)
+
+      setUploadedStatement(file)
+      toast({
+        title: "Statement uploaded",
+        description: `File "${file.name}" uploaded successfully.`,
+      })
+    } catch (error) {
+      console.error("Statement upload error:", error)
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "An error occurred during upload",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+}
+
+// Update the component to use the new handleFileUpload function
 export default function ElectivePage({ params }: ElectivePageProps) {
   const { t } = useLanguage()
   const { toast } = useToast()
@@ -44,6 +107,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
+
+  // Mock user ID - in a real app, you would get this from authentication
+  const userId = "mock-user-id"
 
   // Mock elective data
   const electiveData = {
@@ -248,30 +314,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   }
 
   // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.type !== "application/pdf") {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload a PDF file",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setIsUploading(true)
-      // Simulate upload delay
-      setTimeout(() => {
-        setUploadedStatement(file)
-        setIsUploading(false)
-        toast({
-          title: "Statement uploaded",
-          description: `File "${file.name}" uploaded successfully.`,
-        })
-      }, 1000)
-    }
-  }
 
   // Handle statement download
   const handleDownloadStatement = () => {
@@ -386,7 +428,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                     id="statement-upload"
                     type="file"
                     accept=".pdf"
-                    onChange={handleFileUpload}
+                    onChange={(e) =>
+                      handleFileUpload(e, userId, params.packId, setIsUploading, setUploadedStatement, toast)
+                    }
                     disabled={
                       isUploading ||
                       existingSelection?.status === SelectionStatus.APPROVED ||
