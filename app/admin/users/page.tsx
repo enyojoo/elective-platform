@@ -20,133 +20,92 @@ import { Search, MoreHorizontal, Filter, UserPlus } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
-// Add the useLanguage import at the top with other imports
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { getUsers, getDegrees, getPrograms } from "@/app/actions/user-management"
+import { toast } from "@/hooks/use-toast"
 
-// Mock degrees data
-const mockDegrees: DegreeType[] = [
-  { id: 1, name: "Bachelor", code: "BSc" },
-  { id: 2, name: "Master", code: "MSc" },
-  { id: 3, name: "PhD", code: "PhD" },
-]
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+  degreeId: number | null
+  programId: number | null
+  enrollmentYear: string | null
+  status: string
+  createdAt: string
+}
 
-// Mock programs data
-const mockPrograms: ProgramType[] = [
-  { id: 1, name: "Management", code: "MGT", degreeId: 1 },
-  { id: 2, name: "International Business", code: "IB", degreeId: 1 },
-  { id: 3, name: "Management", code: "MGT", degreeId: 2 },
-  { id: 4, name: "Business Analytics", code: "BA", degreeId: 2 },
-  { id: 5, name: "Corporate Finance", code: "CF", degreeId: 2 },
-  { id: 6, name: "Management", code: "MGT", degreeId: 3 },
-]
-
-// Mock user data
-const mockUsers = [
-  {
-    id: 1,
-    name: "Anna Petrova",
-    email: "a.petrova@student.gsom.spbu.ru",
-    role: UserRole.STUDENT,
-    degreeId: 2,
-    programId: 3,
-    enrollmentYear: 2023,
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "Ivan Ivanov",
-    email: "i.ivanov@student.gsom.spbu.ru",
-    role: UserRole.STUDENT,
-    degreeId: 2,
-    programId: 4,
-    enrollmentYear: 2023,
-    status: "active",
-  },
-  {
-    id: 3,
-    name: "Elena Smirnova",
-    email: "e.smirnova@gsom.spbu.ru",
-    role: UserRole.PROGRAM_MANAGER,
-    degreeId: 2,
-    programId: 3,
-    enrollmentYear: 2023,
-    status: "active",
-  },
-  {
-    id: 4,
-    name: "Dmitry Sokolov",
-    email: "d.sokolov@student.gsom.spbu.ru",
-    role: UserRole.STUDENT,
-    degreeId: 1,
-    programId: 1,
-    enrollmentYear: 2022,
-    status: "inactive",
-  },
-  {
-    id: 5,
-    name: "Olga Kuznetsova",
-    email: "o.kuznetsova@gsom.spbu.ru",
-    role: UserRole.ADMIN,
-    degreeId: null,
-    programId: null,
-    enrollmentYear: null,
-    status: "active",
-  },
-  {
-    id: 6,
-    name: "Mikhail Volkov",
-    email: "m.volkov@student.gsom.spbu.ru",
-    role: UserRole.STUDENT,
-    degreeId: 2,
-    programId: 5,
-    enrollmentYear: 2023,
-    status: "active",
-  },
-  {
-    id: 7,
-    name: "Natalia Orlova",
-    email: "n.orlova@gsom.spbu.ru",
-    role: UserRole.PROGRAM_MANAGER,
-    degreeId: 1,
-    programId: 1,
-    enrollmentYear: 2022,
-    status: "active",
-  },
-  {
-    id: 8,
-    name: "Sergei Popov",
-    email: "s.popov@student.gsom.spbu.ru",
-    role: UserRole.STUDENT,
-    degreeId: 2,
-    programId: 3,
-    enrollmentYear: 2023,
-    status: "pending",
-  },
-]
-
-// Replace the UsersPage component with this updated version that uses translations
 export default function UsersPage() {
   const { t } = useLanguage()
-  const [users, setUsers] = useState(mockUsers)
+  const { institution } = useInstitution()
+
+  const [users, setUsers] = useState<User[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [degrees, setDegrees] = useState<DegreeType[]>([])
   const [programs, setPrograms] = useState<ProgramType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const usersPerPage = 10
 
-  // Fetch degrees and programs
+  // Fetch users, degrees, and programs
   useEffect(() => {
-    // In a real app, these would be API calls
-    setDegrees(mockDegrees)
-    setPrograms(mockPrograms)
-  }, [])
+    const fetchData = async () => {
+      if (!institution?.id) return
+
+      setLoading(true)
+
+      try {
+        // Fetch users
+        const usersResult = await getUsers(institution.id.toString())
+        if (usersResult.error) {
+          toast({
+            title: "Error",
+            description: usersResult.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setUsers(usersResult.users || [])
+        setFilteredUsers(usersResult.users || [])
+
+        // Fetch degrees
+        const degreesResult = await getDegrees(institution.id.toString())
+        if (!degreesResult.error) {
+          setDegrees(degreesResult.degrees || [])
+        }
+
+        // Fetch programs
+        const programsResult = await getPrograms(institution.id.toString())
+        if (!programsResult.error) {
+          setPrograms(programsResult.programs || [])
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load users data",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [institution?.id])
 
   // Filter users based on search term and filters
   useEffect(() => {
-    let filteredUsers = mockUsers
+    let result = [...users]
 
     if (searchTerm) {
-      filteredUsers = filteredUsers.filter(
+      result = result.filter(
         (user) =>
           user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.email.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -154,15 +113,16 @@ export default function UsersPage() {
     }
 
     if (roleFilter !== "all") {
-      filteredUsers = filteredUsers.filter((user) => user.role === roleFilter)
+      result = result.filter((user) => user.role === roleFilter)
     }
 
     if (statusFilter !== "all") {
-      filteredUsers = filteredUsers.filter((user) => user.status === statusFilter)
+      result = result.filter((user) => user.status === statusFilter)
     }
 
-    setUsers(filteredUsers)
-  }, [searchTerm, roleFilter, statusFilter])
+    setFilteredUsers(result)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, roleFilter, statusFilter, users])
 
   // Helper function to get degree name
   const getDegreeName = (degreeId: number | null) => {
@@ -223,6 +183,18 @@ export default function UsersPage() {
         )
       default:
         return <Badge>{status}</Badge>
+    }
+  }
+
+  // Pagination logic
+  const indexOfLastUser = currentPage * usersPerPage
+  const indexOfFirstUser = indexOfLastUser - usersPerPage
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser)
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
+
+  const paginate = (pageNumber: number) => {
+    if (pageNumber > 0 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber)
     }
   }
 
@@ -307,14 +279,20 @@ export default function UsersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.length === 0 ? (
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          {t("admin.users.loading")}
+                        </TableCell>
+                      </TableRow>
+                    ) : currentUsers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {t("admin.users.noUsersFound")}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      users.map((user) => (
+                      currentUsers.map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
@@ -354,27 +332,46 @@ export default function UsersPage() {
                 </Table>
               </div>
 
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious href="#" />
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationLink href="#">1</PaginationLink>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationLink href="#" isActive>
-                      2
-                    </PaginationLink>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationLink href="#">3</PaginationLink>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext href="#" />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
+              {totalPages > 1 && (
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          paginate(currentPage - 1)
+                        }}
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            paginate(page)
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          paginate(currentPage + 1)
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           </CardContent>
         </Card>

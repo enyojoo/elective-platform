@@ -14,36 +14,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { toast } from "@/components/ui/use-toast"
-// Add the useLanguage import at the top with other imports
+import { toast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { getDegrees, getPrograms, inviteManager } from "@/app/actions/user-management"
 
-// Mock degrees data
-const mockDegrees: DegreeType[] = [
-  { id: 1, name: "Bachelor", code: "BSc" },
-  { id: 2, name: "Master", code: "MSc" },
-  { id: 3, name: "PhD", code: "PhD" },
-]
-
-// Mock programs data
-const mockPrograms: ProgramType[] = [
-  { id: 1, name: "Management", code: "MGT", degreeId: 1 },
-  { id: 2, name: "International Business", code: "IB", degreeId: 1 },
-  { id: 3, name: "Management", code: "MGT", degreeId: 2 },
-  { id: 4, name: "Business Analytics", code: "BA", degreeId: 2 },
-  { id: 5, name: "Corporate Finance", code: "CF", degreeId: 2 },
-  { id: 6, name: "Management", code: "MGT", degreeId: 3 },
-]
-
-// Replace the InviteManagerPage component with this updated version that uses translations
 export default function InviteManagerPage() {
   const { t } = useLanguage()
   const router = useRouter()
+  const { institution } = useInstitution()
   const currentYear = new Date().getFullYear()
 
   const [degrees, setDegrees] = useState<DegreeType[]>([])
   const [programs, setPrograms] = useState<ProgramType[]>([])
   const [filteredPrograms, setFilteredPrograms] = useState<ProgramType[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [formData, setFormData] = useState({
     email: "",
@@ -59,15 +44,56 @@ export default function InviteManagerPage() {
 
   // Fetch degrees and programs
   useEffect(() => {
-    // In a real app, these would be API calls
-    setDegrees(mockDegrees)
-    setPrograms(mockPrograms)
-  }, [])
+    const fetchData = async () => {
+      if (!institution?.id) return
+
+      setLoading(true)
+
+      try {
+        // Fetch degrees
+        const degreesResult = await getDegrees(institution.id.toString())
+        if (degreesResult.error) {
+          toast({
+            title: "Error",
+            description: degreesResult.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setDegrees(degreesResult.degrees || [])
+
+        // Fetch all programs
+        const programsResult = await getPrograms(institution.id.toString())
+        if (programsResult.error) {
+          toast({
+            title: "Error",
+            description: programsResult.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setPrograms(programsResult.programs || [])
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load form data",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [institution?.id])
 
   // Filter programs based on selected degree
   useEffect(() => {
     if (formData.degreeId) {
-      const filtered = programs.filter((program) => program.degreeId === Number(formData.degreeId))
+      const filtered = programs.filter((program) => program.degree_id === Number(formData.degreeId))
       setFilteredPrograms(filtered)
 
       // Reset program selection if the current selection is not valid for the new degree
@@ -106,21 +132,43 @@ export default function InviteManagerPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!institution?.id) {
+      toast({
+        title: "Error",
+        description: "Institution information is missing",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      // In a real app, this would be an API call to create the user and send invitation
-      console.log("Inviting manager:", formData)
+      // Create a FormData object to pass to the server action
+      const submitData = new FormData()
+      submitData.append("email", formData.email)
+      submitData.append("name", formData.name)
+      submitData.append("degreeId", formData.degreeId)
+      submitData.append("programId", formData.programId)
+      submitData.append("enrollmentYear", formData.enrollmentYear)
+      submitData.append("sendInvitation", formData.sendInvitation.toString())
+      submitData.append("institutionId", institution.id.toString())
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const result = await inviteManager(submitData)
 
-      const degree = degrees.find((d) => d.id === Number(formData.degreeId))
-      const program = programs.find((p) => p.id === Number(formData.programId))
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+        return
+      }
 
       toast({
-        title: "Invitation sent",
-        description: `${formData.name} has been invited to manage ${degree?.name} in ${program?.name} for enrollment year ${formData.enrollmentYear}.`,
+        title: "Success",
+        description: `${formData.name} has been invited as a program manager.`,
       })
 
       router.push("/admin/users")

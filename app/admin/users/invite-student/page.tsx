@@ -13,79 +13,210 @@ import { ArrowLeft, Send } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { getDegrees, getPrograms, getGroups, inviteStudent } from "@/app/actions/user-management"
+import { toast } from "@/hooks/use-toast"
 
-// Mock degrees data
-const mockDegrees: DegreeType[] = [
-  { id: 1, name: "Bachelor", code: "BSc" },
-  { id: 2, name: "Master", code: "MSc" },
-  { id: 3, name: "PhD", code: "PhD" },
-]
+interface Group {
+  id: number
+  name: string
+}
 
-// Mock programs data
-const mockPrograms: ProgramType[] = [
-  { id: 1, name: "Management", code: "MGT", degreeId: 1 },
-  { id: 2, name: "International Business", code: "IB", degreeId: 1 },
-  { id: 3, name: "Management", code: "MGT", degreeId: 2 },
-  { id: 4, name: "Business Analytics", code: "BA", degreeId: 2 },
-  { id: 5, name: "Corporate Finance", code: "CF", degreeId: 2 },
-  { id: 6, name: "Management", code: "MGT", degreeId: 3 },
-]
-
-// Replace the InviteStudentPage component with this updated version that uses translations
 export default function InviteStudentPage() {
   const { t } = useLanguage()
   const router = useRouter()
+  const { institution } = useInstitution()
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    degreeId: 0,
-    programId: 0,
+    degreeId: "",
+    programId: "",
+    groupId: "",
     enrollmentYear: new Date().getFullYear().toString(),
     sendInvitation: true,
   })
 
-  const [degrees, setDegrees] = useState<DegreeType[]>([])
-  const [programs, setPrograms] = useState<ProgramType[]>([])
-  const [filteredPrograms, setFilteredPrograms] = useState<ProgramType[]>([])
+  const [degrees, setDegrees] = useState<Array<{ id: number; name: string; code: string }>>([])
+  const [programs, setPrograms] = useState<Array<{ id: number; name: string; code: string; degree_id: number }>>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [filteredPrograms, setFilteredPrograms] = useState<
+    Array<{ id: number; name: string; code: string; degree_id: number }>
+  >([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Fetch degrees and programs
+  // Fetch degrees, programs, and groups
   useEffect(() => {
-    // In a real app, these would be API calls
-    setDegrees(mockDegrees)
-    setPrograms(mockPrograms)
-  }, [])
+    const fetchData = async () => {
+      if (!institution?.id) return
+
+      setLoading(true)
+
+      try {
+        // Fetch degrees
+        const degreesResult = await getDegrees(institution.id.toString())
+        if (degreesResult.error) {
+          toast({
+            title: "Error",
+            description: degreesResult.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setDegrees(degreesResult.degrees || [])
+
+        // Fetch all programs
+        const programsResult = await getPrograms(institution.id.toString())
+        if (programsResult.error) {
+          toast({
+            title: "Error",
+            description: programsResult.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setPrograms(programsResult.programs || [])
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load form data",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [institution?.id])
 
   // Filter programs based on selected degree
   useEffect(() => {
     if (formData.degreeId) {
-      setFilteredPrograms(programs.filter((program) => program.degreeId === formData.degreeId))
+      const filtered = programs.filter((program) => program.degree_id === Number(formData.degreeId))
+      setFilteredPrograms(filtered)
+
+      // Reset program selection if the current selection is not valid for the new degree
+      if (!filtered.some((p) => p.id === Number(formData.programId))) {
+        setFormData((prev) => ({
+          ...prev,
+          programId: "",
+          groupId: "",
+        }))
+      }
     } else {
       setFilteredPrograms([])
     }
-  }, [formData.degreeId, programs])
+  }, [formData.degreeId, programs, formData.programId])
 
-  const handleInputChange = (field: string, value: string | number | boolean) => {
+  // Fetch groups when program changes
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (!formData.programId) {
+        setGroups([])
+        return
+      }
+
+      try {
+        const result = await getGroups(Number(formData.programId))
+        if (result.error) {
+          toast({
+            title: "Error",
+            description: result.error,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setGroups(result.groups || [])
+
+        // Reset group selection if the current selection is not valid for the new program
+        if (!result.groups.some((g) => g.id === Number(formData.groupId))) {
+          setFormData((prev) => ({
+            ...prev,
+            groupId: "",
+          }))
+        }
+      } catch (error) {
+        console.error("Error fetching groups:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load groups",
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchGroups()
+  }, [formData.programId, formData.groupId])
+
+  const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleDegreeChange = (value: string) => {
-    const degreeId = Number(value)
-    setFormData((prev) => ({
-      ...prev,
-      degreeId,
-      // Reset programId if the current program doesn't belong to the new degree
-      programId: programs.some((p) => p.degreeId === degreeId && p.id === prev.programId) ? prev.programId : 0,
-    }))
+  const handleCheckboxChange = (checked: boolean) => {
+    setFormData((prev) => ({ ...prev, sendInvitation: checked }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would be an API call to invite the student
-    console.log("Inviting student:", formData)
-    // Redirect to users list
-    router.push("/admin/users")
+
+    if (!institution?.id) {
+      toast({
+        title: "Error",
+        description: "Institution information is missing",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Create a FormData object to pass to the server action
+      const submitData = new FormData()
+      submitData.append("email", formData.email)
+      submitData.append("name", formData.name)
+      submitData.append("degreeId", formData.degreeId)
+      submitData.append("programId", formData.programId)
+      submitData.append("groupId", formData.groupId)
+      submitData.append("enrollmentYear", formData.enrollmentYear)
+      submitData.append("sendInvitation", formData.sendInvitation.toString())
+      submitData.append("institutionId", institution.id.toString())
+
+      const result = await inviteStudent(submitData)
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: `${formData.name} has been invited as a student.`,
+      })
+
+      router.push("/admin/users")
+    } catch (error) {
+      console.error("Error inviting student:", error)
+      toast({
+        title: "Error",
+        description: "Failed to send invitation. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Generate enrollment years (from 2021 to current year + 10)
@@ -134,12 +265,13 @@ export default function InviteStudentPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="degree">{t("admin.users.degree")}</Label>
                   <Select
-                    value={formData.degreeId ? formData.degreeId.toString() : ""}
-                    onValueChange={handleDegreeChange}
+                    value={formData.degreeId}
+                    onValueChange={(value) => handleInputChange("degreeId", value)}
+                    required
                   >
                     <SelectTrigger id="degree">
                       <SelectValue placeholder={t("admin.users.selectDegree")} />
@@ -157,9 +289,10 @@ export default function InviteStudentPage() {
                 <div className="space-y-2">
                   <Label htmlFor="program">{t("admin.users.program")}</Label>
                   <Select
-                    value={formData.programId ? formData.programId.toString() : ""}
-                    onValueChange={(value) => handleInputChange("programId", Number(value))}
+                    value={formData.programId}
+                    onValueChange={(value) => handleInputChange("programId", value)}
                     disabled={!formData.degreeId}
+                    required
                   >
                     <SelectTrigger id="program">
                       <SelectValue
@@ -179,10 +312,36 @@ export default function InviteStudentPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="group">{t("admin.users.group")}</Label>
+                  <Select
+                    value={formData.groupId}
+                    onValueChange={(value) => handleInputChange("groupId", value)}
+                    disabled={!formData.programId}
+                    required
+                  >
+                    <SelectTrigger id="group">
+                      <SelectValue
+                        placeholder={
+                          formData.programId ? t("admin.users.selectGroup") : t("admin.users.selectProgramFirst")
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="enrollmentYear">{t("admin.users.enrollmentYear")}</Label>
                   <Select
                     value={formData.enrollmentYear}
                     onValueChange={(value) => handleInputChange("enrollmentYear", value)}
+                    required
                   >
                     <SelectTrigger id="enrollmentYear">
                       <SelectValue placeholder={t("admin.users.selectYear")} />
@@ -203,7 +362,7 @@ export default function InviteStudentPage() {
                   <Checkbox
                     id="sendInvitation"
                     checked={formData.sendInvitation}
-                    onCheckedChange={(checked) => handleInputChange("sendInvitation", !!checked)}
+                    onCheckedChange={handleCheckboxChange}
                   />
                   <Label htmlFor="sendInvitation">{t("admin.users.sendStudentInvitation")}</Label>
                 </div>
@@ -223,9 +382,15 @@ export default function InviteStudentPage() {
             <Button variant="outline" type="button" onClick={() => router.push("/admin/users")}>
               {t("admin.users.cancel")}
             </Button>
-            <Button type="submit">
-              <Send className="mr-2 h-4 w-4" />
-              {t("admin.users.sendInvitation")}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                t("admin.users.sending")
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  {t("admin.users.sendInvitation")}
+                </>
+              )}
             </Button>
           </div>
         </form>
