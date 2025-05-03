@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,90 +14,109 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { toast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { getDegrees, getPrograms, inviteManager } from "@/app/actions/user-management"
+import { createClient } from "@supabase/supabase-js"
 
 export default function InviteManagerPage() {
   const { t } = useLanguage()
   const router = useRouter()
+  const { toast } = useToast()
   const { institution } = useInstitution()
   const currentYear = new Date().getFullYear()
 
-  const [degrees, setDegrees] = useState<DegreeType[]>([])
-  const [programs, setPrograms] = useState<ProgramType[]>([])
-  const [filteredPrograms, setFilteredPrograms] = useState<ProgramType[]>([])
-  const [loading, setLoading] = useState(true)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     email: "",
     name: "",
-    role: UserRole.PROGRAM_MANAGER,
+    role: "manager", // Using the actual role value in the database
     degreeId: "",
     programId: "",
     enrollmentYear: currentYear.toString(),
     sendInvitation: true,
   })
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Fetch degrees and programs
+  // Fetch degrees, programs, and academic years
   useEffect(() => {
+    if (!institution) return
+
     const fetchData = async () => {
-      if (!institution?.id) return
-
-      setLoading(true)
-
+      setIsLoading(true)
       try {
         // Fetch degrees
-        const degreesResult = await getDegrees(institution.id.toString())
-        if (degreesResult.error) {
-          toast({
-            title: "Error",
-            description: degreesResult.error,
-            variant: "destructive",
-          })
-          return
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name, code")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (degreesError) throw degreesError
+        setDegrees(degreesData || [])
+
+        // Fetch programs
+        const { data: programsData, error: programsError } = await supabase
+          .from("programs")
+          .select("id, name, code, degree_id")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (programsError) throw programsError
+        setPrograms(programsData || [])
+
+        // Fetch academic years
+        const { data: yearsData, error: yearsError } = await supabase
+          .from("academic_years")
+          .select("year")
+          .eq("institution_id", institution.id)
+          .eq("is_active", true)
+          .order("year", { ascending: false })
+
+        if (yearsError) throw yearsError
+
+        if (yearsData && yearsData.length > 0) {
+          const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+          setYears(uniqueYears)
+          // Set default year to the most recent one
+          setFormData((prev) => ({
+            ...prev,
+            enrollmentYear: uniqueYears[0] || currentYear.toString(),
+          }))
+        } else {
+          // If no years in database, use current year
+          setYears([currentYear.toString()])
         }
-
-        setDegrees(degreesResult.degrees || [])
-
-        // Fetch all programs
-        const programsResult = await getPrograms(institution.id.toString())
-        if (programsResult.error) {
-          toast({
-            title: "Error",
-            description: programsResult.error,
-            variant: "destructive",
-          })
-          return
-        }
-
-        setPrograms(programsResult.programs || [])
       } catch (error) {
         console.error("Error fetching data:", error)
         toast({
           title: "Error",
-          description: "Failed to load form data",
+          description: "Failed to load required data",
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
     fetchData()
-  }, [institution?.id])
+  }, [institution, supabase, toast, currentYear])
 
   // Filter programs based on selected degree
   useEffect(() => {
     if (formData.degreeId) {
-      const filtered = programs.filter((program) => program.degree_id === Number(formData.degreeId))
+      const filtered = programs.filter((program) => program.degree_id.toString() === formData.degreeId)
       setFilteredPrograms(filtered)
 
       // Reset program selection if the current selection is not valid for the new degree
-      if (!filtered.some((p) => p.id === Number(formData.programId))) {
+      if (!filtered.some((p) => p.id.toString() === formData.programId)) {
         setFormData((prev) => ({
           ...prev,
           programId: "",
@@ -132,51 +151,64 @@ export default function InviteManagerPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!institution?.id) {
-      toast({
-        title: "Error",
-        description: "Institution information is missing",
-        variant: "destructive",
-      })
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
-      // Create a FormData object to pass to the server action
-      const submitData = new FormData()
-      submitData.append("email", formData.email)
-      submitData.append("name", formData.name)
-      submitData.append("degreeId", formData.degreeId)
-      submitData.append("programId", formData.programId)
-      submitData.append("enrollmentYear", formData.enrollmentYear)
-      submitData.append("sendInvitation", formData.sendInvitation.toString())
-      submitData.append("institutionId", institution.id.toString())
+      if (!institution) throw new Error("Institution not found")
 
-      const result = await inviteManager(submitData)
+      // Generate a temporary password
+      const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8)
 
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
+      // 1. Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: formData.email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: formData.name,
+        },
+      })
+
+      if (authError) throw authError
+
+      // 2. Create profile in profiles table
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user.id,
+        institution_id: institution.id,
+        full_name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        degree_id: formData.degreeId ? Number.parseInt(formData.degreeId) : null,
+        program_id: formData.programId ? Number.parseInt(formData.programId) : null,
+        year: formData.enrollmentYear,
+        is_active: true,
+      })
+
+      if (profileError) throw profileError
+
+      // 3. Send password reset email if sendInvitation is true
+      if (formData.sendInvitation) {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+          redirectTo: `${window.location.origin}/admin/reset-password`,
         })
-        return
+
+        if (resetError) throw resetError
       }
 
+      const degree = degrees.find((d) => d.id.toString() === formData.degreeId)
+      const program = programs.find((p) => p.id.toString() === formData.programId)
+
       toast({
-        title: "Success",
-        description: `${formData.name} has been invited as a program manager.`,
+        title: "Invitation sent",
+        description: `${formData.name} has been invited to manage ${degree?.name || ""} in ${program?.name || ""} for enrollment year ${formData.enrollmentYear}.`,
       })
 
       router.push("/admin/users")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error inviting manager:", error)
       toast({
         title: "Error",
-        description: "Failed to send invitation. Please try again.",
+        description: error.message || "Failed to send invitation. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -184,8 +216,9 @@ export default function InviteManagerPage() {
     }
   }
 
-  // Generate enrollment years (from 2021 to current year + 10)
-  const enrollmentYears = Array.from({ length: currentYear + 10 - 2021 + 1 }, (_, i) => (2021 + i).toString())
+  // Generate enrollment years if none from database
+  const enrollmentYears =
+    years.length > 0 ? years : Array.from({ length: currentYear + 10 - 2021 + 1 }, (_, i) => (2021 + i).toString())
 
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
@@ -216,6 +249,7 @@ export default function InviteManagerPage() {
                       value={formData.name}
                       onChange={handleInputChange}
                       required
+                      disabled={isLoading || isSubmitting}
                     />
                   </div>
                   <div className="space-y-2">
@@ -228,6 +262,7 @@ export default function InviteManagerPage() {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
+                      disabled={isLoading || isSubmitting}
                     />
                   </div>
                 </div>
@@ -242,6 +277,7 @@ export default function InviteManagerPage() {
                       value={formData.degreeId}
                       onValueChange={(value) => handleSelectChange("degreeId", value)}
                       required
+                      disabled={isLoading || isSubmitting || degrees.length === 0}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={t("admin.users.selectDegree")} />
@@ -261,7 +297,7 @@ export default function InviteManagerPage() {
                     <Select
                       value={formData.programId}
                       onValueChange={(value) => handleSelectChange("programId", value)}
-                      disabled={!formData.degreeId}
+                      disabled={!formData.degreeId || isLoading || isSubmitting || filteredPrograms.length === 0}
                       required
                     >
                       <SelectTrigger>
@@ -287,6 +323,7 @@ export default function InviteManagerPage() {
                       value={formData.enrollmentYear}
                       onValueChange={(value) => handleSelectChange("enrollmentYear", value)}
                       required
+                      disabled={isLoading || isSubmitting}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={t("admin.users.selectYear")} />
@@ -310,6 +347,7 @@ export default function InviteManagerPage() {
                     id="sendInvitation"
                     checked={formData.sendInvitation}
                     onCheckedChange={handleCheckboxChange}
+                    disabled={isLoading || isSubmitting}
                   />
                   <Label htmlFor="sendInvitation">{t("admin.users.sendEmailInvitation")}</Label>
                 </div>
@@ -324,10 +362,15 @@ export default function InviteManagerPage() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline" type="button" onClick={() => router.push("/admin/users")}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => router.push("/admin/users")}
+                disabled={isSubmitting}
+              >
                 {t("admin.users.cancel")}
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isLoading || isSubmitting}>
                 {isSubmitting ? (
                   t("admin.users.sending")
                 ) : (

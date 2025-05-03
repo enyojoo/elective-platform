@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,15 +18,15 @@ import {
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, UserPlus } from "lucide-react"
-import { useState, useEffect } from "react"
 import Link from "next/link"
-import { UserRole, type DegreeType, type ProgramType } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { getUsers, getDegrees, getPrograms } from "@/app/actions/user-management"
-import { toast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/components/ui/use-toast"
 
-interface User {
+// Define user type
+type User = {
   id: string
   name: string
   email: string
@@ -34,57 +35,87 @@ interface User {
   programId: number | null
   enrollmentYear: string | null
   status: string
-  createdAt: string
+  degreeName?: string
+  programName?: string
 }
 
 export default function UsersPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
-
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [degrees, setDegrees] = useState<DegreeType[]>([])
-  const [programs, setPrograms] = useState<ProgramType[]>([])
-  const [loading, setLoading] = useState(true)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const usersPerPage = 10
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 10
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Fetch users, degrees, and programs
   useEffect(() => {
+    if (!institution) return
+
     const fetchData = async () => {
-      if (!institution?.id) return
-
-      setLoading(true)
-
+      setIsLoading(true)
       try {
-        // Fetch users
-        const usersResult = await getUsers(institution.id.toString())
-        if (usersResult.error) {
-          toast({
-            title: "Error",
-            description: usersResult.error,
-            variant: "destructive",
-          })
-          return
-        }
-
-        setUsers(usersResult.users || [])
-        setFilteredUsers(usersResult.users || [])
-
         // Fetch degrees
-        const degreesResult = await getDegrees(institution.id.toString())
-        if (!degreesResult.error) {
-          setDegrees(degreesResult.degrees || [])
-        }
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name, code")
+          .eq("institution_id", institution.id)
+
+        if (degreesError) throw degreesError
+        setDegrees(degreesData || [])
 
         // Fetch programs
-        const programsResult = await getPrograms(institution.id.toString())
-        if (!programsResult.error) {
-          setPrograms(programsResult.programs || [])
-        }
+        const { data: programsData, error: programsError } = await supabase
+          .from("programs")
+          .select("id, name, code, degree_id")
+          .eq("institution_id", institution.id)
+
+        if (programsError) throw programsError
+        setPrograms(programsData || [])
+
+        // Fetch profiles for this institution
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select(`
+            id, 
+            full_name, 
+            email, 
+            role, 
+            degree_id, 
+            program_id, 
+            year,
+            is_active
+          `)
+          .eq("institution_id", institution.id)
+
+        if (profilesError) throw profilesError
+
+        // Transform profiles data
+        const transformedUsers = (profilesData || []).map((profile) => ({
+          id: profile.id,
+          name: profile.full_name || "",
+          email: profile.email || "",
+          role: profile.role || "",
+          degreeId: profile.degree_id,
+          programId: profile.program_id,
+          enrollmentYear: profile.year,
+          status: profile.is_active ? "active" : "inactive",
+          degreeName: profile.degree_id ? degreesData?.find((d) => d.id === profile.degree_id)?.name || "-" : "-",
+          programName: profile.program_id ? programsData?.find((p) => p.id === profile.program_id)?.name || "-" : "-",
+        }))
+
+        setUsers(transformedUsers)
+        setFilteredUsers(transformedUsers)
+        setTotalPages(Math.ceil(transformedUsers.length / itemsPerPage))
       } catch (error) {
         console.error("Error fetching data:", error)
         toast({
@@ -93,16 +124,16 @@ export default function UsersPage() {
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
     fetchData()
-  }, [institution?.id])
+  }, [institution, supabase, toast])
 
   // Filter users based on search term and filters
   useEffect(() => {
-    let result = [...users]
+    let result = users
 
     if (searchTerm) {
       result = result.filter(
@@ -121,35 +152,31 @@ export default function UsersPage() {
     }
 
     setFilteredUsers(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
     setCurrentPage(1) // Reset to first page when filters change
   }, [searchTerm, roleFilter, statusFilter, users])
 
-  // Helper function to get degree name
-  const getDegreeName = (degreeId: number | null) => {
-    if (!degreeId) return "-"
-    return degrees.find((d) => d.id === degreeId)?.name || "-"
-  }
-
-  // Helper function to get program name
-  const getProgramName = (programId: number | null) => {
-    if (!programId) return "-"
-    return programs.find((p) => p.id === programId)?.name || "-"
+  // Get current page items
+  const getCurrentPageItems = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredUsers.slice(startIndex, endIndex)
   }
 
   // Helper function to get role badge
   const getRoleBadge = (role: string) => {
     switch (role) {
-      case UserRole.ADMIN:
+      case "admin":
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{t("admin.users.admin")}</Badge>
         )
-      case UserRole.PROGRAM_MANAGER:
+      case "manager":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
             {t("admin.users.manager")}
           </Badge>
         )
-      case UserRole.STUDENT:
+      case "student":
         return (
           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
             {t("admin.users.student")}
@@ -186,15 +213,29 @@ export default function UsersPage() {
     }
   }
 
-  // Pagination logic
-  const indexOfLastUser = currentPage * usersPerPage
-  const indexOfFirstUser = indexOfLastUser - usersPerPage
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser)
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
+  // Handle user status change
+  const handleStatusChange = async (userId: string, newStatus: boolean) => {
+    try {
+      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
 
-  const paginate = (pageNumber: number) => {
-    if (pageNumber > 0 && pageNumber <= totalPages) {
-      setCurrentPage(pageNumber)
+      if (error) throw error
+
+      // Update local state
+      setUsers(
+        users.map((user) => (user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user)),
+      )
+
+      toast({
+        title: "Success",
+        description: newStatus ? "User has been activated" : "User has been deactivated",
+      })
+    } catch (error) {
+      console.error("Error updating user status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update user status",
+        variant: "destructive",
+      })
     }
   }
 
@@ -243,9 +284,9 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.users.allRoles")}</SelectItem>
-                      <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
-                      <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("admin.users.manager")}</SelectItem>
-                      <SelectItem value={UserRole.ADMIN}>{t("admin.users.admin")}</SelectItem>
+                      <SelectItem value="student">{t("admin.users.student")}</SelectItem>
+                      <SelectItem value="manager">{t("admin.users.manager")}</SelectItem>
+                      <SelectItem value="admin">{t("admin.users.admin")}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -279,26 +320,26 @@ export default function UsersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
+                    {isLoading ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8">
                           {t("admin.users.loading")}
                         </TableCell>
                       </TableRow>
-                    ) : currentUsers.length === 0 ? (
+                    ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {t("admin.users.noUsersFound")}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      currentUsers.map((user) => (
+                      getCurrentPageItems().map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
-                          <TableCell>{getDegreeName(user.degreeId)}</TableCell>
-                          <TableCell>{getProgramName(user.programId)}</TableCell>
+                          <TableCell>{user.degreeName}</TableCell>
+                          <TableCell>{user.programName}</TableCell>
                           <TableCell>{user.enrollmentYear || "-"}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
@@ -312,15 +353,18 @@ export default function UsersPage() {
                                 <DropdownMenuItem>
                                   <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
                                 </DropdownMenuItem>
-                                {user.role === UserRole.PROGRAM_MANAGER && (
+                                {user.role === "manager" && (
                                   <DropdownMenuItem>
                                     <Link href={`/admin/users/${user.id}/assign`}>
                                       {t("admin.users.reassignProgram")}
                                     </Link>
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem className="text-destructive">
-                                  {t("admin.users.deactivate")}
+                                <DropdownMenuItem
+                                  className={user.status === "active" ? "text-destructive" : "text-green-600"}
+                                  onClick={() => handleStatusChange(user.id, user.status !== "active")}
+                                >
+                                  {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -340,8 +384,9 @@ export default function UsersPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault()
-                          paginate(currentPage - 1)
+                          if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
 
@@ -352,7 +397,7 @@ export default function UsersPage() {
                           isActive={page === currentPage}
                           onClick={(e) => {
                             e.preventDefault()
-                            paginate(page)
+                            setCurrentPage(page)
                           }}
                         >
                           {page}
@@ -365,8 +410,9 @@ export default function UsersPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault()
-                          paginate(currentPage + 1)
+                          if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
                   </PaginationContent>
