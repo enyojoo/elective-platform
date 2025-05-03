@@ -59,8 +59,8 @@ export function InstitutionProvider({ children }: { children: ReactNode }) {
       let subdomain
 
       // Check if we're on the main domain or a subdomain
-      if (hostname === "electivepro.net" || hostname === "www.electivepro.net" || hostname === "localhost") {
-        // For the main domain, get the institution based on the admin user
+      if (hostname === "app.electivepro.net" || hostname === "localhost") {
+        // For the main app domain, get the institution based on the admin user
         const { data: adminInstitution, error: adminError } = await supabase
           .from("institutions")
           .select("*")
@@ -72,8 +72,8 @@ export function InstitutionProvider({ children }: { children: ReactNode }) {
         }
 
         setInstitution(adminInstitution)
-      } else if (hostname.includes(".electivepro.net")) {
-        // For subdomains, get the institution based on the subdomain
+      } else if (hostname.endsWith(".electivepro.net") && hostname !== "app.electivepro.net") {
+        // For institution subdomains, get the institution based on the subdomain
         subdomain = hostname.split(".")[0]
 
         // Fetch institution data
