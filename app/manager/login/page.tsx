@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
 
 export default function ManagerLoginPage() {
   const { t } = useLanguage()
@@ -24,6 +25,9 @@ export default function ManagerLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Redirect to main domain if not accessed via subdomain
   useEffect(() => {
@@ -36,54 +40,70 @@ export default function ManagerLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      // For demo purposes, accept any login
-      console.log("Manager logged in with:", { email, password })
+      if (authError) throw new Error(authError.message)
+
+      if (!authData.user) throw new Error(t("auth.error.invalidCredentials"))
+
+      // Check if user has manager role for this institution
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .eq("role", "manager")
+        .single()
+
+      if (profileError || !profileData) {
+        // Sign out if not a manager
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.notManager"))
+      }
+
+      // Check if manager belongs to the correct institution
+      if (institution && profileData.institution_id !== institution.id) {
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.wrongInstitution"))
+      }
 
       toast({
-        title: "Login successful",
-        description: "Welcome back to ElectivePRO",
+        title: t("auth.login.success"),
+        description: t("auth.login.welcomeBack"),
       })
 
       // Redirect to manager dashboard
       router.push("/manager/dashboard")
-    } catch (error) {
-      console.error("Login error:", error)
-      toast({
-        title: "Login failed",
-        description: "Please check your credentials and try again",
-        variant: "destructive",
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.error.loginFailed"))
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDemoLogin = async (role: string) => {
+  // Demo login for development purposes
+  const handleDemoLogin = async () => {
     setIsLoading(true)
 
     try {
-      // Simulate API call delay
+      // Simulate network request
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       toast({
-        title: "Demo login successful",
-        description: `Logged in as ${role}`,
+        title: t("auth.login.demoSuccess"),
+        description: t("auth.login.demoMessage"),
       })
 
       // Redirect to manager dashboard
       router.push("/manager/dashboard")
     } catch (error) {
-      console.error("Demo login error:", error)
-      toast({
-        title: "Login failed",
-        description: "Please try again",
-        variant: "destructive",
-      })
+      setError(t("auth.error.demoFailed"))
     } finally {
       setIsLoading(false)
     }
@@ -114,7 +134,6 @@ export default function ManagerLoginPage() {
               className="h-10 w-auto"
             />
           )}
-          <h1 className="text-3xl font-bold"></h1>
         </div>
 
         <Card>
@@ -155,6 +174,8 @@ export default function ManagerLoginPage() {
                   required
                 />
               </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
@@ -180,7 +201,7 @@ export default function ManagerLoginPage() {
             </div>
           </div>
           <div className="grid grid-cols-1 gap-2">
-            <Button variant="outline" onClick={() => handleDemoLogin("Program Manager")} disabled={isLoading}>
+            <Button variant="outline" onClick={handleDemoLogin} disabled={isLoading}>
               {t("auth.login.demoManager")}
             </Button>
           </div>

@@ -12,6 +12,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -19,6 +20,7 @@ export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState("")
   const { t } = useLanguage()
+  const { toast } = useToast()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -28,12 +30,29 @@ export default function ForgotPasswordPage() {
     setError("")
 
     try {
+      // Check if email exists and is an admin
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", email)
+        .eq("role", "admin")
+        .single()
+
+      if (profileError) {
+        throw new Error(t("auth.forgotPassword.emailNotFound"))
+      }
+
       // Send password reset email
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/reset-password`,
       })
 
       if (error) throw error
+
+      toast({
+        title: t("auth.forgotPassword.emailSent"),
+        description: t("auth.forgotPassword.checkEmail"),
+      })
 
       setIsSubmitted(true)
     } catch (err) {

@@ -11,14 +11,22 @@ import { useRouter } from "next/navigation"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/components/ui/use-toast"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function StudentLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
   const { t } = useLanguage()
+  const { toast } = useToast()
   const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Redirect to main domain if not accessed via subdomain
   useEffect(() => {
@@ -31,14 +39,73 @@ export default function StudentLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
-    // Simulate network request
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    // For demo purposes, we'll just redirect to student dashboard
-    router.push("/student/dashboard")
+      if (authError) throw new Error(authError.message)
 
-    setIsLoading(false)
+      if (!authData.user) throw new Error(t("auth.error.invalidCredentials"))
+
+      // Check if user has student role for this institution
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .eq("role", "student")
+        .single()
+
+      if (profileError || !profileData) {
+        // Sign out if not a student
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.notStudent"))
+      }
+
+      // Check if student belongs to the correct institution
+      if (institution && profileData.institution_id !== institution.id) {
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.wrongInstitution"))
+      }
+
+      toast({
+        title: t("auth.login.success"),
+        description: t("auth.login.welcomeBack"),
+      })
+
+      // Redirect to student dashboard
+      router.push("/student/dashboard")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.error.loginFailed"))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Demo login for development purposes
+  const handleDemoLogin = async () => {
+    setIsLoading(true)
+
+    try {
+      // Simulate network request
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      toast({
+        title: t("auth.login.demoSuccess"),
+        description: t("auth.login.demoMessage"),
+      })
+
+      // Redirect to student dashboard
+      router.push("/student/dashboard")
+    } catch (error) {
+      setError(t("auth.error.demoFailed"))
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (institutionLoading) {
@@ -77,37 +144,26 @@ export default function StudentLoginPage() {
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label
-                  htmlFor="email"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  {t("auth.login.email")}
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  placeholder=""
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+                <Label htmlFor="email">{t("auth.login.email")}</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <label
-                  htmlFor="password"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  {t("auth.login.password")}
-                </label>
-                <input
+                <Label htmlFor="password">{t("auth.login.password")}</Label>
+                <Input
                   id="password"
                   type="password"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+              </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+
+              <div className="text-sm text-right">
+                <Link href="/student/forgot-password" className="text-primary hover:underline">
+                  {t("auth.login.forgotPassword")}
+                </Link>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
@@ -120,8 +176,9 @@ export default function StudentLoginPage() {
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  onClick={() => router.push("/student/dashboard")}
+                  onClick={handleDemoLogin}
                   type="button"
+                  disabled={isLoading}
                 >
                   {t("auth.login.studentDemo")}
                 </Button>

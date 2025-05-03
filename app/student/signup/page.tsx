@@ -12,40 +12,17 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { AuthLanguageSwitcher } from "../../auth/components/auth-language-switcher"
 import { useLanguage } from "@/lib/language-context"
-
-// Mock data from admin pages
-const mockDegrees = [
-  { id: "1", name: "Bachelor's", code: "bachelor" },
-  { id: "2", name: "Master's", code: "master" },
-  { id: "3", name: "Executive MBA", code: "emba" },
-]
-
-const mockPrograms = [
-  { id: "1", name: "Management", degree: "Bachelor's" },
-  { id: "2", name: "Management", degree: "Master's" },
-  { id: "3", name: "International Management", degree: "Bachelor's" },
-  { id: "4", name: "Business Analytics and Big Data", degree: "Master's" },
-  { id: "5", name: "Public Administration", degree: "Bachelor's" },
-]
-
-const mockYears = ["2023", "2024", "2025"]
-
-const mockGroups = [
-  { id: "1", name: "24.B01-vshm", displayName: "B01", program: "Management", degree: "Bachelor's", year: "2024" },
-  { id: "2", name: "24.B02-vshm", displayName: "B02", program: "Management", degree: "Master's", year: "2024" },
-  { id: "3", name: "23.B01-vshm", displayName: "B01", program: "Management", degree: "Bachelor's", year: "2023" },
-  { id: "4", name: "24.M01-vshm", displayName: "M01", program: "Management", degree: "Master's", year: "2024" },
-  {
-    id: "5",
-    name: "23.B11-vshm",
-    displayName: "B11",
-    program: "International Management",
-    degree: "Bachelor's",
-    year: "2023",
-  },
-]
+import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/components/ui/use-toast"
+import { Input } from "@/components/ui/input"
 
 export default function StudentSignupPage() {
+  const { t } = useLanguage()
+  const router = useRouter()
+  const { toast } = useToast()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
@@ -56,36 +33,108 @@ export default function StudentSignupPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Filtered lists based on selections
-  const [filteredPrograms, setFilteredPrograms] = useState(mockPrograms)
-  const [filteredGroups, setFilteredGroups] = useState(mockGroups)
+  // Data states
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
+  const [groups, setGroups] = useState<any[]>([])
 
-  const router = useRouter()
-  const { t } = useLanguage()
+  // Filtered lists based on selections
+  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Redirect to main domain if not accessed via subdomain
+  useEffect(() => {
+    if (!institutionLoading && !isSubdomainAccess) {
+      // If not accessed via subdomain, redirect to the main app
+      window.location.href = "https://app.electivepro.net/admin/login"
+    }
+  }, [institutionLoading, isSubdomainAccess])
+
+  // Load degrees, programs, and groups data
+  useEffect(() => {
+    async function loadData() {
+      if (!institution) return
+
+      try {
+        // Load degrees
+        const { data: degreesData } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (degreesData) {
+          setDegrees(degreesData)
+        }
+
+        // Load programs
+        const { data: programsData } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (programsData) {
+          setPrograms(programsData)
+        }
+
+        // Load academic years
+        const { data: yearsData } = await supabase
+          .from("academic_years")
+          .select("year")
+          .eq("institution_id", institution.id)
+          .eq("is_active", true)
+          .order("year", { ascending: false })
+
+        if (yearsData) {
+          const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+          setYears(uniqueYears)
+        }
+
+        // Load groups
+        const { data: groupsData } = await supabase
+          .from("groups")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (groupsData) {
+          setGroups(groupsData)
+        }
+      } catch (error) {
+        console.error("Error loading data:", error)
+      }
+    }
+
+    loadData()
+  }, [institution, supabase])
 
   // Filter programs based on selected degree
   useEffect(() => {
     if (degree) {
-      const filtered = mockPrograms.filter((p) => p.degree === degree)
+      const filtered = programs.filter((p) => p.degree_id.toString() === degree)
       setFilteredPrograms(filtered)
-      if (filtered.length > 0 && !filtered.find((p) => p.name === program)) {
+      if (filtered.length > 0 && !filtered.find((p) => p.id.toString() === program)) {
         setProgram("")
       }
     } else {
-      setFilteredPrograms(mockPrograms)
+      setFilteredPrograms([])
     }
-  }, [degree, program])
+  }, [degree, program, programs])
 
   // Filter groups based on selected degree, program, and year
   useEffect(() => {
-    let filtered = mockGroups
+    let filtered = groups
 
     if (degree) {
-      filtered = filtered.filter((g) => g.degree === degree)
+      filtered = filtered.filter((g) => g.degree_id.toString() === degree)
     }
 
     if (program) {
-      filtered = filtered.filter((g) => g.program === program)
+      filtered = filtered.filter((g) => g.program_id.toString() === program)
     }
 
     if (year) {
@@ -93,50 +142,93 @@ export default function StudentSignupPage() {
     }
 
     setFilteredGroups(filtered)
-    if (filtered.length > 0 && !filtered.find((g) => g.name === group)) {
+    if (filtered.length > 0 && !filtered.find((g) => g.id.toString() === group)) {
       setGroup("")
     }
-  }, [degree, program, year, group])
+  }, [degree, program, year, group, groups])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    // Basic validation
-    if (!email.includes("@")) {
-      setError(t("auth.error.invalidEmail"))
+    try {
+      // Basic validation
+      if (!email.includes("@")) {
+        throw new Error(t("auth.error.invalidEmail"))
+      }
+
+      if (!degree || !program || !year || !group) {
+        throw new Error(t("auth.error.incompleteFields"))
+      }
+
+      // Create the user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      })
+
+      if (authError) throw new Error(authError.message)
+
+      // Create student profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user!.id,
+        institution_id: institution!.id,
+        full_name: name,
+        role: "student",
+        email: email,
+        degree_id: degree,
+        program_id: program,
+        year: year,
+        group_id: group,
+      })
+
+      if (profileError) throw new Error(profileError.message)
+
+      toast({
+        title: t("auth.signup.success"),
+        description: t("auth.signup.successMessage"),
+      })
+
+      // Redirect to login page
+      router.push("/student/login")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.signup.error"))
+    } finally {
       setIsLoading(false)
-      return
     }
+  }
 
-    if (!degree || !program || !year || !group) {
-      setError(t("auth.error.incompleteFields"))
-      setIsLoading(false)
-      return
-    }
-
-    // Simulate network request
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // In a real app, you would register the user here with Supabase
-    // For demo purposes, we'll just redirect to login
-    router.push("/student/login")
-
-    setIsLoading(false)
+  if (institutionLoading) {
+    return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
   return (
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
-          <Image
-            src="/images/elective-pro-logo.svg"
-            alt="ElectivePRO Logo"
-            width={160}
-            height={45}
-            className="h-10 w-auto"
-          />
+          {institution?.logo_url ? (
+            <Image
+              src={institution.logo_url || "/placeholder.svg"}
+              alt={`${institution.name} Logo`}
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          ) : (
+            <Image
+              src="/images/elective-pro-logo.svg"
+              alt="ElectivePRO Logo"
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          )}
         </div>
         <Card>
           <CardHeader>
@@ -149,27 +241,12 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
-                <input
-                  id="email"
-                  type="email"
-                  placeholder=""
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="name">{t("auth.signup.name")}</Label>
-                <input
-                  id="name"
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+                <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
 
               <div className="space-y-2">
@@ -179,8 +256,8 @@ export default function StudentSignupPage() {
                     <SelectValue placeholder={t("auth.signup.selectDegree")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockDegrees.map((d) => (
-                      <SelectItem key={d.id} value={d.name}>
+                    {degrees.map((d) => (
+                      <SelectItem key={d.id} value={d.id.toString()}>
                         {d.name}
                       </SelectItem>
                     ))}
@@ -196,7 +273,7 @@ export default function StudentSignupPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPrograms.map((p) => (
-                      <SelectItem key={p.id} value={p.name}>
+                      <SelectItem key={p.id} value={p.id.toString()}>
                         {p.name}
                       </SelectItem>
                     ))}
@@ -212,7 +289,7 @@ export default function StudentSignupPage() {
                       <SelectValue placeholder={t("auth.signup.selectYear")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockYears.map((y) => (
+                      {years.map((y) => (
                         <SelectItem key={y} value={y}>
                           {y}
                         </SelectItem>
@@ -229,8 +306,8 @@ export default function StudentSignupPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {filteredGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.name}>
-                          {g.displayName}
+                        <SelectItem key={g.id} value={g.id.toString()}>
+                          {g.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -240,10 +317,9 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
-                <input
+                <Input
                   id="password"
                   type="password"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

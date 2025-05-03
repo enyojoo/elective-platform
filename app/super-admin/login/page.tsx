@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
 import Image from "next/image"
 import { useInstitution } from "@/lib/institution-context"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SuperAdminLoginPage() {
   const [email, setEmail] = useState("")
@@ -20,6 +21,7 @@ export default function SuperAdminLoginPage() {
   const router = useRouter()
   const { login } = useSuperAdminAuth()
   const { isSubdomainAccess, isLoading: institutionLoading } = useInstitution()
+  const { toast } = useToast()
 
   // Redirect to subdomain if accessed via subdomain
   useEffect(() => {
@@ -35,13 +37,17 @@ export default function SuperAdminLoginPage() {
     setError("")
 
     try {
-      // Use the dummy login function
-      const success = await login(email, password)
+      // Use the Supabase login function
+      const { success, error } = await login(email, password)
 
       if (success) {
+        toast({
+          title: "Login successful",
+          description: "Welcome to the super admin dashboard",
+        })
         router.push("/super-admin/dashboard")
       } else {
-        setError("Invalid credentials. Try admin@electivepro.com / admin123")
+        setError(error || "Invalid credentials. Please try again.")
       }
     } catch (err) {
       setError("Login failed. Please try again.")
@@ -90,12 +96,6 @@ export default function SuperAdminLoginPage() {
               </div>
 
               {error && <p className="text-red-500 text-sm">{error}</p>}
-
-              <div className="text-sm text-muted-foreground">
-                <p>Demo credentials:</p>
-                <p>Email: admin@electivepro.com</p>
-                <p>Password: admin123</p>
-              </div>
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full" disabled={isLoading}>

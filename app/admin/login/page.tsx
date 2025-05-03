@@ -13,6 +13,8 @@ import Image from "next/image"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function InstitutionLoginPage() {
   const { t } = useLanguage()
@@ -21,7 +23,10 @@ export default function InstitutionLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  const { isSubdomainAccess, isLoading: institutionLoading } = useInstitution()
+  const { toast } = useToast()
+  const { isSubdomainAccess, isLoading: institutionLoading, institution } = useInstitution()
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Redirect to subdomain if accessed via main domain
   useEffect(() => {
@@ -37,16 +42,45 @@ export default function InstitutionLoginPage() {
     setError("")
 
     try {
-      // Dummy login - accept any credentials for now
-      // We'll replace this with Supabase authentication later
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      // Simulate a network request
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      if (authError) throw new Error(authError.message)
 
-      // For now, just redirect to admin dashboard
+      if (!authData.user) throw new Error(t("auth.error.invalidCredentials"))
+
+      // Check if user has admin role for this institution
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .eq("role", "admin")
+        .single()
+
+      if (profileError || !profileData) {
+        // Sign out if not an admin
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.notAdmin"))
+      }
+
+      // Check if admin belongs to the correct institution (if accessed via subdomain)
+      if (institution && profileData.institution_id !== institution.id) {
+        await supabase.auth.signOut()
+        throw new Error(t("auth.error.wrongInstitution"))
+      }
+
+      toast({
+        title: t("auth.login.success"),
+        description: t("auth.login.welcomeBack"),
+      })
+
+      // Redirect to admin dashboard
       router.push("/admin/dashboard")
     } catch (err) {
-      setError("Failed to sign in")
+      setError(err instanceof Error ? err.message : t("auth.error.loginFailed"))
     } finally {
       setIsLoading(false)
     }

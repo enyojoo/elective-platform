@@ -13,6 +13,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function InstitutionSignupPage() {
   const { t } = useLanguage()
@@ -20,9 +21,11 @@ export default function InstitutionSignupPage() {
   const [subdomain, setSubdomain] = useState("")
   const [adminEmail, setAdminEmail] = useState("")
   const [adminPassword, setAdminPassword] = useState("")
+  const [fullName, setFullName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
+  const { toast } = useToast()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -32,20 +35,69 @@ export default function InstitutionSignupPage() {
     setError("")
 
     try {
-      // Call the create_institution function
-      const { data, error } = await supabase.rpc("create_institution", {
-        institution_name: institutionName,
-        institution_subdomain: subdomain,
-        admin_email: adminEmail,
-        admin_password: adminPassword,
+      // Validate subdomain format
+      if (!/^[a-z0-9]+$/.test(subdomain)) {
+        throw new Error(t("admin.signup.invalidSubdomain"))
+      }
+
+      // Check if subdomain is available
+      const { data: existingInstitution, error: checkError } = await supabase
+        .from("institutions")
+        .select("id")
+        .eq("subdomain", subdomain)
+        .single()
+
+      if (existingInstitution) {
+        throw new Error(t("admin.signup.subdomainTaken"))
+      }
+
+      // Create the institution
+      const { data: institution, error: institutionError } = await supabase
+        .from("institutions")
+        .insert({
+          name: institutionName,
+          subdomain: subdomain,
+          is_active: true,
+          subscription_plan: "basic",
+        })
+        .select()
+        .single()
+
+      if (institutionError) throw new Error(institutionError.message)
+
+      // Create the admin user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: adminEmail,
+        password: adminPassword,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       })
 
-      if (error) throw error
+      if (authError) throw new Error(authError.message)
 
-      // Redirect directly to the admin dashboard instead of setup
-      router.push("/admin/dashboard")
+      // Create admin profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user!.id,
+        institution_id: institution.id,
+        full_name: fullName,
+        role: "admin",
+        email: adminEmail,
+      })
+
+      if (profileError) throw new Error(profileError.message)
+
+      toast({
+        title: t("admin.signup.success"),
+        description: t("admin.signup.successMessage"),
+      })
+
+      // Redirect to login page
+      router.push("/admin/login")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create institution")
+      setError(err instanceof Error ? err.message : t("admin.signup.error"))
     } finally {
       setIsLoading(false)
     }
@@ -92,6 +144,11 @@ export default function InstitutionSignupPage() {
                   />
                   <span className="bg-muted px-3 py-2 border border-l-0 rounded-r-md">.electivepro.net</span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fullName">{t("admin.signup.fullName")}</Label>
+                <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
               </div>
 
               <div className="space-y-2">

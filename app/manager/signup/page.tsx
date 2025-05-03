@@ -13,36 +13,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
-import type { DegreeType, ProgramType } from "@/lib/types"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
-
-// Mock degrees data
-const mockDegrees: DegreeType[] = [
-  { id: 1, name: "Bachelor", code: "BSc" },
-  { id: 2, name: "Master", code: "MSc" },
-  { id: 3, name: "PhD", code: "PhD" },
-]
-
-// Mock programs data
-const mockPrograms: ProgramType[] = [
-  { id: 1, name: "Management", code: "MGT", degreeId: 1 },
-  { id: 2, name: "International Business", code: "IB", degreeId: 1 },
-  { id: 3, name: "Management", code: "MGT", degreeId: 2 },
-  { id: 4, name: "Business Analytics", code: "BA", degreeId: 2 },
-  { id: 5, name: "Corporate Finance", code: "CF", degreeId: 2 },
-  { id: 6, name: "Management", code: "MGT", degreeId: 3 },
-]
+import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
 
 export default function ManagerSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const currentYear = new Date().getFullYear()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
 
-  const [degrees, setDegrees] = useState<DegreeType[]>([])
-  const [programs, setPrograms] = useState<ProgramType[]>([])
-  const [filteredPrograms, setFilteredPrograms] = useState<ProgramType[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const [formData, setFormData] = useState({
     email: "",
@@ -51,24 +33,81 @@ export default function ManagerSignupPage() {
     name: "",
     degreeId: "",
     programId: "",
-    enrollmentYear: currentYear.toString(),
+    enrollmentYear: new Date().getFullYear().toString(),
   })
 
-  // Fetch degrees and programs
+  // Data states
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Redirect to main domain if not accessed via subdomain
   useEffect(() => {
-    // In a real app, these would be API calls
-    setDegrees(mockDegrees)
-    setPrograms(mockPrograms)
-  }, [])
+    if (!institutionLoading && !isSubdomainAccess) {
+      // If not accessed via subdomain, redirect to the main app
+      window.location.href = "https://app.electivepro.net/admin/login"
+    }
+  }, [institutionLoading, isSubdomainAccess])
+
+  // Load degrees, programs, and academic years data
+  useEffect(() => {
+    async function loadData() {
+      if (!institution) return
+
+      try {
+        // Load degrees
+        const { data: degreesData } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (degreesData) {
+          setDegrees(degreesData)
+        }
+
+        // Load programs
+        const { data: programsData } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (programsData) {
+          setPrograms(programsData)
+        }
+
+        // Load academic years
+        const { data: yearsData } = await supabase
+          .from("academic_years")
+          .select("year")
+          .eq("institution_id", institution.id)
+          .eq("is_active", true)
+          .order("year", { ascending: false })
+
+        if (yearsData) {
+          const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+          setYears(uniqueYears)
+        }
+      } catch (error) {
+        console.error("Error loading data:", error)
+      }
+    }
+
+    loadData()
+  }, [institution, supabase])
 
   // Filter programs based on selected degree
   useEffect(() => {
     if (formData.degreeId) {
-      const filtered = programs.filter((program) => program.degreeId === Number(formData.degreeId))
+      const filtered = programs.filter((p) => p.degree_id.toString() === formData.degreeId)
       setFilteredPrograms(filtered)
 
       // Reset program selection if the current selection is not valid for the new degree
-      if (!filtered.some((p) => p.id === Number(formData.programId))) {
+      if (!filtered.some((p) => p.id.toString() === formData.programId)) {
         setFormData((prev) => ({
           ...prev,
           programId: "",
@@ -96,62 +135,89 @@ export default function ManagerSignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please make sure your passwords match",
-        variant: "destructive",
-      })
-      return
-    }
-
+    setError("")
     setIsLoading(true)
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error(t("auth.error.passwordsDoNotMatch"))
+      }
 
-      // For demo purposes, log the signup data
-      console.log("Manager signup:", formData)
+      if (!formData.degreeId || !formData.programId) {
+        throw new Error(t("auth.error.incompleteFields"))
+      }
 
-      const degree = degrees.find((d) => d.id === Number(formData.degreeId))
-      const program = programs.find((p) => p.id === Number(formData.programId))
+      // Create the user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+          },
+        },
+      })
+
+      if (authError) throw new Error(authError.message)
+
+      // Create manager profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user!.id,
+        institution_id: institution!.id,
+        full_name: formData.name,
+        role: "manager",
+        email: formData.email,
+        degree_id: formData.degreeId,
+        program_id: formData.programId,
+        year: formData.enrollmentYear,
+      })
+
+      if (profileError) throw new Error(profileError.message)
 
       toast({
-        title: "Account created",
-        description: `Your account for ${degree?.name} in ${program?.name} has been created successfully.`,
+        title: t("auth.signup.success"),
+        description: t("auth.signup.successMessage"),
       })
 
       // Redirect to login page
       router.push("/manager/login")
-    } catch (error) {
-      console.error("Signup error:", error)
-      toast({
-        title: "Signup failed",
-        description: "There was an error creating your account. Please try again.",
-        variant: "destructive",
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.signup.error"))
     } finally {
       setIsLoading(false)
     }
   }
 
+  if (institutionLoading) {
+    return <div className="min-h-screen grid place-items-center">Loading...</div>
+  }
+
   // Generate enrollment years (from 2021 to current year + 10)
-  const enrollmentYears = Array.from({ length: currentYear + 10 - 2021 + 1 }, (_, i) => (2021 + i).toString())
+  const currentYear = new Date().getFullYear()
+  const enrollmentYears =
+    years.length > 0 ? years : Array.from({ length: currentYear + 10 - 2021 + 1 }, (_, i) => (2021 + i).toString())
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center space-y-2 text-center">
-          <Image
-            src="/images/elective-pro-logo.svg"
-            alt="Elective Pro Logo"
-            width={160}
-            height={45}
-            className="h-10 w-auto"
-          />
-          <h1 className="text-3xl font-bold"></h1>
+          {institution?.logo_url ? (
+            <Image
+              src={institution.logo_url || "/placeholder.svg"}
+              alt={`${institution.name} Logo`}
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          ) : (
+            <Image
+              src="/images/elective-pro-logo.svg"
+              alt="Elective Pro Logo"
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          )}
         </div>
 
         <Card>
@@ -161,6 +227,8 @@ export default function ManagerSignupPage() {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
+
               {/* Basic Information */}
               <div className="space-y-2">
                 <Label htmlFor="name">{t("admin.users.fullName")}</Label>
