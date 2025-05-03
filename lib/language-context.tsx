@@ -859,7 +859,7 @@ const translations: Translations = {
     "home.subtitle": "Выберите степень, программу, год и группу",
     "language.switch": "Сменить язык",
     "room.label": "Аудитория",
-    "footer.feedback": "Нашли о��ибку или хотите предложить улучшение?",
+    "footer.feedback": "Нашли ошибку или хотите предложить улучшение?",
     "footer.developer": "Разработано командой ElectivePRO",
     "footer.telegramMessage": "Отправить сообщение через Telegram",
     "programs.internationalManagement": "Международный менеджмент",

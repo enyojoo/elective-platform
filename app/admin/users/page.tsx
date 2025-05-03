@@ -23,7 +23,8 @@ import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Define user type
 type User = {
@@ -321,15 +322,39 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8">
-                          {t("admin.users.loading")}
-                        </TableCell>
-                      </TableRow>
+                      // Skeleton loading state
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[180px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[100px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[60px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          {t("admin.users.noUsersFound")}
+                          {t("admin.users.noUsersFound") || "No users found"}
                         </TableCell>
                       </TableRow>
                     ) : (
