@@ -1,9 +1,10 @@
 {
-  "version": 2,
-  "buildCommand": "next build",
-  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install --no-optional",
   "framework": "nextjs",
-  "regions": ["fra1"],
+  "outputDirectory": ".next",
+  "regions": ["iad1"],
   "headers": [
     {
       "source": "/(.*)",
@@ -22,9 +23,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [{ "source": "/:path*", "destination": "/:path*" }, { "source": "/", "destination": "/" }],
-  "env": {
-    "NEXT_PUBLIC_SITE_URL": "https://electivepro.net"
-  }
+  ]
 }
