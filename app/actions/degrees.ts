@@ -13,8 +13,11 @@ export interface DegreeFormData {
   institution_id: string
 }
 
+// Add more detailed error logging to help debug the issue
 export async function getDegrees(institutionId: string) {
   try {
+    console.log("Fetching degrees for institution:", institutionId)
+
     const { data, error } = await supabase
       .from("degrees")
       .select("*")
@@ -26,7 +29,8 @@ export async function getDegrees(institutionId: string) {
       return { degrees: [], error: error.message }
     }
 
-    return { degrees: data, error: null }
+    console.log("Fetched degrees:", data?.length || 0)
+    return { degrees: data || [], error: null }
   } catch (error) {
     console.error("Error in getDegrees:", error)
     return { degrees: [], error: "Failed to fetch degrees" }
