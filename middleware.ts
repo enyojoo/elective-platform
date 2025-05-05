@@ -11,8 +11,6 @@ export async function middleware(req: NextRequest) {
 
   // Get hostname for multi-tenancy
   const hostname = req.headers.get("host") || ""
-  console.log(`Middleware processing request for hostname: ${hostname}`)
-
   const isSubdomain =
     hostname.includes(".electivepro.net") &&
     !hostname.startsWith("www") &&
@@ -24,33 +22,23 @@ export async function middleware(req: NextRequest) {
     const subdomain = hostname.split(".")[0]
     console.log(`Detected subdomain: ${subdomain}`)
 
-    // Check if the subdomain exists in the database
+    // Check if this subdomain exists in the database
     const { data: institution, error } = await supabase
       .from("institutions")
-      .select("id, name, subdomain")
+      .select("id, is_active")
       .eq("subdomain", subdomain)
       .eq("is_active", true)
       .single()
 
-    if (error) {
-      console.error(`Middleware: Error finding institution for subdomain ${subdomain}:`, error)
-    } else if (institution) {
-      console.log(`Middleware: Found institution for subdomain ${subdomain}:`, institution.name)
-    } else {
-      console.log(`Middleware: No institution found for subdomain ${subdomain}`)
+    // If subdomain doesn't exist or is not active, redirect to main site
+    if (error || !institution) {
+      console.log(`Invalid subdomain: ${subdomain}`)
+      return NextResponse.redirect(new URL("/", req.url))
     }
 
     // Store subdomain in request headers for later use
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-    // Also store whether the institution was found
-    if (institution) {
-      requestHeaders.set("x-electivepro-institution-found", "true")
-      requestHeaders.set("x-electivepro-institution-id", institution.id)
-    } else {
-      requestHeaders.set("x-electivepro-institution-found", "false")
-    }
 
     // Check if this is a static file request
     const url = req.nextUrl.clone()
@@ -64,6 +52,7 @@ export async function middleware(req: NextRequest) {
         !url.pathname.startsWith("/_next") &&
         !url.pathname.startsWith("/static")
       ) {
+        // Keep the original path but ensure proper routing
         console.log(`Routing subdomain ${subdomain} to path: ${url.pathname}`)
       }
     }

@@ -2,6 +2,7 @@
 
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 
 export interface Institution {
   id: string
@@ -34,6 +35,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
+  const router = useRouter()
 
   const updateInstitution = async (data: Partial<Institution>) => {
     if (!institution?.id) {
@@ -69,24 +71,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
 
         if (isSubdomain) {
           const subdomain = hostname.split(".")[0]
-          console.log(`Looking up institution with subdomain: ${subdomain}`)
 
-          // First, let's check if any institutions exist at all (for debugging)
-          const { data: allInstitutions, error: allError } = await supabase
-            .from("institutions")
-            .select("id, subdomain")
-            .limit(5)
-
-          if (allError) {
-            console.error("Error fetching institutions:", allError)
-          } else {
-            console.log(
-              `Found ${allInstitutions.length} institutions in database:`,
-              allInstitutions.map((i) => i.subdomain).join(", "),
-            )
-          }
-
-          // Now look for the specific institution
           const { data, error } = await supabase
             .from("institutions")
             .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
@@ -94,65 +79,36 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
             .eq("is_active", true)
             .single()
 
-          console.log("Institution query result:", { data, error })
-
           if (error) {
-            if (error.code === "PGRST116") {
-              console.error(`No institution found for subdomain: ${subdomain}`)
+            console.error("Institution not found or not active:", error)
+            // Redirect to main site if institution not found
+            router.push("/")
+            return
+          }
 
-              // Try without the is_active filter to see if it exists but is inactive
-              const { data: inactiveData } = await supabase
-                .from("institutions")
-                .select("id, is_active")
-                .eq("subdomain", subdomain)
-                .single()
-
-              if (inactiveData) {
-                console.log("Institution exists but is inactive:", inactiveData)
-                setError("Institution is inactive")
-              } else {
-                console.log("Institution does not exist in database")
-                setError("Institution not found")
-              }
-
-              setInstitution(null)
-            } else {
-              console.error("Error fetching institution:", error)
-              throw error
-            }
-          } else if (data) {
-            console.log("Institution found:", data)
+          if (data) {
             setInstitution(data)
             // Set primary color as CSS variable
             if (data.primary_color) {
               document.documentElement.style.setProperty("--primary", data.primary_color)
             }
           } else {
-            console.error("No data returned but no error either")
-            setInstitution(null)
+            // Redirect to main site if institution not found
+            router.push("/")
           }
         }
       } catch (err) {
         console.error("Error loading institution:", err)
         setError("Failed to load institution")
+        // Redirect to main site on error
+        router.push("/")
       } finally {
         setIsLoading(false)
       }
     }
 
     loadInstitution()
-  }, [])
-
-  // Only redirect if we're sure there's no institution
-  useEffect(() => {
-    if (!isLoading && isSubdomainAccess && !institution && error && typeof window !== "undefined") {
-      console.log("Redirecting to invalid institution page due to:", error)
-      // Wait a moment to ensure logs are visible
-      setTimeout(() => {
-        window.location.href = "https://app.electivepro.net/invalid-institution"
-      }, 1000)
-    }
-  }, [isLoading, isSubdomainAccess, institution, error])
+  }, [router])
 
   return (
     <InstitutionContext.Provider

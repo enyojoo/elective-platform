@@ -6,7 +6,7 @@ export function getSubdomain(hostname: string): string | null {
   if (hostname.includes(".electivepro.net")) {
     const subdomain = hostname.split(".")[0]
     // Exclude www and app subdomains
-    if (subdomain !== "www" && subdomain !== "app") {
+    if (subdomain !== "www" && subdomain !== "app" && subdomain !== "") {
       return subdomain
     }
   }
@@ -20,5 +20,21 @@ export function getInstitutionUrl(subdomain: string): string {
     return `https://${subdomain}.electivepro.net`
   } else {
     return `http://localhost:3000?subdomain=${subdomain}`
+  }
+}
+
+export async function isValidSubdomain(subdomain: string, supabase: any): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("institutions")
+      .select("id")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .single()
+
+    return !error && !!data
+  } catch (error) {
+    console.error("Error checking subdomain validity:", error)
+    return false
   }
 }

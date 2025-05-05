@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { DynamicBranding } from "@/components/dynamic-branding"
 import { getSubdomain } from "@/lib/subdomain-utils"
+import { redirect } from "next/navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -37,12 +38,19 @@ export default async function RootLayout({
   // If subdomain exists, fetch institution data
   let institution = null
   if (subdomain) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("institutions")
       .select("id, name, subdomain, logo_url, primary_color")
       .eq("subdomain", subdomain)
       .eq("is_active", true)
       .single()
+
+    if (error || !data) {
+      // If subdomain doesn't exist in our database or is not active,
+      // redirect to the main site
+      console.error("Invalid subdomain access:", subdomain)
+      redirect("/")
+    }
 
     institution = data
   }
