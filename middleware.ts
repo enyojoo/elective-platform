@@ -1,17 +1,10 @@
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
-
-  // Refresh session if expired
-  await supabase.auth.getSession()
-
   // Get hostname for multi-tenancy
   const hostname = req.headers.get("host") || ""
-  console.log(`Processing request for hostname: ${hostname}`)
+  console.log(`Middleware: Processing request for hostname: ${hostname}`)
 
   const isSubdomain =
     hostname.includes(".electivepro.net") &&
@@ -22,36 +15,30 @@ export async function middleware(req: NextRequest) {
   // Handle subdomain routing
   if (isSubdomain) {
     const subdomain = hostname.split(".")[0]
-    console.log(`Detected subdomain: ${subdomain}`)
+    console.log(`Middleware: Detected subdomain: ${subdomain}`)
 
     try {
-      // SIMPLIFIED APPROACH: Just query the institutions table directly
-      // This is more reliable than using RPC functions
-      const { data: institutions, error } = await supabase
-        .from("institutions")
-        .select("id, name, subdomain")
-        .eq("subdomain", subdomain)
-        .eq("is_active", true)
+      // Use our special API endpoint to check the subdomain
+      // This bypasses Supabase RLS completely
+      const apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
+      console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
 
-      console.log("Query result:", { data: institutions, error })
+      const response = await fetch(apiUrl)
+      const data = await response.json()
 
-      if (error) {
-        console.error("Database error:", error.message)
+      console.log(`Middleware: API response:`, data)
+
+      if (!response.ok || !data.exists) {
+        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main app`)
         return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
       }
-
-      if (!institutions || institutions.length === 0) {
-        console.log(`No active institution found for subdomain: ${subdomain}`)
-        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
-      }
-
-      const institution = institutions[0]
-      console.log(`Found institution: ${institution.name} (${institution.id})`)
 
       // Valid subdomain - allow access and add institution info to headers
+      console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
-      requestHeaders.set("x-institution-id", institution.id)
+      requestHeaders.set("x-institution-id", data.institution.id)
+      requestHeaders.set("x-institution-name", data.institution.name)
 
       // IMPORTANT: Return next response with the updated headers
       return NextResponse.next({
@@ -60,14 +47,14 @@ export async function middleware(req: NextRequest) {
         },
       })
     } catch (err) {
-      console.error("Error in middleware:", err)
+      console.error("Middleware: Error in subdomain processing:", err)
       return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
     }
   }
 
-  return res
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg|api/subdomain).*)"],
 }
