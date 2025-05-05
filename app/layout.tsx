@@ -35,36 +35,28 @@ export default async function RootLayout({
   const subdomain = getSubdomain(host)
   const institutionId = headersList.get("x-institution-id")
 
+  console.log("Layout: Processing request for", { host, subdomain, institutionId })
+
   // If subdomain exists, fetch institution data
   let institution = null
   if (subdomain) {
-    console.log(`Server-side detected subdomain: ${subdomain}`)
-
-    // Use the institution ID from headers if available (set by middleware)
-    if (institutionId) {
-      const { data } = await supabase
-        .from("institutions")
-        .select("id, name, subdomain, logo_url, primary_color")
-        .eq("id", institutionId)
-        .single()
-
-      if (data) {
-        console.log(`Found institution by ID: ${data.name}`)
-        institution = data
-      }
-    } else {
-      // Fallback to querying by subdomain
-      const { data } = await supabase
+    try {
+      // Simple direct query - no RPC functions
+      const { data, error } = await supabase
         .from("institutions")
         .select("id, name, subdomain, logo_url, primary_color")
         .eq("subdomain", subdomain)
         .eq("is_active", true)
         .single()
 
-      if (data) {
-        console.log(`Found institution by subdomain: ${data.name}`)
+      console.log("Layout: Institution query result:", { data, error })
+
+      if (!error && data) {
         institution = data
+        console.log("Layout: Found institution:", institution.name)
       }
+    } catch (error) {
+      console.error("Layout: Error fetching institution:", error)
     }
   }
 

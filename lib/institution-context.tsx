@@ -31,7 +31,7 @@ interface InstitutionProviderProps {
 
 export function InstitutionProvider({ children, initialInstitution = null }: InstitutionProviderProps) {
   const [institution, setInstitution] = useState<Institution | null>(initialInstitution)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!initialInstitution)
   const [error, setError] = useState<string | null>(null)
   const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
 
@@ -63,6 +63,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
       try {
         // If we already have an institution from props, use it
         if (initialInstitution) {
+          console.log("Context: Using initial institution:", initialInstitution.name)
           setInstitution(initialInstitution)
           if (initialInstitution.primary_color) {
             document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
@@ -76,11 +77,13 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
           hostname.includes(".electivepro.net") && !hostname.startsWith("www") && !hostname.startsWith("app")
 
         setIsSubdomainAccess(isSubdomain)
+        console.log("Context: Checking for subdomain access:", { hostname, isSubdomain })
 
         if (isSubdomain) {
           const subdomain = hostname.split(".")[0]
-          console.log(`Client-side detected subdomain: ${subdomain}`)
+          console.log("Context: Detected subdomain:", subdomain)
 
+          // Simple direct query - no RPC functions
           const { data, error } = await supabase
             .from("institutions")
             .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
@@ -88,11 +91,13 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
             .eq("is_active", true)
             .single()
 
+          console.log("Context: Institution query result:", { data, error })
+
           if (error) {
-            console.error("Institution not found or not active:", error)
+            console.error("Context: Institution not found:", error)
             setError("Institution not found")
           } else if (data) {
-            console.log(`Found institution for subdomain ${subdomain}:`, data.name)
+            console.log("Context: Found institution:", data.name)
             setInstitution(data)
             // Set primary color as CSS variable
             if (data.primary_color) {
@@ -101,7 +106,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
           }
         }
       } catch (err) {
-        console.error("Error loading institution:", err)
+        console.error("Context: Error loading institution:", err)
         setError("Failed to load institution")
       } finally {
         setIsLoading(false)

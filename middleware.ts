@@ -25,44 +25,42 @@ export async function middleware(req: NextRequest) {
     console.log(`Detected subdomain: ${subdomain}`)
 
     try {
-      // Use the custom function to check if subdomain exists
-      const { data: exists, error: checkError } = await supabase.rpc("check_subdomain_exists", {
-        subdomain_param: subdomain,
-      })
+      // SIMPLIFIED APPROACH: Just query the institutions table directly
+      // This is more reliable than using RPC functions
+      const { data: institutions, error } = await supabase
+        .from("institutions")
+        .select("id, name, subdomain")
+        .eq("subdomain", subdomain)
+        .eq("is_active", true)
 
-      if (checkError) {
-        console.error(`Error checking subdomain: ${checkError.message}`)
+      console.log("Query result:", { data: institutions, error })
+
+      if (error) {
+        console.error("Database error:", error.message)
         return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
       }
 
-      if (!exists) {
-        console.log(`Invalid subdomain: ${subdomain}, redirecting to main app`)
+      if (!institutions || institutions.length === 0) {
+        console.log(`No active institution found for subdomain: ${subdomain}`)
         return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
       }
 
-      // Get institution details using the custom function
-      const { data: institution, error: getError } = await supabase
-        .rpc("get_institution_by_subdomain", { subdomain_param: subdomain })
-        .single()
-
-      if (getError || !institution) {
-        console.error(`Error getting institution: ${getError?.message || "Not found"}`)
-        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
-      }
+      const institution = institutions[0]
+      console.log(`Found institution: ${institution.name} (${institution.id})`)
 
       // Valid subdomain - allow access and add institution info to headers
-      console.log(`Valid subdomain: ${subdomain}, allowing access to institution: ${institution.name}`)
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
       requestHeaders.set("x-institution-id", institution.id)
 
+      // IMPORTANT: Return next response with the updated headers
       return NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       })
     } catch (err) {
-      console.error("Error in middleware subdomain processing:", err)
+      console.error("Error in middleware:", err)
       return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
     }
   }
