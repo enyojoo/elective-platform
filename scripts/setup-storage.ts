@@ -11,13 +11,18 @@ async function setupStorage() {
     { name: "logos", public: true },
     { name: "statements", public: true },
     { name: "documents", public: false },
+    { name: "favicons", public: true }, // Add a new bucket for favicons
   ]
 
   for (const bucket of buckets) {
     const { error } = await supabase.storage.createBucket(bucket.name, { public: bucket.public })
 
     if (error) {
-      console.error(`Error creating bucket ${bucket.name}:`, error)
+      if (error.message.includes("already exists")) {
+        console.log(`Bucket ${bucket.name} already exists`)
+      } else {
+        console.error(`Error creating bucket ${bucket.name}:`, error)
+      }
     } else {
       console.log(`Bucket ${bucket.name} created successfully`)
     }
@@ -39,6 +44,24 @@ async function setupStorage() {
 
   if (logosPolicyError) {
     console.error("Error creating logos policy:", logosPolicyError)
+  }
+
+  // Set up storage policies for favicons
+  const { error: faviconsPolicyError } = await supabase.storage.from("favicons").createPolicy("Favicons Access", {
+    name: "Favicons Access",
+    definition: {
+      statements: [
+        {
+          effect: "allow",
+          action: "select",
+          principal: "*",
+        },
+      ],
+    },
+  })
+
+  if (faviconsPolicyError) {
+    console.error("Error creating favicons policy:", faviconsPolicyError)
   }
 
   const { error: statementsPolicyError } = await supabase.storage.from("statements").createPolicy("Statements Access", {

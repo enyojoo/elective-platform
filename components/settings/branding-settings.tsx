@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
-import { uploadLogo } from "@/lib/file-utils"
+import { uploadLogo, uploadFavicon } from "@/lib/file-utils"
 import { useInstitution } from "@/lib/institution-context"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -26,9 +26,12 @@ export function BrandingSettings() {
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
   const [institutionData, setInstitutionData] = useState(null)
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
 
-  // Add console logs to debug the institution context and improve error handling
-  console.log("Institution context:", institution)
+  // Debug institution context
+  useEffect(() => {
+    console.log("Institution context in BrandingSettings:", institution)
+  }, [institution])
 
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -57,6 +60,35 @@ export function BrandingSettings() {
 
     // Check if institution ID is available
     if (!institution?.id) {
+      // Try to get institution ID from the URL if not in context
+      const pathSegments = window.location.pathname.split("/")
+      const adminIndex = pathSegments.indexOf("admin")
+
+      // If we're in admin section, try to get institution ID from profile
+      if (adminIndex !== -1) {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          if (user) {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("institution_id")
+              .eq("id", user.id)
+              .single()
+
+            if (profileData?.institution_id) {
+              console.log("Found institution ID from profile:", profileData.institution_id)
+              setIsFaviconUploading(true)
+              await uploadFaviconWithId(file, profileData.institution_id)
+              return
+            }
+          }
+        } catch (error) {
+          console.error("Error getting institution ID from profile:", error)
+        }
+      }
+
       console.error("Institution ID not found in context")
       toast({
         title: t("settings.toast.error"),
@@ -67,24 +99,51 @@ export function BrandingSettings() {
     }
 
     setIsFaviconUploading(true)
-    try {
-      console.log("Uploading favicon for institution ID:", institution.id)
-      // Upload the favicon to storage
-      const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
+    await uploadFaviconWithId(file, institution.id)
+  }
 
-      // Store the favicon URL in localStorage as a temporary solution
-      // since there's no favicon_url column in the database
-      localStorage.setItem(`favicon_url_${institution.id}`, faviconUrl)
+  const uploadFaviconWithId = async (file: File, institutionId: string) => {
+    try {
+      console.log("Uploading favicon for institution ID:", institutionId)
+      // Upload the favicon to storage
+      const newFaviconUrl = await uploadFavicon(file, institutionId)
+
+      // Check if favicon_url column exists in institutions table
+      try {
+        // Try to update the institution with the new favicon URL
+        const { error: updateError } = await supabase
+          .from("institutions")
+          .update({ favicon_url: newFaviconUrl })
+          .eq("id", institutionId)
+
+        if (updateError) {
+          if (updateError.message.includes('column "favicon_url" of relation "institutions" does not exist')) {
+            console.log("favicon_url column doesn't exist, storing in localStorage")
+            // Store in localStorage as fallback
+            localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
+          } else {
+            throw updateError
+          }
+        } else {
+          console.log("Updated institution with favicon_url in database")
+        }
+      } catch (error) {
+        console.error("Error updating institution with favicon_url:", error)
+        // Store in localStorage as fallback
+        localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
+      }
+
+      setFaviconUrl(newFaviconUrl)
+
+      // Update local state to show the new favicon
+      setInstitutionData({
+        ...institutionData,
+        favicon_url: newFaviconUrl,
+      })
 
       toast({
         title: t("settings.toast.faviconUploaded"),
         description: t("settings.toast.faviconUploadedDesc").replace("{0}", file.name),
-      })
-
-      // Force a re-render to show the uploaded favicon
-      setInstitutionData({
-        ...institutionData,
-        favicon_url: faviconUrl,
       })
     } catch (error) {
       console.error("Favicon upload error:", error)
@@ -100,8 +159,57 @@ export function BrandingSettings() {
 
   useEffect(() => {
     async function fetchInstitutionData() {
+      // If no institution in context, try to get from auth
       if (!institution?.id) {
-        console.log("No institution ID available in context")
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          if (user) {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("institution_id")
+              .eq("id", user.id)
+              .single()
+
+            if (profileData?.institution_id) {
+              console.log("Found institution ID from profile:", profileData.institution_id)
+              const { data: instData, error: instError } = await supabase
+                .from("institutions")
+                .select("*")
+                .eq("id", profileData.institution_id)
+                .single()
+
+              if (instError) {
+                console.error("Error fetching institution data:", instError)
+                setIsLoading(false)
+                return
+              }
+
+              console.log("Institution data fetched from profile:", instData)
+
+              // Check for favicon in localStorage
+              const storedFaviconUrl = localStorage.getItem(`favicon_url_${profileData.institution_id}`)
+
+              const enhancedData = {
+                ...instData,
+                favicon_url: storedFaviconUrl || null,
+              }
+
+              setInstitutionData(enhancedData)
+              setPrimaryColor(instData.primary_color || "#027659")
+              setInstitutionName(instData.name || "")
+              setSubdomain(instData.subdomain || "")
+              setFaviconUrl(storedFaviconUrl)
+              setIsLoading(false)
+              return
+            }
+          }
+        } catch (error) {
+          console.error("Error getting institution from profile:", error)
+        }
+
+        console.log("No institution ID available in context or profile")
         setIsLoading(false)
         return
       }
@@ -124,13 +232,20 @@ export function BrandingSettings() {
 
         console.log("Institution data fetched:", data)
 
-        // Check if favicon URL exists in localStorage
-        const faviconUrl = localStorage.getItem(`favicon_url_${institution.id}`)
+        // Check if favicon URL exists in localStorage or in the database
+        let faviconUrlValue = data.favicon_url
 
-        // Add favicon_url to the data object if it exists in localStorage
+        if (!faviconUrlValue) {
+          const storedFaviconUrl = localStorage.getItem(`favicon_url_${institution.id}`)
+          faviconUrlValue = storedFaviconUrl || null
+        }
+
+        setFaviconUrl(faviconUrlValue)
+
+        // Add favicon_url to the data object
         const enhancedData = {
           ...data,
-          favicon_url: faviconUrl || null,
+          favicon_url: faviconUrlValue,
         }
 
         setInstitutionData(enhancedData)
@@ -148,7 +263,7 @@ export function BrandingSettings() {
   }, [institution?.id, toast, t])
 
   const handleSaveChanges = async () => {
-    if (!institution?.id) {
+    if (!institution?.id && !institutionData?.id) {
       toast({
         title: t("settings.toast.error"),
         description: t("settings.toast.noInstitution"),
@@ -156,6 +271,8 @@ export function BrandingSettings() {
       })
       return
     }
+
+    const institutionId = institution?.id || institutionData?.id
 
     setIsSaving(true)
     try {
@@ -165,17 +282,19 @@ export function BrandingSettings() {
           name: institutionName,
           primary_color: primaryColor,
         })
-        .eq("id", institution.id)
+        .eq("id", institutionId)
 
       if (error) {
         throw error
       }
 
-      // Update the context
-      await updateInstitution({
-        name: institutionName,
-        primary_color: primaryColor,
-      })
+      // Update the context if available
+      if (institution && updateInstitution) {
+        await updateInstitution({
+          name: institutionName,
+          primary_color: primaryColor,
+        })
+      }
 
       toast({
         title: t("settings.toast.changesSaved"),
@@ -230,8 +349,37 @@ export function BrandingSettings() {
     }
 
     // Check if institution ID is available
-    if (!institution?.id) {
-      console.error("Institution ID not found in context")
+    if (!institution?.id && !institutionData?.id) {
+      // Try to get institution ID from the URL if not in context
+      const pathSegments = window.location.pathname.split("/")
+      const adminIndex = pathSegments.indexOf("admin")
+
+      // If we're in admin section, try to get institution ID from profile
+      if (adminIndex !== -1) {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          if (user) {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("institution_id")
+              .eq("id", user.id)
+              .single()
+
+            if (profileData?.institution_id) {
+              console.log("Found institution ID from profile:", profileData.institution_id)
+              setIsLogoUploading(true)
+              await uploadLogoWithId(file, profileData.institution_id)
+              return
+            }
+          }
+        } catch (error) {
+          console.error("Error getting institution ID from profile:", error)
+        }
+      }
+
+      console.error("Institution ID not found in context or data")
       toast({
         title: t("settings.toast.error"),
         description: "Institution ID not found. Please refresh the page and try again.",
@@ -240,22 +388,29 @@ export function BrandingSettings() {
       return
     }
 
+    const institutionId = institution?.id || institutionData?.id
     setIsLogoUploading(true)
+    await uploadLogoWithId(file, institutionId)
+  }
+
+  const uploadLogoWithId = async (file: File, institutionId: string) => {
     try {
-      console.log("Uploading logo for institution ID:", institution.id)
-      const logoUrl = await uploadLogo(file, institution.id)
+      console.log("Uploading logo for institution ID:", institutionId)
+      const logoUrl = await uploadLogo(file, institutionId)
 
       // Update institution with new logo URL
-      const { error } = await supabase.from("institutions").update({ logo_url: logoUrl }).eq("id", institution.id)
+      const { error } = await supabase.from("institutions").update({ logo_url: logoUrl }).eq("id", institutionId)
 
       if (error) {
         throw error
       }
 
-      // Update the context
-      await updateInstitution({
-        logo_url: logoUrl,
-      })
+      // Update the context if available
+      if (institution && updateInstitution) {
+        await updateInstitution({
+          logo_url: logoUrl,
+        })
+      }
 
       // Update local state to show the new logo
       setInstitutionData({
@@ -376,9 +531,9 @@ export function BrandingSettings() {
               <Label>{t("settings.branding.favicon")}</Label>
               <div className="flex items-center gap-2">
                 <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {institutionData?.favicon_url ? (
+                  {faviconUrl ? (
                     <img
-                      src={institutionData.favicon_url || "/placeholder.svg"}
+                      src={faviconUrl || "/placeholder.svg"}
                       alt="Favicon"
                       className="h-full w-full object-contain"
                     />

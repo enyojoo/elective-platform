@@ -3,20 +3,57 @@ import { supabase } from "@/lib/supabase"
 export async function uploadLogo(file: File, institutionId: string): Promise<string> {
   const fileExt = file.name.split(".").pop()
   const fileName = `institution_${institutionId}_${Date.now()}.${fileExt}`
-  const filePath = `logos/${fileName}`
+  const filePath = `${fileName}`
 
-  const { error } = await supabase.storage.from("logos").upload(filePath, file, {
-    cacheControl: "3600",
-    upsert: false,
-  })
+  console.log(`Uploading logo to path: ${filePath} in logos bucket`)
 
-  if (error) {
-    throw new Error(`Error uploading logo: ${error.message}`)
+  try {
+    const { error } = await supabase.storage.from("logos").upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    })
+
+    if (error) {
+      console.error("Error uploading logo:", error)
+      throw new Error(`Error uploading logo: ${error.message}`)
+    }
+
+    const { data } = supabase.storage.from("logos").getPublicUrl(filePath)
+    console.log("Logo uploaded successfully, public URL:", data.publicUrl)
+
+    return data.publicUrl
+  } catch (error) {
+    console.error("Unexpected error during logo upload:", error)
+    throw error
   }
+}
 
-  const { data } = supabase.storage.from("logos").getPublicUrl(filePath)
+export async function uploadFavicon(file: File, institutionId: string): Promise<string> {
+  const fileExt = file.name.split(".").pop()
+  const fileName = `favicon_${institutionId}_${Date.now()}.${fileExt}`
+  const filePath = `${fileName}`
 
-  return data.publicUrl
+  console.log(`Uploading favicon to path: ${filePath} in favicons bucket`)
+
+  try {
+    const { error } = await supabase.storage.from("favicons").upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    })
+
+    if (error) {
+      console.error("Error uploading favicon:", error)
+      throw new Error(`Error uploading favicon: ${error.message}`)
+    }
+
+    const { data } = supabase.storage.from("favicons").getPublicUrl(filePath)
+    console.log("Favicon uploaded successfully, public URL:", data.publicUrl)
+
+    return data.publicUrl
+  } catch (error) {
+    console.error("Unexpected error during favicon upload:", error)
+    throw error
+  }
 }
 
 export async function uploadFile(
@@ -59,7 +96,7 @@ export async function uploadStatement(file: File, userId: string, packId: string
     // Create a unique file path
     const fileExt = file.name.split(".").pop()
     const fileName = `${userId}_${packId}_${Date.now()}.${fileExt}`
-    const filePath = `statements/${fileName}`
+    const filePath = `${fileName}`
 
     // Upload the file to Supabase Storage
     const { error } = await supabase.storage.from("statements").upload(filePath, file, {
