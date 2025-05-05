@@ -8,6 +8,7 @@ import { AccountSettings } from "@/components/settings/account-settings"
 import { useLanguage } from "@/lib/language-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { useInstitution } from "@/lib/institution-context"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 
@@ -24,21 +25,41 @@ export default function SettingsPage() {
       try {
         setIsLoading(true)
 
-        // Use the server-side API endpoint instead of direct Supabase query
-        const response = await fetch("/api/admin/profile")
+        // Get current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          toast({
+            title: t("settings.toast.error"),
+            description: t("settings.toast.notAuthenticated"),
+            variant: "destructive",
+          })
+          return
+        }
+
+        // Fetch profile using API endpoint to bypass RLS
+        const response = await fetch(`/api/admin/profile?userId=${user.id}`)
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to fetch profile")
+          console.error("Error fetching admin profile:", errorData)
+          toast({
+            title: t("settings.toast.error"),
+            description: t("settings.toast.profileFetchError"),
+            variant: "destructive",
+          })
+          return
         }
 
-        const data = await response.json()
-        setAdminProfile(data.profile)
+        const profile = await response.json()
+        setAdminProfile(profile)
       } catch (error) {
-        console.error("Error fetching admin profile:", error)
+        console.error("Unexpected error:", error)
         toast({
           title: t("settings.toast.error"),
-          description: t("settings.toast.profileFetchError"),
+          description: t("settings.toast.unexpectedError"),
           variant: "destructive",
         })
       } finally {
