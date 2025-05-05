@@ -27,6 +27,66 @@ export function BrandingSettings() {
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
   const [institutionData, setInstitutionData] = useState(null)
 
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ["image/png", "image/x-icon", "image/svg+xml"]
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: t("settings.toast.invalidFileType"),
+        description: t("settings.toast.invalidFileTypeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file size (max 1MB)
+    if (file.size > 1 * 1024 * 1024) {
+      toast({
+        title: t("settings.toast.fileTooLarge"),
+        description: t("settings.toast.fileTooLargeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsFaviconUploading(true)
+    try {
+      if (!institution?.id) {
+        throw new Error("Institution ID not found")
+      }
+
+      // Upload the favicon to storage
+      const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
+
+      // Store the favicon URL in localStorage as a temporary solution
+      // since there's no favicon_url column in the database
+      localStorage.setItem(`favicon_url_${institution.id}`, faviconUrl)
+
+      toast({
+        title: t("settings.toast.faviconUploaded"),
+        description: t("settings.toast.faviconUploadedDesc").replace("{0}", file.name),
+      })
+
+      // Force a re-render to show the uploaded favicon
+      setInstitutionData({
+        ...institutionData,
+        favicon_url: faviconUrl,
+      })
+    } catch (error) {
+      console.error("Favicon upload error:", error)
+      toast({
+        title: t("settings.toast.uploadError"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFaviconUploading(false)
+    }
+  }
+
   useEffect(() => {
     async function fetchInstitutionData() {
       if (!institution?.id) return
@@ -45,7 +105,16 @@ export function BrandingSettings() {
           return
         }
 
-        setInstitutionData(data)
+        // Check if favicon URL exists in localStorage
+        const faviconUrl = localStorage.getItem(`favicon_url_${institution.id}`)
+
+        // Add favicon_url to the data object if it exists in localStorage
+        const enhancedData = {
+          ...data,
+          favicon_url: faviconUrl || null,
+        }
+
+        setInstitutionData(enhancedData)
         setPrimaryColor(data.primary_color || "#027659")
         setInstitutionName(data.name || "")
         setSubdomain(data.subdomain || "")
@@ -174,67 +243,6 @@ export function BrandingSettings() {
       })
     } finally {
       setIsLogoUploading(false)
-    }
-  }
-
-  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validate file type
-    const validTypes = ["image/png", "image/x-icon", "image/svg+xml"]
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: t("settings.toast.invalidFileType"),
-        description: t("settings.toast.invalidFileTypeDesc"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validate file size (max 1MB)
-    if (file.size > 1 * 1024 * 1024) {
-      toast({
-        title: t("settings.toast.fileTooLarge"),
-        description: t("settings.toast.fileTooLargeDesc"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsFaviconUploading(true)
-    try {
-      if (!institution?.id) {
-        throw new Error("Institution ID not found")
-      }
-
-      const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
-
-      // Update institution with new favicon URL
-      const { error } = await supabase.from("institutions").update({ favicon_url: faviconUrl }).eq("id", institution.id)
-
-      if (error) {
-        throw error
-      }
-
-      // Update the context
-      await updateInstitution({
-        favicon_url: faviconUrl,
-      })
-
-      toast({
-        title: t("settings.toast.faviconUploaded"),
-        description: t("settings.toast.faviconUploadedDesc").replace("{0}", file.name),
-      })
-    } catch (error) {
-      console.error("Favicon upload error:", error)
-      toast({
-        title: t("settings.toast.uploadError"),
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      })
-    } finally {
-      setIsFaviconUploading(false)
     }
   }
 
