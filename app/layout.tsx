@@ -38,6 +38,8 @@ export default async function RootLayout({
   // If subdomain exists, fetch institution data
   let institution = null
   if (subdomain) {
+    console.log(`Server-side detected subdomain: ${subdomain}`)
+
     // Use the institution ID from headers if available (set by middleware)
     if (institutionId) {
       const { data } = await supabase
@@ -47,6 +49,7 @@ export default async function RootLayout({
         .single()
 
       if (data) {
+        console.log(`Found institution by ID: ${data.name}`)
         institution = data
       }
     } else {
@@ -59,9 +62,9 @@ export default async function RootLayout({
         .single()
 
       if (data) {
+        console.log(`Found institution by subdomain: ${data.name}`)
         institution = data
       }
-      // No redirect here - let middleware handle invalid subdomains
     }
   }
 

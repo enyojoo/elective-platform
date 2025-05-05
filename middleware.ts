@@ -11,6 +11,8 @@ export async function middleware(req: NextRequest) {
 
   // Get hostname for multi-tenancy
   const hostname = req.headers.get("host") || ""
+  console.log(`Processing request for hostname: ${hostname}`)
+
   const isSubdomain =
     hostname.includes(".electivepro.net") &&
     !hostname.startsWith("www") &&
@@ -22,31 +24,38 @@ export async function middleware(req: NextRequest) {
     const subdomain = hostname.split(".")[0]
     console.log(`Detected subdomain: ${subdomain}`)
 
-    // Check if this subdomain exists in the database
-    const { data: institution, error } = await supabase
-      .from("institutions")
-      .select("id, is_active")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .single()
+    try {
+      // Check if this subdomain exists in the database
+      const { data: institution, error } = await supabase
+        .from("institutions")
+        .select("id, is_active")
+        .eq("subdomain", subdomain)
+        .eq("is_active", true)
+        .single()
 
-    // If subdomain doesn't exist or is not active, redirect to main site
-    if (error || !institution) {
-      console.log(`Invalid subdomain: ${subdomain}`)
-      // Use absolute URL to prevent redirect loops
-      return NextResponse.redirect(new URL("https://electivepro.net", req.url))
+      console.log(`Subdomain lookup result:`, { institution, error })
+
+      // If subdomain doesn't exist or is not active, redirect to main site
+      if (error || !institution) {
+        console.log(`Invalid subdomain: ${subdomain}, redirecting to main app`)
+        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      }
+
+      // Valid subdomain - allow access and add institution info to headers
+      console.log(`Valid subdomain: ${subdomain}, allowing access`)
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.set("x-electivepro-subdomain", subdomain)
+      requestHeaders.set("x-institution-id", institution.id)
+
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      })
+    } catch (err) {
+      console.error("Error in middleware subdomain processing:", err)
+      return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
     }
-
-    // Store subdomain in request headers for later use
-    const requestHeaders = new Headers(req.headers)
-    requestHeaders.set("x-electivepro-subdomain", subdomain)
-    requestHeaders.set("x-institution-id", institution.id)
-
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
   }
 
   return res

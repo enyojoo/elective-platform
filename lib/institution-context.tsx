@@ -79,6 +79,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
 
         if (isSubdomain) {
           const subdomain = hostname.split(".")[0]
+          console.log(`Client-side detected subdomain: ${subdomain}`)
 
           const { data, error } = await supabase
             .from("institutions")
@@ -91,6 +92,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
             console.error("Institution not found or not active:", error)
             setError("Institution not found")
           } else if (data) {
+            console.log(`Found institution for subdomain ${subdomain}:`, data.name)
             setInstitution(data)
             // Set primary color as CSS variable
             if (data.primary_color) {
