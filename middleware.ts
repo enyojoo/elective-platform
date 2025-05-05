@@ -4,13 +4,36 @@ import type { NextRequest } from "next/server"
 export async function middleware(req: NextRequest) {
   // Get hostname for multi-tenancy
   const hostname = req.headers.get("host") || ""
-  console.log(`Middleware: Processing request for hostname: ${hostname}`)
+  const path = req.nextUrl.pathname
+
+  console.log(`Middleware: Processing request for hostname: ${hostname}, path: ${path}`)
+
+  const isMainDomain = hostname === "app.electivepro.net" || hostname === "electivepro.net"
 
   const isSubdomain =
     hostname.includes(".electivepro.net") &&
     !hostname.startsWith("www") &&
     !hostname.startsWith("app") &&
     !hostname.startsWith("api")
+
+  // Check if the path is for student or manager routes
+  const isStudentOrManagerRoute = path.startsWith("/student/") || path.startsWith("/manager/")
+
+  // Check if the path is for admin or super-admin routes
+  const isAdminOrSuperAdminRoute = path.startsWith("/admin/") || path.startsWith("/super-admin/")
+
+  // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
+  if (isStudentOrManagerRoute && !isSubdomain) {
+    console.log(`Middleware: Redirecting student/manager route to subdomain: ${path}`)
+    // Redirect to a default subdomain or show an error page
+    return NextResponse.redirect(new URL("/institution-required", req.url))
+  }
+
+  // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
+  if (isAdminOrSuperAdminRoute && isSubdomain) {
+    console.log(`Middleware: Redirecting admin route to main domain: ${path}`)
+    return NextResponse.redirect(new URL(`https://app.electivepro.net${path}`, req.url))
+  }
 
   // Handle subdomain routing
   if (isSubdomain) {
@@ -19,14 +42,11 @@ export async function middleware(req: NextRequest) {
 
     try {
       // Use our special API endpoint to check the subdomain
-      // This bypasses Supabase RLS completely
       const apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
       console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
 
       const response = await fetch(apiUrl)
       const data = await response.json()
-
-      console.log(`Middleware: API response:`, data)
 
       if (!response.ok || !data.exists) {
         console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main app`)
@@ -40,6 +60,11 @@ export async function middleware(req: NextRequest) {
       requestHeaders.set("x-institution-id", data.institution.id)
       requestHeaders.set("x-institution-name", data.institution.name)
 
+      // If accessing the root of a subdomain, redirect to student login
+      if (path === "/") {
+        return NextResponse.redirect(new URL("/student/login", req.url))
+      }
+
       // IMPORTANT: Return next response with the updated headers
       return NextResponse.next({
         request: {
@@ -48,21 +73,13 @@ export async function middleware(req: NextRequest) {
       })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
-
-      // Don't redirect if we're on a student or manager login page
-      const path = req.nextUrl.pathname
-      if (
-        path.startsWith("/student/login") ||
-        path.startsWith("/manager/login") ||
-        path.startsWith("/student/signup") ||
-        path.startsWith("/manager/signup")
-      ) {
-        console.log(`Middleware: Not redirecting ${path} even with error`)
-        return NextResponse.next()
-      }
-
       return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
     }
+  }
+
+  // If accessing the root of the main domain, redirect to admin login
+  if (isMainDomain && path === "/") {
+    return NextResponse.redirect(new URL("/admin/login", req.url))
   }
 
   return NextResponse.next()

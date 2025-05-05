@@ -1,13 +1,25 @@
 "use client"
 
+import { useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Calendar, ClipboardList } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { useRouter } from "next/navigation"
 
 export default function StudentDashboard() {
   const { t } = useLanguage()
+  const { institution, isSubdomainAccess } = useInstitution()
+  const router = useRouter()
+
+  // Ensure this page is only accessed via subdomain
+  useEffect(() => {
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
+    }
+  }, [isSubdomainAccess, router])
 
   // Mock student data
   const studentData = {
@@ -47,6 +59,10 @@ export default function StudentDashboard() {
       daysLeft: 122,
     },
   ]
+
+  if (!isSubdomainAccess) {
+    return null // Don't render anything while redirecting
+  }
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>

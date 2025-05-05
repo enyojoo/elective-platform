@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -7,9 +8,20 @@ import { BookOpen, GlobeIcon } from "lucide-react"
 import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { useRouter } from "next/navigation"
 
 export default function ManagerDashboard() {
   const { t } = useLanguage()
+  const { isSubdomainAccess } = useInstitution()
+  const router = useRouter()
+
+  // Ensure this page is only accessed via subdomain
+  useEffect(() => {
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
+    }
+  }, [isSubdomainAccess, router])
 
   // Mock manager data
   const managerData = {
@@ -38,6 +50,10 @@ export default function ManagerDashboard() {
       daysLeft: 28,
     },
   ]
+
+  if (!isSubdomainAccess) {
+    return null // Don't render anything while redirecting
+  }
 
   return (
     <DashboardLayout userRole={UserRole.MANAGER}>

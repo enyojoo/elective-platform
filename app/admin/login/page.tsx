@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,15 @@ export default function InstitutionLoginPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const { toast } = useToast()
-  const { isSubdomainAccess, isLoading: institutionLoading, institution } = useInstitution()
+  const { isSubdomainAccess, isLoading: institutionLoading } = useInstitution()
+
+  // Ensure this page is only accessed via main domain
+  useEffect(() => {
+    if (isSubdomainAccess) {
+      // If accessed via subdomain, redirect to student login
+      window.location.href = window.location.href.replace("/admin/login", "/student/login")
+    }
+  }, [isSubdomainAccess])
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -46,26 +54,24 @@ export default function InstitutionLoginPage() {
       }
 
       if (authData.session) {
-        // Use a direct API call to check the user role to avoid RLS issues
-        const response = await fetch("/api/auth/check-role", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.session.access_token}`,
-          },
-          body: JSON.stringify({ userId: authData.session.user.id }),
-        })
+        // Check if the user is an admin
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role, institution_id")
+          .eq("id", authData.session.user.id)
+          .single()
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to verify user role")
+        if (profileError) {
+          console.error("Error fetching profile:", profileError)
+          await supabase.auth.signOut()
+          setError("Error verifying user role: " + profileError.message)
+          return
         }
 
-        const { role, institutionId } = await response.json()
-
-        if (role !== "admin") {
+        if (profile.role !== "admin") {
           await supabase.auth.signOut()
-          throw new Error("You do not have admin access")
+          setError("You do not have admin access")
+          return
         }
 
         toast({
@@ -75,8 +81,7 @@ export default function InstitutionLoginPage() {
         router.push("/admin/dashboard")
       }
     } catch (err) {
-      console.error("Login error:", err)
-      setError(err instanceof Error ? err.message : "Login failed. Please try again.")
+      setError("Login failed. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -84,6 +89,10 @@ export default function InstitutionLoginPage() {
 
   if (institutionLoading) {
     return <div className="min-h-screen grid place-items-center">Loading...</div>
+  }
+
+  if (isSubdomainAccess) {
+    return null // Don't render anything while redirecting
   }
 
   return (
