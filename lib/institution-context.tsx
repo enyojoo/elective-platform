@@ -2,7 +2,6 @@
 
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
 
 export interface Institution {
   id: string
@@ -35,7 +34,6 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
-  const router = useRouter()
 
   const updateInstitution = async (data: Partial<Institution>) => {
     if (!institution?.id) {
@@ -63,6 +61,16 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   useEffect(() => {
     async function loadInstitution() {
       try {
+        // If we already have an institution from props, use it
+        if (initialInstitution) {
+          setInstitution(initialInstitution)
+          if (initialInstitution.primary_color) {
+            document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
+          }
+          setIsLoading(false)
+          return
+        }
+
         const hostname = window.location.hostname
         const isSubdomain =
           hostname.includes(".electivepro.net") && !hostname.startsWith("www") && !hostname.startsWith("app")
@@ -81,34 +89,25 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
 
           if (error) {
             console.error("Institution not found or not active:", error)
-            // Redirect to main site if institution not found
-            router.push("/")
-            return
-          }
-
-          if (data) {
+            setError("Institution not found")
+          } else if (data) {
             setInstitution(data)
             // Set primary color as CSS variable
             if (data.primary_color) {
               document.documentElement.style.setProperty("--primary", data.primary_color)
             }
-          } else {
-            // Redirect to main site if institution not found
-            router.push("/")
           }
         }
       } catch (err) {
         console.error("Error loading institution:", err)
         setError("Failed to load institution")
-        // Redirect to main site on error
-        router.push("/")
       } finally {
         setIsLoading(false)
       }
     }
 
     loadInstitution()
-  }, [router])
+  }, [initialInstitution])
 
   return (
     <InstitutionContext.Provider

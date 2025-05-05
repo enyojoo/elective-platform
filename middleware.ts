@@ -33,29 +33,14 @@ export async function middleware(req: NextRequest) {
     // If subdomain doesn't exist or is not active, redirect to main site
     if (error || !institution) {
       console.log(`Invalid subdomain: ${subdomain}`)
-      return NextResponse.redirect(new URL("/", req.url))
+      // Use absolute URL to prevent redirect loops
+      return NextResponse.redirect(new URL("https://electivepro.net", req.url))
     }
 
     // Store subdomain in request headers for later use
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-    // Check if this is a static file request
-    const url = req.nextUrl.clone()
-    const isStaticFile = /\.(jpg|jpeg|png|gif|svg|ico|css|js)$/i.test(url.pathname)
-
-    if (!isStaticFile) {
-      // For non-static files, ensure we're using the correct path
-      // This helps with routing for institution-specific pages
-      if (
-        !url.pathname.startsWith("/api") &&
-        !url.pathname.startsWith("/_next") &&
-        !url.pathname.startsWith("/static")
-      ) {
-        // Keep the original path but ensure proper routing
-        console.log(`Routing subdomain ${subdomain} to path: ${url.pathname}`)
-      }
-    }
+    requestHeaders.set("x-institution-id", institution.id)
 
     return NextResponse.next({
       request: {

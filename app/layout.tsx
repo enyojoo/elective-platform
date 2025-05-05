@@ -9,7 +9,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { DynamicBranding } from "@/components/dynamic-branding"
 import { getSubdomain } from "@/lib/subdomain-utils"
-import { redirect } from "next/navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -34,25 +33,36 @@ export default async function RootLayout({
   const headersList = headers()
   const host = headersList.get("host") || ""
   const subdomain = getSubdomain(host)
+  const institutionId = headersList.get("x-institution-id")
 
   // If subdomain exists, fetch institution data
   let institution = null
   if (subdomain) {
-    const { data, error } = await supabase
-      .from("institutions")
-      .select("id, name, subdomain, logo_url, primary_color")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .single()
+    // Use the institution ID from headers if available (set by middleware)
+    if (institutionId) {
+      const { data } = await supabase
+        .from("institutions")
+        .select("id, name, subdomain, logo_url, primary_color")
+        .eq("id", institutionId)
+        .single()
 
-    if (error || !data) {
-      // If subdomain doesn't exist in our database or is not active,
-      // redirect to the main site
-      console.error("Invalid subdomain access:", subdomain)
-      redirect("/")
+      if (data) {
+        institution = data
+      }
+    } else {
+      // Fallback to querying by subdomain
+      const { data } = await supabase
+        .from("institutions")
+        .select("id, name, subdomain, logo_url, primary_color")
+        .eq("subdomain", subdomain)
+        .eq("is_active", true)
+        .single()
+
+      if (data) {
+        institution = data
+      }
+      // No redirect here - let middleware handle invalid subdomains
     }
-
-    institution = data
   }
 
   return (
