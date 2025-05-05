@@ -7,15 +7,12 @@ import { BrandingSettings } from "@/components/settings/branding-settings"
 import { AccountSettings } from "@/components/settings/account-settings"
 import { useLanguage } from "@/lib/language-context"
 import { Card, CardContent } from "@/components/ui/card"
-import { useInstitution } from "@/lib/institution-context"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
   const { t } = useLanguage()
-  const { institution } = useInstitution()
   const { toast } = useToast()
   const [adminProfile, setAdminProfile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -25,39 +22,21 @@ export default function SettingsPage() {
       try {
         setIsLoading(true)
 
-        // Get current user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        // Use the API endpoint instead of direct Supabase query
+        const response = await fetch("/api/admin/profile")
 
-        if (!user) {
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.notAuthenticated"),
-            variant: "destructive",
-          })
-          return
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to fetch admin profile")
         }
 
-        // Get admin profile
-        const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-        if (error) {
-          console.error("Error fetching admin profile:", error)
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.profileFetchError"),
-            variant: "destructive",
-          })
-          return
-        }
-
+        const profile = await response.json()
         setAdminProfile(profile)
       } catch (error) {
-        console.error("Unexpected error:", error)
+        console.error("Error fetching admin profile:", error)
         toast({
           title: t("settings.toast.error"),
-          description: t("settings.toast.unexpectedError"),
+          description: error.message || t("settings.toast.profileFetchError"),
           variant: "destructive",
         })
       } finally {

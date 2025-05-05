@@ -17,44 +17,27 @@ export function AccountSettings({ adminProfile }) {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [name, setName] = useState(adminProfile?.full_name || "")
   const [email, setEmail] = useState(adminProfile?.email || "")
-  const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
   const handleUpdateInfo = async () => {
     setIsUpdating(true)
     try {
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        throw new Error("User not authenticated")
-      }
-
-      // Update profile in database
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
+      // Update profile using API endpoint
+      const response = await fetch("/api/admin/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           full_name: name,
-          // Note: We don't update email in profiles table directly
-        })
-        .eq("id", user.id)
-
-      if (profileError) {
-        throw profileError
-      }
-
-      // Update email in auth if it changed
-      if (email !== adminProfile?.email) {
-        const { error: authError } = await supabase.auth.updateUser({
           email: email,
-        })
+        }),
+      })
 
-        if (authError) {
-          throw authError
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update profile")
       }
 
       toast({
@@ -94,7 +77,6 @@ export function AccountSettings({ adminProfile }) {
         throw error
       }
 
-      setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
 
