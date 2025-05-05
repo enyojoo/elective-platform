@@ -27,6 +27,9 @@ export function BrandingSettings() {
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
   const [institutionData, setInstitutionData] = useState(null)
 
+  // Add console logs to debug the institution context and improve error handling
+  console.log("Institution context:", institution)
+
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -52,12 +55,20 @@ export function BrandingSettings() {
       return
     }
 
+    // Check if institution ID is available
+    if (!institution?.id) {
+      console.error("Institution ID not found in context")
+      toast({
+        title: t("settings.toast.error"),
+        description: "Institution ID not found. Please refresh the page and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsFaviconUploading(true)
     try {
-      if (!institution?.id) {
-        throw new Error("Institution ID not found")
-      }
-
+      console.log("Uploading favicon for institution ID:", institution.id)
       // Upload the favicon to storage
       const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
 
@@ -89,7 +100,13 @@ export function BrandingSettings() {
 
   useEffect(() => {
     async function fetchInstitutionData() {
-      if (!institution?.id) return
+      if (!institution?.id) {
+        console.log("No institution ID available in context")
+        setIsLoading(false)
+        return
+      }
+
+      console.log("Fetching institution data for ID:", institution.id)
 
       try {
         setIsLoading(true)
@@ -104,6 +121,8 @@ export function BrandingSettings() {
           })
           return
         }
+
+        console.log("Institution data fetched:", data)
 
         // Check if favicon URL exists in localStorage
         const faviconUrl = localStorage.getItem(`favicon_url_${institution.id}`)
@@ -210,12 +229,20 @@ export function BrandingSettings() {
       return
     }
 
+    // Check if institution ID is available
+    if (!institution?.id) {
+      console.error("Institution ID not found in context")
+      toast({
+        title: t("settings.toast.error"),
+        description: "Institution ID not found. Please refresh the page and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLogoUploading(true)
     try {
-      if (!institution?.id) {
-        throw new Error("Institution ID not found")
-      }
-
+      console.log("Uploading logo for institution ID:", institution.id)
       const logoUrl = await uploadLogo(file, institution.id)
 
       // Update institution with new logo URL
@@ -227,6 +254,12 @@ export function BrandingSettings() {
 
       // Update the context
       await updateInstitution({
+        logo_url: logoUrl,
+      })
+
+      // Update local state to show the new logo
+      setInstitutionData({
+        ...institutionData,
         logo_url: logoUrl,
       })
 

@@ -104,6 +104,43 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
               document.documentElement.style.setProperty("--primary", data.primary_color)
             }
           }
+        } else {
+          // If not accessing via subdomain, try to get institution from auth session
+          console.log("Context: Not a subdomain access, checking auth session")
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+
+          if (session?.user) {
+            console.log("Context: User is authenticated, fetching profile")
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("institution_id")
+              .eq("id", session.user.id)
+              .single()
+
+            if (profileError) {
+              console.error("Context: Error fetching profile:", profileError)
+            } else if (profileData?.institution_id) {
+              console.log("Context: Found institution ID in profile:", profileData.institution_id)
+
+              const { data: institutionData, error: institutionError } = await supabase
+                .from("institutions")
+                .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
+                .eq("id", profileData.institution_id)
+                .single()
+
+              if (institutionError) {
+                console.error("Context: Error fetching institution:", institutionError)
+              } else {
+                console.log("Context: Found institution from profile:", institutionData.name)
+                setInstitution(institutionData)
+                if (institutionData.primary_color) {
+                  document.documentElement.style.setProperty("--primary", institutionData.primary_color)
+                }
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Context: Error loading institution:", err)

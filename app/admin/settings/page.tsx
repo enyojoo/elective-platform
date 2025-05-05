@@ -20,6 +20,9 @@ export default function SettingsPage() {
   const [adminProfile, setAdminProfile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Add debugging for the institution context in the settings page
+  console.log("Settings page - Institution context:", institution)
+
   useEffect(() => {
     async function fetchAdminProfile() {
       try {
@@ -39,6 +42,8 @@ export default function SettingsPage() {
           return
         }
 
+        console.log("Settings page - Current user:", user.id)
+
         // Fetch profile using API endpoint to bypass RLS
         const response = await fetch(`/api/admin/profile?userId=${user.id}`)
 
@@ -54,7 +59,24 @@ export default function SettingsPage() {
         }
 
         const profile = await response.json()
+        console.log("Settings page - Admin profile:", profile)
         setAdminProfile(profile)
+
+        // If institution is not available in context, fetch it directly
+        if (!institution && profile.institution_id) {
+          console.log("Settings page - Fetching institution data for ID:", profile.institution_id)
+          const { data: institutionData, error: institutionError } = await supabase
+            .from("institutions")
+            .select("*")
+            .eq("id", profile.institution_id)
+            .single()
+
+          if (institutionError) {
+            console.error("Error fetching institution data:", institutionError)
+          } else {
+            console.log("Settings page - Institution data:", institutionData)
+          }
+        }
       } catch (error) {
         console.error("Unexpected error:", error)
         toast({
@@ -68,7 +90,7 @@ export default function SettingsPage() {
     }
 
     fetchAdminProfile()
-  }, [toast, t])
+  }, [toast, t, institution])
 
   if (isLoading) {
     return (
