@@ -1,6 +1,19 @@
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+
+// Initialize Supabase Admin client (replace with your actual service role key)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  },
+)
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
@@ -63,4 +76,30 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)"],
+}
+
+// Replace the existing getInstitution function with this improved version
+async function getInstitution(subdomain: string) {
+  try {
+    console.log(`Middleware: Checking institution with subdomain: ${subdomain}`)
+
+    // Use the admin client for better error handling
+    const { data, error } = await supabaseAdmin
+      .from("institutions")
+      .select("id, name, subdomain")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .single()
+
+    if (error) {
+      console.error(`Middleware: Error fetching institution: ${error.message}`)
+      return null
+    }
+
+    console.log(`Middleware: Found institution: ${data.name}`)
+    return data
+  } catch (error) {
+    console.error(`Middleware: Unexpected error: ${error}`)
+    return null
+  }
 }

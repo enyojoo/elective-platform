@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { redirect } from "next/navigation"
+import { supabaseAdmin } from "@/lib/supabase"
 
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
@@ -24,25 +25,42 @@ export async function signIn(formData: FormData) {
   }
 
   // Get user profile to determine redirect
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", (await supabase.auth.getUser()).data.user?.id)
-    .single()
+  try {
+    const user = (await supabase.auth.getUser()).data.user
 
-  if (profile) {
-    switch (profile.role) {
-      case "student":
-        redirect("/student/dashboard")
-      case "program_manager":
-        redirect("/manager/dashboard")
-      case "admin":
-        redirect("/admin/dashboard")
-      case "super_admin":
-        redirect("/super-admin/dashboard")
-      default:
-        redirect("/")
+    if (!user) {
+      return { error: "User not found" }
     }
+
+    // Use supabaseAdmin to bypass RLS
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError)
+      return { error: "Error fetching user profile" }
+    }
+
+    if (profile) {
+      switch (profile.role) {
+        case "student":
+          redirect("/student/dashboard")
+        case "program_manager":
+          redirect("/manager/dashboard")
+        case "admin":
+          redirect("/admin/dashboard")
+        case "super_admin":
+          redirect("/super-admin/dashboard")
+        default:
+          redirect("/")
+      }
+    }
+  } catch (err) {
+    console.error("Error in signIn:", err)
+    return { error: "An unexpected error occurred" }
   }
 
   return { success: true }
@@ -61,67 +79,75 @@ export async function signUp(formData: FormData) {
 
   const supabase = createServerActionClient({ cookies })
 
-  // Create user in auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: name,
-      },
-    },
-  })
-
-  if (authError) {
-    return { error: authError.message }
-  }
-
-  if (authData.user) {
-    // Create profile
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: authData.user.id,
-      institution_id: institutionId,
-      full_name: name,
-      role,
+  try {
+    // Create user in auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
     })
 
-    if (profileError) {
-      return { error: profileError.message }
+    if (authError) {
+      return { error: authError.message }
     }
 
-    // For students, create student profile
-    if (role === "student") {
-      const groupId = formData.get("groupId") as string
-      const enrollmentYear = formData.get("enrollmentYear") as string
-
-      const { error: studentError } = await supabase.from("student_profiles").insert({
-        profile_id: authData.user.id,
-        group_id: groupId,
-        enrollment_year: enrollmentYear,
+    if (authData.user) {
+      // Create profile using admin client to bypass RLS
+      const { error: profileError } = await supabaseAdmin.from("profiles").insert({
+        id: authData.user.id,
+        institution_id: institutionId,
+        full_name: name,
+        role,
+        email,
       })
 
-      if (studentError) {
-        return { error: studentError.message }
+      if (profileError) {
+        console.error("Profile creation error:", profileError)
+        return { error: "Error creating user profile" }
+      }
+
+      // For students, create student profile
+      if (role === "student") {
+        const groupId = formData.get("groupId") as string
+        const enrollmentYear = formData.get("enrollmentYear") as string
+
+        const { error: studentError } = await supabaseAdmin.from("student_profiles").insert({
+          profile_id: authData.user.id,
+          group_id: groupId,
+          enrollment_year: enrollmentYear,
+        })
+
+        if (studentError) {
+          console.error("Student profile creation error:", studentError)
+          return { error: "Error creating student profile" }
+        }
+      }
+
+      // For program managers, create manager profile
+      if (role === "program_manager") {
+        const programId = formData.get("programId") as string
+
+        const { error: managerError } = await supabaseAdmin.from("manager_profiles").insert({
+          profile_id: authData.user.id,
+          program_id: programId,
+        })
+
+        if (managerError) {
+          console.error("Manager profile creation error:", managerError)
+          return { error: "Error creating manager profile" }
+        }
       }
     }
 
-    // For program managers, create manager profile
-    if (role === "program_manager") {
-      const programId = formData.get("programId") as string
-
-      const { error: managerError } = await supabase.from("manager_profiles").insert({
-        profile_id: authData.user.id,
-        program_id: programId,
-      })
-
-      if (managerError) {
-        return { error: managerError.message }
-      }
-    }
+    return { success: true }
+  } catch (err) {
+    console.error("Error in signUp:", err)
+    return { error: "An unexpected error occurred" }
   }
-
-  return { success: true }
 }
 
 export async function signOut() {
@@ -132,40 +158,43 @@ export async function signOut() {
 
 // Add a new function to ensure a user profile exists
 export async function ensureUserProfile(userId: string, email: string, role: string, institutionId?: string) {
-  const supabase = createServerActionClient({ cookies })
+  try {
+    // Check if profile exists using admin client to bypass RLS
+    const { data: existingProfile, error: fetchError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .single()
 
-  // Check if profile exists
-  const { data: existingProfile, error: fetchError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", userId)
-    .single()
+    if (fetchError && fetchError.code === "PGRST116") {
+      // Profile doesn't exist, create it
+      const profileData: any = {
+        id: userId,
+        email: email,
+        role: role,
+        created_at: new Date().toISOString(),
+      }
 
-  if (fetchError && fetchError.code === "PGRST116") {
-    // Profile doesn't exist, create it
-    const profileData: any = {
-      id: userId,
-      email: email,
-      role: role,
-      created_at: new Date().toISOString(),
-    }
+      if (institutionId) {
+        profileData.institution_id = institutionId
+      }
 
-    if (institutionId) {
-      profileData.institution_id = institutionId
-    }
+      const { error: insertError } = await supabaseAdmin.from("profiles").insert(profileData)
 
-    const { error: insertError } = await supabase.from("profiles").insert(profileData)
+      if (insertError) {
+        console.error("Error creating profile:", insertError)
+        return { success: false, error: "Failed to create user profile" }
+      }
 
-    if (insertError) {
-      console.error("Error creating profile:", insertError)
-      return { success: false, error: "Failed to create user profile" }
+      return { success: true }
+    } else if (fetchError) {
+      console.error("Error checking profile:", fetchError)
+      return { success: false, error: "Error checking user profile" }
     }
 
     return { success: true }
-  } else if (fetchError) {
-    console.error("Error checking profile:", fetchError)
-    return { success: false, error: "Error checking user profile" }
+  } catch (err) {
+    console.error("Error in ensureUserProfile:", err)
+    return { success: false, error: "An unexpected error occurred" }
   }
-
-  return { success: true }
 }

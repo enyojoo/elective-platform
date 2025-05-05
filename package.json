@@ -61,7 +61,8 @@
     "@supabase/supabase-js": "latest",
     "@tanstack/react-table": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@supabase/auth-helpers-react": "latest"
+    "@supabase/auth-helpers-react": "latest",
+    "dotenv": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

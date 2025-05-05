@@ -40,54 +40,25 @@ export default function InstitutionSignupPage() {
         throw new Error(t("admin.signup.invalidSubdomain"))
       }
 
-      // Check if subdomain is available
-      const { data: existingInstitution, error: checkError } = await supabase
-        .from("institutions")
-        .select("id")
-        .eq("subdomain", subdomain)
-        .single()
-
-      if (existingInstitution) {
-        throw new Error(t("admin.signup.subdomainTaken"))
-      }
-
-      // Create the institution
-      const { data: institution, error: institutionError } = await supabase
-        .from("institutions")
-        .insert({
-          name: institutionName,
-          subdomain: subdomain,
-          is_active: true,
-          subscription_plan: "basic",
-        })
-        .select()
-        .single()
-
-      if (institutionError) throw new Error(institutionError.message)
-
-      // Create the admin user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: adminEmail,
-        password: adminPassword,
-        options: {
-          data: {
-            full_name: fullName,
-          },
+      // Use API endpoint to create institution and admin
+      const response = await fetch("/api/auth/signup-admin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          institutionName,
+          subdomain,
+          adminEmail,
+          adminPassword,
+          fullName,
+        }),
       })
 
-      if (authError) throw new Error(authError.message)
-
-      // Create admin profile
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user!.id,
-        institution_id: institution.id,
-        full_name: fullName,
-        role: "admin",
-        email: adminEmail,
-      })
-
-      if (profileError) throw new Error(profileError.message)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Signup failed")
+      }
 
       toast({
         title: t("admin.signup.success"),

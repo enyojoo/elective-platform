@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -8,48 +8,34 @@ import { MoreHorizontal, Plus } from "lucide-react"
 import Link from "next/link"
 
 export default function InstitutionsPage() {
-  const [institutions] = useState([
-    {
-      subdomain: "unitech",
-      name: "University of Technology and Applied Sciences with Extended Name",
-      domain: "unitech.edu",
-      plan: "Enterprise",
-      totalUsers: 1500,
-      status: "active",
-    },
-    {
-      subdomain: "citycollege",
-      name: "City College",
-      domain: "citycollege.edu",
-      plan: "Professional",
-      totalUsers: 950,
-      status: "active",
-    },
-    {
-      subdomain: "globaluni",
-      name: "Global University",
-      domain: "globaluni.edu",
-      plan: "Standard",
-      totalUsers: 750,
-      status: "pending",
-    },
-    {
-      subdomain: "techinst",
-      name: "Technical Institute",
-      domain: "techinst.edu",
-      plan: "Professional",
-      totalUsers: 600,
-      status: "active",
-    },
-    {
-      subdomain: "artsacad",
-      name: "Arts Academy",
-      domain: "artsacad.edu",
-      plan: "Standard",
-      totalUsers: 420,
-      status: "active",
-    },
-  ])
+  // Add error handling for institutions fetching
+  const [institutions, setInstitutions] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    async function fetchInstitutionsData() {
+      try {
+        setIsLoading(true)
+        const response = await fetch("/api/super-admin/institutions")
+
+        if (!response.ok) {
+          throw new Error(`Error fetching institutions: ${response.status}`)
+        }
+
+        const data = await response.json()
+        setInstitutions(data)
+        setError(null)
+      } catch (err) {
+        console.error("Error fetching institutions:", err)
+        setError(err.message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchInstitutionsData()
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -77,6 +63,18 @@ export default function InstitutionsPage() {
               <div className="col-span-2 text-center">Status</div>
               <div className="col-span-1 text-right">Actions</div>
             </div>
+            {isLoading && (
+              <div className="flex items-center justify-center h-64">
+                <p>Loading institutions...</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <strong className="font-bold">Error:</strong>
+                <span className="block sm:inline"> {error}</span>
+              </div>
+            )}
             <div className="divide-y">
               {institutions.map((institution) => (
                 <div key={institution.subdomain} className="grid grid-cols-12 items-center px-4 py-3">
