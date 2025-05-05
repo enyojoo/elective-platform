@@ -77,7 +77,14 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
             .eq("is_active", true)
             .single()
 
-          if (error) throw error
+          if (error) {
+            if (error.code === "PGRST116") {
+              // No institution found for this subdomain
+              setInstitution(null)
+            } else {
+              throw error
+            }
+          }
 
           if (data) {
             setInstitution(data)
@@ -97,6 +104,13 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
 
     loadInstitution()
   }, [])
+
+  useEffect(() => {
+    if (!isLoading && isSubdomainAccess && !institution && typeof window !== "undefined") {
+      // If accessed via subdomain but institution doesn't exist
+      window.location.href = "https://app.electivepro.net/invalid-institution"
+    }
+  }, [isLoading, isSubdomainAccess, institution])
 
   return (
     <InstitutionContext.Provider

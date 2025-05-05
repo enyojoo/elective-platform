@@ -22,6 +22,17 @@ export async function middleware(req: NextRequest) {
     const subdomain = hostname.split(".")[0]
     console.log(`Detected subdomain: ${subdomain}`)
 
+    // Check if the subdomain exists in the database
+    const { data: institution } = await supabase
+      .from("institutions")
+      .select("id, name, subdomain")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .single()
+
+    // If the institution doesn't exist, we'll still set the header
+    // but the institution context will handle the redirect
+
     // Store subdomain in request headers for later use
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set("x-electivepro-subdomain", subdomain)

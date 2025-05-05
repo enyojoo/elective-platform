@@ -31,11 +31,16 @@ export default function ManagerLoginPage() {
 
   // Redirect to main domain if not accessed via subdomain
   useEffect(() => {
-    if (!institutionLoading && !isSubdomainAccess) {
-      // If not accessed via subdomain, redirect to the main app
-      window.location.href = "https://app.electivepro.net/admin/login"
+    if (!institutionLoading) {
+      if (!isSubdomainAccess) {
+        // If not accessed via subdomain, redirect to the main app
+        window.location.href = "https://app.electivepro.net/admin/login"
+      } else if (!institution) {
+        // If accessed via subdomain but institution doesn't exist
+        window.location.href = "https://app.electivepro.net/invalid-institution"
+      }
     }
-  }, [institutionLoading, isSubdomainAccess])
+  }, [institutionLoading, isSubdomainAccess, institution])
 
   // Update the handleLogin function to handle missing profiles
   const handleLogin = async (e: React.FormEvent) => {
