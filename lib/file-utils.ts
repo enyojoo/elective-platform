@@ -8,6 +8,13 @@ export async function uploadLogo(file: File, institutionId: string): Promise<str
   console.log(`Uploading logo to path: ${filePath} in logos bucket`)
 
   try {
+    // Get the authenticated user
+    const { data: authData } = await supabase.auth.getSession()
+    if (!authData.session) {
+      throw new Error("No authenticated session found")
+    }
+
+    // Upload the file
     const { error } = await supabase.storage.from("logos").upload(filePath, file, {
       cacheControl: "3600",
       upsert: true,
@@ -36,6 +43,13 @@ export async function uploadFavicon(file: File, institutionId: string): Promise<
   console.log(`Uploading favicon to path: ${filePath} in favicons bucket`)
 
   try {
+    // Get the authenticated user
+    const { data: authData } = await supabase.auth.getSession()
+    if (!authData.session) {
+      throw new Error("No authenticated session found")
+    }
+
+    // Upload the file
     const { error } = await supabase.storage.from("favicons").upload(filePath, file, {
       cacheControl: "3600",
       upsert: true,

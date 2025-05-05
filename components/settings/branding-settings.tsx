@@ -27,11 +27,109 @@ export function BrandingSettings() {
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
   const [institutionData, setInstitutionData] = useState(null)
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [institutionId, setInstitutionId] = useState<string | null>(institution?.id || null)
+  const [hasFaviconColumn, setHasFaviconColumn] = useState(false)
 
-  // Debug institution context
+  // Check if favicon_url column exists
   useEffect(() => {
-    console.log("Institution context in BrandingSettings:", institution)
-  }, [institution])
+    async function checkFaviconColumn() {
+      try {
+        // Try to update a test record with favicon_url to see if the column exists
+        const testId = "00000000-0000-0000-0000-000000000000" // A dummy UUID that won't exist
+        const { error } = await supabase.from("institutions").update({ favicon_url: null }).eq("id", testId)
+
+        // If there's no error about the column not existing, then it exists
+        setHasFaviconColumn(
+          !error || !error.message.includes('column "favicon_url" of relation "institutions" does not exist'),
+        )
+        console.log("Favicon column exists:", hasFaviconColumn)
+      } catch (error) {
+        console.error("Error checking favicon column:", error)
+        setHasFaviconColumn(false)
+      }
+    }
+
+    checkFaviconColumn()
+  }, [])
+
+  // Get institution ID from user profile if not available in context
+  useEffect(() => {
+    async function getInstitutionIdFromProfile() {
+      if (institutionId) return
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError || !profileData?.institution_id) {
+          console.error("Error getting institution ID from profile:", profileError)
+          return
+        }
+
+        console.log("Found institution ID from profile:", profileData.institution_id)
+        setInstitutionId(profileData.institution_id)
+      } catch (error) {
+        console.error("Error in getInstitutionIdFromProfile:", error)
+      }
+    }
+
+    getInstitutionIdFromProfile()
+  }, [institutionId])
+
+  // Fetch institution data
+  useEffect(() => {
+    async function fetchInstitutionData() {
+      if (!institutionId) return
+
+      try {
+        setIsLoading(true)
+        console.log("Fetching institution data for ID:", institutionId)
+
+        const { data, error } = await supabase.from("institutions").select("*").eq("id", institutionId).single()
+
+        if (error) {
+          console.error("Error fetching institution data:", error)
+          toast({
+            title: t("settings.toast.error"),
+            description: t("settings.toast.institutionFetchError"),
+            variant: "destructive",
+          })
+          return
+        }
+
+        console.log("Institution data fetched:", data)
+
+        // Get favicon URL from localStorage if not in database
+        let faviconUrlValue = data.favicon_url
+        if (!faviconUrlValue && hasFaviconColumn) {
+          const storedFaviconUrl = localStorage.getItem(`favicon_url_${institutionId}`)
+          faviconUrlValue = storedFaviconUrl || null
+        }
+
+        setFaviconUrl(faviconUrlValue)
+        setLogoUrl(data.logo_url)
+        setInstitutionData(data)
+        setPrimaryColor(data.primary_color || "#027659")
+        setInstitutionName(data.name || "")
+        setSubdomain(data.subdomain || "")
+      } catch (error) {
+        console.error("Unexpected error in fetchInstitutionData:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchInstitutionData()
+  }, [institutionId, t, hasFaviconColumn])
 
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -59,37 +157,7 @@ export function BrandingSettings() {
     }
 
     // Check if institution ID is available
-    if (!institution?.id) {
-      // Try to get institution ID from the URL if not in context
-      const pathSegments = window.location.pathname.split("/")
-      const adminIndex = pathSegments.indexOf("admin")
-
-      // If we're in admin section, try to get institution ID from profile
-      if (adminIndex !== -1) {
-        try {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-          if (user) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("institution_id")
-              .eq("id", user.id)
-              .single()
-
-            if (profileData?.institution_id) {
-              console.log("Found institution ID from profile:", profileData.institution_id)
-              setIsFaviconUploading(true)
-              await uploadFaviconWithId(file, profileData.institution_id)
-              return
-            }
-          }
-        } catch (error) {
-          console.error("Error getting institution ID from profile:", error)
-        }
-      }
-
-      console.error("Institution ID not found in context")
+    if (!institutionId) {
       toast({
         title: t("settings.toast.error"),
         description: "Institution ID not found. Please refresh the page and try again.",
@@ -99,47 +167,36 @@ export function BrandingSettings() {
     }
 
     setIsFaviconUploading(true)
-    await uploadFaviconWithId(file, institution.id)
-  }
-
-  const uploadFaviconWithId = async (file: File, institutionId: string) => {
     try {
       console.log("Uploading favicon for institution ID:", institutionId)
-      // Upload the favicon to storage
       const newFaviconUrl = await uploadFavicon(file, institutionId)
+      setFaviconUrl(newFaviconUrl)
 
-      // Check if favicon_url column exists in institutions table
-      try {
-        // Try to update the institution with the new favicon URL
-        const { error: updateError } = await supabase
+      // Update institution with new favicon URL if column exists
+      if (hasFaviconColumn) {
+        const { error } = await supabase
           .from("institutions")
           .update({ favicon_url: newFaviconUrl })
           .eq("id", institutionId)
 
-        if (updateError) {
-          if (updateError.message.includes('column "favicon_url" of relation "institutions" does not exist')) {
-            console.log("favicon_url column doesn't exist, storing in localStorage")
-            // Store in localStorage as fallback
-            localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
-          } else {
-            throw updateError
-          }
+        if (error) {
+          console.error("Error updating institution with favicon_url:", error)
+          // Store in localStorage as fallback
+          localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
         } else {
           console.log("Updated institution with favicon_url in database")
         }
-      } catch (error) {
-        console.error("Error updating institution with favicon_url:", error)
-        // Store in localStorage as fallback
+      } else {
+        // Store in localStorage if column doesn't exist
         localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
       }
 
-      setFaviconUrl(newFaviconUrl)
-
-      // Update local state to show the new favicon
-      setInstitutionData({
-        ...institutionData,
-        favicon_url: newFaviconUrl,
-      })
+      // Update the context if available
+      if (institution && updateInstitution && hasFaviconColumn) {
+        await updateInstitution({
+          favicon_url: newFaviconUrl,
+        })
+      }
 
       toast({
         title: t("settings.toast.faviconUploaded"),
@@ -157,113 +214,80 @@ export function BrandingSettings() {
     }
   }
 
-  useEffect(() => {
-    async function fetchInstitutionData() {
-      // If no institution in context, try to get from auth
-      if (!institution?.id) {
-        try {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-          if (user) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("institution_id")
-              .eq("id", user.id)
-              .single()
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-            if (profileData?.institution_id) {
-              console.log("Found institution ID from profile:", profileData.institution_id)
-              const { data: instData, error: instError } = await supabase
-                .from("institutions")
-                .select("*")
-                .eq("id", profileData.institution_id)
-                .single()
-
-              if (instError) {
-                console.error("Error fetching institution data:", instError)
-                setIsLoading(false)
-                return
-              }
-
-              console.log("Institution data fetched from profile:", instData)
-
-              // Check for favicon in localStorage
-              const storedFaviconUrl = localStorage.getItem(`favicon_url_${profileData.institution_id}`)
-
-              const enhancedData = {
-                ...instData,
-                favicon_url: storedFaviconUrl || null,
-              }
-
-              setInstitutionData(enhancedData)
-              setPrimaryColor(instData.primary_color || "#027659")
-              setInstitutionName(instData.name || "")
-              setSubdomain(instData.subdomain || "")
-              setFaviconUrl(storedFaviconUrl)
-              setIsLoading(false)
-              return
-            }
-          }
-        } catch (error) {
-          console.error("Error getting institution from profile:", error)
-        }
-
-        console.log("No institution ID available in context or profile")
-        setIsLoading(false)
-        return
-      }
-
-      console.log("Fetching institution data for ID:", institution.id)
-
-      try {
-        setIsLoading(true)
-        const { data, error } = await supabase.from("institutions").select("*").eq("id", institution.id).single()
-
-        if (error) {
-          console.error("Error fetching institution data:", error)
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.institutionFetchError"),
-            variant: "destructive",
-          })
-          return
-        }
-
-        console.log("Institution data fetched:", data)
-
-        // Check if favicon URL exists in localStorage or in the database
-        let faviconUrlValue = data.favicon_url
-
-        if (!faviconUrlValue) {
-          const storedFaviconUrl = localStorage.getItem(`favicon_url_${institution.id}`)
-          faviconUrlValue = storedFaviconUrl || null
-        }
-
-        setFaviconUrl(faviconUrlValue)
-
-        // Add favicon_url to the data object
-        const enhancedData = {
-          ...data,
-          favicon_url: faviconUrlValue,
-        }
-
-        setInstitutionData(enhancedData)
-        setPrimaryColor(data.primary_color || "#027659")
-        setInstitutionName(data.name || "")
-        setSubdomain(data.subdomain || "")
-      } catch (error) {
-        console.error("Unexpected error:", error)
-      } finally {
-        setIsLoading(false)
-      }
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/svg+xml"]
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: t("settings.toast.invalidFileType"),
+        description: t("settings.toast.invalidFileTypeDesc"),
+        variant: "destructive",
+      })
+      return
     }
 
-    fetchInstitutionData()
-  }, [institution?.id, toast, t])
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: t("settings.toast.fileTooLarge"),
+        description: t("settings.toast.fileTooLargeDesc"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if institution ID is available
+    if (!institutionId) {
+      toast({
+        title: t("settings.toast.error"),
+        description: "Institution ID not found. Please refresh the page and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLogoUploading(true)
+    try {
+      console.log("Uploading logo for institution ID:", institutionId)
+      const newLogoUrl = await uploadLogo(file, institutionId)
+      setLogoUrl(newLogoUrl)
+
+      // Update institution with new logo URL
+      const { error } = await supabase.from("institutions").update({ logo_url: newLogoUrl }).eq("id", institutionId)
+
+      if (error) {
+        console.error("Error updating institution with logo_url:", error)
+        throw error
+      }
+
+      // Update the context if available
+      if (institution && updateInstitution) {
+        await updateInstitution({
+          logo_url: newLogoUrl,
+        })
+      }
+
+      toast({
+        title: t("settings.toast.logoUploaded"),
+        description: t("settings.toast.logoUploadedDesc").replace("{0}", file.name),
+      })
+    } catch (error) {
+      console.error("Logo upload error:", error)
+      toast({
+        title: t("settings.toast.uploadError"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLogoUploading(false)
+    }
+  }
 
   const handleSaveChanges = async () => {
-    if (!institution?.id && !institutionData?.id) {
+    if (!institutionId) {
       toast({
         title: t("settings.toast.error"),
         description: t("settings.toast.noInstitution"),
@@ -271,8 +295,6 @@ export function BrandingSettings() {
       })
       return
     }
-
-    const institutionId = institution?.id || institutionData?.id
 
     setIsSaving(true)
     try {
@@ -321,117 +343,6 @@ export function BrandingSettings() {
       title: t("settings.toast.resetDefaults"),
       description: t("settings.toast.resetDefaultsDesc"),
     })
-  }
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validate file type
-    const validTypes = ["image/jpeg", "image/png", "image/svg+xml"]
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: t("settings.toast.invalidFileType"),
-        description: t("settings.toast.invalidFileTypeDesc"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: t("settings.toast.fileTooLarge"),
-        description: t("settings.toast.fileTooLargeDesc"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Check if institution ID is available
-    if (!institution?.id && !institutionData?.id) {
-      // Try to get institution ID from the URL if not in context
-      const pathSegments = window.location.pathname.split("/")
-      const adminIndex = pathSegments.indexOf("admin")
-
-      // If we're in admin section, try to get institution ID from profile
-      if (adminIndex !== -1) {
-        try {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-          if (user) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("institution_id")
-              .eq("id", user.id)
-              .single()
-
-            if (profileData?.institution_id) {
-              console.log("Found institution ID from profile:", profileData.institution_id)
-              setIsLogoUploading(true)
-              await uploadLogoWithId(file, profileData.institution_id)
-              return
-            }
-          }
-        } catch (error) {
-          console.error("Error getting institution ID from profile:", error)
-        }
-      }
-
-      console.error("Institution ID not found in context or data")
-      toast({
-        title: t("settings.toast.error"),
-        description: "Institution ID not found. Please refresh the page and try again.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const institutionId = institution?.id || institutionData?.id
-    setIsLogoUploading(true)
-    await uploadLogoWithId(file, institutionId)
-  }
-
-  const uploadLogoWithId = async (file: File, institutionId: string) => {
-    try {
-      console.log("Uploading logo for institution ID:", institutionId)
-      const logoUrl = await uploadLogo(file, institutionId)
-
-      // Update institution with new logo URL
-      const { error } = await supabase.from("institutions").update({ logo_url: logoUrl }).eq("id", institutionId)
-
-      if (error) {
-        throw error
-      }
-
-      // Update the context if available
-      if (institution && updateInstitution) {
-        await updateInstitution({
-          logo_url: logoUrl,
-        })
-      }
-
-      // Update local state to show the new logo
-      setInstitutionData({
-        ...institutionData,
-        logo_url: logoUrl,
-      })
-
-      toast({
-        title: t("settings.toast.logoUploaded"),
-        description: t("settings.toast.logoUploadedDesc").replace("{0}", file.name),
-      })
-    } catch (error) {
-      console.error("Logo upload error:", error)
-      toast({
-        title: t("settings.toast.uploadError"),
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLogoUploading(false)
-    }
   }
 
   if (isLoading) {
@@ -486,12 +397,8 @@ export function BrandingSettings() {
               <Label>{t("settings.branding.logo")}</Label>
               <div className="flex items-center gap-2">
                 <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {institutionData?.logo_url ? (
-                    <img
-                      src={institutionData.logo_url || "/placeholder.svg"}
-                      alt="Logo"
-                      className="h-full w-full object-contain"
-                    />
+                  {logoUrl ? (
+                    <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="h-full w-full object-contain" />
                   ) : (
                     <span className="text-xs text-muted-foreground">Logo</span>
                   )}
