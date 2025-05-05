@@ -21,7 +21,7 @@ export default function ManagerSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading } = useInstitution()
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -44,13 +44,8 @@ export default function ManagerSignupPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Redirect to main domain if not accessed via subdomain
-  useEffect(() => {
-    if (!institutionLoading && !isSubdomainAccess) {
-      // If not accessed via subdomain, redirect to the main app
-      window.location.href = "https://app.electivepro.net/admin/login"
-    }
-  }, [institutionLoading, isSubdomainAccess])
+  // REMOVED: Redirect to main domain if not accessed via subdomain
+  // This was causing the issue
 
   // Load degrees, programs, and academic years data
   useEffect(() => {

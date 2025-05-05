@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,17 +22,12 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("")
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Redirect to main domain if not accessed via subdomain
-  useEffect(() => {
-    if (!institutionLoading && !isSubdomainAccess) {
-      // If not accessed via subdomain, redirect to the main app
-      window.location.href = "https://app.electivepro.net/admin/login"
-    }
-  }, [institutionLoading, isSubdomainAccess])
+  // REMOVED: Redirect to main domain if not accessed via subdomain
+  // This was causing the issue
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
