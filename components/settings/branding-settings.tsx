@@ -24,6 +24,7 @@ export function BrandingSettings() {
   const [isFaviconUploading, setIsFaviconUploading] = useState(false)
   const [primaryColor, setPrimaryColor] = useState(institution?.primary_color || "#027659")
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
+  const [institutionDomain, setInstitutionDomain] = useState(institution?.domain || "")
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
   const [institutionData, setInstitutionData] = useState(null)
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
@@ -120,6 +121,7 @@ export function BrandingSettings() {
         setInstitutionData(data)
         setPrimaryColor(data.primary_color || "#027659")
         setInstitutionName(data.name || "")
+        setInstitutionDomain(data.domain || "")
         setSubdomain(data.subdomain || "")
       } catch (error) {
         console.error("Unexpected error in fetchInstitutionData:", error)
@@ -302,6 +304,7 @@ export function BrandingSettings() {
         .from("institutions")
         .update({
           name: institutionName,
+          domain: institutionDomain,
           primary_color: primaryColor,
         })
         .eq("id", institutionId)
@@ -314,6 +317,7 @@ export function BrandingSettings() {
       if (institution && updateInstitution) {
         await updateInstitution({
           name: institutionName,
+          domain: institutionDomain,
           primary_color: primaryColor,
         })
       }
@@ -337,6 +341,7 @@ export function BrandingSettings() {
   const handleResetDefaults = () => {
     setPrimaryColor(institutionData?.primary_color || "#027659")
     setInstitutionName(institutionData?.name || "")
+    setInstitutionDomain(institutionData?.domain || "")
     setSubdomain(institutionData?.subdomain || "")
 
     toast({
@@ -361,8 +366,8 @@ export function BrandingSettings() {
           <CardDescription>{t("settings.branding.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Institution Name and Subdomain */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Institution Name, Domain, and Subdomain in one row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="institutionName">{t("settings.branding.institutionName")}</Label>
               <Input
@@ -370,6 +375,16 @@ export function BrandingSettings() {
                 value={institutionName}
                 onChange={(e) => setInstitutionName(e.target.value)}
                 placeholder={t("settings.branding.institutionNamePlaceholder")}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="institutionDomain">{t("settings.branding.domain")}</Label>
+              <Input
+                id="institutionDomain"
+                value={institutionDomain}
+                onChange={(e) => setInstitutionDomain(e.target.value)}
+                placeholder="example.edu"
               />
             </div>
 
