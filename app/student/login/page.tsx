@@ -49,45 +49,26 @@ export default function StudentLoginPage() {
       }
 
       if (data.session) {
-        // Check if the user is a student
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, institution_id")
-          .eq("id", data.session.user.id)
-          .single()
+        // Use a server API endpoint to check the role instead of direct query
+        const response = await fetch("/api/auth/check-role", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ userId: data.session.user.id }),
+        })
 
-        if (profileError) {
-          console.error("Error fetching profile:", profileError)
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to verify user role")
+        }
 
-          // If the profile doesn't exist and we have an institution, create a student profile
-          if (profileError.code === "PGRST116" && institution?.id) {
-            const { error: insertError } = await supabase.from("profiles").insert({
-              id: data.session.user.id,
-              email: email,
-              role: "student",
-              institution_id: institution.id,
-              created_at: new Date().toISOString(),
-            })
+        const { role, institutionId } = await response.json()
 
-            if (insertError) {
-              console.error("Error creating profile:", insertError)
-              await supabase.auth.signOut()
-              setError("Failed to create user profile")
-            } else {
-              // Successfully created profile
-              toast({
-                title: "Login successful",
-                description: "Welcome to the student dashboard",
-              })
-              router.push("/student/dashboard")
-            }
-          } else {
-            await supabase.auth.signOut()
-            setError("Error verifying user role: " + profileError.message)
-          }
-        } else if (profile && profile.role === "student") {
+        if (role === "student") {
           // If accessed via subdomain, check if student belongs to this institution
-          if (isSubdomainAccess && institution && profile.institution_id !== institution.id) {
+          if (isSubdomainAccess && institution && institutionId !== institution.id) {
             await supabase.auth.signOut()
             setError("You don't have access to this institution")
           } else {
@@ -104,6 +85,7 @@ export default function StudentLoginPage() {
         }
       }
     } catch (err) {
+      console.error("Login error:", err)
       setError("Login failed. Please try again.")
     } finally {
       setIsLoading(false)

@@ -5,6 +5,7 @@ import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase"
 
+// Update the signIn function to use supabaseAdmin for profile checks
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
@@ -32,7 +33,7 @@ export async function signIn(formData: FormData) {
       return { error: "User not found" }
     }
 
-    // Use supabaseAdmin to bypass RLS
+    // ALWAYS use supabaseAdmin to bypass RLS for profile checks
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("role")

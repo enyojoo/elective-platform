@@ -36,6 +36,7 @@ export default function InstitutionLoginPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
+  // Update the handleSubmit function to use the admin API endpoint
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -54,21 +55,24 @@ export default function InstitutionLoginPage() {
       }
 
       if (authData.session) {
-        // Check if the user is an admin
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, institution_id")
-          .eq("id", authData.session.user.id)
-          .single()
+        // Use a server API endpoint to check the role instead of direct query
+        const response = await fetch("/api/auth/check-role", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authData.session.access_token}`,
+          },
+          body: JSON.stringify({ userId: authData.session.user.id }),
+        })
 
-        if (profileError) {
-          console.error("Error fetching profile:", profileError)
-          await supabase.auth.signOut()
-          setError("Error verifying user role: " + profileError.message)
-          return
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to verify user role")
         }
 
-        if (profile.role !== "admin") {
+        const { role } = await response.json()
+
+        if (role !== "admin") {
           await supabase.auth.signOut()
           setError("You do not have admin access")
           return
@@ -81,6 +85,7 @@ export default function InstitutionLoginPage() {
         router.push("/admin/dashboard")
       }
     } catch (err) {
+      console.error("Login error:", err)
       setError("Login failed. Please try again.")
     } finally {
       setIsLoading(false)
