@@ -116,28 +116,6 @@ export default function ManagerLoginPage() {
     }
   }
 
-  // Demo login for development purposes
-  const handleDemoLogin = async () => {
-    setIsLoading(true)
-
-    try {
-      // Simulate network request
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast({
-        title: t("auth.login.demoSuccess"),
-        description: t("auth.login.demoMessage"),
-      })
-
-      // Redirect to manager dashboard
-      router.push("/manager/dashboard")
-    } catch (error) {
-      setError(t("auth.error.demoFailed"))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   if (institutionLoading) {
     return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
@@ -220,21 +198,6 @@ export default function ManagerLoginPage() {
           </form>
         </Card>
 
-        <div className="space-y-4">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">{t("auth.login.demoAccounts")}</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button variant="outline" onClick={handleDemoLogin} disabled={isLoading}>
-              {t("auth.login.demoManager")}
-            </Button>
-          </div>
-        </div>
         <div className="flex justify-center mt-8">
           <LanguageSwitcher />
         </div>

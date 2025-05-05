@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,14 +28,6 @@ export default function InstitutionLoginPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Redirect to subdomain if accessed via main domain
-  useEffect(() => {
-    if (!institutionLoading && isSubdomainAccess) {
-      // If accessed via subdomain, redirect to student login
-      window.location.href = "/student/login"
-    }
-  }, [institutionLoading, isSubdomainAccess])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -54,8 +46,26 @@ export default function InstitutionLoginPage() {
       }
 
       if (authData.session) {
-        // For now, just authenticate the user without checking the role
-        // We'll implement proper role checking after fixing the RLS policies
+        // Check if the user is an admin
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role, institution_id")
+          .eq("id", authData.session.user.id)
+          .single()
+
+        if (profileError) {
+          console.error("Error fetching profile:", profileError)
+          await supabase.auth.signOut()
+          setError("Error verifying user role: " + profileError.message)
+          return
+        }
+
+        if (profile.role !== "admin") {
+          await supabase.auth.signOut()
+          setError("You do not have admin access")
+          return
+        }
+
         toast({
           title: t("auth.login.success"),
           description: t("auth.login.welcomeBack"),

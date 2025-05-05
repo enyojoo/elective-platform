@@ -115,28 +115,6 @@ export default function StudentLoginPage() {
     }
   }
 
-  // Demo login for development purposes
-  const handleDemoLogin = async () => {
-    setIsLoading(true)
-
-    try {
-      // Simulate network request
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast({
-        title: t("auth.login.demoSuccess"),
-        description: t("auth.login.demoMessage"),
-      })
-
-      // Redirect to student dashboard
-      router.push("/student/dashboard")
-    } catch (error) {
-      setError(t("auth.error.demoFailed"))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   if (institutionLoading) {
     return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
@@ -199,19 +177,6 @@ export default function StudentLoginPage() {
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t("auth.login.loading") : t("auth.login.button")}
               </Button>
-              <div className="text-sm text-center text-muted-foreground">{t("auth.login.demoText")}</div>
-              <div className="flex gap-2 w-full">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleDemoLogin}
-                  type="button"
-                  disabled={isLoading}
-                >
-                  {t("auth.login.studentDemo")}
-                </Button>
-              </div>
               <div className="mt-4 text-center text-sm">
                 {t("auth.login.noAccount")}{" "}
                 <Link href="/student/signup" className="text-primary hover:underline">
