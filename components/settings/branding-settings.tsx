@@ -1,54 +1,55 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Upload } from "lucide-react"
-import { uploadLogo } from "@/lib/file-utils"
+import Image from "next/image"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
   const { toast } = useToast()
+  const [institution, setInstitution] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [institution, setInstitution] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
+
+  // Form state
   const [name, setName] = useState("")
-  const [subdomain, setSubdomain] = useState("")
-  const [primaryColor, setPrimaryColor] = useState("#6366f1")
+  const [primaryColor, setPrimaryColor] = useState("#000000")
   const [logoUrl, setLogoUrl] = useState("")
   const [faviconUrl, setFaviconUrl] = useState("")
-  const [logoFile, setLogoFile] = useState(null)
-  const [faviconFile, setFaviconFile] = useState(null)
 
   useEffect(() => {
     async function fetchInstitution() {
       try {
         setIsLoading(true)
 
-        // Use the API endpoint instead of direct Supabase query
         const response = await fetch("/api/admin/institution")
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to fetch institution data")
+          throw new Error(errorData.error || "Failed to fetch institution")
         }
 
-        const institutionData = await response.json()
-        setInstitution(institutionData)
-        setName(institutionData.name || "")
-        setSubdomain(institutionData.subdomain || "")
-        setPrimaryColor(institutionData.primary_color || "#6366f1")
-        setLogoUrl(institutionData.logo_url || "")
-        setFaviconUrl(institutionData.favicon_url || "")
+        const data = await response.json()
+        setInstitution(data.institution)
+
+        // Set form values
+        setName(data.institution.name || "")
+        setPrimaryColor(data.institution.primary_color || "#000000")
+        setLogoUrl(data.institution.logo_url || "")
+        setFaviconUrl(data.institution.favicon_url || "")
       } catch (error) {
         console.error("Error fetching institution:", error)
         toast({
           title: t("settings.toast.error"),
-          description: error.message || t("settings.toast.institutionFetchError"),
+          description: t("settings.toast.institutionFetchError"),
           variant: "destructive",
         })
       } finally {
@@ -59,63 +60,20 @@ export function BrandingSettings() {
     fetchInstitution()
   }, [toast, t])
 
-  const handleLogoChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setLogoFile(file)
-      // Create a preview URL
-      const previewUrl = URL.createObjectURL(file)
-      setLogoUrl(previewUrl)
-    }
-  }
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  const handleFaviconChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setFaviconFile(file)
-      // Create a preview URL
-      const previewUrl = URL.createObjectURL(file)
-      setFaviconUrl(previewUrl)
-    }
-  }
-
-  const handleSave = async () => {
     try {
       setIsSaving(true)
 
-      let updatedLogoUrl = logoUrl
-      let updatedFaviconUrl = faviconUrl
-
-      // Upload logo if changed
-      if (logoFile) {
-        const logoUploadResult = await uploadLogo(logoFile, institution.id)
-        if (logoUploadResult.error) {
-          throw new Error(logoUploadResult.error)
-        }
-        updatedLogoUrl = logoUploadResult.url
-      }
-
-      // Upload favicon if changed
-      if (faviconFile) {
-        const faviconUploadResult = await uploadLogo(faviconFile, institution.id, true)
-        if (faviconUploadResult.error) {
-          throw new Error(faviconUploadResult.error)
-        }
-        updatedFaviconUrl = faviconUploadResult.url
-      }
-
-      // Update institution using the API
       const response = await fetch("/api/admin/institution", {
-        method: "PUT",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name,
-          subdomain,
           primary_color: primaryColor,
-          logo_url: updatedLogoUrl,
-          favicon_url: updatedFaviconUrl,
         }),
       })
 
@@ -124,22 +82,15 @@ export function BrandingSettings() {
         throw new Error(errorData.error || "Failed to update institution")
       }
 
-      const updatedInstitution = await response.json()
-      setInstitution(updatedInstitution)
-
-      // Reset file states
-      setLogoFile(null)
-      setFaviconFile(null)
-
       toast({
-        title: t("settings.branding.saveSuccess"),
-        description: t("settings.branding.saveSuccessMessage"),
+        title: t("settings.toast.success"),
+        description: t("settings.toast.brandingUpdated"),
       })
     } catch (error) {
-      console.error("Error saving branding settings:", error)
+      console.error("Error updating institution:", error)
       toast({
         title: t("settings.toast.error"),
-        description: error.message || t("settings.toast.saveFailed"),
+        description: t("settings.toast.brandingUpdateError"),
         variant: "destructive",
       })
     } finally {
@@ -147,161 +98,241 @@ export function BrandingSettings() {
     }
   }
 
-  const handleReset = () => {
-    if (institution) {
-      setName(institution.name || "")
-      setSubdomain(institution.subdomain || "")
-      setPrimaryColor(institution.primary_color || "#6366f1")
-      setLogoUrl(institution.logo_url || "")
-      setFaviconUrl(institution.favicon_url || "")
-      setLogoFile(null)
-      setFaviconFile(null)
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+
+    const file = e.target.files[0]
+
+    try {
+      setIsUploading(true)
+
+      // Create form data
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", "logo")
+
+      const response = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to upload logo")
+      }
+
+      const data = await response.json()
+      setLogoUrl(data.url)
+
+      // Update institution with new logo URL
+      await fetch("/api/admin/institution", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          logo_url: data.url,
+        }),
+      })
+
+      toast({
+        title: t("settings.toast.success"),
+        description: t("settings.toast.logoUploaded"),
+      })
+    } catch (error) {
+      console.error("Error uploading logo:", error)
+      toast({
+        title: t("settings.toast.error"),
+        description: t("settings.toast.logoUploadError"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+
+    const file = e.target.files[0]
+
+    try {
+      setIsUploading(true)
+
+      // Create form data
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", "favicon")
+
+      const response = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to upload favicon")
+      }
+
+      const data = await response.json()
+      setFaviconUrl(data.url)
+
+      // Update institution with new favicon URL
+      await fetch("/api/admin/institution", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          favicon_url: data.url,
+        }),
+      })
+
+      toast({
+        title: t("settings.toast.success"),
+        description: t("settings.toast.faviconUploaded"),
+      })
+    } catch (error) {
+      console.error("Error uploading favicon:", error)
+      toast({
+        title: t("settings.toast.error"),
+        description: t("settings.toast.faviconUploadError"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
     }
   }
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <div className="flex flex-col items-center justify-center min-h-[200px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">{t("common.loading")}</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.branding.title")}</CardTitle>
-          <CardDescription>{t("settings.branding.subtitle")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Institution Name */}
-          <div className="space-y-2">
-            <Label htmlFor="institutionName">{t("settings.branding.institutionName")}</Label>
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-medium">{t("settings.branding.title")}</h3>
+        <p className="text-sm text-muted-foreground">{t("settings.branding.description")}</p>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-6">
+        <div className="grid gap-2">
+          <Label htmlFor="institution-name">{t("settings.branding.institutionName")}</Label>
+          <Input
+            id="institution-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("settings.branding.institutionNamePlaceholder")}
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="primary-color">{t("settings.branding.primaryColor")}</Label>
+          <div className="flex items-center gap-4">
             <Input
-              id="institutionName"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("settings.branding.institutionNamePlaceholder")}
+              id="primary-color"
+              type="color"
+              value={primaryColor}
+              onChange={(e) => setPrimaryColor(e.target.value)}
+              className="w-16 h-10 p-1"
+            />
+            <Input
+              type="text"
+              value={primaryColor}
+              onChange={(e) => setPrimaryColor(e.target.value)}
+              className="w-32"
             />
           </div>
+        </div>
 
-          {/* Subdomain */}
-          <div className="space-y-2">
-            <Label htmlFor="subdomain">{t("settings.branding.subdomain")}</Label>
-            <div className="flex items-center">
-              <Input
-                id="subdomain"
-                value={subdomain}
-                onChange={(e) => setSubdomain(e.target.value)}
-                placeholder={t("settings.branding.subdomainPlaceholder")}
-                className="rounded-r-none"
-              />
-              <div className="bg-muted px-3 py-2 border border-l-0 border-input rounded-r-md text-muted-foreground">
-                .electivepro.com
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">{t("settings.branding.subdomainHelp")}</p>
-          </div>
-
-          {/* Primary Color */}
-          <div className="space-y-2">
-            <Label htmlFor="primaryColor">{t("settings.branding.primaryColor")}</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="primaryColor"
-                type="color"
-                value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                className="w-16 h-10 p-1"
-              />
-              <Input
-                value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                placeholder="#6366f1"
-                className="w-32"
-              />
-            </div>
-          </div>
-
-          {/* Logo Upload */}
-          <div className="space-y-2">
-            <Label htmlFor="logo">{t("settings.branding.logo")}</Label>
-            <div className="flex items-center gap-4">
-              {logoUrl && (
-                <div className="w-16 h-16 border rounded flex items-center justify-center overflow-hidden">
-                  <img
-                    src={logoUrl || "/placeholder.svg"}
-                    alt="Logo"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
+        <div className="grid gap-2">
+          <Label>{t("settings.branding.logo")}</Label>
+          <div className="flex items-center gap-4">
+            <div className="border rounded-md p-4 w-32 h-32 flex items-center justify-center bg-gray-50">
+              {logoUrl ? (
+                <Image
+                  src={logoUrl || "/placeholder.svg"}
+                  alt="Institution logo"
+                  width={100}
+                  height={100}
+                  className="max-w-full max-h-full object-contain"
+                />
+              ) : (
+                <div className="text-muted-foreground text-sm text-center">{t("settings.branding.noLogo")}</div>
               )}
-              <div className="flex-1">
-                <Label
-                  htmlFor="logo-upload"
-                  className="flex items-center justify-center w-full h-10 px-4 py-2 text-sm border border-dashed rounded-md cursor-pointer bg-muted/50 hover:bg-muted"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="logo-upload" className="cursor-pointer">
+                <Button type="button" variant="outline" className="w-full">
+                  <Upload className="h-4 w-4 mr-2" />
                   {t("settings.branding.uploadLogo")}
-                </Label>
-                <input id="logo-upload" type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
-              </div>
+                </Button>
+                <Input
+                  id="logo-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                  disabled={isUploading}
+                />
+              </Label>
+              <p className="text-xs text-muted-foreground">{t("settings.branding.logoRequirements")}</p>
             </div>
-            <p className="text-sm text-muted-foreground">{t("settings.branding.logoHelp")}</p>
           </div>
+        </div>
 
-          {/* Favicon Upload */}
-          <div className="space-y-2">
-            <Label htmlFor="favicon">{t("settings.branding.favicon")}</Label>
-            <div className="flex items-center gap-4">
-              {faviconUrl && (
-                <div className="w-8 h-8 border rounded flex items-center justify-center overflow-hidden">
-                  <img
-                    src={faviconUrl || "/placeholder.svg"}
-                    alt="Favicon"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
+        <div className="grid gap-2">
+          <Label>{t("settings.branding.favicon")}</Label>
+          <div className="flex items-center gap-4">
+            <div className="border rounded-md p-4 w-16 h-16 flex items-center justify-center bg-gray-50">
+              {faviconUrl ? (
+                <Image
+                  src={faviconUrl || "/placeholder.svg"}
+                  alt="Institution favicon"
+                  width={32}
+                  height={32}
+                  className="max-w-full max-h-full object-contain"
+                />
+              ) : (
+                <div className="text-muted-foreground text-sm text-center">{t("settings.branding.noFavicon")}</div>
               )}
-              <div className="flex-1">
-                <Label
-                  htmlFor="favicon-upload"
-                  className="flex items-center justify-center w-full h-10 px-4 py-2 text-sm border border-dashed rounded-md cursor-pointer bg-muted/50 hover:bg-muted"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="favicon-upload" className="cursor-pointer">
+                <Button type="button" variant="outline" className="w-full">
+                  <Upload className="h-4 w-4 mr-2" />
                   {t("settings.branding.uploadFavicon")}
-                </Label>
-                <input
+                </Button>
+                <Input
                   id="favicon-upload"
                   type="file"
                   accept="image/*"
-                  onChange={handleFaviconChange}
+                  onChange={handleFaviconUpload}
                   className="hidden"
+                  disabled={isUploading}
                 />
-              </div>
+              </Label>
+              <p className="text-xs text-muted-foreground">{t("settings.branding.faviconRequirements")}</p>
             </div>
-            <p className="text-sm text-muted-foreground">{t("settings.branding.faviconHelp")}</p>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleReset} disabled={isSaving}>
-              {t("settings.branding.reset")}
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t("settings.branding.saving")}
-                </>
-              ) : (
-                t("settings.branding.save")
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Button type="submit" disabled={isSaving || isUploading}>
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {t("common.saving")}
+            </>
+          ) : (
+            t("settings.branding.saveChanges")
+          )}
+        </Button>
+      </form>
     </div>
   )
 }

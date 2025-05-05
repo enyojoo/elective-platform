@@ -7,12 +7,14 @@ import { BrandingSettings } from "@/components/settings/branding-settings"
 import { AccountSettings } from "@/components/settings/account-settings"
 import { useLanguage } from "@/lib/language-context"
 import { Card, CardContent } from "@/components/ui/card"
+import { useInstitution } from "@/lib/institution-context"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
   const { t } = useLanguage()
+  const { institution } = useInstitution()
   const { toast } = useToast()
   const [adminProfile, setAdminProfile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -22,21 +24,21 @@ export default function SettingsPage() {
       try {
         setIsLoading(true)
 
-        // Use the API endpoint instead of direct Supabase query
+        // Use the server-side API endpoint instead of direct Supabase query
         const response = await fetch("/api/admin/profile")
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to fetch admin profile")
+          throw new Error(errorData.error || "Failed to fetch profile")
         }
 
-        const profile = await response.json()
-        setAdminProfile(profile)
+        const data = await response.json()
+        setAdminProfile(data.profile)
       } catch (error) {
         console.error("Error fetching admin profile:", error)
         toast({
           title: t("settings.toast.error"),
-          description: error.message || t("settings.toast.profileFetchError"),
+          description: t("settings.toast.profileFetchError"),
           variant: "destructive",
         })
       } finally {

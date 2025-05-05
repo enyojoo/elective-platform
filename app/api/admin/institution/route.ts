@@ -1,12 +1,24 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Get the current user from the auth cookie
-    const supabase = createServerComponentClient({ cookies })
+    // Get the current user from the session
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      },
+    )
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -15,7 +27,7 @@ export async function GET() {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    // First get the user's institution_id
+    // Get the user's institution_id
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("institution_id")
@@ -23,15 +35,15 @@ export async function GET() {
       .single()
 
     if (profileError) {
-      console.error("Error fetching admin profile:", profileError)
+      console.error("Error fetching profile:", profileError)
       return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 
     if (!profile.institution_id) {
-      return NextResponse.json({ error: "No institution associated with this admin" }, { status: 404 })
+      return NextResponse.json({ error: "No institution associated with this user" }, { status: 404 })
     }
 
-    // Now get the institution data
+    // Get the institution details
     const { data: institution, error: institutionError } = await supabaseAdmin
       .from("institutions")
       .select("*")
@@ -43,20 +55,31 @@ export async function GET() {
       return NextResponse.json({ error: institutionError.message }, { status: 500 })
     }
 
-    return NextResponse.json(institution)
+    return NextResponse.json({ institution })
   } catch (error) {
-    console.error("Unexpected error in institution API:", error)
+    console.error("Unexpected error:", error)
     return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 })
   }
 }
 
-// Handle PUT requests to update institution
-export async function PUT(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const updates = await request.json()
 
-    // Get the current user from the auth cookie
-    const supabase = createServerComponentClient({ cookies })
+    // Get the current user from the session
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      },
+    )
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -65,7 +88,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    // First get the user's institution_id
+    // Get the user's institution_id
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("institution_id, role")
@@ -73,42 +96,33 @@ export async function PUT(request: Request) {
       .single()
 
     if (profileError) {
-      console.error("Error fetching admin profile:", profileError)
+      console.error("Error fetching profile:", profileError)
       return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 
     if (!profile.institution_id) {
-      return NextResponse.json({ error: "No institution associated with this admin" }, { status: 404 })
+      return NextResponse.json({ error: "No institution associated with this user" }, { status: 404 })
     }
 
-    // Verify the user is an admin
+    // Verify user is an admin
     if (profile.role !== "admin") {
       return NextResponse.json({ error: "Only admins can update institution settings" }, { status: 403 })
     }
 
     // Update the institution
-    const { data: institution, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("institutions")
-      .update({
-        name: body.name,
-        subdomain: body.subdomain,
-        logo_url: body.logo_url,
-        favicon_url: body.favicon_url,
-        primary_color: body.primary_color,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq("id", profile.institution_id)
-      .select()
-      .single()
 
     if (updateError) {
       console.error("Error updating institution:", updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    return NextResponse.json(institution)
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Unexpected error in institution update API:", error)
+    console.error("Unexpected error:", error)
     return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 })
   }
 }

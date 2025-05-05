@@ -64,7 +64,8 @@
     "@supabase/auth-helpers-react": "latest",
     "dotenv": "latest",
     "fs": "latest",
-    "path": "latest"
+    "path": "latest",
+    "@supabase/ssr": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
