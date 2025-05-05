@@ -741,6 +741,7 @@ const translations: Translations = {
     "settings.branding.institutionNamePlaceholder": "Enter your institution name",
     "settings.branding.subdomain": "Subdomain",
     "settings.branding.subdomainDescription": "Customize your institution's subdomain",
+    "settings.branding.domain": "Domain",
     "settings.branding.save": "Save Changes",
     "settings.branding.saving": "Saving...",
     "settings.branding.reset": "Reset to Default",
@@ -1567,6 +1568,7 @@ const translations: Translations = {
     "settings.branding.institutionNamePlaceholder": "Введите название вашего учреждения",
     "settings.branding.subdomain": "Поддомен",
     "settings.branding.subdomainDescription": "Настройте поддомен вашего учреждения",
+    "settings.branding.domain": "Домен",
     "settings.branding.save": "Сохранить изменения",
     "settings.branding.saving": "Сохранение...",
     "settings.branding.reset": "Сбросить на значения по умолчанию",
@@ -1630,12 +1632,6 @@ const translations: Translations = {
     "admin.universities.edit": "Редактировать",
     "admin.universities.deactivate": "Деактивировать",
     "admin.universities.activate": "Активировать",
-    "admin.universities.delete": "Удалить",
-    "admin.universities.noUniversitiesFound": "Университеты, соответствующие вашим критериям, не найдены",
-    "admin.universities.status.active": "Активный",
-    "admin.universities.status.inactive": "Неактивный",
-    "admin.universities.status.draft": "Черновик",
-    "admin.universities.addUniversity": "Добавить университет",
     // Admin Dashboard
     "admin.dashboard.title": "Панель управления",
     "admin.dashboard.universities": "Университеты",
@@ -1712,6 +1708,7 @@ const translations: Translations = {
     "settings.toast.fileTooLarge": "Файл слишком большой",
     "settings.toast.fileTooLargeDesc": "Пожалуйста, загрузите файл размером менее 2 МБ.",
     "settings.toast.uploadError": "Ошибка загрузки",
+    "settings.branding.domain": "Домен",
   },
 }
 
