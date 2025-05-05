@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -29,13 +29,8 @@ export default function ManagerLoginPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Redirect to main domain if not accessed via subdomain
-  useEffect(() => {
-    if (!institutionLoading && !isSubdomainAccess) {
-      // If not accessed via subdomain, redirect to the main app
-      window.location.href = "https://app.electivepro.net/admin/login"
-    }
-  }, [institutionLoading, isSubdomainAccess])
+  // REMOVED: The redirect to main domain - this was causing the issue
+  // We want to allow access to manager login from subdomains
 
   // Update the handleLogin function to handle missing profiles
   const handleLogin = async (e: React.FormEvent) => {
@@ -93,7 +88,7 @@ export default function ManagerLoginPage() {
           }
         } else if (profile && profile.role === "manager") {
           // If accessed via subdomain, check if manager belongs to this institution
-          if (isSubdomainAccess && profile.institution_id !== institution?.id) {
+          if (isSubdomainAccess && institution && profile.institution_id !== institution.id) {
             await supabase.auth.signOut()
             setError("You don't have access to this institution")
           } else {

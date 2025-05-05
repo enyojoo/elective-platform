@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
+import { getSubdomain } from "@/lib/subdomain-utils"
 
 export default function Home() {
-  // Get the hostname from the request headers
   const headersList = headers()
   const host = headersList.get("host") || ""
+  const subdomain = getSubdomain(host)
 
-  // Check if we're on a subdomain
-  if (host.includes(".electivepro.net") && host !== "app.electivepro.net") {
-    // For institution subdomains, redirect to student login
+  // If accessed via subdomain, redirect to student login
+  if (subdomain) {
     redirect("/student/login")
-  } else {
-    // For the main app domain, redirect to admin login
-    redirect("/admin/login")
   }
+
+  // Otherwise, show the main landing page or redirect to admin login
+  redirect("/admin/login")
 }

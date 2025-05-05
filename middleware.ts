@@ -48,6 +48,19 @@ export async function middleware(req: NextRequest) {
       })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
+
+      // Don't redirect if we're on a student or manager login page
+      const path = req.nextUrl.pathname
+      if (
+        path.startsWith("/student/login") ||
+        path.startsWith("/manager/login") ||
+        path.startsWith("/student/signup") ||
+        path.startsWith("/manager/signup")
+      ) {
+        console.log(`Middleware: Not redirecting ${path} even with error`)
+        return NextResponse.next()
+      }
+
       return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
     }
   }
