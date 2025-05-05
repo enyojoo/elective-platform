@@ -1,19 +1,6 @@
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-// Initialize Supabase Admin client (replace with your actual service role key)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
-)
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
@@ -38,24 +25,33 @@ export async function middleware(req: NextRequest) {
     console.log(`Detected subdomain: ${subdomain}`)
 
     try {
-      // Check if this subdomain exists in the database
-      const { data: institution, error } = await supabase
-        .from("institutions")
-        .select("id, is_active")
-        .eq("subdomain", subdomain)
-        .eq("is_active", true)
-        .single()
+      // Use the custom function to check if subdomain exists
+      const { data: exists, error: checkError } = await supabase.rpc("check_subdomain_exists", {
+        subdomain_param: subdomain,
+      })
 
-      console.log(`Subdomain lookup result:`, { institution, error })
+      if (checkError) {
+        console.error(`Error checking subdomain: ${checkError.message}`)
+        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      }
 
-      // If subdomain doesn't exist or is not active, redirect to main site
-      if (error || !institution) {
+      if (!exists) {
         console.log(`Invalid subdomain: ${subdomain}, redirecting to main app`)
         return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
       }
 
+      // Get institution details using the custom function
+      const { data: institution, error: getError } = await supabase
+        .rpc("get_institution_by_subdomain", { subdomain_param: subdomain })
+        .single()
+
+      if (getError || !institution) {
+        console.error(`Error getting institution: ${getError?.message || "Not found"}`)
+        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      }
+
       // Valid subdomain - allow access and add institution info to headers
-      console.log(`Valid subdomain: ${subdomain}, allowing access`)
+      console.log(`Valid subdomain: ${subdomain}, allowing access to institution: ${institution.name}`)
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
       requestHeaders.set("x-institution-id", institution.id)
@@ -76,30 +72,4 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)"],
-}
-
-// Replace the existing getInstitution function with this improved version
-async function getInstitution(subdomain: string) {
-  try {
-    console.log(`Middleware: Checking institution with subdomain: ${subdomain}`)
-
-    // Use the admin client for better error handling
-    const { data, error } = await supabaseAdmin
-      .from("institutions")
-      .select("id, name, subdomain")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .single()
-
-    if (error) {
-      console.error(`Middleware: Error fetching institution: ${error.message}`)
-      return null
-    }
-
-    console.log(`Middleware: Found institution: ${data.name}`)
-    return data
-  } catch (error) {
-    console.error(`Middleware: Unexpected error: ${error}`)
-    return null
-  }
 }

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { supabase, supabaseAdmin } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 export async function getInstitutionFromRequest(req: NextRequest) {
   const subdomain = req.headers.get("x-electivepro-subdomain")
@@ -11,13 +11,8 @@ export async function getInstitutionFromRequest(req: NextRequest) {
   }
 
   try {
-    // First try with admin client for better error handling
-    const { data, error } = await supabaseAdmin
-      .from("institutions")
-      .select("id, name, subdomain, logo_url, primary_color")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .single()
+    // Use the custom function to get institution by subdomain
+    const { data, error } = await supabase.rpc("get_institution_by_subdomain", { subdomain_param: subdomain }).single()
 
     if (error) {
       console.error(`Error fetching institution with subdomain ${subdomain}:`, error.message)
@@ -80,38 +75,4 @@ export function badRequest(message = "Bad request") {
 
 export function serverError(message = "Internal server error") {
   return NextResponse.json({ error: message }, { status: 500 })
-}
-
-// New utility function to safely fetch institutions
-export async function fetchInstitutions(options = {}) {
-  try {
-    const { data, error } = await supabaseAdmin.from("institutions").select("*")
-
-    if (error) {
-      console.error("Error fetching institutions:", error.message)
-      return { data: null, error }
-    }
-
-    return { data, error: null }
-  } catch (error) {
-    console.error("Unexpected error fetching institutions:", error)
-    return { data: null, error }
-  }
-}
-
-// New utility function to safely fetch a single institution
-export async function fetchInstitution(id) {
-  try {
-    const { data, error } = await supabaseAdmin.from("institutions").select("*").eq("id", id).single()
-
-    if (error) {
-      console.error(`Error fetching institution ${id}:`, error.message)
-      return { data: null, error }
-    }
-
-    return { data, error: null }
-  } catch (error) {
-    console.error(`Unexpected error fetching institution ${id}:`, error)
-    return { data: null, error }
-  }
 }
