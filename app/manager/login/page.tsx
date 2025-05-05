@@ -20,7 +20,7 @@ export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess, error: institutionError } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -29,18 +29,26 @@ export default function ManagerLoginPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
+  // Debug output
+  useEffect(() => {
+    console.log("Manager login page state:", {
+      isSubdomainAccess,
+      institutionLoading,
+      institution: institution ? `${institution.name} (${institution.subdomain})` : "null",
+      institutionError,
+    })
+  }, [isSubdomainAccess, institutionLoading, institution, institutionError])
+
   // Redirect to main domain if not accessed via subdomain
   useEffect(() => {
     if (!institutionLoading) {
       if (!isSubdomainAccess) {
+        console.log("Not accessed via subdomain, redirecting to main app")
         // If not accessed via subdomain, redirect to the main app
         window.location.href = "https://app.electivepro.net/admin/login"
-      } else if (!institution) {
-        // If accessed via subdomain but institution doesn't exist
-        window.location.href = "https://app.electivepro.net/invalid-institution"
       }
     }
-  }, [institutionLoading, isSubdomainAccess, institution])
+  }, [institutionLoading, isSubdomainAccess])
 
   // Update the handleLogin function to handle missing profiles
   const handleLogin = async (e: React.FormEvent) => {
@@ -123,6 +131,31 @@ export default function ManagerLoginPage() {
 
   if (institutionLoading) {
     return <div className="min-h-screen grid place-items-center">Loading...</div>
+  }
+
+  // If we're on a subdomain but no institution was found, show an error
+  if (isSubdomainAccess && !institution && !institutionLoading) {
+    return (
+      <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Institution Not Found</CardTitle>
+            <CardDescription>
+              The institution associated with this subdomain could not be found or is inactive.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>Please check the URL or contact the administrator.</p>
+            {institutionError && <p className="text-red-500 mt-2">{institutionError}</p>}
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => (window.location.href = "https://app.electivepro.net")} className="w-full">
+              Return to Main Site
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   return (
