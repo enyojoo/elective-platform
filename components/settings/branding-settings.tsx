@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,51 +12,103 @@ import { useToast } from "@/hooks/use-toast"
 import { uploadLogo } from "@/lib/file-utils"
 import { useInstitution } from "@/lib/institution-context"
 import { Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
   const { toast } = useToast()
   const { institution, updateInstitution } = useInstitution()
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [isFaviconUploading, setIsFaviconUploading] = useState(false)
   const [primaryColor, setPrimaryColor] = useState(institution?.primary_color || "#027659")
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
-  const [subdomain, setSubdomain] = useState(institution?.subdomain || "yourinstitution")
+  const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
+  const [institutionData, setInstitutionData] = useState(null)
+
+  useEffect(() => {
+    async function fetchInstitutionData() {
+      if (!institution?.id) return
+
+      try {
+        setIsLoading(true)
+        const { data, error } = await supabase.from("institutions").select("*").eq("id", institution.id).single()
+
+        if (error) {
+          console.error("Error fetching institution data:", error)
+          toast({
+            title: t("settings.toast.error"),
+            description: t("settings.toast.institutionFetchError"),
+            variant: "destructive",
+          })
+          return
+        }
+
+        setInstitutionData(data)
+        setPrimaryColor(data.primary_color || "#027659")
+        setInstitutionName(data.name || "")
+        setSubdomain(data.subdomain || "")
+      } catch (error) {
+        console.error("Unexpected error:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchInstitutionData()
+  }, [institution?.id, toast, t])
 
   const handleSaveChanges = async () => {
-    setIsLoading(true)
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+    if (!institution?.id) {
+      toast({
+        title: t("settings.toast.error"),
+        description: t("settings.toast.noInstitution"),
+        variant: "destructive",
+      })
+      return
+    }
 
-      // In a real implementation, you would update the institution record
-      if (institution?.id) {
-        await updateInstitution({
+    setIsSaving(true)
+    try {
+      const { error } = await supabase
+        .from("institutions")
+        .update({
           name: institutionName,
           primary_color: primaryColor,
         })
+        .eq("id", institution.id)
+
+      if (error) {
+        throw error
       }
+
+      // Update the context
+      await updateInstitution({
+        name: institutionName,
+        primary_color: primaryColor,
+      })
 
       toast({
         title: t("settings.toast.changesSaved"),
         description: t("settings.toast.changesSavedDesc"),
       })
     } catch (error) {
+      console.error("Error saving changes:", error)
       toast({
         title: t("settings.toast.error"),
         description: t("settings.toast.errorDesc"),
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
   const handleResetDefaults = () => {
-    setPrimaryColor("#027659")
-    setInstitutionName(institution?.name || "")
-    setSubdomain(institution?.subdomain || "yourinstitution")
+    setPrimaryColor(institutionData?.primary_color || "#027659")
+    setInstitutionName(institutionData?.name || "")
+    setSubdomain(institutionData?.subdomain || "")
 
     toast({
       title: t("settings.toast.resetDefaults"),
@@ -98,6 +150,13 @@ export function BrandingSettings() {
       const logoUrl = await uploadLogo(file, institution.id)
 
       // Update institution with new logo URL
+      const { error } = await supabase.from("institutions").update({ logo_url: logoUrl }).eq("id", institution.id)
+
+      if (error) {
+        throw error
+      }
+
+      // Update the context
       await updateInstitution({
         logo_url: logoUrl,
       })
@@ -152,6 +211,13 @@ export function BrandingSettings() {
       const faviconUrl = await uploadLogo(file, `favicon_${institution.id}`)
 
       // Update institution with new favicon URL
+      const { error } = await supabase.from("institutions").update({ favicon_url: faviconUrl }).eq("id", institution.id)
+
+      if (error) {
+        throw error
+      }
+
+      // Update the context
       await updateInstitution({
         favicon_url: faviconUrl,
       })
@@ -170,6 +236,14 @@ export function BrandingSettings() {
     } finally {
       setIsFaviconUploading(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
@@ -216,9 +290,9 @@ export function BrandingSettings() {
               <Label>{t("settings.branding.logo")}</Label>
               <div className="flex items-center gap-2">
                 <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {institution?.logo_url ? (
+                  {institutionData?.logo_url ? (
                     <img
-                      src={institution.logo_url || "/placeholder.svg"}
+                      src={institutionData.logo_url || "/placeholder.svg"}
                       alt="Logo"
                       className="h-full w-full object-contain"
                     />
@@ -261,9 +335,9 @@ export function BrandingSettings() {
               <Label>{t("settings.branding.favicon")}</Label>
               <div className="flex items-center gap-2">
                 <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {institution?.favicon_url ? (
+                  {institutionData?.favicon_url ? (
                     <img
-                      src={institution.favicon_url || "/placeholder.svg"}
+                      src={institutionData.favicon_url || "/placeholder.svg"}
                       alt="Favicon"
                       className="h-full w-full object-contain"
                     />
@@ -341,8 +415,8 @@ export function BrandingSettings() {
             <Button variant="outline" onClick={handleResetDefaults}>
               {t("settings.branding.reset")}
             </Button>
-            <Button onClick={handleSaveChanges} disabled={isLoading}>
-              {isLoading ? (
+            <Button onClick={handleSaveChanges} disabled={isSaving}>
+              {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("settings.branding.saving")}

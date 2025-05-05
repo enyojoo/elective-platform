@@ -7,14 +7,16 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase"
+import { Loader2 } from "lucide-react"
 
-export function AccountSettings() {
+export function AccountSettings({ adminProfile }) {
   const { t } = useLanguage()
   const { toast } = useToast()
   const [isUpdating, setIsUpdating] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [name, setName] = useState("Admin User")
-  const [email, setEmail] = useState("admin@example.com")
+  const [name, setName] = useState(adminProfile?.full_name || "")
+  const [email, setEmail] = useState(adminProfile?.email || "")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -22,17 +24,48 @@ export function AccountSettings() {
   const handleUpdateInfo = async () => {
     setIsUpdating(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      // Update profile in database
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: name,
+          // Note: We don't update email in profiles table directly
+        })
+        .eq("id", user.id)
+
+      if (profileError) {
+        throw profileError
+      }
+
+      // Update email in auth if it changed
+      if (email !== adminProfile?.email) {
+        const { error: authError } = await supabase.auth.updateUser({
+          email: email,
+        })
+
+        if (authError) {
+          throw authError
+        }
+      }
 
       toast({
         title: t("settings.account.updateSuccess"),
         description: t("settings.account.updateSuccessMessage"),
       })
     } catch (error) {
+      console.error("Error updating profile:", error)
       toast({
         title: t("settings.toast.error"),
-        description: t("settings.toast.errorDesc"),
+        description: error.message || t("settings.toast.errorDesc"),
         variant: "destructive",
       })
     } finally {
@@ -52,8 +85,14 @@ export function AccountSettings() {
 
     setIsChangingPassword(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Update password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) {
+        throw error
+      }
 
       setCurrentPassword("")
       setNewPassword("")
@@ -64,9 +103,10 @@ export function AccountSettings() {
         description: t("settings.account.passwordChangedMessage"),
       })
     } catch (error) {
+      console.error("Error changing password:", error)
       toast({
         title: t("settings.toast.error"),
-        description: t("settings.toast.errorDesc"),
+        description: error.message || t("settings.toast.errorDesc"),
         variant: "destructive",
       })
     } finally {
@@ -95,7 +135,14 @@ export function AccountSettings() {
 
           <div className="flex justify-end">
             <Button onClick={handleUpdateInfo} disabled={isUpdating}>
-              {isUpdating ? t("settings.account.updating") : t("settings.account.updateInfo")}
+              {isUpdating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("settings.account.updating")}
+                </>
+              ) : (
+                t("settings.account.updateInfo")
+              )}
             </Button>
           </div>
         </CardContent>
@@ -107,16 +154,6 @@ export function AccountSettings() {
           <CardTitle>{t("settings.account.password")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword">{t("settings.account.currentPassword")}</Label>
-            <Input
-              id="currentPassword"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="newPassword">{t("settings.account.newPassword")}</Label>
             <Input
@@ -139,7 +176,14 @@ export function AccountSettings() {
 
           <div className="flex justify-end">
             <Button onClick={handleChangePassword} disabled={isChangingPassword}>
-              {isChangingPassword ? t("settings.account.changing") : t("settings.account.changePassword")}
+              {isChangingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("settings.account.changing")}
+                </>
+              ) : (
+                t("settings.account.changePassword")
+              )}
             </Button>
           </div>
         </CardContent>
