@@ -14,48 +14,15 @@ import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-
-// Mock degree data
-const initialDegrees = [
-  {
-    id: "1",
-    name: "Bachelor's",
-    nameRu: "Бакалавриат",
-    code: "bachelor",
-    durationYears: 4,
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Master's",
-    nameRu: "Магистратура",
-    code: "master",
-    durationYears: 2,
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Executive MBA",
-    nameRu: "Исполнительный MBA",
-    code: "emba",
-    durationYears: 1.5,
-    status: "inactive",
-  },
-]
-
-interface DegreeFormData {
-  id?: string
-  name: string
-  nameRu: string
-  code: string
-  durationYears: number
-  status: string
-}
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const [degrees, setDegrees] = useState(initialDegrees)
-  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
+  // Initialize state variables outside the useEffect hook
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentDegree, setCurrentDegree] = useState<DegreeFormData>({
@@ -66,6 +33,53 @@ export default function DegreesPage() {
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
+
+  // Fetch degrees from Supabase
+  useEffect(() => {
+    const fetchDegrees = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
+          .order("name")
+
+        if (error) throw error
+
+        if (data) {
+          const formattedDegrees = data.map((degree) => ({
+            id: degree.id.toString(),
+            name: degree.name,
+            nameRu: degree.name_ru,
+            code: degree.code,
+            durationYears: degree.duration_years,
+            status: degree.status,
+          }))
+
+          setDegrees(formattedDegrees)
+          setFilteredDegrees(formattedDegrees)
+        }
+      } catch (error) {
+        console.error("Failed to fetch degrees:", error)
+        toast({
+          title: t("admin.degrees.error"),
+          description: t("admin.degrees.errorFetching"),
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchDegrees()
+  }, [t, toast])
+
+  interface DegreeFormData {
+    id?: string
+    name: string
+    nameRu: string
+    code: string
+    durationYears: number
+    status: string
+  }
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -109,42 +123,137 @@ export default function DegreesPage() {
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (isEditing) {
-      // Update existing degree
-      setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
-    } else {
-      // Add new degree
-      const newDegree = {
-        ...currentDegree,
-        id: Math.random().toString(36).substring(2, 9),
-      }
-      setDegrees([...degrees, newDegree])
-    }
+    try {
+      if (isEditing) {
+        // Update existing degree
+        const { error } = await supabase
+          .from("degrees")
+          .update({
+            name: currentDegree.name,
+            name_ru: currentDegree.nameRu,
+            code: currentDegree.code,
+            duration_years: currentDegree.durationYears,
+            status: currentDegree.status,
+          })
+          .eq("id", currentDegree.id)
 
-    setIsDialogOpen(false)
-  }
+        if (error) throw error
 
-  const handleDelete = (id: string) => {
-    if (confirm(t("admin.degrees.deleteConfirm"))) {
-      setDegrees(degrees.filter((degree) => degree.id !== id))
-    }
-  }
+        // Update local state
+        setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
 
-  const toggleStatus = (id: string) => {
-    setDegrees(
-      degrees.map((degree) => {
-        if (degree.id === id) {
-          return {
-            ...degree,
-            status: degree.status === "active" ? "inactive" : "active",
+        toast({
+          title: t("admin.degrees.success"),
+          description: t("admin.degrees.degreeUpdated"),
+        })
+      } else {
+        // Add new degree
+        const { data, error } = await supabase
+          .from("degrees")
+          .insert({
+            name: currentDegree.name,
+            name_ru: currentDegree.nameRu,
+            code: currentDegree.code,
+            duration_years: currentDegree.durationYears,
+            status: currentDegree.status,
+            institution_id: 1, // In a real app, you would get the institution_id from context
+          })
+          .select()
+
+        if (error) throw error
+
+        if (data && data[0]) {
+          const newDegree = {
+            id: data[0].id.toString(),
+            name: data[0].name,
+            nameRu: data[0].name_ru,
+            code: data[0].code,
+            durationYears: data[0].duration_years,
+            status: data[0].status,
           }
+
+          setDegrees([...degrees, newDegree])
+
+          toast({
+            title: t("admin.degrees.success"),
+            description: t("admin.degrees.degreeCreated"),
+          })
         }
-        return degree
-      }),
-    )
+      }
+
+      setIsDialogOpen(false)
+    } catch (error: any) {
+      console.error("Error saving degree:", error)
+      toast({
+        title: t("admin.degrees.error"),
+        description: error.message || t("admin.degrees.errorSaving"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm(t("admin.degrees.deleteConfirm"))) {
+      try {
+        const { error } = await supabase.from("degrees").delete().eq("id", id)
+
+        if (error) throw error
+
+        setDegrees(degrees.filter((degree) => degree.id !== id))
+
+        toast({
+          title: t("admin.degrees.success"),
+          description: t("admin.degrees.degreeDeleted"),
+        })
+      } catch (error: any) {
+        console.error("Error deleting degree:", error)
+        toast({
+          title: t("admin.degrees.error"),
+          description: error.message || t("admin.degrees.errorDeleting"),
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const toggleStatus = async (id: string) => {
+    try {
+      const degree = degrees.find((d) => d.id === id)
+      if (!degree) return
+
+      const newStatus = degree.status === "active" ? "inactive" : "active"
+
+      const { error } = await supabase.from("degrees").update({ status: newStatus }).eq("id", id)
+
+      if (error) throw error
+
+      setDegrees(
+        degrees.map((degree) => {
+          if (degree.id === id) {
+            return {
+              ...degree,
+              status: newStatus,
+            }
+          }
+          return degree
+        }),
+      )
+
+      toast({
+        title: t("admin.degrees.success"),
+        description: t("admin.degrees.statusUpdated"),
+      })
+    } catch (error: any) {
+      console.error("Error updating status:", error)
+      toast({
+        title: t("admin.degrees.error"),
+        description: error.message || t("admin.degrees.errorUpdatingStatus"),
+        variant: "destructive",
+      })
+    }
   }
 
   // Helper function to get status badge

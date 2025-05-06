@@ -14,6 +14,8 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
 
 // Define the Degree type
 interface Degree {
@@ -39,32 +41,33 @@ export default function NewProgramPage() {
     degreeId: "",
   })
 
-  // Fetch degrees from the API - only run once on component mount
+  // Fetch degrees from Supabase
   useEffect(() => {
     const fetchDegrees = async () => {
       try {
-        // In a real app, this would be an API call
-        // For now, we'll simulate it with mock data
-        const mockDegrees = [
-          {
-            id: "1",
-            name: "Bachelor's",
-            nameRu: "Бакалавриат",
-            code: "bachelor",
-          },
-          {
-            id: "2",
-            name: "Master's",
-            nameRu: "Магистратура",
-            code: "master",
-          },
-        ]
+        setLoading(true)
+        const { data, error } = await supabase
+          .from("degrees")
+          .select("id, name, name_ru, code")
+          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
+          .order("name")
 
-        setDegrees(mockDegrees)
+        if (error) throw error
 
-        // Only set the default degree if we haven't set one yet
-        if (mockDegrees.length > 0 && !program.degreeId) {
-          setProgram((prev) => ({ ...prev, degreeId: mockDegrees[0].id }))
+        if (data) {
+          setDegrees(
+            data.map((degree) => ({
+              id: degree.id.toString(),
+              name: degree.name,
+              nameRu: degree.name_ru,
+              code: degree.code,
+            })),
+          )
+
+          // Only set the default degree if we haven't set one yet
+          if (data.length > 0 && !program.degreeId) {
+            setProgram((prev) => ({ ...prev, degreeId: data[0].id.toString() }))
+          }
         }
 
         setLoading(false)
@@ -75,7 +78,7 @@ export default function NewProgramPage() {
     }
 
     fetchDegrees()
-  }, []) // Empty dependency array - only run once on mount
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -86,18 +89,53 @@ export default function NewProgramPage() {
     setProgram({ ...program, [name]: value })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { toast } = useToast()
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     // Validate form
     if (!program.name || !program.nameRu || !program.code || !program.degreeId) {
-      alert("Please fill in all required fields")
+      toast({
+        title: t("admin.newProgram.error"),
+        description: t("admin.newProgram.fillAllFields"),
+        variant: "destructive",
+      })
       return
     }
 
-    // Simulate API call to create program
-    alert("Program created successfully!")
-    router.push("/admin/programs")
+    try {
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from("programs")
+        .insert({
+          name: program.name,
+          name_ru: program.nameRu,
+          code: program.code,
+          description: program.description,
+          description_ru: program.descriptionRu,
+          status: program.status,
+          degree_id: Number.parseInt(program.degreeId),
+          institution_id: 1, // In a real app, you would get the institution_id from context
+        })
+        .select()
+
+      if (error) throw error
+
+      toast({
+        title: t("admin.newProgram.success"),
+        description: t("admin.newProgram.programCreated"),
+      })
+
+      router.push("/admin/programs")
+    } catch (error: any) {
+      console.error("Error creating program:", error)
+      toast({
+        title: t("admin.newProgram.error"),
+        description: error.message || t("admin.newProgram.errorCreating"),
+        variant: "destructive",
+      })
+    }
   }
 
   return (
