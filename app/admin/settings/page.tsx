@@ -10,59 +10,36 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useInstitution } from "@/lib/institution-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
+import { Loader2 } from "lucide-react"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const [adminProfile, setAdminProfile] = useState(null)
+  const [userId, setUserId] = useState<string | undefined>(undefined)
 
+  // Get current user ID
   useEffect(() => {
-    async function fetchAdminProfile() {
+    async function getCurrentUserId() {
       try {
-        // Get current user
         const {
           data: { user },
         } = await supabase.auth.getUser()
-
-        if (!user) {
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.notAuthenticated"),
-            variant: "destructive",
-          })
-          return
+        if (user) {
+          setUserId(user.id)
         }
-
-        // Fetch profile using API endpoint to bypass RLS
-        const response = await fetch(`/api/admin/profile?userId=${user.id}`)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("Error fetching admin profile:", errorData)
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.profileFetchError"),
-            variant: "destructive",
-          })
-          return
-        }
-
-        const profile = await response.json()
-        setAdminProfile(profile)
       } catch (error) {
-        console.error("Unexpected error:", error)
-        toast({
-          title: t("settings.toast.error"),
-          description: t("settings.toast.unexpectedError"),
-          variant: "destructive",
-        })
+        console.error("Error getting current user:", error)
       }
     }
 
-    fetchAdminProfile()
-  }, [toast, t])
+    getCurrentUserId()
+  }, [])
+
+  // Use the cached admin profile
+  const { profile: adminProfile, isLoading: isLoadingProfile } = useCachedAdminProfile(userId)
 
   return (
     <DashboardLayout>
@@ -87,7 +64,13 @@ export default function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="account" className="space-y-6">
-                <AccountSettings adminProfile={adminProfile} />
+                {isLoadingProfile ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <AccountSettings adminProfile={adminProfile} />
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

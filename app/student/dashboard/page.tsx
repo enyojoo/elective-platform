@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,13 +16,32 @@ import {
 import { useSession } from "@supabase/auth-helpers-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { supabase } from "@/lib/supabase"
 
 export default function StudentDashboard() {
   const { t } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
   const session = useSession()
-  const userId = session?.user?.id
+  const [userId, setUserId] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    async function getCurrentUserId() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          setUserId(user.id)
+        }
+      } catch (error) {
+        console.error("Error getting current user:", error)
+      }
+    }
+
+    getCurrentUserId()
+  }, [])
 
   const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
   const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
@@ -86,13 +105,23 @@ export default function StudentDashboard() {
     return null // Don't render anything while redirecting
   }
 
+  if (isProfileLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <PageSkeleton type="dashboard" />
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("student.dashboard.title")}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t("student.dashboard.welcome", { name: profile?.full_name || t("student.dashboard.student") })}
+          </h1>
+          <p className="text-muted-foreground">{t("student.dashboard.subtitle")}</p>
         </div>
-
         {profileError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />

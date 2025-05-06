@@ -9,14 +9,11 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 import { useDataCache } from "@/lib/data-cache-context"
 
-export function AccountSettings() {
+export function AccountSettings({ adminProfile }: { adminProfile: any }) {
   const { t } = useLanguage()
   const { toast } = useToast()
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-  const { profile, isLoading } = useCachedAdminProfile(userId)
   const { invalidateCache } = useDataCache()
   const [isUpdating, setIsUpdating] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -26,34 +23,16 @@ export function AccountSettings() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
-  // Get current user ID
-  useEffect(() => {
-    async function getCurrentUserId() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (user) {
-          setUserId(user.id)
-        }
-      } catch (error) {
-        console.error("Error getting current user:", error)
-      }
-    }
-
-    getCurrentUserId()
-  }, [])
-
   // Set form values when profile is loaded
   useEffect(() => {
-    if (profile) {
-      setName(profile.full_name || "")
-      setEmail(profile.email || "")
+    if (adminProfile) {
+      setName(adminProfile.full_name || "")
+      setEmail(adminProfile.email || "")
     }
-  }, [profile])
+  }, [adminProfile])
 
   const handleUpdateInfo = async () => {
-    if (!userId) return
+    if (!adminProfile?.id) return
 
     setIsUpdating(true)
     try {
@@ -64,14 +43,14 @@ export function AccountSettings() {
           full_name: name,
           // Note: We don't update email in profiles table directly
         })
-        .eq("id", userId)
+        .eq("id", adminProfile.id)
 
       if (profileError) {
         throw profileError
       }
 
       // Update email in auth if it changed
-      if (email !== profile?.email) {
+      if (email !== adminProfile?.email) {
         const { error: authError } = await supabase.auth.updateUser({
           email: email,
         })
@@ -82,7 +61,7 @@ export function AccountSettings() {
       }
 
       // Invalidate the cache
-      invalidateCache("adminProfile", userId)
+      invalidateCache("adminProfile", adminProfile.id)
 
       toast({
         title: t("settings.account.updateSuccess"),
@@ -139,14 +118,6 @@ export function AccountSettings() {
     } finally {
       setIsChangingPassword(false)
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
   }
 
   return (
