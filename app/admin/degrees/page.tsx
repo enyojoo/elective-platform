@@ -17,32 +17,9 @@ import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
-import { TableSkeleton } from "@/components/ui/page-skeleton"
-
-// Mock degree data for initial state
-const initialDegrees = [
-  {
-    id: "1",
-    name: "Bachelor's",
-    nameRu: "Бакалавриат",
-    code: "bachelor",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Master's",
-    nameRu: "Магистратура",
-    code: "master",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Executive MBA",
-    nameRu: "Исполнительный MBA",
-    code: "emba",
-    status: "inactive",
-  },
-]
+import { useDataCache } from "@/lib/data-cache-context"
+import { useInstitutionContext } from "@/lib/institution-context"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface DegreeFormData {
   id?: string
@@ -54,8 +31,8 @@ interface DegreeFormData {
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const [degrees, setDegrees] = useState(initialDegrees)
-  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -69,6 +46,9 @@ export default function DegreesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const isMounted = useRef(true)
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const { institution } = useInstitutionContext()
+  const institutionId = institution?.id
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
   // Component lifecycle management
   useEffect(() => {
@@ -87,12 +67,30 @@ export default function DegreesPage() {
     }
   }, [])
 
-  // Fetch degrees from Supabase
+  // Fetch degrees from Supabase with caching
   useEffect(() => {
     const fetchDegrees = async () => {
       try {
         setIsLoading(true)
-        const { data, error } = await supabase.from("degrees").select("*").order("name")
+
+        // Try to get data from cache first
+        const cachedDegrees = getCachedData<any[]>("degrees", institutionId || "all")
+
+        if (cachedDegrees) {
+          console.log("Using cached degrees data")
+          setDegrees(cachedDegrees)
+          setFilteredDegrees(cachedDegrees)
+          setIsLoading(false)
+          return
+        }
+
+        // If not in cache, fetch from API
+        console.log("Fetching degrees data from API")
+        const { data, error } = await supabase
+          .from("degrees")
+          .select("*")
+          .order("name")
+          .eq("institution_id", institutionId)
 
         if (error) throw error
 
@@ -104,6 +102,9 @@ export default function DegreesPage() {
             code: degree.code,
             status: degree.status,
           }))
+
+          // Save to cache
+          setCachedData("degrees", institutionId || "all", formattedDegrees)
 
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
@@ -125,7 +126,7 @@ export default function DegreesPage() {
     }
 
     fetchDegrees()
-  }, [t, toast])
+  }, [t, toast, institutionId, getCachedData, setCachedData])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -214,7 +215,13 @@ export default function DegreesPage() {
 
         // Update local state
         if (isMounted.current) {
-          setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
+          const updatedDegrees = degrees.map((degree) =>
+            degree.id === currentDegree.id ? { ...currentDegree } : degree,
+          )
+          setDegrees(updatedDegrees)
+
+          // Update cache
+          setCachedData("degrees", institutionId || "all", updatedDegrees)
 
           toast({
             title: t("admin.degrees.success"),
@@ -230,6 +237,7 @@ export default function DegreesPage() {
             name_ru: currentDegree.nameRu,
             code: currentDegree.code,
             status: currentDegree.status,
+            institution_id: institutionId,
           })
           .select()
 
@@ -244,7 +252,11 @@ export default function DegreesPage() {
             status: data[0].status,
           }
 
-          setDegrees([...degrees, newDegree])
+          const updatedDegrees = [...degrees, newDegree]
+          setDegrees(updatedDegrees)
+
+          // Update cache
+          setCachedData("degrees", institutionId || "all", updatedDegrees)
 
           toast({
             title: t("admin.degrees.success"),
@@ -274,7 +286,11 @@ export default function DegreesPage() {
         if (error) throw error
 
         if (isMounted.current) {
-          setDegrees(degrees.filter((degree) => degree.id !== id))
+          const updatedDegrees = degrees.filter((degree) => degree.id !== id)
+          setDegrees(updatedDegrees)
+
+          // Update cache
+          setCachedData("degrees", institutionId || "all", updatedDegrees)
 
           toast({
             title: t("admin.degrees.success"),
@@ -306,17 +322,19 @@ export default function DegreesPage() {
       if (error) throw error
 
       if (isMounted.current) {
-        setDegrees(
-          degrees.map((degree) => {
-            if (degree.id === id) {
-              return {
-                ...degree,
-                status: newStatus,
-              }
+        const updatedDegrees = degrees.map((degree) => {
+          if (degree.id === id) {
+            return {
+              ...degree,
+              status: newStatus,
             }
-            return degree
-          }),
-        )
+          }
+          return degree
+        })
+        setDegrees(updatedDegrees)
+
+        // Update cache
+        setCachedData("degrees", institutionId || "all", updatedDegrees)
 
         toast({
           title: t("admin.degrees.success"),
@@ -395,13 +413,26 @@ export default function DegreesPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-24">
-                          <div className="w-full flex items-center justify-center">
-                            <TableSkeleton itemCount={5} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      // Skeleton loader only in the table rows
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-6 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-20" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
