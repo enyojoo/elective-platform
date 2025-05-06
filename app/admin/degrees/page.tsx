@@ -50,11 +50,6 @@ export default function DegreesPage() {
   const institutionId = institution?.id
   const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
-  // Add this after the institution context declaration
-  useEffect(() => {
-    console.log("Current institution ID:", institutionId)
-  }, [institutionId])
-
   // Component lifecycle management
   useEffect(() => {
     isMounted.current = true
@@ -75,16 +70,11 @@ export default function DegreesPage() {
   // Fetch degrees from Supabase with caching
   useEffect(() => {
     const fetchDegrees = async () => {
-      if (!institutionId) {
-        setIsLoading(false)
-        return
-      }
-
       try {
         setIsLoading(true)
 
         // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
+        const cachedDegrees = getCachedData<any[]>("degrees", institutionId || "all")
 
         if (cachedDegrees) {
           console.log("Using cached degrees data")
@@ -99,8 +89,8 @@ export default function DegreesPage() {
         const { data, error } = await supabase
           .from("degrees")
           .select("*")
-          .eq("institution_id", institutionId)
           .order("name")
+          .eq("institution_id", institutionId)
 
         if (error) throw error
 
@@ -114,7 +104,7 @@ export default function DegreesPage() {
           }))
 
           // Save to cache
-          setCachedData("degrees", institutionId, formattedDegrees)
+          setCachedData("degrees", institutionId || "all", formattedDegrees)
 
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
