@@ -871,6 +871,7 @@ const translations: Translations = {
     "admin.dashboard.totalUsers": "Total users in the system",
     "admin.dashboard.manageUsers": "Manage Users",
     "settings.branding.domain": "Domain",
+    "admin.dashboard.manage": "Manage",
   },
   ru: {
     // Existing translations...
@@ -1634,7 +1635,6 @@ const translations: Translations = {
     "admin.newUniversity.namePlaceholder": "Гарвардский университет",
     "admin.newUniversity.cityPlaceholder": "Кембридж",
     "admin.newUniversity.websitePlaceholder": "https://www.harvard.edu",
-    "admin.newUniversity.descriptionPlaceholder": "Краткое описание университета и деталей партнерства...",
     "admin.sidebar.universities": "Университеты",
     "admin.universities.title": "Партнерские университеты",
     "admin.universities.subtitle": "Управление партнерскими университетами для программ студенческого обмена",
@@ -1690,6 +1690,7 @@ const translations: Translations = {
     "admin.dashboard.users": "Пользователи",
     "admin.dashboard.totalUsers": "Всего пользователей в системе",
     "admin.dashboard.manageUsers": "Управление пользователями",
+    "admin.dashboard.manage": "Управление",
 
     // Toast notifications for branding settings
     "settings.toast.changesSaved": "Изменения сохранены",
@@ -1767,6 +1768,7 @@ const translations: Translations = {
     "admin.dashboard.users": "Пользователи",
     "admin.dashboard.totalUsers": "Всего пользователей в системе",
     "admin.dashboard.manageUsers": "Управление пользователями",
+    "admin.dashboard.manage": "Управление",
   },
 }
 

@@ -158,7 +158,7 @@ export default function AdminDashboard() {
               )}
               <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourseElectives")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/electives?tab=courses">{t("admin.dashboard.manageCourseElectives")}</Link>
+                <Link href="/admin/electives?tab=courses">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
               )}
               <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalExchangePrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/electives?tab=exchange">{t("admin.dashboard.manageExchangePrograms")}</Link>
+                <Link href="/admin/electives?tab=exchange">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -194,9 +194,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.courses.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.courses.subtitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourses")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/courses">{t("admin.courses.title")}</Link>
+                <Link href="/admin/courses">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -213,9 +213,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.programs.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.programs.subtitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalPrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/programs">{t("admin.programs.title")}</Link>
+                <Link href="/admin/programs">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -232,9 +232,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.groups.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.groups.subtitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalGroups")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/groups">{t("admin.groups.title")}</Link>
+                <Link href="/admin/groups">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
               )}
               <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalUniversities")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/universities">{t("admin.dashboard.manageUniversities")}</Link>
+                <Link href="/admin/universities">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -270,9 +270,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.users.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.users.subtitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalUsers")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/users">{t("admin.users.title")}</Link>
+                <Link href="/admin/users">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
