@@ -17,11 +17,47 @@ import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
+// Mock degree data for initial state
+const initialDegrees = [
+  {
+    id: "1",
+    name: "Bachelor's",
+    nameRu: "Бакалавриат",
+    code: "bachelor",
+    durationYears: 4,
+    status: "active",
+  },
+  {
+    id: "2",
+    name: "Master's",
+    nameRu: "Магистратура",
+    code: "master",
+    durationYears: 2,
+    status: "active",
+  },
+  {
+    id: "3",
+    name: "Executive MBA",
+    nameRu: "Исполнительный MBA",
+    code: "emba",
+    durationYears: 1.5,
+    status: "inactive",
+  },
+]
+
+interface DegreeFormData {
+  id?: string
+  name: string
+  nameRu: string
+  code: string
+  durationYears: number
+  status: string
+}
+
 export default function DegreesPage() {
   const { t } = useLanguage()
-  // Initialize state variables outside the useEffect hook
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
+  const [degrees, setDegrees] = useState(initialDegrees)
+  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -33,16 +69,14 @@ export default function DegreesPage() {
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   // Fetch degrees from Supabase
   useEffect(() => {
     const fetchDegrees = async () => {
       try {
-        const { data, error } = await supabase
-          .from("degrees")
-          .select("*")
-          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
-          .order("name")
+        setIsLoading(true)
+        const { data, error } = await supabase.from("degrees").select("*").order("name")
 
         if (error) throw error
 
@@ -50,7 +84,7 @@ export default function DegreesPage() {
           const formattedDegrees = data.map((degree) => ({
             id: degree.id.toString(),
             name: degree.name,
-            nameRu: degree.name_ru,
+            nameRu: degree.name_ru || "",
             code: degree.code,
             durationYears: degree.duration_years,
             status: degree.status,
@@ -59,27 +93,20 @@ export default function DegreesPage() {
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch degrees:", error)
         toast({
           title: t("admin.degrees.error"),
           description: t("admin.degrees.errorFetching"),
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     fetchDegrees()
   }, [t, toast])
-
-  interface DegreeFormData {
-    id?: string
-    name: string
-    nameRu: string
-    code: string
-    durationYears: number
-    status: string
-  }
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -159,7 +186,6 @@ export default function DegreesPage() {
             code: currentDegree.code,
             duration_years: currentDegree.durationYears,
             status: currentDegree.status,
-            institution_id: 1, // In a real app, you would get the institution_id from context
           })
           .select()
 
@@ -169,7 +195,7 @@ export default function DegreesPage() {
           const newDegree = {
             id: data[0].id.toString(),
             name: data[0].name,
-            nameRu: data[0].name_ru,
+            nameRu: data[0].name_ru || "",
             code: data[0].code,
             durationYears: data[0].duration_years,
             status: data[0].status,
@@ -316,7 +342,13 @@ export default function DegreesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredDegrees.length === 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          {t("common.loading")}
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           {t("admin.degrees.noDegreesFound")}

@@ -18,24 +18,68 @@ import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
+// Mock groups data for initial state
+const initialGroups = [
+  {
+    id: "1",
+    name: "24.B01-vshm",
+    displayName: "B01",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2024",
+    students: 25,
+    status: "active",
+  },
+  {
+    id: "2",
+    name: "24.B02-vshm",
+    displayName: "B02",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2024",
+    students: 23,
+    status: "active",
+  },
+  {
+    id: "3",
+    name: "23.B01-vshm",
+    displayName: "B01",
+    program: "Management",
+    degree: "Bachelor's",
+    year: "2023",
+    students: 24,
+    status: "active",
+  },
+]
+
+interface GroupFormData {
+  id?: string
+  name: string
+  displayName: string
+  programId: string
+  degreeId: string
+  year: string
+  status: string
+}
+
 export default function GroupsPage() {
   const { t } = useLanguage()
-  // Initialize state variables with useState hook
-  const [groups, setGroups] = useState<any[]>([])
-  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [groups, setGroups] = useState(initialGroups)
+  const [filteredGroups, setFilteredGroups] = useState(initialGroups)
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [currentGroup, setCurrentGroup] = useState<any>({
+  const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
     name: "",
     displayName: "",
-    program: "",
-    degree: "",
+    programId: "",
+    degreeId: "",
     year: "",
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
   const [programs, setPrograms] = useState<any[]>([])
-  const [degreesData, setDegreesData] = useState<any[]>([])
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -52,56 +96,94 @@ export default function GroupsPage() {
   useEffect(() => {
     const fetchGroups = async () => {
       try {
-        const { data, error } = await supabase
-          .from("groups")
-          .select(`
-            id, 
-            name, 
-            display_name, 
-            year, 
-            status,
-            programs (id, name),
-            degrees (id, name)
-          `)
-          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
-          .order("name")
+        setIsLoading(true)
 
-        if (error) throw error
+        // First, fetch the groups
+        const { data: groupsData, error: groupsError } = await supabase.from("groups").select("*").order("name")
 
-        if (data) {
-          // Count students in each group
-          const groupIds = data.map((group) => group.id)
-          const { data: studentCounts, error: countError } = await supabase
-            .from("profiles")
-            .select("group_id, count")
-            .in("group_id", groupIds)
-            .eq("role", "student")
-            .group("group_id")
+        if (groupsError) throw groupsError
 
-          if (countError) throw countError
-
-          // Create a map of group_id to student count
-          const studentCountMap = new Map()
-          if (studentCounts) {
-            studentCounts.forEach((item) => {
-              studentCountMap.set(item.group_id, Number.parseInt(item.count))
-            })
-          }
-
-          const formattedGroups = data.map((group) => ({
-            id: group.id.toString(),
-            name: group.name,
-            displayName: group.display_name,
-            program: group.programs?.name || "",
-            degree: group.degrees?.name || "",
-            year: group.year,
-            students: studentCountMap.get(group.id) || 0,
-            status: group.status,
-          }))
-
-          setGroups(formattedGroups)
-          setFilteredGroups(formattedGroups)
+        if (!groupsData) {
+          setGroups([])
+          setFilteredGroups([])
+          return
         }
+
+        // Fetch program and degree information separately
+        const programIds = [...new Set(groupsData.map((g) => g.program_id).filter(Boolean))]
+        const degreeIds = [...new Set(groupsData.map((g) => g.degree_id).filter(Boolean))]
+
+        // Fetch programs
+        const { data: programsData, error: programsError } = await supabase
+          .from("programs")
+          .select("id, name")
+          .in("id", programIds)
+
+        if (programsError) throw programsError
+
+        // Fetch degrees
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name")
+          .in("id", degreeIds)
+
+        if (degreesError) throw degreesError
+
+        // Create maps for quick lookups
+        const programMap = new Map()
+        if (programsData) {
+          programsData.forEach((program) => {
+            programMap.set(program.id, program.name)
+          })
+        }
+
+        const degreeMap = new Map()
+        if (degreesData) {
+          degreesData.forEach((degree) => {
+            degreeMap.set(degree.id, degree.name)
+          })
+        }
+
+        // Count students in each group
+        const { data: studentCounts, error: countError } = await supabase
+          .from("profiles")
+          .select("group_id, count")
+          .in(
+            "group_id",
+            groupsData.map((g) => g.id),
+          )
+          .eq("role", "student")
+          .group("group_id")
+
+        if (countError) {
+          console.error("Error fetching student counts:", countError)
+          // Continue without student counts
+        }
+
+        // Create a map of group_id to student count
+        const studentCountMap = new Map()
+        if (studentCounts) {
+          studentCounts.forEach((item) => {
+            studentCountMap.set(item.group_id, Number.parseInt(item.count))
+          })
+        }
+
+        // Format the groups data
+        const formattedGroups = groupsData.map((group) => ({
+          id: group.id.toString(),
+          name: group.name,
+          displayName: group.display_name,
+          program: programMap.get(group.program_id) || "Unknown",
+          programId: group.program_id,
+          degree: degreeMap.get(group.degree_id) || "Unknown",
+          degreeId: group.degree_id,
+          year: group.year,
+          students: studentCountMap.get(group.id) || 0,
+          status: group.status,
+        }))
+
+        setGroups(formattedGroups)
+        setFilteredGroups(formattedGroups)
       } catch (error) {
         console.error("Failed to fetch groups:", error)
         toast({
@@ -109,69 +191,53 @@ export default function GroupsPage() {
           description: t("admin.groups.errorFetching"),
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     fetchGroups()
   }, [t, toast])
 
+  // Fetch reference data (programs and degrees)
   useEffect(() => {
     const fetchReferenceData = async () => {
       try {
         // Fetch programs
         const { data: programsData, error: programsError } = await supabase
           .from("programs")
-          .select("id, name, degree_id, degrees(id, name)")
-          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
+          .select("id, name, degree_id")
           .order("name")
 
         if (programsError) throw programsError
 
         if (programsData) {
-          setPrograms(
-            programsData.map((program) => ({
-              id: program.id.toString(),
-              name: program.name,
-              degreeId: program.degree_id,
-              degreeName: program.degrees?.name || "",
-            })),
-          )
+          setPrograms(programsData)
         }
 
         // Fetch degrees
         const { data: degreesData, error: degreesError } = await supabase
           .from("degrees")
           .select("id, name")
-          .eq("institution_id", 1) // In a real app, you would get the institution_id from context
           .order("name")
 
         if (degreesError) throw degreesError
 
         if (degreesData) {
-          setDegreesData(
-            degreesData.map((degree) => ({
-              id: degree.id.toString(),
-              name: degree.name,
-            })),
-          )
+          setDegrees(degreesData)
         }
       } catch (error) {
         console.error("Failed to fetch reference data:", error)
+        toast({
+          title: t("admin.groups.error"),
+          description: t("admin.groups.errorFetchingReferenceData"),
+          variant: "destructive",
+        })
       }
     }
 
     fetchReferenceData()
-  }, [])
-
-  interface GroupFormData {
-    id?: string
-    name: string
-    displayName: string
-    program: string
-    degree: string
-    year: string
-    status: string
-  }
+  }, [t, toast])
 
   // Get unique values for filters
   const programsList = [...new Set(groups.map((group) => group.program))]
@@ -222,8 +288,8 @@ export default function GroupsPage() {
         id: group.id,
         name: group.name,
         displayName: group.displayName,
-        program: group.program,
-        degree: group.degree,
+        programId: group.programId?.toString() || "",
+        degreeId: group.degreeId?.toString() || "",
         year: group.year,
         status: group.status,
       })
@@ -232,9 +298,9 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         displayName: "",
-        program: programs[0]?.id || "",
-        degree: degreesData[0]?.id || "",
-        year: years[0] || "",
+        programId: programs[0]?.id.toString() || "",
+        degreeId: degrees[0]?.id.toString() || "",
+        year: new Date().getFullYear().toString(),
         status: "active",
       })
       setIsEditing(false)
@@ -261,8 +327,8 @@ export default function GroupsPage() {
           .update({
             name: currentGroup.name,
             display_name: currentGroup.displayName,
-            program_id: Number.parseInt(currentGroup.program),
-            degree_id: Number.parseInt(currentGroup.degree),
+            program_id: Number.parseInt(currentGroup.programId),
+            degree_id: Number.parseInt(currentGroup.degreeId),
             year: currentGroup.year,
             status: currentGroup.status,
           })
@@ -270,42 +336,36 @@ export default function GroupsPage() {
 
         if (error) throw error
 
-        // Refresh the groups list
-        const { data, error: fetchError } = await supabase
-          .from("groups")
-          .select(`
-            id, 
-            name, 
-            display_name, 
-            year, 
-            status,
-            programs (id, name),
-            degrees (id, name)
-          `)
-          .eq("id", currentGroup.id)
-          .single()
+        // Refresh the groups list to get updated data
+        const { data, error: fetchError } = await supabase.from("groups").select("*").eq("id", currentGroup.id).single()
 
         if (fetchError) throw fetchError
 
+        // Get program and degree names
+        const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+        const degree = degrees.find((d) => d.id === Number.parseInt(currentGroup.degreeId))
+
         if (data) {
           const updatedGroup = {
+            ...groups.find((g) => g.id === currentGroup.id),
             id: data.id.toString(),
             name: data.name,
             displayName: data.display_name,
-            program: data.programs?.name || "",
-            degree: data.degrees?.name || "",
+            program: program?.name || "Unknown",
+            programId: data.program_id,
+            degree: degree?.name || "Unknown",
+            degreeId: data.degree_id,
             year: data.year,
-            students: groups.find((g) => g.id === currentGroup.id)?.students || 0,
             status: data.status,
           }
 
           setGroups(groups.map((group) => (group.id === currentGroup.id ? updatedGroup : group)))
-        }
 
-        toast({
-          title: t("admin.groups.success"),
-          description: t("admin.groups.groupUpdated"),
-        })
+          toast({
+            title: t("admin.groups.success"),
+            description: t("admin.groups.groupUpdated"),
+          })
+        }
       } else {
         // Add new group
         const { data, error } = await supabase
@@ -313,48 +373,34 @@ export default function GroupsPage() {
           .insert({
             name: currentGroup.name,
             display_name: currentGroup.displayName,
-            program_id: Number.parseInt(currentGroup.program),
-            degree_id: Number.parseInt(currentGroup.degree),
+            program_id: Number.parseInt(currentGroup.programId),
+            degree_id: Number.parseInt(currentGroup.degreeId),
             year: currentGroup.year,
             status: currentGroup.status,
-            institution_id: 1, // In a real app, you would get the institution_id from context
           })
           .select()
 
         if (error) throw error
 
         if (data && data[0]) {
-          // Fetch the complete group data with related entities
-          const { data: groupData, error: fetchError } = await supabase
-            .from("groups")
-            .select(`
-              id, 
-              name, 
-              display_name, 
-              year, 
-              status,
-              programs (id, name),
-              degrees (id, name)
-            `)
-            .eq("id", data[0].id)
-            .single()
+          // Get program and degree names
+          const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+          const degree = degrees.find((d) => d.id === Number.parseInt(currentGroup.degreeId))
 
-          if (fetchError) throw fetchError
-
-          if (groupData) {
-            const newGroup = {
-              id: groupData.id.toString(),
-              name: groupData.name,
-              displayName: groupData.display_name,
-              program: groupData.programs?.name || "",
-              degree: groupData.degrees?.name || "",
-              year: groupData.year,
-              students: 0,
-              status: groupData.status,
-            }
-
-            setGroups([...groups, newGroup])
+          const newGroup = {
+            id: data[0].id.toString(),
+            name: data[0].name,
+            displayName: data[0].display_name,
+            program: program?.name || "Unknown",
+            programId: data[0].program_id,
+            degree: degree?.name || "Unknown",
+            degreeId: data[0].degree_id,
+            year: data[0].year,
+            students: 0,
+            status: data[0].status,
           }
+
+          setGroups([...groups, newGroup])
 
           toast({
             title: t("admin.groups.success"),
@@ -577,7 +623,13 @@ export default function GroupsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length === 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          {t("common.loading")}
+                        </TableCell>
+                      </TableRow>
+                    ) : currentItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {t("admin.groups.noGroups")}
@@ -696,19 +748,19 @@ export default function GroupsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="program">{t("admin.groups.program")}</Label>
+              <Label htmlFor="programId">{t("admin.groups.program")}</Label>
               <select
-                id="program"
-                name="program"
+                id="programId"
+                name="programId"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                value={currentGroup.program}
+                value={currentGroup.programId}
                 onChange={handleInputChange}
                 required
               >
                 <option value="">{t("admin.groups.selectProgram")}</option>
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>
-                    {program.name} ({program.degreeName})
+                    {program.name}
                   </option>
                 ))}
               </select>
@@ -716,17 +768,17 @@ export default function GroupsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="degree">{t("admin.groups.degree")}</Label>
+                <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
                 <select
-                  id="degree"
-                  name="degree"
+                  id="degreeId"
+                  name="degreeId"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentGroup.degree}
+                  value={currentGroup.degreeId}
                   onChange={handleInputChange}
                   required
                 >
                   <option value="">{t("admin.groups.selectDegree")}</option>
-                  {degreesData.map((degree) => (
+                  {degrees.map((degree) => (
                     <option key={degree.id} value={degree.id}>
                       {degree.name}
                     </option>
