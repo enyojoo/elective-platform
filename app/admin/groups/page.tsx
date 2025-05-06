@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -82,6 +82,9 @@ export default function GroupsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSchemaUpdated, setIsSchemaUpdated] = useState(false)
 
+  // Ref to track if component is mounted
+  const isMounted = useRef(true)
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -92,6 +95,28 @@ export default function GroupsPage() {
   const [degreeFilter, setDegreeFilter] = useState("")
 
   const { toast } = useToast()
+
+  // Set up cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      isMounted.current = false
+
+      // Force cleanup of any lingering dialog effects
+      document.body.style.removeProperty("overflow")
+      document.body.style.removeProperty("padding-right")
+
+      // Remove any aria-hidden attributes from the body
+      document.body.removeAttribute("aria-hidden")
+
+      // Remove any data-radix-* attributes from the body
+      const attributes = [...document.body.attributes]
+      attributes.forEach((attr) => {
+        if (attr.name.startsWith("data-radix-")) {
+          document.body.removeAttribute(attr.name)
+        }
+      })
+    }
+  }, [])
 
   // Check if the schema has been updated
   useEffect(() => {
@@ -204,8 +229,10 @@ export default function GroupsPage() {
           status: group.status,
         }))
 
-        setGroups(formattedGroups)
-        setFilteredGroups(formattedGroups)
+        if (isMounted.current) {
+          setGroups(formattedGroups)
+          setFilteredGroups(formattedGroups)
+        }
       } catch (error) {
         console.error("Failed to fetch groups:", error)
         toast({
@@ -214,7 +241,9 @@ export default function GroupsPage() {
           variant: "destructive",
         })
       } finally {
-        setIsLoading(false)
+        if (isMounted.current) {
+          setIsLoading(false)
+        }
       }
     }
 
@@ -233,7 +262,7 @@ export default function GroupsPage() {
 
         if (programsError) throw programsError
 
-        if (programsData) {
+        if (programsData && isMounted.current) {
           setPrograms(programsData)
         }
 
@@ -245,7 +274,7 @@ export default function GroupsPage() {
 
         if (degreesError) throw degreesError
 
-        if (degreesData) {
+        if (degreesData && isMounted.current) {
           setDegrees(degreesData)
         }
       } catch (error) {
@@ -304,6 +333,7 @@ export default function GroupsPage() {
   const currentItems = filteredGroups.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
+  // Safe dialog open handler
   const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
       setCurrentGroup({
@@ -327,7 +357,40 @@ export default function GroupsPage() {
       })
       setIsEditing(false)
     }
-    setIsDialogOpen(true)
+
+    // Ensure body is in a clean state before opening dialog
+    document.body.style.removeProperty("overflow")
+    document.body.removeAttribute("aria-hidden")
+
+    // Set timeout to ensure DOM is ready
+    setTimeout(() => {
+      if (isMounted.current) {
+        setIsDialogOpen(true)
+      }
+    }, 0)
+  }
+
+  // Safe dialog close handler
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false)
+
+    // Ensure cleanup after dialog closes
+    setTimeout(() => {
+      if (isMounted.current) {
+        // Reset body styles
+        document.body.style.removeProperty("overflow")
+        document.body.style.removeProperty("padding-right")
+        document.body.removeAttribute("aria-hidden")
+
+        // Remove any data-radix-* attributes from the body
+        const attributes = [...document.body.attributes]
+        attributes.forEach((attr) => {
+          if (attr.name.startsWith("data-radix-")) {
+            document.body.removeAttribute(attr.name)
+          }
+        })
+      }
+    }, 300) // Wait for animation to complete
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -385,7 +448,7 @@ export default function GroupsPage() {
 
         // Get program and degree names
         const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
-        const degree = degrees.find((d) => d.id === Number.parseInt(currentGroup.degreeId))
+        const degree = degrees.find((d) => d.id === currentGroup.degreeId)
 
         if (data) {
           const updatedGroup = {
@@ -427,7 +490,7 @@ export default function GroupsPage() {
         if (data && data[0]) {
           // Get program and degree names
           const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
-          const degree = degrees.find((d) => d.id === Number.parseInt(currentGroup.degreeId))
+          const degree = degrees.find((d) => d.id === currentGroup.degreeId)
 
           const newGroup = {
             id: data[0].id.toString(),
@@ -451,7 +514,7 @@ export default function GroupsPage() {
         }
       }
 
-      setIsDialogOpen(false)
+      handleCloseDialog()
     } catch (error: any) {
       console.error("Error saving group:", error)
       toast({
@@ -604,7 +667,9 @@ export default function GroupsPage() {
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      if (isMounted.current) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -824,112 +889,136 @@ export default function GroupsPage() {
         </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={currentGroup.name}
-                  onChange={handleInputChange}
-                  placeholder={t("admin.groups.groupCodePlaceholder")}
-                  required
-                />
+      {/* Use forceMount to ensure proper cleanup */}
+      {isDialogOpen && (
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) handleCloseDialog()
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[500px]"
+            onEscapeKeyDown={(e) => {
+              // Prevent escape key from propagating
+              e.stopPropagation()
+              handleCloseDialog()
+            }}
+            onPointerDownOutside={(e) => {
+              // Prevent clicks outside from propagating
+              e.preventDefault()
+              handleCloseDialog()
+            }}
+            onInteractOutside={(e) => {
+              // Prevent any interaction outside from propagating
+              e.preventDefault()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={currentGroup.name}
+                    onChange={handleInputChange}
+                    placeholder={t("admin.groups.groupCodePlaceholder")}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
+                  <Input
+                    id="displayName"
+                    name="displayName"
+                    value={currentGroup.displayName}
+                    onChange={handleInputChange}
+                    placeholder={t("admin.groups.displayNamePlaceholder")}
+                    required
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
-                <Input
-                  id="displayName"
-                  name="displayName"
-                  value={currentGroup.displayName}
-                  onChange={handleInputChange}
-                  placeholder={t("admin.groups.displayNamePlaceholder")}
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="programId">{t("admin.groups.program")}</Label>
-              <select
-                id="programId"
-                name="programId"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                value={currentGroup.programId}
-                onChange={handleInputChange}
-                required
-              >
-                <option value="">{t("admin.groups.selectProgram")}</option>
-                {programs.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
+                <Label htmlFor="programId">{t("admin.groups.program")}</Label>
                 <select
-                  id="degreeId"
-                  name="degreeId"
+                  id="programId"
+                  name="programId"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentGroup.degreeId}
+                  value={currentGroup.programId}
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">{t("admin.groups.selectDegree")}</option>
-                  {degrees.map((degree) => (
-                    <option key={degree.id} value={degree.id}>
-                      {degree.name}
+                  <option value="">{t("admin.groups.selectProgram")}</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="year">{t("admin.groups.year")}</Label>
-                <Input
-                  id="year"
-                  name="year"
-                  type="text"
-                  value={currentGroup.year}
-                  onChange={handleInputChange}
-                  placeholder="2024"
-                  required
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
+                  <select
+                    id="degreeId"
+                    name="degreeId"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                    value={currentGroup.degreeId}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">{t("admin.groups.selectDegree")}</option>
+                    {degrees.map((degree) => (
+                      <option key={degree.id} value={degree.id}>
+                        {degree.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="year">{t("admin.groups.year")}</Label>
+                  <Input
+                    id="year"
+                    name="year"
+                    type="text"
+                    value={currentGroup.year}
+                    onChange={handleInputChange}
+                    placeholder="2024"
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status">{t("admin.groups.status")}</Label>
-              <select
-                id="status"
-                name="status"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                value={currentGroup.status}
-                onChange={handleInputChange}
-              >
-                <option value="active">{t("admin.groups.active")}</option>
-                <option value="inactive">{t("admin.groups.inactive")}</option>
-              </select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">{t("admin.groups.status")}</Label>
+                <select
+                  id="status"
+                  name="status"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                  value={currentGroup.status}
+                  onChange={handleInputChange}
+                >
+                  <option value="active">{t("admin.groups.active")}</option>
+                  <option value="inactive">{t("admin.groups.inactive")}</option>
+                </select>
+              </div>
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                {t("admin.groups.cancel")}
-              </Button>
-              <Button type="submit">{isEditing ? t("admin.groups.update") : t("admin.groups.create")}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                  {t("admin.groups.cancel")}
+                </Button>
+                <Button type="submit">{isEditing ? t("admin.groups.update") : t("admin.groups.create")}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </DashboardLayout>
   )
 }
