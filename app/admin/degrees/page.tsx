@@ -17,6 +17,7 @@ import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { TableSkeleton } from "@/components/ui/page-skeleton"
 
 // Mock degree data for initial state
 const initialDegrees = [
@@ -395,8 +396,10 @@ export default function DegreesPage() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          {t("common.loading")}
+                        <TableCell colSpan={6} className="h-24">
+                          <div className="w-full flex items-center justify-center">
+                            <TableSkeleton itemCount={5} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredDegrees.length === 0 ? (

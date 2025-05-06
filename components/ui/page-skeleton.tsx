@@ -98,6 +98,21 @@ export function TableSkeleton({ itemCount = 5 }: { itemCount?: number }) {
   )
 }
 
+export function TableSkeleton2({ itemCount = 5 }: { itemCount?: number }) {
+  return (
+    <div className="w-full space-y-3">
+      {Array.from({ length: itemCount }).map((_, i) => (
+        <div key={i} className="flex gap-4 items-center">
+          {Array.from({ length: 5 }).map((_, j) => (
+            <Skeleton key={j} className="h-5 flex-1" />
+          ))}
+          <Skeleton className="h-5 w-[50px]" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function FormSkeleton() {
   return (
     <div className="space-y-6">
