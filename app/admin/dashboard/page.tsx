@@ -185,7 +185,7 @@ export default function AdminDashboard() {
           {/* Courses Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("admin.dashboard.courses")}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.sidebar.courses")}</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -194,9 +194,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.courses.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourses")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.courses.subtitle")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/courses">{t("admin.dashboard.manageCourses")}</Link>
+                <Link href="/admin/courses">{t("admin.courses.title")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -204,7 +204,7 @@ export default function AdminDashboard() {
           {/* Programs Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("admin.dashboard.programs")}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.sidebar.programs")}</CardTitle>
               <GraduationCap className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -213,9 +213,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.programs.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalPrograms")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.programs.subtitle")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/programs">{t("admin.dashboard.managePrograms")}</Link>
+                <Link href="/admin/programs">{t("admin.programs.title")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -223,7 +223,7 @@ export default function AdminDashboard() {
           {/* Groups Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("admin.dashboard.groups")}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.sidebar.groups")}</CardTitle>
               <Layers className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -232,9 +232,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.groups.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalGroups")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.groups.subtitle")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/groups">{t("admin.dashboard.manageGroups")}</Link>
+                <Link href="/admin/groups">{t("admin.groups.title")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -261,7 +261,7 @@ export default function AdminDashboard() {
           {/* Users Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("admin.dashboard.users")}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.sidebar.users")}</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -270,9 +270,9 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-2xl font-bold">{dashboardStats.users.count}</div>
               )}
-              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalUsers")}</p>
+              <p className="text-xs text-muted-foreground">{t("admin.users.subtitle")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/users">{t("admin.dashboard.manageUsers")}</Link>
+                <Link href="/admin/users">{t("admin.users.title")}</Link>
               </Button>
             </CardContent>
           </Card>
