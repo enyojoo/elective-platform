@@ -17,9 +17,9 @@ import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
-import { useInstitutionContext } from "@/lib/institution-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
+import { useInstitution } from "@/lib/institution-context"
 
 interface DegreeFormData {
   id?: string
@@ -31,6 +31,8 @@ interface DegreeFormData {
 
 export default function DegreesPage() {
   const { t } = useLanguage()
+  const { institution } = useInstitution()
+  const { getCachedData, setCachedData } = useDataCache()
   const [degrees, setDegrees] = useState<any[]>([])
   const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
   const { toast } = useToast()
@@ -46,9 +48,6 @@ export default function DegreesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const isMounted = useRef(true)
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const { institution } = useInstitutionContext()
-  const institutionId = institution?.id
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
   // Component lifecycle management
   useEffect(() => {
@@ -67,24 +66,29 @@ export default function DegreesPage() {
     }
   }, [])
 
-  // Fetch degrees with caching
+  // Fetch degrees from cache or Supabase
   useEffect(() => {
-    const fetchDegrees = async () => {
-      if (!institutionId) {
-        setIsLoading(false)
-        return
-      }
+    if (!institution?.id) return
 
+    const fetchDegrees = async () => {
       try {
         setIsLoading(true)
 
         // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
+        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
 
         if (cachedDegrees) {
           console.log("Using cached degrees data")
-          setDegrees(cachedDegrees)
-          setFilteredDegrees(cachedDegrees)
+          const formattedDegrees = cachedDegrees.map((degree) => ({
+            id: degree.id.toString(),
+            name: degree.name,
+            nameRu: degree.name_ru || "",
+            code: degree.code,
+            status: degree.status,
+          }))
+
+          setDegrees(formattedDegrees)
+          setFilteredDegrees(formattedDegrees)
           setIsLoading(false)
           return
         }
@@ -94,18 +98,25 @@ export default function DegreesPage() {
         const { data, error } = await supabase
           .from("degrees")
           .select("*")
-          .eq("institution_id", institutionId)
+          .eq("institution_id", institution.id)
           .order("name")
 
         if (error) throw error
 
         if (data && isMounted.current) {
-          // Save to cache
-          setCachedData("degrees", institutionId, data)
+          const formattedDegrees = data.map((degree) => ({
+            id: degree.id.toString(),
+            name: degree.name,
+            nameRu: degree.name_ru || "",
+            code: degree.code,
+            status: degree.status,
+          }))
 
-          // Update state
-          setDegrees(data)
-          setFilteredDegrees(data)
+          // Save to cache
+          setCachedData("degrees", institution.id, data)
+
+          setDegrees(formattedDegrees)
+          setFilteredDegrees(formattedDegrees)
         }
       } catch (error: any) {
         console.error("Failed to fetch degrees:", error)
@@ -124,7 +135,7 @@ export default function DegreesPage() {
     }
 
     fetchDegrees()
-  }, [institutionId, getCachedData, setCachedData, t, toast])
+  }, [institution?.id, getCachedData, setCachedData, t, toast])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -136,7 +147,7 @@ export default function DegreesPage() {
     const filtered = degrees.filter(
       (degree) =>
         degree.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (degree.name_ru && degree.name_ru.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        degree.nameRu.toLowerCase().includes(searchTerm.toLowerCase()) ||
         degree.code.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 
@@ -144,18 +155,12 @@ export default function DegreesPage() {
   }, [degrees, searchTerm])
 
   // Function to safely open the dialog
-  const handleOpenDialog = (degree?: any) => {
+  const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
     // Ensure body is in normal state before opening dialog
     cleanupDialogEffects()
 
     if (degree) {
-      setCurrentDegree({
-        id: degree.id.toString(),
-        name: degree.name,
-        nameRu: degree.name_ru || "",
-        code: degree.code,
-        status: degree.status,
-      })
+      setCurrentDegree(degree)
       setIsEditing(true)
     } else {
       setCurrentDegree({
@@ -217,23 +222,9 @@ export default function DegreesPage() {
 
         if (error) throw error
 
-        // Update local state and cache
+        // Update local state
         if (isMounted.current) {
-          const updatedDegrees = degrees.map((degree) => {
-            if (degree.id.toString() === currentDegree.id) {
-              return {
-                ...degree,
-                name: currentDegree.name,
-                name_ru: currentDegree.nameRu,
-                code: currentDegree.code,
-                status: currentDegree.status,
-              }
-            }
-            return degree
-          })
-
-          setDegrees(updatedDegrees)
-          setCachedData("degrees", institutionId || "", updatedDegrees)
+          setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
 
           toast({
             title: t("admin.degrees.success"),
@@ -249,16 +240,22 @@ export default function DegreesPage() {
             name_ru: currentDegree.nameRu,
             code: currentDegree.code,
             status: currentDegree.status,
-            institution_id: institutionId,
+            institution_id: institution?.id,
           })
           .select()
 
         if (error) throw error
 
         if (data && data[0] && isMounted.current) {
-          const updatedDegrees = [...degrees, data[0]]
-          setDegrees(updatedDegrees)
-          setCachedData("degrees", institutionId || "", updatedDegrees)
+          const newDegree = {
+            id: data[0].id.toString(),
+            name: data[0].name,
+            nameRu: data[0].name_ru || "",
+            code: data[0].code,
+            status: data[0].status,
+          }
+
+          setDegrees([...degrees, newDegree])
 
           toast({
             title: t("admin.degrees.success"),
@@ -288,9 +285,7 @@ export default function DegreesPage() {
         if (error) throw error
 
         if (isMounted.current) {
-          const updatedDegrees = degrees.filter((degree) => degree.id.toString() !== id)
-          setDegrees(updatedDegrees)
-          setCachedData("degrees", institutionId || "", updatedDegrees)
+          setDegrees(degrees.filter((degree) => degree.id !== id))
 
           toast({
             title: t("admin.degrees.success"),
@@ -312,7 +307,7 @@ export default function DegreesPage() {
 
   const toggleStatus = async (id: string) => {
     try {
-      const degree = degrees.find((d) => d.id.toString() === id)
+      const degree = degrees.find((d) => d.id === id)
       if (!degree) return
 
       const newStatus = degree.status === "active" ? "inactive" : "active"
@@ -322,18 +317,17 @@ export default function DegreesPage() {
       if (error) throw error
 
       if (isMounted.current) {
-        const updatedDegrees = degrees.map((degree) => {
-          if (degree.id.toString() === id) {
-            return {
-              ...degree,
-              status: newStatus,
+        setDegrees(
+          degrees.map((degree) => {
+            if (degree.id === id) {
+              return {
+                ...degree,
+                status: newStatus,
+              }
             }
-          }
-          return degree
-        })
-
-        setDegrees(updatedDegrees)
-        setCachedData("degrees", institutionId || "", updatedDegrees)
+            return degree
+          }),
+        )
 
         toast({
           title: t("admin.degrees.success"),
@@ -412,26 +406,13 @@ export default function DegreesPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      // Skeleton loader only in the table rows
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-6 w-24" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-24">
+                          <div className="w-full flex items-center justify-center">
+                            <Skeleton className="w-full h-10" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ) : filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
@@ -442,7 +423,7 @@ export default function DegreesPage() {
                       filteredDegrees.map((degree) => (
                         <TableRow key={degree.id}>
                           <TableCell className="font-medium">{degree.name}</TableCell>
-                          <TableCell>{degree.name_ru}</TableCell>
+                          <TableCell>{degree.nameRu}</TableCell>
                           <TableCell>{degree.code}</TableCell>
                           <TableCell>{getStatusBadge(degree.status)}</TableCell>
                           <TableCell>
