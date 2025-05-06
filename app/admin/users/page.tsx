@@ -32,12 +32,10 @@ type User = {
   name: string
   email: string
   role: string
-  degreeId: number | null
-  programId: number | null
-  enrollmentYear: string | null
   status: string
-  degreeName?: string
-  programName?: string
+  programName: string
+  degreeName: string
+  enrollmentYear: string
 }
 
 export default function UsersPage() {
@@ -49,8 +47,6 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -58,61 +54,154 @@ export default function UsersPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Fetch users, degrees, and programs
+  // Fetch users data
   useEffect(() => {
     if (!institution) return
 
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        // Fetch degrees
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name, code")
+        // Fetch all profiles for this institution (including admins, managers, and students)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, email, role, is_active")
           .eq("institution_id", institution.id)
 
-        if (degreesError) throw degreesError
-        setDegrees(degreesData || [])
+        if (profilesError) {
+          console.error("Error fetching profiles:", profilesError)
+          throw profilesError
+        }
+
+        console.log(`Fetched ${profilesData.length} profiles for institution ${institution.id}`)
+
+        // Fetch student profiles
+        const { data: studentProfilesData, error: studentProfilesError } = await supabase
+          .from("student_profiles")
+          .select("profile_id, enrollment_year, group_id")
+
+        if (studentProfilesError) throw studentProfilesError
+
+        // Fetch manager profiles
+        const { data: managerProfilesData, error: managerProfilesError } = await supabase
+          .from("manager_profiles")
+          .select("profile_id, program_id")
+
+        if (managerProfilesError) throw managerProfilesError
+
+        // Fetch groups
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("id, program_id")
+          .eq("institution_id", institution.id)
+
+        if (groupsError) throw groupsError
 
         // Fetch programs
         const { data: programsData, error: programsError } = await supabase
           .from("programs")
-          .select("id, name, code, degree_id")
+          .select("id, name, degree_id")
           .eq("institution_id", institution.id)
 
         if (programsError) throw programsError
-        setPrograms(programsData || [])
 
-        // Fetch profiles for this institution
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select(`
-            id, 
-            full_name, 
-            email, 
-            role, 
-            degree_id, 
-            program_id, 
-            year,
-            is_active
-          `)
+        // Fetch degrees
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name")
           .eq("institution_id", institution.id)
 
-        if (profilesError) throw profilesError
+        if (degreesError) throw degreesError
+
+        // Create maps for faster lookups
+        const studentProfilesMap = new Map(
+          studentProfilesData.map((sp) => [
+            sp.profile_id,
+            { enrollmentYear: sp.enrollment_year, groupId: sp.group_id },
+          ]),
+        )
+
+        const managerProfilesMap = new Map(
+          managerProfilesData.map((mp) => [mp.profile_id, { programId: mp.program_id }]),
+        )
+
+        const groupsMap = new Map(groupsData.map((g) => [g.id, { programId: g.program_id }]))
+
+        const programsMap = new Map(programsData.map((p) => [p.id, { name: p.name, degreeId: p.degree_id }]))
+
+        const degreesMap = new Map(degreesData.map((d) => [d.id, { name: d.name }]))
 
         // Transform profiles data
-        const transformedUsers = (profilesData || []).map((profile) => ({
-          id: profile.id,
-          name: profile.full_name || "",
-          email: profile.email || "",
-          role: profile.role || "",
-          degreeId: profile.degree_id,
-          programId: profile.program_id,
-          enrollmentYear: profile.year,
-          status: profile.is_active ? "active" : "inactive",
-          degreeName: profile.degree_id ? degreesData?.find((d) => d.id === profile.degree_id)?.name || "-" : "-",
-          programName: profile.program_id ? programsData?.find((p) => p.id === profile.program_id)?.name || "-" : "-",
-        }))
+        const transformedUsers = profilesData.map((profile) => {
+          let programId = null
+          let programName = "-"
+          let degreeId = null
+          let degreeName = "-"
+          let enrollmentYear = "-"
+
+          // Get student-specific data
+          if (profile.role === "student") {
+            const studentData = studentProfilesMap.get(profile.id)
+            if (studentData) {
+              enrollmentYear = studentData.enrollmentYear || "-"
+
+              // Get program from group
+              if (studentData.groupId) {
+                const groupData = groupsMap.get(studentData.groupId)
+                if (groupData) {
+                  programId = groupData.programId
+
+                  // Get program name and degree
+                  const programData = programsMap.get(programId)
+                  if (programData) {
+                    programName = programData.name
+                    degreeId = programData.degreeId
+
+                    // Get degree name
+                    const degreeData = degreesMap.get(degreeId)
+                    if (degreeData) {
+                      degreeName = degreeData.name
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Get manager-specific data
+          if (profile.role === "manager") {
+            const managerData = managerProfilesMap.get(profile.id)
+            if (managerData && managerData.programId) {
+              programId = managerData.programId
+
+              // Get program name and degree
+              const programData = programsMap.get(programId)
+              if (programData) {
+                programName = programData.name
+                degreeId = programData.degreeId
+
+                // Get degree name
+                const degreeData = degreesMap.get(degreeId)
+                if (degreeData) {
+                  degreeName = degreeData.name
+                }
+              }
+            }
+          }
+
+          // Admin users don't have program or degree assignments
+          // They're shown with default values ("-")
+
+          return {
+            id: profile.id,
+            name: profile.full_name || "",
+            email: profile.email || "",
+            role: profile.role || "",
+            status: profile.is_active ? "active" : "inactive",
+            programName,
+            degreeName,
+            enrollmentYear,
+          }
+        })
 
         setUsers(transformedUsers)
         setFilteredUsers(transformedUsers)
@@ -203,12 +292,6 @@ export default function UsersPage() {
             {t("admin.users.inactive")}
           </Badge>
         )
-      case "pending":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("admin.users.pending")}
-          </Badge>
-        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -285,9 +368,9 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.users.allRoles")}</SelectItem>
-                      <SelectItem value="student">{t("admin.users.student")}</SelectItem>
-                      <SelectItem value="manager">{t("admin.users.manager")}</SelectItem>
                       <SelectItem value="admin">{t("admin.users.admin")}</SelectItem>
+                      <SelectItem value="manager">{t("admin.users.manager")}</SelectItem>
+                      <SelectItem value="student">{t("admin.users.student")}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -300,7 +383,6 @@ export default function UsersPage() {
                       <SelectItem value="all">{t("admin.users.allStatus")}</SelectItem>
                       <SelectItem value="active">{t("admin.users.active")}</SelectItem>
                       <SelectItem value="inactive">{t("admin.users.inactive")}</SelectItem>
-                      <SelectItem value="pending">{t("admin.users.pending")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -365,7 +447,7 @@ export default function UsersPage() {
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
                           <TableCell>{user.degreeName}</TableCell>
                           <TableCell>{user.programName}</TableCell>
-                          <TableCell>{user.enrollmentYear || "-"}</TableCell>
+                          <TableCell>{user.enrollmentYear}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
