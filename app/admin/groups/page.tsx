@@ -80,6 +80,7 @@ export default function GroupsPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [degrees, setDegrees] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSchemaUpdated, setIsSchemaUpdated] = useState(false)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -92,9 +93,37 @@ export default function GroupsPage() {
 
   const { toast } = useToast()
 
+  // Check if the schema has been updated
+  useEffect(() => {
+    const checkSchema = async () => {
+      try {
+        // Try to select a group with degree_id to see if the column exists
+        const { data, error } = await supabase.from("groups").select("degree_id").limit(1)
+
+        if (error && error.code === "PGRST204") {
+          // Column doesn't exist, show a message to run the migration
+          setIsSchemaUpdated(false)
+          toast({
+            title: "Database schema needs update",
+            description: "Please run the migration script to add degree_id to groups table",
+            variant: "destructive",
+          })
+        } else {
+          setIsSchemaUpdated(true)
+        }
+      } catch (error) {
+        console.error("Error checking schema:", error)
+      }
+    }
+
+    checkSchema()
+  }, [toast])
+
   // Fetch groups from Supabase
   useEffect(() => {
     const fetchGroups = async () => {
+      if (!isSchemaUpdated) return
+
       try {
         setIsLoading(true)
 
@@ -190,7 +219,7 @@ export default function GroupsPage() {
     }
 
     fetchGroups()
-  }, [t, toast])
+  }, [t, toast, isSchemaUpdated])
 
   // Fetch reference data (programs and degrees)
   useEffect(() => {
@@ -307,10 +336,30 @@ export default function GroupsPage() {
       ...currentGroup,
       [name]: value,
     })
+
+    // If program changes, update the degree based on the selected program
+    if (name === "programId") {
+      const selectedProgram = programs.find((p) => p.id.toString() === value)
+      if (selectedProgram && selectedProgram.degree_id) {
+        setCurrentGroup((prev) => ({
+          ...prev,
+          degreeId: selectedProgram.degree_id.toString(),
+        }))
+      }
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!isSchemaUpdated) {
+      toast({
+        title: "Cannot save group",
+        description: "Please run the migration script to add degree_id to groups table first",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       if (isEditing) {
@@ -321,7 +370,7 @@ export default function GroupsPage() {
             name: currentGroup.name,
             display_name: currentGroup.displayName,
             program_id: Number.parseInt(currentGroup.programId),
-            degree_id: Number.parseInt(currentGroup.degreeId),
+            degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
             year: currentGroup.year,
             status: currentGroup.status,
           })
@@ -367,7 +416,7 @@ export default function GroupsPage() {
             name: currentGroup.name,
             display_name: currentGroup.displayName,
             program_id: Number.parseInt(currentGroup.programId),
-            degree_id: Number.parseInt(currentGroup.degreeId),
+            degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
             year: currentGroup.year,
             status: currentGroup.status,
           })
@@ -521,6 +570,72 @@ export default function GroupsPage() {
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  // Create a script to run the SQL migration
+  const runMigration = async () => {
+    try {
+      setIsLoading(true)
+
+      // Execute the SQL to add the degree_id column with the correct UUID type
+      const { error } = await supabase.rpc("run_sql", {
+        sql_query: `
+        ALTER TABLE groups ADD COLUMN IF NOT EXISTS degree_id UUID REFERENCES degrees(id);
+        
+        UPDATE groups g
+        SET degree_id = p.degree_id
+        FROM programs p
+        WHERE g.program_id = p.id AND g.degree_id IS NULL;
+      `,
+      })
+
+      if (error) throw error
+
+      setIsSchemaUpdated(true)
+      toast({
+        title: "Success",
+        description: "Database schema updated successfully",
+      })
+    } catch (error: any) {
+      console.error("Error running migration:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update database schema",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!isSchemaUpdated) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{t("admin.groups.title")}</h1>
+              <p className="text-muted-foreground mt-2">{t("admin.groups.subtitle")}</p>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4 items-center justify-center py-8">
+                <h2 className="text-xl font-semibold">Database Schema Update Required</h2>
+                <p className="text-center max-w-md mb-4">
+                  The groups table needs to be updated to include a degree_id column. This is required for the groups
+                  page to function properly.
+                </p>
+                <Button onClick={runMigration} disabled={isLoading}>
+                  {isLoading ? "Updating Schema..." : "Update Database Schema"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

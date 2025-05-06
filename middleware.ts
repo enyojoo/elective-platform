@@ -60,6 +60,16 @@ export async function middleware(req: NextRequest) {
       requestHeaders.set("x-institution-id", data.institution.id)
       requestHeaders.set("x-institution-name", data.institution.name)
 
+      // Add favicon URL to headers if available
+      if (data.institution.favicon_url) {
+        requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
+      }
+
+      // Add primary color to headers if available
+      if (data.institution.primary_color) {
+        requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
+      }
+
       // If accessing the root of a subdomain, redirect to student login
       if (path === "/") {
         return NextResponse.redirect(new URL("/student/login", req.url))
