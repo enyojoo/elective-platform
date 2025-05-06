@@ -33,17 +33,8 @@ export default async function RootLayout({
   const subdomain = getSubdomain(host)
   const institutionId = headersList.get("x-institution-id")
   const institutionName = headersList.get("x-institution-name")
-  const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
-  const institutionPrimaryColor = headersList.get("x-institution-primary-color")
 
-  console.log("Layout: Processing request for", {
-    host,
-    subdomain,
-    institutionId,
-    institutionName,
-    hasFavicon: !!institutionFaviconUrl,
-    hasColor: !!institutionPrimaryColor,
-  })
+  console.log("Layout: Processing request for", { host, subdomain, institutionId, institutionName })
 
   // If we have institution info from headers, use it
   let institution = null
@@ -53,8 +44,6 @@ export default async function RootLayout({
       name: institutionName || "Institution",
       subdomain: subdomain,
       is_active: true,
-      favicon_url: institutionFaviconUrl || undefined,
-      primary_color: institutionPrimaryColor || undefined,
     }
     console.log("Layout: Using institution from headers:", institution.name)
   }
@@ -62,10 +51,9 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Add meta tags to help debug */}
+        {/* Add a meta tag to help debug */}
         <meta name="x-subdomain" content={subdomain || "none"} />
         <meta name="x-institution-id" content={institutionId || "none"} />
-        {institutionName && <meta name="x-institution-name" content={institutionName} />}
       </head>
       <body className={inter.className}>
         <Providers institution={institution}>

@@ -22,7 +22,7 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
     // Use the admin client to bypass RLS completely
     const { data, error } = await supabaseAdmin
       .from("institutions")
-      .select("id, name, subdomain, logo_url, favicon_url, primary_color")
+      .select("id, name, subdomain, logo_url, primary_color")
       .eq("subdomain", subdomain)
       .eq("is_active", true)
       .single()
