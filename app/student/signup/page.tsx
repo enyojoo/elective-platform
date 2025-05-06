@@ -110,9 +110,9 @@ export default function StudentSignupPage() {
   // Filter programs based on selected degree
   useEffect(() => {
     if (degree) {
-      const filtered = programs.filter((p) => p.degree_id.toString() === degree)
+      const filtered = programs.filter((p) => p.degree_id?.toString() === degree)
       setFilteredPrograms(filtered)
-      if (filtered.length > 0 && !filtered.find((p) => p.id.toString() === program)) {
+      if (filtered.length > 0 && program && !filtered.find((p) => p.id?.toString() === program)) {
         setProgram("")
       }
     } else {
@@ -125,11 +125,11 @@ export default function StudentSignupPage() {
     let filtered = groups
 
     if (degree) {
-      filtered = filtered.filter((g) => g.degree_id.toString() === degree)
+      filtered = filtered.filter((g) => g.degree_id?.toString() === degree)
     }
 
     if (program) {
-      filtered = filtered.filter((g) => g.program_id.toString() === program)
+      filtered = filtered.filter((g) => g.program_id?.toString() === program)
     }
 
     if (year) {
@@ -137,7 +137,7 @@ export default function StudentSignupPage() {
     }
 
     setFilteredGroups(filtered)
-    if (filtered.length > 0 && !filtered.find((g) => g.id.toString() === group)) {
+    if (filtered.length > 0 && group && !filtered.find((g) => g.id?.toString() === group)) {
       setGroup("")
     }
   }, [degree, program, year, group, groups])
@@ -252,7 +252,7 @@ export default function StudentSignupPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {degrees.map((d) => (
-                      <SelectItem key={d.id} value={d.id.toString()}>
+                      <SelectItem key={d.id} value={d.id?.toString() || ""}>
                         {d.name}
                       </SelectItem>
                     ))}
@@ -268,7 +268,7 @@ export default function StudentSignupPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPrograms.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
+                      <SelectItem key={p.id} value={p.id?.toString() || ""}>
                         {p.name}
                       </SelectItem>
                     ))}
@@ -301,7 +301,7 @@ export default function StudentSignupPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {filteredGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id.toString()}>
+                        <SelectItem key={g.id} value={g.id?.toString() || ""}>
                           {g.name}
                         </SelectItem>
                       ))}
