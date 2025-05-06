@@ -20,6 +20,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus, Globe } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { useCachedUniversities, type University } from "@/hooks/use-cached-universities"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
 
 // Mock universities data
 const mockUniversities = [
@@ -98,7 +104,7 @@ const mockUniversities = [
 ]
 
 // Mock countries for filtering
-const countries = [
+const countriesMock = [
   "United States",
   "United Kingdom",
   "Switzerland",
@@ -110,20 +116,34 @@ const countries = [
 ]
 
 export default function UniversitiesPage() {
-  const [universities, setUniversities] = useState(mockUniversities)
+  const { t } = useLanguage()
+  const { institution } = useInstitution()
+  const { toast } = useToast()
+  const { data: universities, isLoading, error, isInitialized } = useCachedUniversities(institution?.id)
+  const { invalidateCache } = useDataCache()
+  const [filteredUniversities, setFilteredUniversities] = useState<University[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [countryFilter, setCountryFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
-  const { t } = useLanguage()
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Get unique countries for filtering
+  const countries = universities
+    ? [...new Set(universities.map((uni) => uni.country))].sort()
+    : ["United States", "United Kingdom", "Switzerland", "Singapore", "Japan", "France", "China", "Australia"]
 
   // Filter universities based on search term and filters
   useEffect(() => {
-    let filteredUniversities = mockUniversities
+    if (!universities) return
+
+    let result = [...universities]
 
     if (searchTerm) {
-      filteredUniversities = filteredUniversities.filter(
+      result = result.filter(
         (university) =>
           university.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           university.city.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -131,16 +151,24 @@ export default function UniversitiesPage() {
     }
 
     if (statusFilter !== "all") {
-      filteredUniversities = filteredUniversities.filter((university) => university.status === statusFilter)
+      result = result.filter((university) => university.status === statusFilter)
     }
 
     if (countryFilter !== "all") {
-      filteredUniversities = filteredUniversities.filter((university) => university.country === countryFilter)
+      result = result.filter((university) => university.country === countryFilter)
     }
 
-    setUniversities(filteredUniversities)
+    setFilteredUniversities(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
     setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, statusFilter, countryFilter])
+  }, [searchTerm, statusFilter, countryFilter, universities])
+
+  const getCurrentPageItems = () => {
+    if (!filteredUniversities) return []
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredUniversities.slice(startIndex, endIndex)
+  }
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -172,7 +200,87 @@ export default function UniversitiesPage() {
   const indexOfLastItem = currentPage * itemsPerPage
   const indexOfFirstItem = indexOfLastItem - itemsPerPage
   const currentItems = universities.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(universities.length / itemsPerPage)
+  const totalPagesOld = universities ? Math.ceil(universities.length / itemsPerPage) : 1
+
+  if (!isInitialized) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton className="h-10 w-[250px]" />
+              <Skeleton className="h-4 w-[350px] mt-2" />
+            </div>
+            <Skeleton className="h-10 w-[150px]" />
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Skeleton className="h-10 flex-1" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-10 w-[130px]" />
+                    <Skeleton className="h-10 w-[180px]" />
+                  </div>
+                </div>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[60px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>
@@ -252,8 +360,8 @@ export default function UniversitiesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length > 0 ? (
-                      currentItems.map((university) => (
+                    {getCurrentPageItems().length > 0 ? (
+                      getCurrentPageItems().map((university) => (
                         <TableRow key={university.id}>
                           <TableCell className="font-medium">{university.name}</TableCell>
                           <TableCell>{university.country}</TableCell>
@@ -303,7 +411,7 @@ export default function UniversitiesPage() {
                 </Table>
               </div>
 
-              {universities.length > itemsPerPage && (
+              {filteredUniversities.length > itemsPerPage && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>

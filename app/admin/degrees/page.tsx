@@ -1,5 +1,17 @@
 "use client"
 
+import { Label } from "@/components/ui/label"
+
+import { DialogTitle } from "@/components/ui/dialog"
+
+import { DialogHeader } from "@/components/ui/dialog"
+
+import { DialogContent } from "@/components/ui/dialog"
+
+import { Dialog } from "@/components/ui/dialog"
+
+import { Badge } from "@/components/ui/badge"
+
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -8,12 +20,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Search, MoreHorizontal, Plus } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { useCachedDegrees } from "@/hooks/use-cached-degrees"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
 
 // Mock degree data
 const initialDegrees = [
@@ -54,9 +69,44 @@ interface DegreeFormData {
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const [degrees, setDegrees] = useState(initialDegrees)
-  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
+  const { institution } = useInstitution()
+  const { toast } = useToast()
+  const { data: degrees, isLoading, error, isInitialized } = useCachedDegrees(institution?.id)
+  const { invalidateCache } = useDataCache()
+  const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 10
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Filter degrees based on search term
+  useEffect(() => {
+    if (!degrees) return
+
+    let result = [...degrees]
+
+    if (searchTerm) {
+      result = result.filter(
+        (degree) =>
+          degree.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          degree.code.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    setFilteredDegrees(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, degrees])
+
+  // Get current page items
+  const getCurrentPageItems = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredDegrees.slice(startIndex, endIndex)
+  }
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentDegree, setCurrentDegree] = useState<DegreeFormData>({
     name: "",
@@ -68,23 +118,23 @@ export default function DegreesPage() {
   const [isEditing, setIsEditing] = useState(false)
 
   // Filter degrees based on search term
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredDegrees(degrees)
-      return
-    }
+  // useEffect(() => {
+  //   if (!searchTerm) {
+  //     setFilteredDegrees(degrees)
+  //     return
+  //   }
 
-    const filtered = degrees.filter(
-      (degree) =>
-        degree.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        degree.nameRu.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        degree.code.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
+  //   const filtered = degrees.filter(
+  //     (degree) =>
+  //       degree.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //       degree.nameRu.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //       degree.code.toLowerCase().includes(searchTerm.toLowerCase()),
+  //   )
 
-    setFilteredDegrees(filtered)
-  }, [degrees, searchTerm])
+  //   setFilteredDegrees(filtered)
+  // }, [degrees, searchTerm])
 
-  const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
+  const handleOpenDialog = (degree?: (typeof initialDegrees)[0]) => {
     if (degree) {
       setCurrentDegree(degree)
       setIsEditing(true)
@@ -114,14 +164,14 @@ export default function DegreesPage() {
 
     if (isEditing) {
       // Update existing degree
-      setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
+      // setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
     } else {
       // Add new degree
       const newDegree = {
         ...currentDegree,
         id: Math.random().toString(36).substring(2, 9),
       }
-      setDegrees([...degrees, newDegree])
+      // setDegrees([...degrees, newDegree])
     }
 
     setIsDialogOpen(false)
@@ -129,22 +179,22 @@ export default function DegreesPage() {
 
   const handleDelete = (id: string) => {
     if (confirm(t("admin.degrees.deleteConfirm"))) {
-      setDegrees(degrees.filter((degree) => degree.id !== id))
+      // setDegrees(degrees.filter((degree) => degree.id !== id))
     }
   }
 
   const toggleStatus = (id: string) => {
-    setDegrees(
-      degrees.map((degree) => {
-        if (degree.id === id) {
-          return {
-            ...degree,
-            status: degree.status === "active" ? "inactive" : "active",
-          }
-        }
-        return degree
-      }),
-    )
+    // setDegrees(
+    //   degrees.map((degree) => {
+    //     if (degree.id === id) {
+    //       return {
+    //         ...degree,
+    //         status: degree.status === "active" ? "inactive" : "active",
+    //       }
+    //     }
+    //     return degree
+    //   }),
+    // )
   }
 
   // Helper function to get status badge
@@ -165,6 +215,76 @@ export default function DegreesPage() {
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  if (!isInitialized) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <Skeleton className="h-10 w-[250px]" />
+              <Skeleton className="h-4 w-[350px] mt-2" />
+            </div>
+            <Skeleton className="h-10 w-[150px]" />
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Skeleton className="h-10 flex-1" />
+                </div>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[180px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -214,7 +334,7 @@ export default function DegreesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredDegrees.map((degree) => (
+                      getCurrentPageItems().map((degree) => (
                         <TableRow key={degree.id}>
                           <TableCell className="font-medium">{degree.name}</TableCell>
                           <TableCell>{degree.nameRu}</TableCell>
@@ -230,11 +350,11 @@ export default function DegreesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenDialog(degree)}>
-                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {/* <Pencil className="mr-2 h-4 w-4" /> */}
                                   {t("admin.degrees.edit")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(degree.id)}>
-                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {/* <Trash2 className="mr-2 h-4 w-4" /> */}
                                   {t("admin.degrees.delete")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => toggleStatus(degree.id)}>

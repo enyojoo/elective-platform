@@ -33,7 +33,7 @@ export default function UsersPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error } = useCachedUsers(institution?.id)
+  const { data: users, isLoading, error, isInitialized } = useCachedUsers(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -47,7 +47,9 @@ export default function UsersPage() {
 
   // Filter users based on search term and filters
   useEffect(() => {
-    let result = users || []
+    if (!users) return
+
+    let result = [...users]
 
     if (searchTerm) {
       result = result.filter(
@@ -145,6 +147,101 @@ export default function UsersPage() {
         variant: "destructive",
       })
     }
+  }
+
+  // Only show skeleton on initial load, not when data is cached
+  if (!isInitialized) {
+    return (
+      <DashboardLayout userRole={UserRole.ADMIN}>
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <Skeleton className="h-10 w-[250px]" />
+              <Skeleton className="h-4 w-[350px] mt-2" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-10 w-[150px]" />
+              <Skeleton className="h-10 w-[150px]" />
+            </div>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Skeleton className="h-10 flex-1" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-10 w-[130px]" />
+                    <Skeleton className="h-10 w-[130px]" />
+                  </div>
+                </div>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-5 w-full" />
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
