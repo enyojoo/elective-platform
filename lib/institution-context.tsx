@@ -169,3 +169,5 @@ export function useInstitution() {
   }
   return context
 }
+
+export const useInstitutionContext = useInstitution
