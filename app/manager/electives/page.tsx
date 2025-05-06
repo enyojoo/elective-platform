@@ -7,78 +7,38 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Filter, Eye, Plus } from "lucide-react"
+import { Search, Filter, Eye, Plus, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
-
-// Move mock data outside the component to avoid recreating it on each render
-const courseElectivePacks = [
-  {
-    id: "1",
-    title: "Fall 2023",
-    status: "active",
-    courses: 12,
-    selections: 45,
-    deadline: "2023-09-15",
-  },
-  {
-    id: "2",
-    title: "Spring 2024",
-    status: "active",
-    courses: 8,
-    selections: 32,
-    deadline: "2023-12-15",
-  },
-  {
-    id: "3",
-    title: "Spring 2023",
-    status: "inactive",
-    courses: 10,
-    selections: 38,
-    deadline: "2022-12-15",
-  },
-]
-
-// Update the exchangePrograms array to include deadline information
-const exchangePrograms = [
-  {
-    id: "1",
-    title: "Fall 2023",
-    status: "active",
-    universities: 8,
-    selections: 30,
-    deadline: "2023-09-10",
-  },
-  {
-    id: "2",
-    title: "Spring 2024",
-    status: "active",
-    universities: 6,
-    selections: 25,
-    deadline: "2023-12-10",
-  },
-  {
-    id: "3",
-    title: "Spring 2023",
-    status: "inactive",
-    universities: 7,
-    selections: 28,
-    deadline: "2022-12-10",
-  },
-]
+import { useInstitution } from "@/lib/institution-context"
+import { useCachedCourseElectives, useCachedExchangePrograms } from "@/hooks/use-cached-electives"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function ManageElectivesPage() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState(tabParam === "exchange" ? "exchange" : "courses")
   const [searchTerm, setSearchTerm] = useState("")
-  const [programFilter, setProgramFilter] = useState("all")
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const { t } = useLanguage()
+  const { institution } = useInstitution()
+
+  const {
+    electives: courseElectives,
+    isLoading: isCourseElectivesLoading,
+    error: courseElectivesError,
+  } = useCachedCourseElectives(institution?.id)
+
+  const {
+    exchangePrograms,
+    isLoading: isExchangeProgramsLoading,
+    error: exchangeProgramsError,
+  } = useCachedExchangePrograms(institution?.id)
 
   // Update activeTab when URL parameters change
   useEffect(() => {
@@ -87,17 +47,21 @@ export default function ManageElectivesPage() {
 
   // Use useMemo to avoid recalculating filtered data on every render
   const filteredCoursePacks = useMemo(() => {
-    return courseElectivePacks.filter((pack) => {
+    if (!courseElectives) return []
+
+    return courseElectives.filter((pack) => {
       return (
         (searchTerm === "" || pack.title.toLowerCase().includes(searchTerm.toLowerCase())) &&
         (semesterFilter === "all" || pack.title === semesterFilter) &&
         (statusFilter === "all" || pack.status === statusFilter)
       )
     })
-  }, [searchTerm, semesterFilter, statusFilter])
+  }, [searchTerm, semesterFilter, statusFilter, courseElectives])
 
   // Use useMemo for exchange programs as well
   const filteredExchangePrograms = useMemo(() => {
+    if (!exchangePrograms) return []
+
     return exchangePrograms.filter((pack) => {
       return (
         (searchTerm === "" || pack.title.toLowerCase().includes(searchTerm.toLowerCase())) &&
@@ -105,7 +69,7 @@ export default function ManageElectivesPage() {
         (statusFilter === "all" || pack.status === statusFilter)
       )
     })
-  }, [searchTerm, semesterFilter, statusFilter])
+  }, [searchTerm, semesterFilter, statusFilter, exchangePrograms])
 
   // Get status badge based on status - memoize this function to avoid recreating it on each render
   const getStatusBadge = useMemo(() => {
@@ -144,6 +108,9 @@ export default function ManageElectivesPage() {
   // Custom responsive grid class based on specific breakpoints
   const responsiveGridClass = "grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
 
+  const isLoading = activeTab === "courses" ? isCourseElectivesLoading : isExchangeProgramsLoading
+  const error = activeTab === "courses" ? courseElectivesError : exchangeProgramsError
+
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="flex flex-col gap-6">
@@ -153,6 +120,14 @@ export default function ManageElectivesPage() {
             <p className="text-muted-foreground mt-2">{t("manager.electives.subtitle")}</p>
           </div>
         </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardContent className="pt-6">
@@ -226,7 +201,39 @@ export default function ManageElectivesPage() {
                 </div>
 
                 <TabsContent value="courses" className="mt-0">
-                  {filteredCoursePacks.length > 0 ? (
+                  {isLoading ? (
+                    <div className={responsiveGridClass}>
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <Card key={`skeleton-${index}`} className="overflow-hidden">
+                          <CardHeader className="pb-2">
+                            <div className="flex justify-between items-start">
+                              <Skeleton className="h-6 w-[120px]" />
+                              <Skeleton className="h-5 w-[80px]" />
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.courses")}</p>
+                                <Skeleton className="h-6 w-[30px]" />
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
+                                <Skeleton className="h-6 w-[30px]" />
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
+                                <Skeleton className="h-5 w-[100px]" />
+                              </div>
+                            </div>
+                            <div className="flex justify-center">
+                              <Skeleton className="h-9 w-[120px]" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : filteredCoursePacks.length > 0 ? (
                     <div className={responsiveGridClass}>
                       {filteredCoursePacks.map((pack) => (
                         <Card key={pack.id} className="overflow-hidden">
@@ -235,21 +242,20 @@ export default function ManageElectivesPage() {
                               <CardTitle className="text-xl">{pack.title}</CardTitle>
                               {getStatusBadge(pack.status)}
                             </div>
-                            {/* Remove CardDescription with program information */}
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
                               <div>
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.courses")}</p>
-                                <p className="text-lg font-medium">{pack.courses}</p>
+                                <p className="text-lg font-medium">{pack.courses_count || 0}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
-                                <p className="text-lg font-medium">{pack.selections}</p>
+                                <p className="text-lg font-medium">{pack.selections_count || 0}</p>
                               </div>
                               <div className="col-span-2">
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
-                                <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
+                                <p className="text-sm">{new Date(pack.end_date).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex justify-center">
@@ -259,7 +265,6 @@ export default function ManageElectivesPage() {
                                   {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
-                              {/* Remove the DropdownMenu component */}
                             </div>
                           </CardContent>
                         </Card>
@@ -279,7 +284,39 @@ export default function ManageElectivesPage() {
                 </TabsContent>
 
                 <TabsContent value="exchange" className="mt-0">
-                  {filteredExchangePrograms.length > 0 ? (
+                  {isLoading ? (
+                    <div className={responsiveGridClass}>
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <Card key={`skeleton-${index}`} className="overflow-hidden">
+                          <CardHeader className="pb-2">
+                            <div className="flex justify-between items-start">
+                              <Skeleton className="h-6 w-[120px]" />
+                              <Skeleton className="h-5 w-[80px]" />
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.universities")}</p>
+                                <Skeleton className="h-6 w-[30px]" />
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
+                                <Skeleton className="h-6 w-[30px]" />
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
+                                <Skeleton className="h-5 w-[100px]" />
+                              </div>
+                            </div>
+                            <div className="flex justify-center">
+                              <Skeleton className="h-9 w-[120px]" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : filteredExchangePrograms.length > 0 ? (
                     <div className={responsiveGridClass}>
                       {filteredExchangePrograms.map((pack) => (
                         <Card key={pack.id} className="overflow-hidden">
@@ -288,21 +325,20 @@ export default function ManageElectivesPage() {
                               <CardTitle className="text-xl">{pack.title}</CardTitle>
                               {getStatusBadge(pack.status)}
                             </div>
-                            {/* Remove CardDescription with program information */}
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-2 gap-2 mb-4">
                               <div>
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.universities")}</p>
-                                <p className="text-lg font-medium">{pack.universities}</p>
+                                <p className="text-lg font-medium">{pack.universities_count || 0}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.selections")}</p>
-                                <p className="text-lg font-medium">{pack.selections}</p>
+                                <p className="text-lg font-medium">{pack.selections_count || 0}</p>
                               </div>
                               <div className="col-span-2">
                                 <p className="text-sm text-muted-foreground">{t("manager.electives.deadline")}:</p>
-                                <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
+                                <p className="text-sm">{new Date(pack.end_date).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex justify-center">
@@ -312,7 +348,6 @@ export default function ManageElectivesPage() {
                                   {t("manager.electives.viewDetails")}
                                 </Link>
                               </Button>
-                              {/* Remove the DropdownMenu component */}
                             </div>
                           </CardContent>
                         </Card>

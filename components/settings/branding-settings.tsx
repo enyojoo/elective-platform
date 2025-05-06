@@ -13,12 +13,14 @@ import { uploadLogo, uploadFavicon } from "@/lib/file-utils"
 import { useInstitution } from "@/lib/institution-context"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { useCachedInstitutionSettings } from "@/hooks/use-cached-institution-settings"
+import { useDataCache } from "@/lib/data-cache-context"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
   const { toast } = useToast()
   const { institution, updateInstitution } = useInstitution()
-  const [isLoading, setIsLoading] = useState(false)
+  const { invalidateCache } = useDataCache()
   const [isSaving, setIsSaving] = useState(false)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [isFaviconUploading, setIsFaviconUploading] = useState(false)
@@ -26,11 +28,13 @@ export function BrandingSettings() {
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
   const [institutionDomain, setInstitutionDomain] = useState(institution?.domain || "")
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
-  const [institutionData, setInstitutionData] = useState(null)
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [institutionId, setInstitutionId] = useState<string | null>(institution?.id || null)
   const [hasFaviconColumn, setHasFaviconColumn] = useState(false)
+
+  // Use our cached institution settings
+  const { settings, isLoading } = useCachedInstitutionSettings(institutionId || undefined)
 
   // Check if favicon_url column exists
   useEffect(() => {
@@ -86,52 +90,24 @@ export function BrandingSettings() {
     getInstitutionIdFromProfile()
   }, [institutionId])
 
-  // Fetch institution data
+  // Update state when settings are loaded
   useEffect(() => {
-    async function fetchInstitutionData() {
-      if (!institutionId) return
-
-      try {
-        setIsLoading(true)
-        console.log("Fetching institution data for ID:", institutionId)
-
-        const { data, error } = await supabase.from("institutions").select("*").eq("id", institutionId).single()
-
-        if (error) {
-          console.error("Error fetching institution data:", error)
-          toast({
-            title: t("settings.toast.error"),
-            description: t("settings.toast.institutionFetchError"),
-            variant: "destructive",
-          })
-          return
-        }
-
-        console.log("Institution data fetched:", data)
-
-        // Get favicon URL from localStorage if not in database
-        let faviconUrlValue = data.favicon_url
-        if (!faviconUrlValue && hasFaviconColumn) {
-          const storedFaviconUrl = localStorage.getItem(`favicon_url_${institutionId}`)
-          faviconUrlValue = storedFaviconUrl || null
-        }
-
-        setFaviconUrl(faviconUrlValue)
-        setLogoUrl(data.logo_url)
-        setInstitutionData(data)
-        setPrimaryColor(data.primary_color || "#027659")
-        setInstitutionName(data.name || "")
-        setInstitutionDomain(data.domain || "")
-        setSubdomain(data.subdomain || "")
-      } catch (error) {
-        console.error("Unexpected error in fetchInstitutionData:", error)
-      } finally {
-        setIsLoading(false)
+    if (settings) {
+      // Get favicon URL from localStorage if not in database
+      let faviconUrlValue = settings.favicon_url
+      if (!faviconUrlValue && hasFaviconColumn) {
+        const storedFaviconUrl = localStorage.getItem(`favicon_url_${institutionId}`)
+        faviconUrlValue = storedFaviconUrl || null
       }
-    }
 
-    fetchInstitutionData()
-  }, [institutionId, t, hasFaviconColumn])
+      setFaviconUrl(faviconUrlValue)
+      setLogoUrl(settings.logo_url)
+      setPrimaryColor(settings.primary_color || "#027659")
+      setInstitutionName(settings.name || "")
+      setInstitutionDomain(settings.domain || "")
+      setSubdomain(settings.subdomain || "")
+    }
+  }, [settings, hasFaviconColumn, institutionId])
 
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -187,6 +163,8 @@ export function BrandingSettings() {
           localStorage.setItem(`favicon_url_${institutionId}`, newFaviconUrl)
         } else {
           console.log("Updated institution with favicon_url in database")
+          // Invalidate the cache
+          invalidateCache("institutionSettings", institutionId)
         }
       } else {
         // Store in localStorage if column doesn't exist
@@ -265,6 +243,9 @@ export function BrandingSettings() {
         throw error
       }
 
+      // Invalidate the cache
+      invalidateCache("institutionSettings", institutionId)
+
       // Update the context if available
       if (institution && updateInstitution) {
         await updateInstitution({
@@ -313,6 +294,9 @@ export function BrandingSettings() {
         throw error
       }
 
+      // Invalidate the cache
+      invalidateCache("institutionSettings", institutionId)
+
       // Update the context if available
       if (institution && updateInstitution) {
         await updateInstitution({
@@ -339,10 +323,12 @@ export function BrandingSettings() {
   }
 
   const handleResetDefaults = () => {
-    setPrimaryColor(institutionData?.primary_color || "#027659")
-    setInstitutionName(institutionData?.name || "")
-    setInstitutionDomain(institutionData?.domain || "")
-    setSubdomain(institutionData?.subdomain || "")
+    if (settings) {
+      setPrimaryColor(settings.primary_color || "#027659")
+      setInstitutionName(settings.name || "")
+      setInstitutionDomain(settings.domain || "")
+      setSubdomain(settings.subdomain || "")
+    }
 
     toast({
       title: t("settings.toast.resetDefaults"),

@@ -1,32 +1,20 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { SessionContextProvider } from "@supabase/auth-helpers-react"
-import { InstitutionProvider } from "@/lib/institution-context"
+import type React from "react"
+
+import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/lib/language-context"
+import { InstitutionProvider } from "@/lib/institution-context"
+import { DataCacheProvider } from "@/lib/data-cache-context"
 
-interface Institution {
-  id: string
-  name: string
-  subdomain: string
-  logo_url?: string
-  primary_color?: string
-}
-
-interface ProvidersProps {
-  children: ReactNode
-  institution: Institution | null
-}
-
-export function Providers({ children, institution }: ProvidersProps) {
-  const supabase = createClientComponentClient()
-
+export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionContextProvider supabaseClient={supabase}>
-      <InstitutionProvider initialInstitution={institution}>
-        <LanguageProvider>{children}</LanguageProvider>
-      </InstitutionProvider>
-    </SessionContextProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <LanguageProvider>
+        <InstitutionProvider>
+          <DataCacheProvider>{children}</DataCacheProvider>
+        </InstitutionProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   )
 }

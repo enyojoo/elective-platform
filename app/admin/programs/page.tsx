@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -17,113 +17,57 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
+import { Search, MoreHorizontal, Filter, Plus, AlertCircle } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
-
-// Mock programs data
-const mockPrograms = [
-  {
-    id: "1",
-    name: "Master in Management",
-    nameRu: "Магистр менеджмента",
-    code: "MiM",
-    level: "master",
-    description: "A comprehensive program focusing on management principles and practices.",
-    descriptionRu: "Комплексная программа, ориентированная на принципы и практики менеджмента.",
-    students: 120,
-    courses: 18,
-    status: "active",
-    degreeId: "2",
-  },
-  {
-    id: "2",
-    name: "Master in Business Analytics",
-    nameRu: "Магистр бизнес-аналитики",
-    code: "MiBA",
-    level: "master",
-    description: "Advanced program for data-driven business decision making.",
-    descriptionRu: "Продвинутая программа для принятия бизнес-решений на основе данных.",
-    students: 45,
-    courses: 14,
-    status: "active",
-    degreeId: "2",
-  },
-  {
-    id: "3",
-    name: "Master in Corporate Finance",
-    nameRu: "Магистр корпоративных финансов",
-    code: "MCF",
-    level: "master",
-    description: "Specialized program in corporate finance and investment strategies.",
-    descriptionRu: "Специализированная программа по корпоративным финансам и инвестиционным стратегиям.",
-    students: 38,
-    courses: 12,
-    status: "active",
-    degreeId: "2",
-  },
-  {
-    id: "4",
-    name: "Bachelor in Management",
-    nameRu: "Бакалавр менеджмента",
-    code: "BiM",
-    level: "bachelor",
-    description: "Undergraduate program covering fundamental management concepts.",
-    descriptionRu: "Программа бакалавриата, охватывающая фундаментальные концепции менеджмента.",
-    students: 210,
-    courses: 24,
-    status: "active",
-    degreeId: "1",
-  },
-  {
-    id: "5",
-    name: "Master in Information Systems",
-    nameRu: "Магистр информационных систем",
-    code: "MIS",
-    level: "master",
-    description: "Advanced program focusing on information systems and digital transformation.",
-    descriptionRu: "Продвинутая программа, ориентированная на информационные системы и цифровую трансформацию.",
-    students: 32,
-    courses: 16,
-    status: "inactive",
-    degreeId: "2",
-  },
-]
-
-// Mock degrees data
-const mockDegrees = [
-  {
-    id: "1",
-    name: "Bachelor's",
-    nameRu: "Бакалавриат",
-    code: "bachelor",
-  },
-  {
-    id: "2",
-    name: "Master's",
-    nameRu: "Магистратура",
-    code: "master",
-  },
-]
+import { useCachedPrograms } from "@/hooks/use-cached-programs"
+import { useInstitution } from "@/lib/institution-context"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useDataCache } from "@/lib/data-cache-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ProgramsPage() {
   const { t } = useLanguage()
+  const { institution } = useInstitution()
+  const { programs, isLoading, error } = useCachedPrograms(institution?.id)
+  const { invalidateCache } = useDataCache()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [levelFilter, setLevelFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
   const itemsPerPage = 10
 
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
   // Filter programs based on search term and filters
-  const filteredPrograms = mockPrograms.filter((program) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      program.code.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || program.status === statusFilter
-    const matchesLevel = levelFilter === "all" || program.level === levelFilter
-    return matchesSearch && matchesStatus && matchesLevel
-  })
+  useEffect(() => {
+    if (!programs) return
+
+    let result = [...programs]
+
+    if (searchTerm) {
+      result = result.filter(
+        (program) =>
+          program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          program.code.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    if (statusFilter !== "all") {
+      result = result.filter((program) => program.status === statusFilter)
+    }
+
+    if (levelFilter !== "all") {
+      result = result.filter((program) => program.level === levelFilter)
+    }
+
+    setFilteredPrograms(result)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, statusFilter, levelFilter, programs])
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage
@@ -151,6 +95,32 @@ export default function ProgramsPage() {
     }
   }
 
+  // Handle program status change
+  const handleStatusChange = async (programId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase.from("programs").update({ status: newStatus }).eq("id", programId)
+
+      if (error) throw error
+
+      // Invalidate the programs cache
+      if (institution?.id) {
+        invalidateCache("programs", institution.id)
+      }
+
+      toast({
+        title: "Success",
+        description: `Program has been ${newStatus === "active" ? "activated" : "deactivated"}`,
+      })
+    } catch (error: any) {
+      console.error("Error updating program status:", error)
+      toast({
+        title: "Error",
+        description: `Failed to update program status: ${error.message}`,
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -167,6 +137,14 @@ export default function ProgramsPage() {
           </Link>
         </div>
 
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
@@ -178,20 +156,11 @@ export default function ProgramsPage() {
                     placeholder={t("admin.programs.searchPrograms")}
                     className="pl-8"
                     value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value)
-                      setCurrentPage(1)
-                    }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                      setStatusFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.programs.status")} />
@@ -203,13 +172,7 @@ export default function ProgramsPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={levelFilter}
-                    onValueChange={(value) => {
-                      setLevelFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={levelFilter} onValueChange={setLevelFilter}>
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.programs.level")} />
@@ -237,7 +200,40 @@ export default function ProgramsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length > 0 ? (
+                    {isLoading ? (
+                      // Skeleton loading state
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[150px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[60px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[40px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[40px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : currentItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center">
+                          {t("admin.programs.noPrograms")}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
                       currentItems.map((program) => (
                         <TableRow key={program.id}>
                           <TableCell className="font-medium">{program.name}</TableCell>
@@ -267,7 +263,11 @@ export default function ProgramsPage() {
                                     {t("admin.programs.viewStudents")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleStatusChange(program.id, program.status === "active" ? "inactive" : "active")
+                                  }
+                                >
                                   {program.status === "active"
                                     ? t("admin.programs.deactivate")
                                     : t("admin.programs.activate")}
@@ -277,12 +277,6 @@ export default function ProgramsPage() {
                           </TableCell>
                         </TableRow>
                       ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center">
-                          {t("admin.programs.noPrograms")}
-                        </TableCell>
-                      </TableRow>
                     )}
                   </TableBody>
                 </Table>

@@ -4,15 +4,31 @@ import { useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BookOpen, Calendar, ClipboardList } from "lucide-react"
+import { BookOpen, Calendar, ClipboardList, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { useRouter } from "next/navigation"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
+import {
+  useCachedStudentCourseSelections,
+  useCachedStudentExchangeSelections,
+} from "@/hooks/use-cached-student-selections"
+import { useSession } from "@supabase/auth-helpers-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function StudentDashboard() {
   const { t } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
+  const session = useSession()
+  const userId = session?.user?.id
+
+  const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
+  const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
+    useCachedStudentCourseSelections(userId)
+  const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
+    useCachedStudentExchangeSelections(userId)
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -20,31 +36,6 @@ export default function StudentDashboard() {
       router.push("/institution-required")
     }
   }, [isSubdomainAccess, router])
-
-  // Mock student data
-  const studentData = {
-    name: "Alex Johnson",
-    email: "alex.johnson@student.spbu.ru",
-    degree: "Bachelor",
-    program: "Management",
-    year: "2023",
-    group: "23.B12-vshm",
-    requiredElectives: {
-      courses: 2,
-      exchange: 1,
-      total: 3,
-    },
-    selectedElectives: {
-      courses: 1,
-      exchange: 0,
-      total: 1,
-    },
-    pendingSelections: {
-      courses: 1,
-      exchange: 1,
-      total: 2,
-    },
-  }
 
   // Mock upcoming deadlines
   const upcomingDeadlines = [
@@ -60,6 +51,37 @@ export default function StudentDashboard() {
     },
   ]
 
+  // Calculate student data from profile and selections
+  const studentData = {
+    name: profile?.full_name || "Loading...",
+    email: profile?.email || "Loading...",
+    degree: profile?.studentDetails?.groups?.programs?.degrees?.name || "Loading...",
+    program: profile?.studentDetails?.groups?.programs?.name || "Loading...",
+    year: profile?.studentDetails?.enrollment_year || "Loading...",
+    group: profile?.studentDetails?.groups?.name || "Loading...",
+    requiredElectives: {
+      courses: 2,
+      exchange: 1,
+      total: 3,
+    },
+    selectedElectives: {
+      courses: courseSelections?.length || 0,
+      exchange: exchangeSelections?.length || 0,
+      get total() {
+        return this.courses + this.exchange
+      },
+    },
+    pendingSelections: {
+      courses: courseSelections?.filter((s) => s.status === "pending")?.length || 0,
+      exchange: exchangeSelections?.filter((s) => s.status === "pending")?.length || 0,
+      get total() {
+        return this.courses + this.exchange
+      },
+    },
+  }
+
+  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading
+
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting
   }
@@ -71,6 +93,14 @@ export default function StudentDashboard() {
           <h1 className="text-3xl font-bold tracking-tight">{t("student.dashboard.title")}</h1>
         </div>
 
+        {profileError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{profileError}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -78,11 +108,17 @@ export default function StudentDashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
+                    {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -91,11 +127,17 @@ export default function StudentDashboard() {
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
+                    {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -104,11 +146,17 @@ export default function StudentDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
+                    {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -120,32 +168,40 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.academicDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.name")}:</dt>
-                  <dd>{studentData.name}</dd>
+              {isLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-6 w-full" />
+                  ))}
                 </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.degree")}:</dt>
-                  <dd>{studentData.degree}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.program")}:</dt>
-                  <dd>{studentData.program}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.yearEnrollment")}:</dt>
-                  <dd>{studentData.year}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.group")}:</dt>
-                  <dd>{studentData.group}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("student.dashboard.email")}:</dt>
-                  <dd>{studentData.email}</dd>
-                </div>
-              </dl>
+              ) : (
+                <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.name")}:</dt>
+                    <dd>{studentData.name}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.degree")}:</dt>
+                    <dd>{studentData.degree}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.program")}:</dt>
+                    <dd>{studentData.program}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.yearEnrollment")}:</dt>
+                    <dd>{studentData.year}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.group")}:</dt>
+                    <dd>{studentData.group}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("student.dashboard.email")}:</dt>
+                    <dd>{studentData.email}</dd>
+                  </div>
+                </dl>
+              )}
             </CardContent>
           </Card>
 

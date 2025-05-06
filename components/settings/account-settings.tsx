@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,30 +9,54 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
+import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
+import { useDataCache } from "@/lib/data-cache-context"
 
-export function AccountSettings({ adminProfile }) {
+export function AccountSettings() {
   const { t } = useLanguage()
   const { toast } = useToast()
+  const [userId, setUserId] = useState<string | undefined>(undefined)
+  const { profile, isLoading } = useCachedAdminProfile(userId)
+  const { invalidateCache } = useDataCache()
   const [isUpdating, setIsUpdating] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [name, setName] = useState(adminProfile?.full_name || "")
-  const [email, setEmail] = useState(adminProfile?.email || "")
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
+  // Get current user ID
+  useEffect(() => {
+    async function getCurrentUserId() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          setUserId(user.id)
+        }
+      } catch (error) {
+        console.error("Error getting current user:", error)
+      }
+    }
+
+    getCurrentUserId()
+  }, [])
+
+  // Set form values when profile is loaded
+  useEffect(() => {
+    if (profile) {
+      setName(profile.full_name || "")
+      setEmail(profile.email || "")
+    }
+  }, [profile])
+
   const handleUpdateInfo = async () => {
+    if (!userId) return
+
     setIsUpdating(true)
     try {
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        throw new Error("User not authenticated")
-      }
-
       // Update profile in database
       const { error: profileError } = await supabase
         .from("profiles")
@@ -40,14 +64,14 @@ export function AccountSettings({ adminProfile }) {
           full_name: name,
           // Note: We don't update email in profiles table directly
         })
-        .eq("id", user.id)
+        .eq("id", userId)
 
       if (profileError) {
         throw profileError
       }
 
       // Update email in auth if it changed
-      if (email !== adminProfile?.email) {
+      if (email !== profile?.email) {
         const { error: authError } = await supabase.auth.updateUser({
           email: email,
         })
@@ -57,11 +81,14 @@ export function AccountSettings({ adminProfile }) {
         }
       }
 
+      // Invalidate the cache
+      invalidateCache("adminProfile", userId)
+
       toast({
         title: t("settings.account.updateSuccess"),
         description: t("settings.account.updateSuccessMessage"),
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating profile:", error)
       toast({
         title: t("settings.toast.error"),
@@ -102,7 +129,7 @@ export function AccountSettings({ adminProfile }) {
         title: t("settings.account.passwordChanged"),
         description: t("settings.account.passwordChangedMessage"),
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error changing password:", error)
       toast({
         title: t("settings.toast.error"),
@@ -112,6 +139,14 @@ export function AccountSettings({ adminProfile }) {
     } finally {
       setIsChangingPassword(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
