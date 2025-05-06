@@ -17,6 +17,7 @@ import { UserRole } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@supabase/supabase-js"
 import { useInstitution } from "@/lib/institution-context"
+import { useTranslation } from "react-i18next"
 
 export default function UserEditPage() {
   const params = useParams()
@@ -26,7 +27,9 @@ export default function UserEditPage() {
   const { toast } = useToast()
   const { institution } = useInstitution()
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const { t } = useTranslation()
 
+  // Initialize all state variables with default values
   const [user, setUser] = useState({
     id: "",
     name: "",
@@ -37,13 +40,13 @@ export default function UserEditPage() {
 
   const [studentData, setStudentData] = useState({
     groupId: "",
-    enrollmentYear: "",
+    year: "",
+    degreeId: "", // Add degreeId here
   })
 
   const [managerData, setManagerData] = useState({
     degreeId: "",
-    programId: "",
-    academicYearId: "",
+    groupId: "",
   })
 
   const [degrees, setDegrees] = useState<any[]>([])
@@ -57,6 +60,8 @@ export default function UserEditPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+
+  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
   // Fetch reference data (degrees, programs, academic years, groups)
   useEffect(() => {
@@ -73,37 +78,17 @@ export default function UserEditPage() {
 
         if (degreesError) throw degreesError
 
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
-          .select("id, name, degree_id")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
-
-        if (programsError) throw programsError
-
-        // Fetch academic years
-        const { data: yearsData, error: yearsError } = await supabase
-          .from("academic_years")
-          .select("id, year, program_id")
-          .eq("institution_id", institution.id)
-          .eq("is_active", true)
-
-        if (yearsError) throw yearsError
-
         // Fetch groups
         const { data: groupsData, error: groupsError } = await supabase
           .from("groups")
-          .select("id, name, display_name, program_id, academic_year_id")
+          .select("id, name, degree_id, display_name, program_id, academic_year_id")
           .eq("institution_id", institution.id)
           .eq("status", "active")
 
         if (groupsError) throw groupsError
 
         setDegrees(degreesData)
-        setPrograms(programsData)
-        setAcademicYears(yearsData)
-        setGroups(groupsData)
+        setGroups(groupsData || [])
       } catch (error) {
         console.error("Error fetching reference data:", error)
         toast({
@@ -147,7 +132,7 @@ export default function UserEditPage() {
         if (profileData.role === UserRole.STUDENT) {
           const { data: studentProfile, error: studentError } = await supabase
             .from("student_profiles")
-            .select("group_id, enrollment_year")
+            .select("group_id, year, degree_id")
             .eq("profile_id", userId)
             .maybeSingle()
 
@@ -156,7 +141,8 @@ export default function UserEditPage() {
           if (studentProfile) {
             setStudentData({
               groupId: studentProfile.group_id || "",
-              enrollmentYear: studentProfile.enrollment_year || "",
+              year: studentProfile.year || "",
+              degreeId: studentProfile.degree_id || "",
             })
           }
         }
@@ -165,7 +151,7 @@ export default function UserEditPage() {
         if (profileData.role === UserRole.PROGRAM_MANAGER) {
           const { data: managerProfile, error: managerError } = await supabase
             .from("manager_profiles")
-            .select("program_id, degree_id, academic_year_id")
+            .select("group_id, degree_id")
             .eq("profile_id", userId)
             .maybeSingle()
 
@@ -174,8 +160,7 @@ export default function UserEditPage() {
           if (managerProfile) {
             setManagerData({
               degreeId: managerProfile.degree_id || "",
-              programId: managerProfile.program_id || "",
-              academicYearId: managerProfile.academic_year_id || "",
+              groupId: managerProfile.group_id || "",
             })
           }
         }
@@ -194,42 +179,20 @@ export default function UserEditPage() {
     fetchUserData()
   }, [isNewUser, userId, institution?.id, supabase, toast])
 
-  // Filter programs based on selected degree
+  // Filter groups based on selected degree
   useEffect(() => {
-    if (managerData.degreeId) {
-      setFilteredPrograms(programs.filter((program) => program.degree_id === managerData.degreeId))
-    } else {
-      setFilteredPrograms([])
-    }
-  }, [managerData.degreeId, programs])
-
-  // Filter academic years based on selected program
-  useEffect(() => {
-    if (managerData.programId) {
-      setFilteredYears(academicYears.filter((year) => year.program_id === managerData.programId))
-    } else {
-      setFilteredYears([])
-    }
-  }, [managerData.programId, academicYears])
-
-  // Filter groups based on selected program and academic year
-  useEffect(() => {
-    if (studentData.groupId) {
-      // Find the current group to get its program and academic year
-      const currentGroup = groups.find((group) => group.id === studentData.groupId)
-      if (currentGroup) {
-        // Find all groups with the same program and academic year
-        setFilteredGroups(
-          groups.filter(
-            (group) =>
-              group.program_id === currentGroup.program_id && group.academic_year_id === currentGroup.academic_year_id,
-          ),
-        )
+    if (studentData.degreeId) {
+      const filtered = groups.filter((group) => group.degree_id === studentData.degreeId)
+      setFilteredGroups(filtered)
+      // Reset group selection if current selection is not valid for new degree
+      if (!filtered.find((g) => g.id === studentData.groupId)) {
+        setStudentData((prev) => ({ ...prev, groupId: "" }))
       }
     } else {
       setFilteredGroups([])
+      setStudentData((prev) => ({ ...prev, groupId: "" }))
     }
-  }, [studentData.groupId, groups])
+  }, [studentData.degreeId, groups, studentData.groupId])
 
   const handleInputChange = (field: string, value: string | number) => {
     setUser((prev) => ({ ...prev, [field]: value }))
@@ -290,18 +253,20 @@ export default function UserEditPage() {
             .from("student_profiles")
             .update({
               group_id: studentData.groupId,
-              enrollment_year: studentData.enrollmentYear,
+              year: studentData.year,
+              degree_id: studentData.degreeId,
               updated_at: new Date().toISOString(),
             })
             .eq("profile_id", user.id)
 
           if (updateError) throw updateError
-        } else if (studentData.groupId && studentData.enrollmentYear) {
+        } else if (studentData.groupId && studentData.year && studentData.degreeId) {
           // Create new profile
           const { error: insertError } = await supabase.from("student_profiles").insert({
             profile_id: user.id,
             group_id: studentData.groupId,
-            enrollment_year: studentData.enrollmentYear,
+            year: studentData.year,
+            degree_id: studentData.degreeId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -326,21 +291,19 @@ export default function UserEditPage() {
           const { error: updateError } = await supabase
             .from("manager_profiles")
             .update({
-              program_id: managerData.programId,
+              group_id: managerData.groupId,
               degree_id: managerData.degreeId,
-              academic_year_id: managerData.academicYearId,
               updated_at: new Date().toISOString(),
             })
             .eq("profile_id", user.id)
 
           if (updateError) throw updateError
-        } else if (managerData.programId && managerData.degreeId && managerData.academicYearId) {
+        } else if (managerData.groupId && managerData.degreeId) {
           // Create new profile
           const { error: insertError } = await supabase.from("manager_profiles").insert({
             profile_id: user.id,
-            program_id: managerData.programId,
+            group_id: managerData.groupId,
             degree_id: managerData.degreeId,
-            academic_year_id: managerData.academicYearId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -463,42 +426,60 @@ export default function UserEditPage() {
               {user.role === UserRole.STUDENT && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="group">Group</Label>
+                    <Label htmlFor="degreeId">{t("admin.users.degree")}</Label>
+                    <Select
+                      value={studentData.degreeId}
+                      onValueChange={(value) => handleStudentDataChange("degreeId", value)}
+                    >
+                      <SelectTrigger id="degreeId">
+                        <SelectValue placeholder={t("admin.users.selectDegree")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {degrees.map((degree) => (
+                          <SelectItem key={degree.id} value={degree.id.toString()}>
+                            {degree.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="groupId">{t("admin.users.group")}</Label>
                     <Select
                       value={studentData.groupId}
                       onValueChange={(value) => handleStudentDataChange("groupId", value)}
+                      disabled={!studentData.degreeId || filteredGroups.length === 0}
                     >
-                      <SelectTrigger id="group">
-                        <SelectValue placeholder="Select group" />
+                      <SelectTrigger id="groupId">
+                        <SelectValue placeholder={t("admin.users.selectGroup")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name} ({group.display_name})
+                        {filteredGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.id.toString()}>
+                            {group.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+              )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="enrollmentYear">Enrollment Year</Label>
-                    <Select
-                      value={studentData.enrollmentYear}
-                      onValueChange={(value) => handleStudentDataChange("enrollmentYear", value)}
-                    >
-                      <SelectTrigger id="enrollmentYear">
-                        <SelectValue placeholder="Select enrollment year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {academicYears.map((year) => (
-                          <SelectItem key={year.id} value={year.year}>
-                            {year.year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {user.role === UserRole.STUDENT && (
+                <div className="space-y-2">
+                  <Label htmlFor="year">{t("admin.users.year")}</Label>
+                  <Select value={studentData.year} onValueChange={(value) => handleStudentDataChange("year", value)}>
+                    <SelectTrigger id="year">
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
@@ -526,8 +507,8 @@ export default function UserEditPage() {
                   <div className="space-y-2">
                     <Label htmlFor="managerProgram">Program</Label>
                     <Select
-                      value={managerData.programId}
-                      onValueChange={(value) => handleManagerDataChange("programId", value)}
+                      value={managerData.groupId}
+                      onValueChange={(value) => handleManagerDataChange("groupId", value)}
                       disabled={!managerData.degreeId}
                     >
                       <SelectTrigger id="managerProgram">

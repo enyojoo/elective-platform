@@ -25,8 +25,6 @@ const initialGroups: any[] = []
 interface GroupFormData {
   id?: string
   name: string
-  displayName: string
-  programId: string
   degreeId: string
   year: string
   status: string
@@ -40,8 +38,6 @@ export default function GroupsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
     name: "",
-    displayName: "",
-    programId: "",
     degreeId: "",
     year: "",
     status: "active",
@@ -59,7 +55,6 @@ export default function GroupsPage() {
   const itemsPerPage = 10
 
   // Filters
-  const [programFilter, setProgramFilter] = useState("")
   const [yearFilter, setYearFilter] = useState("")
   const [degreeFilter, setDegreeFilter] = useState("")
 
@@ -272,11 +267,6 @@ export default function GroupsPage() {
   useEffect(() => {
     let result = groups
 
-    // Apply program filter
-    if (programFilter && programFilter !== "all") {
-      result = result.filter((group) => group.program === programFilter)
-    }
-
     // Apply year filter
     if (yearFilter && yearFilter !== "all") {
       result = result.filter((group) => group.year === yearFilter)
@@ -298,7 +288,7 @@ export default function GroupsPage() {
 
     setFilteredGroups(result)
     setCurrentPage(1) // Reset to first page when filters change
-  }, [groups, searchTerm, programFilter, yearFilter, degreeFilter])
+  }, [groups, searchTerm, yearFilter, degreeFilter])
 
   // Get current page items
   const indexOfLastItem = currentPage * itemsPerPage
@@ -312,8 +302,6 @@ export default function GroupsPage() {
       setCurrentGroup({
         id: group.id,
         name: group.name,
-        displayName: group.displayName,
-        programId: group.programId?.toString() || "",
         degreeId: group.degreeId?.toString() || "",
         year: group.year,
         status: group.status,
@@ -322,8 +310,6 @@ export default function GroupsPage() {
     } else {
       setCurrentGroup({
         name: "",
-        displayName: "",
-        programId: programs[0]?.id.toString() || "",
         degreeId: degrees[0]?.id.toString() || "",
         year: new Date().getFullYear().toString(),
         status: "active",
@@ -372,17 +358,6 @@ export default function GroupsPage() {
       ...currentGroup,
       [name]: value,
     })
-
-    // If program changes, update the degree based on the selected program
-    if (name === "programId") {
-      const selectedProgram = programs.find((p) => p.id.toString() === value)
-      if (selectedProgram && selectedProgram.degree_id) {
-        setCurrentGroup((prev) => ({
-          ...prev,
-          degreeId: selectedProgram.degree_id.toString(),
-        }))
-      }
-    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -395,9 +370,7 @@ export default function GroupsPage() {
           .from("groups")
           .update({
             name: currentGroup.name,
-            display_name: currentGroup.displayName,
-            program_id: Number.parseInt(currentGroup.programId),
-            degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
+            degree_id: currentGroup.degreeId,
             year: currentGroup.year,
             status: currentGroup.status,
           })
@@ -410,8 +383,7 @@ export default function GroupsPage() {
 
         if (fetchError) throw fetchError
 
-        // Get program and degree names
-        const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+        // Get degree name
         const degree = degrees.find((d) => d.id === currentGroup.degreeId)
 
         if (data) {
@@ -419,9 +391,6 @@ export default function GroupsPage() {
             ...groups.find((g) => g.id === currentGroup.id),
             id: data.id.toString(),
             name: data.name,
-            displayName: data.display_name,
-            program: program?.name || "Unknown",
-            programId: data.program_id,
             degree: degree?.name || "Unknown",
             degreeId: data.degree_id,
             year: data.year,
@@ -445,9 +414,7 @@ export default function GroupsPage() {
           .from("groups")
           .insert({
             name: currentGroup.name,
-            display_name: currentGroup.displayName,
-            program_id: Number.parseInt(currentGroup.programId),
-            degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
+            degree_id: currentGroup.degreeId,
             year: currentGroup.year,
             status: currentGroup.status,
           })
@@ -456,16 +423,12 @@ export default function GroupsPage() {
         if (error) throw error
 
         if (data && data[0]) {
-          // Get program and degree names
-          const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+          // Get degree name
           const degree = degrees.find((d) => d.id === currentGroup.degreeId)
 
           const newGroup = {
             id: data[0].id.toString(),
             name: data[0].name,
-            displayName: data[0].display_name,
-            program: program?.name || "Unknown",
-            programId: data[0].program_id,
             degree: degree?.name || "Unknown",
             degreeId: data[0].degree_id,
             year: data[0].year,
@@ -566,7 +529,6 @@ export default function GroupsPage() {
   }
 
   const resetFilters = () => {
-    setProgramFilter("")
     setYearFilter("")
     setDegreeFilter("")
     setSearchTerm("")
@@ -644,21 +606,6 @@ export default function GroupsPage() {
                     />
                   </div>
                   <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <Select value={programFilter || "all"} onValueChange={setProgramFilter}>
-                      <SelectTrigger className="w-[180px]">
-                        <Filter className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder={t("admin.groups.program")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("admin.groups.allPrograms")}</SelectItem>
-                        {programsList.map((program) => (
-                          <SelectItem key={program} value={program}>
-                            {program}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
                     <Select value={yearFilter || "all"} onValueChange={setYearFilter}>
                       <SelectTrigger className="w-[130px]">
                         <Filter className="mr-2 h-4 w-4" />
@@ -697,8 +644,6 @@ export default function GroupsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t("admin.groups.groupCode")}</TableHead>
-                      <TableHead>{t("admin.groups.displayName")}</TableHead>
-                      <TableHead>{t("admin.groups.program")}</TableHead>
                       <TableHead>{t("admin.groups.degree")}</TableHead>
                       <TableHead>{t("admin.groups.year")}</TableHead>
                       <TableHead>{t("admin.groups.students")}</TableHead>
@@ -716,12 +661,6 @@ export default function GroupsPage() {
                           </TableCell>
                           <TableCell>
                             <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-32" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-24" />
                           </TableCell>
                           <TableCell>
                             <Skeleton className="h-6 w-16" />
@@ -747,8 +686,6 @@ export default function GroupsPage() {
                       currentItems.map((group) => (
                         <TableRow key={group.id}>
                           <TableCell className="font-medium">{group.name}</TableCell>
-                          <TableCell>{group.displayName}</TableCell>
-                          <TableCell>{group.program}</TableCell>
                           <TableCell>{getDegreeBadge(group.degree)}</TableCell>
                           <TableCell>{group.year}</TableCell>
                           <TableCell>
@@ -853,48 +790,16 @@ export default function GroupsPage() {
               <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={currentGroup.name}
-                    onChange={handleInputChange}
-                    placeholder={t("admin.groups.groupCodePlaceholder")}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
-                  <Input
-                    id="displayName"
-                    name="displayName"
-                    value={currentGroup.displayName}
-                    onChange={handleInputChange}
-                    placeholder={t("admin.groups.displayNamePlaceholder")}
-                    required
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="programId">{t("admin.groups.program")}</Label>
-                <select
-                  id="programId"
-                  name="programId"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentGroup.programId}
+                <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={currentGroup.name}
                   onChange={handleInputChange}
+                  placeholder={t("admin.groups.groupCodePlaceholder")}
                   required
-                >
-                  <option value="">{t("admin.groups.selectProgram")}</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

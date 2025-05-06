@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@supabase/supabase-js"
 import { useInstitution } from "@/lib/institution-context"
 
-export default function ReassignProgramPage() {
+export default function ReassignManagerPage() {
   const params = useParams()
   const router = useRouter()
   const userId = params.id
@@ -35,23 +35,21 @@ export default function ReassignProgramPage() {
   const [currentAssignment, setCurrentAssignment] = useState({
     degreeId: "",
     degreeName: "",
-    programId: "",
-    programName: "",
-    academicYearId: "",
-    enrollmentYear: "",
+    groupId: "",
+    groupName: "",
+    year: "",
   })
 
   const [newAssignment, setNewAssignment] = useState({
     degreeId: "",
-    programId: "",
-    academicYearId: "",
+    groupId: "",
+    year: "",
   })
 
   const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
-  const [academicYears, setAcademicYears] = useState<any[]>([])
-  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
-  const [filteredYears, setFilteredYears] = useState<any[]>([])
+  const [groups, setGroups] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -75,12 +73,10 @@ export default function ReassignProgramPage() {
           .from("manager_profiles")
           .select(`
             profile_id,
-            program_id,
+            group_id,
             degree_id,
-            academic_year_id,
-            programs(id, name),
-            degrees(id, name),
-            academic_years(id, year)
+            groups(id, name),
+            degrees(id, name)
           `)
           .eq("profile_id", userId)
           .single()
@@ -101,16 +97,15 @@ export default function ReassignProgramPage() {
           setCurrentAssignment({
             degreeId: managerData.degree_id || "",
             degreeName: managerData.degrees?.name || "",
-            programId: managerData.program_id || "",
-            programName: managerData.programs?.name || "",
-            academicYearId: managerData.academic_year_id || "",
-            enrollmentYear: managerData.academic_years?.year || "",
+            groupId: managerData.group_id || "",
+            groupName: managerData.groups?.name || "",
+            year: managerData.year || "",
           })
 
           setNewAssignment({
             degreeId: managerData.degree_id || "",
-            programId: managerData.program_id || "",
-            academicYearId: managerData.academic_year_id || "",
+            groupId: managerData.group_id || "",
+            year: managerData.year || "",
           })
         }
       } catch (error) {
@@ -128,7 +123,7 @@ export default function ReassignProgramPage() {
     fetchUserData()
   }, [institution?.id, userId, supabase, toast])
 
-  // Fetch degrees, programs, and academic years
+  // Fetch degrees, groups, and years
   useEffect(() => {
     const fetchReferenceData = async () => {
       if (!institution?.id) return
@@ -143,27 +138,25 @@ export default function ReassignProgramPage() {
 
         if (degreesError) throw degreesError
 
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
+        // Fetch groups
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
           .select("id, name, degree_id")
           .eq("institution_id", institution.id)
           .eq("status", "active")
 
-        if (programsError) throw programsError
+        if (groupsError) throw groupsError
 
-        // Fetch academic years
-        const { data: yearsData, error: yearsError } = await supabase
-          .from("academic_years")
-          .select("id, year, program_id")
-          .eq("institution_id", institution.id)
-          .eq("is_active", true)
-
-        if (yearsError) throw yearsError
+        // Generate years (current year - 5 to current year + 1)
+        const currentYear = new Date().getFullYear()
+        const yearsList = []
+        for (let i = currentYear - 5; i <= currentYear + 1; i++) {
+          yearsList.push(i.toString())
+        }
 
         setDegrees(degreesData)
-        setPrograms(programsData)
-        setAcademicYears(yearsData)
+        setGroups(groupsData)
+        setYears(yearsList)
       } catch (error) {
         console.error("Error fetching reference data:", error)
         toast({
@@ -177,40 +170,22 @@ export default function ReassignProgramPage() {
     fetchReferenceData()
   }, [institution?.id, supabase, toast])
 
-  // Filter programs based on selected degree
+  // Filter groups based on selected degree
   useEffect(() => {
     if (newAssignment.degreeId) {
-      setFilteredPrograms(programs.filter((program) => program.degree_id === newAssignment.degreeId))
+      setFilteredGroups(groups.filter((group) => group.degree_id === newAssignment.degreeId))
     } else {
-      setFilteredPrograms([])
+      setFilteredGroups([])
     }
 
-    // Reset program selection if degree changes
+    // Reset group selection if degree changes
     if (newAssignment.degreeId !== currentAssignment.degreeId) {
       setNewAssignment((prev) => ({
         ...prev,
-        programId: "",
-        academicYearId: "",
+        groupId: "",
       }))
     }
-  }, [newAssignment.degreeId, programs, currentAssignment.degreeId])
-
-  // Filter academic years based on selected program
-  useEffect(() => {
-    if (newAssignment.programId) {
-      setFilteredYears(academicYears.filter((year) => year.program_id === newAssignment.programId))
-    } else {
-      setFilteredYears([])
-    }
-
-    // Reset academic year selection if program changes
-    if (newAssignment.programId !== currentAssignment.programId) {
-      setNewAssignment((prev) => ({
-        ...prev,
-        academicYearId: "",
-      }))
-    }
-  }, [newAssignment.programId, academicYears, currentAssignment.programId])
+  }, [newAssignment.degreeId, groups, currentAssignment.degreeId])
 
   const handleDegreeChange = (value: string) => {
     setNewAssignment((prev) => ({
@@ -219,17 +194,17 @@ export default function ReassignProgramPage() {
     }))
   }
 
-  const handleProgramChange = (value: string) => {
+  const handleGroupChange = (value: string) => {
     setNewAssignment((prev) => ({
       ...prev,
-      programId: value,
+      groupId: value,
     }))
   }
 
-  const handleAcademicYearChange = (value: string) => {
+  const handleYearChange = (value: string) => {
     setNewAssignment((prev) => ({
       ...prev,
-      academicYearId: value,
+      year: value,
     }))
   }
 
@@ -252,9 +227,9 @@ export default function ReassignProgramPage() {
         const { error: updateError } = await supabase
           .from("manager_profiles")
           .update({
-            program_id: newAssignment.programId,
+            group_id: newAssignment.groupId,
             degree_id: newAssignment.degreeId,
-            academic_year_id: newAssignment.academicYearId,
+            year: newAssignment.year,
             updated_at: new Date().toISOString(),
           })
           .eq("profile_id", userId)
@@ -264,9 +239,9 @@ export default function ReassignProgramPage() {
         // Create new profile
         const { error: insertError } = await supabase.from("manager_profiles").insert({
           profile_id: userId,
-          program_id: newAssignment.programId,
+          group_id: newAssignment.groupId,
           degree_id: newAssignment.degreeId,
-          academic_year_id: newAssignment.academicYearId,
+          year: newAssignment.year,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -339,12 +314,12 @@ export default function ReassignProgramPage() {
                     <p className="mt-1">{currentAssignment.degreeName || "Not assigned"}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Program</Label>
-                    <p className="mt-1">{currentAssignment.programName || "Not assigned"}</p>
+                    <Label className="text-sm font-medium">Group</Label>
+                    <p className="mt-1">{currentAssignment.groupName || "Not assigned"}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Enrollment Year</Label>
-                    <p className="mt-1">{currentAssignment.enrollmentYear || "Not assigned"}</p>
+                    <Label className="text-sm font-medium">Year</Label>
+                    <p className="mt-1">{currentAssignment.year || "Not assigned"}</p>
                   </div>
                 </div>
               </div>
@@ -370,22 +345,22 @@ export default function ReassignProgramPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="program">Program</Label>
+                      <Label htmlFor="group">Group</Label>
                       <Select
-                        value={newAssignment.programId}
-                        onValueChange={handleProgramChange}
+                        value={newAssignment.groupId}
+                        onValueChange={handleGroupChange}
                         disabled={!newAssignment.degreeId}
                         required
                       >
-                        <SelectTrigger id="program">
+                        <SelectTrigger id="group">
                           <SelectValue
-                            placeholder={newAssignment.degreeId ? "Select program" : "Select a degree first"}
+                            placeholder={newAssignment.degreeId ? "Select group" : "Select a degree first"}
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {filteredPrograms.map((program) => (
-                            <SelectItem key={program.id} value={program.id}>
-                              {program.name}
+                          {filteredGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -393,22 +368,15 @@ export default function ReassignProgramPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="academicYear">Academic Year</Label>
-                      <Select
-                        value={newAssignment.academicYearId}
-                        onValueChange={handleAcademicYearChange}
-                        disabled={!newAssignment.programId}
-                        required
-                      >
-                        <SelectTrigger id="academicYear">
-                          <SelectValue
-                            placeholder={newAssignment.programId ? "Select year" : "Select a program first"}
-                          />
+                      <Label htmlFor="year">Year</Label>
+                      <Select value={newAssignment.year} onValueChange={handleYearChange} required>
+                        <SelectTrigger id="year">
+                          <SelectValue placeholder="Select year" />
                         </SelectTrigger>
                         <SelectContent>
-                          {filteredYears.map((year) => (
-                            <SelectItem key={year.id} value={year.id}>
-                              {year.year}
+                          {years.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
                             </SelectItem>
                           ))}
                         </SelectContent>

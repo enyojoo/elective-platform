@@ -228,8 +228,8 @@ export default function UsersPage() {
                       <TableHead>{t("admin.users.email")}</TableHead>
                       <TableHead>{t("admin.users.role")}</TableHead>
                       <TableHead>{t("admin.users.degree")}</TableHead>
-                      <TableHead>{t("admin.users.program")}</TableHead>
-                      <TableHead>{t("admin.users.enrollmentYear")}</TableHead>
+                      <TableHead>{t("admin.users.group")}</TableHead>
+                      <TableHead>{t("admin.users.year")}</TableHead>
                       <TableHead>{t("admin.users.status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.users.action")}</TableHead>
                     </TableRow>
@@ -278,8 +278,8 @@ export default function UsersPage() {
                           <TableCell>{user.email}</TableCell>
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
                           <TableCell>{user.degreeName}</TableCell>
-                          <TableCell>{user.programName}</TableCell>
-                          <TableCell>{user.enrollmentYear}</TableCell>
+                          <TableCell>{user.groupName}</TableCell>
+                          <TableCell>{user.year}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>

@@ -36,91 +36,64 @@ export default function InviteStudentPage() {
     fullName: "",
     email: "",
     degreeId: "",
-    programId: "",
     groupId: "",
     year: "",
   })
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      // Fetch degrees
+      const { data: degreesData, error: degreesError } = await supabase
+        .from("degrees")
+        .select("id, name, code")
+        .eq("institution_id", institution.id)
+
+      if (degreesError) throw degreesError
+      setDegrees(degreesData || [])
+
+      // Fetch groups
+      const { data: groupsData, error: groupsError } = await supabase
+        .from("groups")
+        .select("id, name, degree_id")
+        .eq("institution_id", institution.id)
+
+      if (groupsError) throw groupsError
+      setGroups(groupsData || [])
+
+      // Generate years (current year - 5 to current year + 1)
+      const currentYear = new Date().getFullYear()
+      const yearsList = []
+      for (let i = currentYear - 5; i <= currentYear + 1; i++) {
+        yearsList.push(i.toString())
+      }
+      setYears(yearsList)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load form data",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!institution) return
-
-    const fetchData = async () => {
-      setIsLoading(true)
-      try {
-        // Fetch degrees
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name, code")
-          .eq("institution_id", institution.id)
-
-        if (degreesError) throw degreesError
-        setDegrees(degreesData || [])
-
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
-          .select("id, name, code, degree_id")
-          .eq("institution_id", institution.id)
-
-        if (programsError) throw programsError
-        setPrograms(programsData || [])
-
-        // Fetch groups
-        const { data: groupsData, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name, program_id")
-          .eq("institution_id", institution.id)
-
-        if (groupsError) throw groupsError
-        setGroups(groupsData || [])
-
-        // Generate years (current year - 5 to current year + 1)
-        const currentYear = new Date().getFullYear()
-        const yearsList = []
-        for (let i = currentYear - 5; i <= currentYear + 1; i++) {
-          yearsList.push(i.toString())
-        }
-        setYears(yearsList)
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load form data",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
 
     fetchData()
   }, [institution, supabase, toast])
 
-  // Filter programs based on selected degree
+  // Filter groups based on selected degree
   useEffect(() => {
     if (formData.degreeId) {
-      const filtered = programs.filter((program) => program.degree_id === Number.parseInt(formData.degreeId))
-      setFilteredPrograms(filtered)
-      // Reset program selection if current selection is not valid for new degree
-      if (!filtered.find((p) => p.id === Number.parseInt(formData.programId))) {
-        setFormData((prev) => ({ ...prev, programId: "", groupId: "" }))
-        setFilteredGroups([])
-      }
-    } else {
-      setFilteredPrograms([])
-      setFormData((prev) => ({ ...prev, programId: "", groupId: "" }))
-      setFilteredGroups([])
-    }
-  }, [formData.degreeId, programs, formData.programId])
-
-  // Filter groups based on selected program
-  useEffect(() => {
-    if (formData.programId) {
-      const filtered = groups.filter((group) => group.program_id === Number.parseInt(formData.programId))
+      const filtered = groups.filter((group) => group.degree_id === Number.parseInt(formData.degreeId))
       setFilteredGroups(filtered)
-      // Reset group selection if current selection is not valid for new program
+      // Reset group selection if current selection is not valid for new degree
       if (!filtered.find((g) => g.id === Number.parseInt(formData.groupId))) {
         setFormData((prev) => ({ ...prev, groupId: "" }))
       }
@@ -128,7 +101,7 @@ export default function InviteStudentPage() {
       setFilteredGroups([])
       setFormData((prev) => ({ ...prev, groupId: "" }))
     }
-  }, [formData.programId, groups, formData.groupId])
+  }, [formData.degreeId, groups, formData.groupId])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -173,7 +146,6 @@ export default function InviteStudentPage() {
         role: "student",
         institution_id: institution.id,
         degree_id: formData.degreeId ? Number.parseInt(formData.degreeId) : null,
-        program_id: formData.programId ? Number.parseInt(formData.programId) : null,
         group_id: formData.groupId ? Number.parseInt(formData.groupId) : null,
         year: formData.year,
         is_active: true,
@@ -185,9 +157,8 @@ export default function InviteStudentPage() {
       const { error: studentError } = await supabase.from("student_profiles").insert({
         user_id: authData.user?.id,
         degree_id: formData.degreeId ? Number.parseInt(formData.degreeId) : null,
-        program_id: formData.programId ? Number.parseInt(formData.programId) : null,
         group_id: formData.groupId ? Number.parseInt(formData.groupId) : null,
-        enrollment_year: formData.year,
+        year: formData.year,
       })
 
       if (studentError) throw studentError
@@ -277,33 +248,11 @@ export default function InviteStudentPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="programId">{t("admin.users.program")}</Label>
-                    <Select
-                      value={formData.programId}
-                      onValueChange={(value) => handleSelectChange("programId", value)}
-                      disabled={!formData.degreeId || filteredPrograms.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectProgram")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredPrograms.map((program) => (
-                          <SelectItem key={program.id} value={program.id.toString()}>
-                            {program.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
                     <Label htmlFor="groupId">{t("admin.users.group")}</Label>
                     <Select
                       value={formData.groupId}
                       onValueChange={(value) => handleSelectChange("groupId", value)}
-                      disabled={!formData.programId || filteredGroups.length === 0}
+                      disabled={!formData.degreeId || filteredGroups.length === 0}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={t("admin.users.selectGroup")} />
@@ -317,21 +266,22 @@ export default function InviteStudentPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="year">{t("admin.users.enrollmentYear")}</Label>
-                    <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="year">{t("admin.users.year")}</Label>
+                  <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

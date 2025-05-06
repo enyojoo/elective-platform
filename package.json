@@ -59,11 +59,13 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "@supabase/supabase-js": "latest",
+    "i18next": "latest",
     "@tanstack/react-table": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
     "dotenv": "latest",
     "fs": "latest",
     "path": "latest",
+    "react-i18next": "latest",
     "@supabase/auth-helpers-react": "latest"
   },
   "devDependencies": {

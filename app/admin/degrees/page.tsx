@@ -25,7 +25,6 @@ const initialDegrees = [
     name: "Bachelor's",
     nameRu: "Бакалавриат",
     code: "bachelor",
-    durationYears: 4,
     status: "active",
   },
   {
@@ -33,7 +32,6 @@ const initialDegrees = [
     name: "Master's",
     nameRu: "Магистратура",
     code: "master",
-    durationYears: 2,
     status: "active",
   },
   {
@@ -41,7 +39,6 @@ const initialDegrees = [
     name: "Executive MBA",
     nameRu: "Исполнительный MBA",
     code: "emba",
-    durationYears: 1.5,
     status: "inactive",
   },
 ]
@@ -51,7 +48,6 @@ interface DegreeFormData {
   name: string
   nameRu: string
   code: string
-  durationYears: number
   status: string
 }
 
@@ -66,7 +62,6 @@ export default function DegreesPage() {
     name: "",
     nameRu: "",
     code: "",
-    durationYears: 2,
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
@@ -106,7 +101,6 @@ export default function DegreesPage() {
             name: degree.name,
             nameRu: degree.name_ru || "",
             code: degree.code,
-            durationYears: degree.duration_years,
             status: degree.status,
           }))
 
@@ -162,7 +156,6 @@ export default function DegreesPage() {
         name: "",
         nameRu: "",
         code: "",
-        durationYears: 2,
         status: "active",
       })
       setIsEditing(false)
@@ -196,7 +189,7 @@ export default function DegreesPage() {
     const { name, value } = e.target
     setCurrentDegree({
       ...currentDegree,
-      [name]: name === "durationYears" ? Number.parseFloat(value) : value,
+      [name]: value,
     })
   }
 
@@ -212,7 +205,6 @@ export default function DegreesPage() {
             name: currentDegree.name,
             name_ru: currentDegree.nameRu,
             code: currentDegree.code,
-            duration_years: currentDegree.durationYears,
             status: currentDegree.status,
           })
           .eq("id", currentDegree.id)
@@ -236,7 +228,6 @@ export default function DegreesPage() {
             name: currentDegree.name,
             name_ru: currentDegree.nameRu,
             code: currentDegree.code,
-            duration_years: currentDegree.durationYears,
             status: currentDegree.status,
           })
           .select()
@@ -249,7 +240,6 @@ export default function DegreesPage() {
             name: data[0].name,
             nameRu: data[0].name_ru || "",
             code: data[0].code,
-            durationYears: data[0].duration_years,
             status: data[0].status,
           }
 
@@ -398,7 +388,6 @@ export default function DegreesPage() {
                       <TableHead>{t("admin.degrees.nameEn")}</TableHead>
                       <TableHead>{t("admin.degrees.nameRu")}</TableHead>
                       <TableHead>{t("admin.degrees.code")}</TableHead>
-                      <TableHead>{t("admin.degrees.duration")}</TableHead>
                       <TableHead>{t("admin.degrees.status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.degrees.action")}</TableHead>
                     </TableRow>
@@ -422,7 +411,6 @@ export default function DegreesPage() {
                           <TableCell className="font-medium">{degree.name}</TableCell>
                           <TableCell>{degree.nameRu}</TableCell>
                           <TableCell>{degree.code}</TableCell>
-                          <TableCell>{degree.durationYears}</TableCell>
                           <TableCell>{getStatusBadge(degree.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -498,31 +486,18 @@ export default function DegreesPage() {
                   <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
-                  <Input
-                    id="durationYears"
-                    name="durationYears"
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={currentDegree.durationYears}
-                    onChange={handleInputChange}
-                    required
-                  />
+                  <Label htmlFor="status">{t("admin.degrees.status")}</Label>
+                  <select
+                    id="status"
+                    name="status"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                    value={currentDegree.status}
+                    onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
+                  >
+                    <option value="active">{t("admin.degrees.active")}</option>
+                    <option value="inactive">{t("admin.degrees.inactive")}</option>
+                  </select>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">{t("admin.degrees.status")}</Label>
-                <select
-                  id="status"
-                  name="status"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentDegree.status}
-                  onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
-                >
-                  <option value="active">{t("admin.degrees.active")}</option>
-                  <option value="inactive">{t("admin.degrees.inactive")}</option>
-                </select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <Button
