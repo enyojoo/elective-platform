@@ -70,11 +70,16 @@ export default function DegreesPage() {
   // Fetch degrees from Supabase with caching
   useEffect(() => {
     const fetchDegrees = async () => {
-      try {
-        setIsLoading(true)
+      if (!institutionId) {
+        setIsLoading(false)
+        setDegrees([])
+        setFilteredDegrees([])
+        return
+      }
 
+      try {
         // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institutionId || "all")
+        const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
 
         if (cachedDegrees) {
           console.log("Using cached degrees data")
@@ -85,6 +90,7 @@ export default function DegreesPage() {
         }
 
         // If not in cache, fetch from API
+        setIsLoading(true)
         console.log("Fetching degrees data from API")
         const { data, error } = await supabase
           .from("degrees")
@@ -104,7 +110,7 @@ export default function DegreesPage() {
           }))
 
           // Save to cache
-          setCachedData("degrees", institutionId || "all", formattedDegrees)
+          setCachedData("degrees", institutionId, formattedDegrees)
 
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
@@ -126,7 +132,7 @@ export default function DegreesPage() {
     }
 
     fetchDegrees()
-  }, [t, toast, institutionId, getCachedData, setCachedData])
+  }, [institutionId, getCachedData, setCachedData, t, toast])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -219,9 +225,12 @@ export default function DegreesPage() {
             degree.id === currentDegree.id ? { ...currentDegree } : degree,
           )
           setDegrees(updatedDegrees)
+          setFilteredDegrees(updatedDegrees)
 
           // Update cache
-          setCachedData("degrees", institutionId || "all", updatedDegrees)
+          if (institutionId) {
+            setCachedData("degrees", institutionId, updatedDegrees)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -254,9 +263,12 @@ export default function DegreesPage() {
 
           const updatedDegrees = [...degrees, newDegree]
           setDegrees(updatedDegrees)
+          setFilteredDegrees(updatedDegrees)
 
           // Update cache
-          setCachedData("degrees", institutionId || "all", updatedDegrees)
+          if (institutionId) {
+            setCachedData("degrees", institutionId, updatedDegrees)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -264,7 +276,6 @@ export default function DegreesPage() {
           })
         }
       }
-
       handleCloseDialog()
     } catch (error: any) {
       console.error("Error saving degree:", error)
@@ -288,9 +299,12 @@ export default function DegreesPage() {
         if (isMounted.current) {
           const updatedDegrees = degrees.filter((degree) => degree.id !== id)
           setDegrees(updatedDegrees)
+          setFilteredDegrees(updatedDegrees)
 
           // Update cache
-          setCachedData("degrees", institutionId || "all", updatedDegrees)
+          if (institutionId) {
+            setCachedData("degrees", institutionId, updatedDegrees)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -332,9 +346,12 @@ export default function DegreesPage() {
           return degree
         })
         setDegrees(updatedDegrees)
+        setFilteredDegrees(updatedDegrees)
 
         // Update cache
-        setCachedData("degrees", institutionId || "all", updatedDegrees)
+        if (institutionId) {
+          setCachedData("degrees", institutionId, updatedDegrees)
+        }
 
         toast({
           title: t("admin.degrees.success"),
@@ -417,26 +434,28 @@ export default function DegreesPage() {
                       Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={`skeleton-${index}`}>
                           <TableCell>
-                            <Skeleton className="h-6 w-24" />
+                            <Skeleton className="h-6 w-[120px]" />
                           </TableCell>
                           <TableCell>
-                            <Skeleton className="h-6 w-16" />
+                            <Skeleton className="h-6 w-[100px]" />
                           </TableCell>
                           <TableCell>
-                            <Skeleton className="h-6 w-16" />
+                            <Skeleton className="h-6 w-[80px]" />
                           </TableCell>
                           <TableCell>
-                            <Skeleton className="h-6 w-20" />
+                            <Skeleton className="h-6 w-[80px]" />
                           </TableCell>
                           <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
+                            <div className="flex justify-center">
+                              <Skeleton className="h-8 w-8 rounded-full" />
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
                     ) : filteredDegrees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          {t("admin.degrees.noDegreesFound")}
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          {searchTerm ? t("admin.degrees.noDegreesFound") : t("admin.degrees.noDegreesYet")}
                         </TableCell>
                       </TableRow>
                     ) : (
