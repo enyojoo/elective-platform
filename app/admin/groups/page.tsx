@@ -19,7 +19,8 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
-import { useCachedGroups } from "@/hooks/use-cached-groups"
+
+const initialGroups: any[] = []
 
 interface GroupFormData {
   id?: string
@@ -33,6 +34,8 @@ interface GroupFormData {
 
 export default function GroupsPage() {
   const { t } = useLanguage()
+  const [groups, setGroups] = useState<any[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
@@ -46,10 +49,7 @@ export default function GroupsPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [programs, setPrograms] = useState<any[]>([])
   const [degrees, setDegrees] = useState<any[]>([])
-
-  // Use the cached groups hook
-  const { groups, isLoading, error } = useCachedGroups()
-  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
@@ -87,6 +87,125 @@ export default function GroupsPage() {
       })
     }
   }, [])
+
+  // Fetch groups from Supabase with caching
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setIsLoading(true)
+
+        // Try to get data from cache first
+        const cachedGroups = getCachedData<any[]>("groups", "all")
+
+        if (cachedGroups) {
+          console.log("Using cached groups data")
+          setGroups(cachedGroups)
+          setFilteredGroups(cachedGroups)
+          setIsLoading(false)
+          return
+        }
+
+        // First, fetch the groups
+        const { data: groupsData, error: groupsError } = await supabase.from("groups").select("*").order("name")
+
+        if (groupsError) throw groupsError
+
+        if (!groupsData) {
+          setGroups([])
+          setFilteredGroups([])
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch program and degree information separately
+        const programIds = [...new Set(groupsData.map((g) => g.program_id).filter(Boolean))]
+        const degreeIds = [...new Set(groupsData.map((g) => g.degree_id).filter(Boolean))]
+
+        // Fetch programs
+        const { data: programsData, error: programsError } = await supabase
+          .from("programs")
+          .select("id, name")
+          .in("id", programIds)
+
+        if (programsError) throw programsError
+
+        // Fetch degrees
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name")
+          .in("id", degreeIds)
+
+        if (degreesError) throw degreesError
+
+        // Create maps for quick lookups
+        const programMap = new Map()
+        if (programsData) {
+          programsData.forEach((program) => {
+            programMap.set(program.id, program.name)
+          })
+        }
+
+        const degreeMap = new Map()
+        if (degreesData) {
+          degreesData.forEach((degree) => {
+            degreeMap.set(degree.id, degree.name)
+          })
+        }
+
+        // Count students in each group using a different approach
+        const studentCountMap = new Map()
+        for (const group of groupsData) {
+          const { count, error: countError } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .eq("group_id", group.id)
+            .eq("role", "student")
+
+          if (countError) {
+            console.error("Error counting students for group", group.id, countError)
+            studentCountMap.set(group.id, 0)
+          } else {
+            studentCountMap.set(group.id, count || 0)
+          }
+        }
+
+        // Format the groups data
+        const formattedGroups = groupsData.map((group) => ({
+          id: group.id.toString(),
+          name: group.name,
+          displayName: group.display_name,
+          program: programMap.get(group.program_id) || "Unknown",
+          programId: group.program_id,
+          degree: degreeMap.get(group.degree_id) || "Unknown",
+          degreeId: group.degree_id,
+          year: group.year,
+          students: studentCountMap.get(group.id) || 0,
+          status: group.status,
+        }))
+
+        // Save to cache
+        setCachedData("groups", "all", formattedGroups)
+
+        if (isMounted.current) {
+          setGroups(formattedGroups)
+          setFilteredGroups(formattedGroups)
+        }
+      } catch (error) {
+        console.error("Failed to fetch groups:", error)
+        toast({
+          title: t("admin.groups.error"),
+          description: t("admin.groups.errorFetching"),
+          variant: "destructive",
+        })
+      } finally {
+        if (isMounted.current) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchGroups()
+  }, [t, toast, getCachedData, setCachedData])
 
   // Fetch reference data (programs and degrees) with caching
   useEffect(() => {
@@ -286,33 +405,85 @@ export default function GroupsPage() {
 
         if (error) throw error
 
-        // Invalidate the groups cache to force a refresh
-        invalidateCache("groups")
+        // Refresh the groups list to get updated data
+        const { data, error: fetchError } = await supabase.from("groups").select("*").eq("id", currentGroup.id).single()
 
-        toast({
-          title: t("admin.groups.success"),
-          description: t("admin.groups.groupUpdated"),
-        })
+        if (fetchError) throw fetchError
+
+        // Get program and degree names
+        const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+        const degree = degrees.find((d) => d.id === currentGroup.degreeId)
+
+        if (data) {
+          const updatedGroup = {
+            ...groups.find((g) => g.id === currentGroup.id),
+            id: data.id.toString(),
+            name: data.name,
+            displayName: data.display_name,
+            program: program?.name || "Unknown",
+            programId: data.program_id,
+            degree: degree?.name || "Unknown",
+            degreeId: data.degree_id,
+            year: data.year,
+            status: data.status,
+          }
+
+          const updatedGroups = groups.map((group) => (group.id === currentGroup.id ? updatedGroup : group))
+          setGroups(updatedGroups)
+
+          // Update cache
+          setCachedData("groups", "all", updatedGroups)
+
+          toast({
+            title: t("admin.groups.success"),
+            description: t("admin.groups.groupUpdated"),
+          })
+        }
       } else {
         // Add new group
-        const { error } = await supabase.from("groups").insert({
-          name: currentGroup.name,
-          display_name: currentGroup.displayName,
-          program_id: Number.parseInt(currentGroup.programId),
-          degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
-          year: currentGroup.year,
-          status: currentGroup.status,
-        })
+        const { data, error } = await supabase
+          .from("groups")
+          .insert({
+            name: currentGroup.name,
+            display_name: currentGroup.displayName,
+            program_id: Number.parseInt(currentGroup.programId),
+            degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
+            year: currentGroup.year,
+            status: currentGroup.status,
+          })
+          .select()
 
         if (error) throw error
 
-        // Invalidate the groups cache to force a refresh
-        invalidateCache("groups")
+        if (data && data[0]) {
+          // Get program and degree names
+          const program = programs.find((p) => p.id === Number.parseInt(currentGroup.programId))
+          const degree = degrees.find((d) => d.id === currentGroup.degreeId)
 
-        toast({
-          title: t("admin.groups.success"),
-          description: t("admin.groups.groupCreated"),
-        })
+          const newGroup = {
+            id: data[0].id.toString(),
+            name: data[0].name,
+            displayName: data[0].display_name,
+            program: program?.name || "Unknown",
+            programId: data[0].program_id,
+            degree: degree?.name || "Unknown",
+            degreeId: data[0].degree_id,
+            year: data[0].year,
+            students: 0,
+            status: data[0].status,
+          }
+
+          const updatedGroups = [...groups, newGroup]
+          setGroups(updatedGroups)
+
+          // Update cache
+          setCachedData("groups", "all", updatedGroups)
+
+          toast({
+            title: t("admin.groups.success"),
+            description: t("admin.groups.groupCreated"),
+          })
+        }
       }
 
       handleCloseDialog()
@@ -333,8 +504,11 @@ export default function GroupsPage() {
 
         if (error) throw error
 
-        // Invalidate the groups cache to force a refresh
-        invalidateCache("groups")
+        const updatedGroups = groups.filter((group) => group.id !== id)
+        setGroups(updatedGroups)
+
+        // Update cache
+        setCachedData("groups", "all", updatedGroups)
 
         toast({
           title: t("admin.groups.success"),
@@ -362,8 +536,20 @@ export default function GroupsPage() {
 
       if (error) throw error
 
-      // Invalidate the groups cache to force a refresh
-      invalidateCache("groups")
+      const updatedGroups = groups.map((group) => {
+        if (group.id === id) {
+          return {
+            ...group,
+            status: newStatus,
+          }
+        }
+        return group
+      })
+
+      setGroups(updatedGroups)
+
+      // Update cache
+      setCachedData("groups", "all", updatedGroups)
 
       toast({
         title: t("admin.groups.success"),
@@ -522,7 +708,7 @@ export default function GroupsPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      // Skeleton loader instead of "Loading..." text
+                      // Skeleton loader only in the table rows
                       Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={`skeleton-${index}`}>
                           <TableCell>
