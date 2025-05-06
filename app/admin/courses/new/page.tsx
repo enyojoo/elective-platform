@@ -11,20 +11,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// Add the GraduationCap icon to the imports from lucide-react
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-
-// First, import the useLanguage hook at the top of the file with the other imports
 import { useLanguage } from "@/lib/language-context"
-
-// Mock programs data
-const mockPrograms = [
-  { id: 1, name: "Master in Management", code: "MiM" },
-  { id: 2, name: "Master in Business Analytics", code: "MiBA" },
-  { id: 3, name: "Master in Corporate Finance", code: "MiCF" },
-  { id: 4, name: "Bachelor in Management", code: "BM" },
-]
+import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useInstitution } from "@/lib/institution-context"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Course status options
 const statusOptions = [
@@ -33,12 +27,17 @@ const statusOptions = [
   { value: "draft", label: "Draft" },
 ]
 
-// Then, inside the NewCoursePage component, add the useLanguage hook after the useState declarations
 export default function NewCoursePage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [programs, setPrograms] = useState(mockPrograms)
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(true)
+  const [programs, setPrograms] = useState<any[]>([])
   const { t } = useLanguage()
+  const { toast } = useToast()
+  const supabase = createClientComponentClient()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { institution } = useInstitution()
+
   const [course, setCourse] = useState({
     nameEn: "",
     nameRu: "",
@@ -50,11 +49,52 @@ export default function NewCoursePage() {
     status: "active", // Default status
   })
 
-  // Fetch programs (simulated)
+  // Fetch programs with caching
   useEffect(() => {
-    // In a real app, this would be an API call
-    setPrograms(mockPrograms)
-  }, [])
+    const fetchPrograms = async () => {
+      if (!institution?.id) return
+
+      // Try to get programs from cache
+      const cachedPrograms = getCachedData<any[]>("programs", institution.id)
+
+      if (cachedPrograms) {
+        setPrograms(cachedPrograms)
+        setIsLoadingPrograms(false)
+        return
+      }
+
+      try {
+        // Fetch programs from Supabase
+        const { data, error } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .order("name_en")
+
+        if (error) {
+          throw error
+        }
+
+        // Update state and cache
+        setPrograms(data || [])
+        setCachedData("programs", institution.id, data)
+      } catch (error) {
+        console.error("Error fetching programs:", error)
+        toast({
+          title: t("admin.programs.fetchError", "Failed to fetch programs"),
+          description: t(
+            "admin.programs.fetchErrorDesc",
+            "There was an error fetching the programs. Please try again.",
+          ),
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingPrograms(false)
+      }
+    }
+
+    fetchPrograms()
+  }, [institution?.id, getCachedData, setCachedData, supabase, toast, t])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -74,19 +114,53 @@ export default function NewCoursePage() {
     setIsSubmitting(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (!institution?.id) {
+        throw new Error("Institution ID is required")
+      }
+
+      // Prepare course data
+      const courseData = {
+        name_en: course.nameEn,
+        name_ru: course.nameRu,
+        program_id: course.programId,
+        instructor_en: course.instructorEn,
+        instructor_ru: course.instructorRu,
+        description_en: course.descriptionEn,
+        description_ru: course.descriptionRu,
+        status: course.status,
+        institution_id: institution.id,
+      }
+
+      // Insert the course into the database
+      const { data, error } = await supabase.from("courses").insert([courseData]).select()
+
+      if (error) {
+        throw error
+      }
+
+      // Invalidate the courses cache
+      invalidateCache("courses", institution.id)
+
+      // Show success toast
+      toast({
+        title: t("admin.courses.createSuccess", "Course created successfully"),
+        description: t("admin.courses.createSuccessDesc", "The course has been added to your institution."),
+      })
 
       // Redirect to courses page after successful submission
       router.push("/admin/courses")
     } catch (error) {
       console.error("Error creating course:", error)
+      toast({
+        title: t("admin.courses.createError", "Failed to create course"),
+        description: t("admin.courses.createErrorDesc", "There was an error creating the course. Please try again."),
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -130,18 +204,22 @@ export default function NewCoursePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="programId">{t("admin.newCourse.program")}</Label>
-                  <Select value={course.programId} onValueChange={handleProgramChange} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("admin.newCourse.selectProgram")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {programs.map((program) => (
-                        <SelectItem key={program.id} value={program.id.toString()}>
-                          {program.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoadingPrograms ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={course.programId} onValueChange={handleProgramChange} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("admin.newCourse.selectProgram")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {programs.map((program) => (
+                          <SelectItem key={program.id} value={program.id.toString()}>
+                            {program.name_en}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status">{t("admin.newCourse.status")}</Label>
@@ -217,7 +295,14 @@ export default function NewCoursePage() {
                   {t("admin.newCourse.cancel")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? t("admin.newCourse.creating") : t("admin.newCourse.create")}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("admin.newCourse.creating")}
+                    </>
+                  ) : (
+                    t("admin.newCourse.create")
+                  )}
                 </Button>
               </div>
             </form>

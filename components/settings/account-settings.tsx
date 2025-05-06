@@ -9,12 +9,15 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
-import { useDataCache } from "@/lib/data-cache-context"
 
-export function AccountSettings({ adminProfile }: { adminProfile: any }) {
+interface AccountSettingsProps {
+  adminProfile: any
+  onProfileUpdated?: (updatedProfile: any) => void
+}
+
+export function AccountSettings({ adminProfile, onProfileUpdated }: AccountSettingsProps) {
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { invalidateCache } = useDataCache()
   const [isUpdating, setIsUpdating] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [name, setName] = useState("")
@@ -37,13 +40,14 @@ export function AccountSettings({ adminProfile }: { adminProfile: any }) {
     setIsUpdating(true)
     try {
       // Update profile in database
-      const { error: profileError } = await supabase
+      const { data, error: profileError } = await supabase
         .from("profiles")
         .update({
           full_name: name,
           // Note: We don't update email in profiles table directly
         })
         .eq("id", adminProfile.id)
+        .select()
 
       if (profileError) {
         throw profileError
@@ -60,8 +64,15 @@ export function AccountSettings({ adminProfile }: { adminProfile: any }) {
         }
       }
 
-      // Invalidate the cache
-      invalidateCache("adminProfile", adminProfile.id)
+      // Call the callback with updated profile
+      if (onProfileUpdated && data && data[0]) {
+        const updatedProfile = {
+          ...adminProfile,
+          ...data[0],
+          email: email, // Include the updated email
+        }
+        onProfileUpdated(updatedProfile)
+      }
 
       toast({
         title: t("settings.account.updateSuccess"),

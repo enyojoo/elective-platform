@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,20 +22,20 @@ import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useCachedUsers } from "@/hooks/use-cached-users"
 import { useDataCache } from "@/lib/data-cache-context"
 
 export default function UsersPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error } = useCachedUsers(institution?.id)
-  const { invalidateCache } = useDataCache()
+  const [users, setUsers] = useState<any[]>([])
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -43,7 +43,136 @@ export default function UsersPage() {
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const isMounted = useRef(true)
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+
+  // Component lifecycle management
+  useEffect(() => {
+    isMounted.current = true
+
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  // Fetch users from Supabase with caching
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!institution?.id) return
+
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        // Try to get data from cache first
+        const cachedUsers = getCachedData<any[]>("users", institution.id)
+
+        if (cachedUsers) {
+          console.log("Using cached users data")
+          setUsers(cachedUsers)
+          setFilteredUsers(cachedUsers)
+          setTotalPages(Math.ceil(cachedUsers.length / itemsPerPage))
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch profiles with role information
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select(
+            "id, full_name, email, role, is_active, group_id, program_id, degree_id, enrollment_year, institution_id",
+          )
+          .eq("institution_id", institution.id)
+          .order("full_name")
+
+        if (profilesError) throw profilesError
+
+        if (!profilesData) {
+          setUsers([])
+          setFilteredUsers([])
+          setTotalPages(0)
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch related data for programs and degrees
+        const programIds = [...new Set(profilesData.map((p) => p.program_id).filter(Boolean))]
+        const degreeIds = [...new Set(profilesData.map((p) => p.degree_id).filter(Boolean))]
+        const groupIds = [...new Set(profilesData.map((p) => p.group_id).filter(Boolean))]
+
+        // Fetch programs
+        const { data: programsData, error: programsError } = await supabase
+          .from("programs")
+          .select("id, name")
+          .in("id", programIds.length > 0 ? programIds : [0])
+
+        if (programsError) throw programsError
+
+        // Fetch degrees
+        const { data: degreesData, error: degreesError } = await supabase
+          .from("degrees")
+          .select("id, name")
+          .in("id", degreeIds.length > 0 ? degreeIds : [0])
+
+        if (degreesError) throw degreesError
+
+        // Create maps for quick lookups
+        const programMap = new Map()
+        if (programsData) {
+          programsData.forEach((program) => {
+            programMap.set(program.id, program.name)
+          })
+        }
+
+        const degreeMap = new Map()
+        if (degreesData) {
+          degreesData.forEach((degree) => {
+            degreeMap.set(degree.id, degree.name)
+          })
+        }
+
+        // Format the users data
+        const formattedUsers = profilesData.map((profile) => ({
+          id: profile.id,
+          name: profile.full_name || "Unknown",
+          email: profile.email || "",
+          role: profile.role || "unknown",
+          programId: profile.program_id,
+          programName: programMap.get(profile.program_id) || "",
+          degreeId: profile.degree_id,
+          degreeName: degreeMap.get(profile.degree_id) || "",
+          enrollmentYear: profile.enrollment_year || "",
+          groupId: profile.group_id,
+          status: profile.is_active ? "active" : "inactive",
+        }))
+
+        // Save to cache
+        setCachedData("users", institution.id, formattedUsers)
+
+        if (isMounted.current) {
+          setUsers(formattedUsers)
+          setFilteredUsers(formattedUsers)
+          setTotalPages(Math.ceil(formattedUsers.length / itemsPerPage))
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch users:", error)
+        if (isMounted.current) {
+          setError(error.message || t("admin.users.errorFetching"))
+          toast({
+            title: t("admin.users.error"),
+            description: error.message || t("admin.users.errorFetching"),
+            variant: "destructive",
+          })
+        }
+      } finally {
+        if (isMounted.current) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchUsers()
+  }, [t, toast, institution?.id, getCachedData, setCachedData, itemsPerPage])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -68,7 +197,7 @@ export default function UsersPage() {
     setFilteredUsers(result)
     setTotalPages(Math.ceil(result.length / itemsPerPage))
     setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, roleFilter, statusFilter, users])
+  }, [searchTerm, roleFilter, statusFilter, users, itemsPerPage])
 
   // Get current page items
   const getCurrentPageItems = () => {
@@ -123,15 +252,28 @@ export default function UsersPage() {
 
   // Handle user status change
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
+    if (!institution?.id) return
+
     try {
       const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
 
       if (error) throw error
 
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
+      // Update local state
+      const updatedUsers = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            status: newStatus ? "active" : "inactive",
+          }
+        }
+        return user
+      })
+
+      setUsers(updatedUsers)
+
+      // Update cache
+      setCachedData("users", institution.id, updatedUsers)
 
       toast({
         title: "Success",

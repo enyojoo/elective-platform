@@ -15,15 +15,21 @@ import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
-import { FormSkeleton } from "@/components/ui/page-skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDataCache } from "@/lib/data-cache-context"
+import { AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function InviteStudentPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
+  const { getCachedData, setCachedData } = useDataCache()
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [degrees, setDegrees] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
@@ -48,33 +54,65 @@ export default function InviteStudentPage() {
 
     const fetchData = async () => {
       setIsLoading(true)
+      setError(null)
+
       try {
-        // Fetch degrees
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name, code")
-          .eq("institution_id", institution.id)
+        // Check cache for degrees
+        const cachedDegrees = getCachedData<any[]>("degrees", institution.id.toString())
 
-        if (degreesError) throw degreesError
-        setDegrees(degreesData || [])
+        if (cachedDegrees) {
+          setDegrees(cachedDegrees)
+        } else {
+          // Fetch degrees
+          const { data: degreesData, error: degreesError } = await supabase
+            .from("degrees")
+            .select("id, name, code")
+            .eq("institution_id", institution.id)
 
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
-          .select("id, name, code, degree_id")
-          .eq("institution_id", institution.id)
+          if (degreesError) throw degreesError
+          setDegrees(degreesData || [])
 
-        if (programsError) throw programsError
-        setPrograms(programsData || [])
+          // Cache the degrees
+          setCachedData("degrees", institution.id.toString(), degreesData)
+        }
 
-        // Fetch groups
-        const { data: groupsData, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name, program_id")
-          .eq("institution_id", institution.id)
+        // Check cache for programs
+        const cachedPrograms = getCachedData<any[]>("programs", institution.id.toString())
 
-        if (groupsError) throw groupsError
-        setGroups(groupsData || [])
+        if (cachedPrograms) {
+          setPrograms(cachedPrograms)
+        } else {
+          // Fetch programs
+          const { data: programsData, error: programsError } = await supabase
+            .from("programs")
+            .select("id, name, code, degree_id")
+            .eq("institution_id", institution.id)
+
+          if (programsError) throw programsError
+          setPrograms(programsData || [])
+
+          // Cache the programs
+          setCachedData("programs", institution.id.toString(), programsData)
+        }
+
+        // Check cache for groups
+        const cachedGroups = getCachedData<any[]>("groups", institution.id.toString())
+
+        if (cachedGroups) {
+          setGroups(cachedGroups)
+        } else {
+          // Fetch groups
+          const { data: groupsData, error: groupsError } = await supabase
+            .from("groups")
+            .select("id, name, program_id")
+            .eq("institution_id", institution.id)
+
+          if (groupsError) throw groupsError
+          setGroups(groupsData || [])
+
+          // Cache the groups
+          setCachedData("groups", institution.id.toString(), groupsData)
+        }
 
         // Generate years (current year - 5 to current year + 1)
         const currentYear = new Date().getFullYear()
@@ -83,8 +121,9 @@ export default function InviteStudentPage() {
           yearsList.push(i.toString())
         }
         setYears(yearsList)
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching data:", error)
+        setError(error.message || "Failed to load form data")
         toast({
           title: "Error",
           description: "Failed to load form data",
@@ -96,7 +135,7 @@ export default function InviteStudentPage() {
     }
 
     fetchData()
-  }, [institution, supabase, toast])
+  }, [institution, supabase, toast, getCachedData, setCachedData])
 
   // Filter programs based on selected degree
   useEffect(() => {
@@ -141,6 +180,7 @@ export default function InviteStudentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
 
     if (!institution) {
       toast({
@@ -200,6 +240,7 @@ export default function InviteStudentPage() {
       router.push("/admin/users")
     } catch (error: any) {
       console.error("Error inviting student:", error)
+      setError(error.message || "Failed to invite student")
       toast({
         title: "Error",
         description: error.message || "Failed to invite student",
@@ -210,14 +251,6 @@ export default function InviteStudentPage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.ADMIN}>
-        <FormSkeleton />
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="space-y-6">
@@ -225,6 +258,14 @@ export default function InviteStudentPage() {
           <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.inviteStudent")}</h1>
           <p className="text-muted-foreground mt-2">{t("admin.users.inviteStudentSubtitle")}</p>
         </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardHeader>
@@ -244,6 +285,7 @@ export default function InviteStudentPage() {
                       value={formData.fullName}
                       onChange={handleChange}
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                   <div className="space-y-2">
@@ -256,6 +298,7 @@ export default function InviteStudentPage() {
                       value={formData.email}
                       onChange={handleChange}
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -263,80 +306,104 @@ export default function InviteStudentPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="degreeId">{t("admin.users.degree")}</Label>
-                    <Select value={formData.degreeId} onValueChange={(value) => handleSelectChange("degreeId", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectDegree")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {degrees.map((degree) => (
-                          <SelectItem key={degree.id} value={degree.id.toString()}>
-                            {degree.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : (
+                      <Select
+                        value={formData.degreeId}
+                        onValueChange={(value) => handleSelectChange("degreeId", value)}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("admin.users.selectDegree")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {degrees.map((degree) => (
+                            <SelectItem key={degree.id} value={degree.id.toString()}>
+                              {degree.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="programId">{t("admin.users.program")}</Label>
-                    <Select
-                      value={formData.programId}
-                      onValueChange={(value) => handleSelectChange("programId", value)}
-                      disabled={!formData.degreeId || filteredPrograms.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectProgram")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredPrograms.map((program) => (
-                          <SelectItem key={program.id} value={program.id.toString()}>
-                            {program.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : (
+                      <Select
+                        value={formData.programId}
+                        onValueChange={(value) => handleSelectChange("programId", value)}
+                        disabled={isSubmitting || !formData.degreeId || filteredPrograms.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("admin.users.selectProgram")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredPrograms.map((program) => (
+                            <SelectItem key={program.id} value={program.id.toString()}>
+                              {program.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="groupId">{t("admin.users.group")}</Label>
-                    <Select
-                      value={formData.groupId}
-                      onValueChange={(value) => handleSelectChange("groupId", value)}
-                      disabled={!formData.programId || filteredGroups.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectGroup")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : (
+                      <Select
+                        value={formData.groupId}
+                        onValueChange={(value) => handleSelectChange("groupId", value)}
+                        disabled={isSubmitting || !formData.programId || filteredGroups.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("admin.users.selectGroup")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id.toString()}>
+                              {group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="year">{t("admin.users.enrollmentYear")}</Label>
-                    <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("admin.users.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : (
+                      <Select
+                        value={formData.year}
+                        onValueChange={(value) => handleSelectChange("year", value)}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("admin.users.selectYear")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {years.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" type="button" onClick={() => router.back()}>
+                <Button variant="outline" type="button" onClick={() => router.back()} disabled={isSubmitting}>
                   {t("admin.users.cancel")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>

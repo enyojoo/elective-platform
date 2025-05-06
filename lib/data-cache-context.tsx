@@ -105,9 +105,10 @@ type DataCacheContextType = {
   setCachedData: <T>(key: keyof CacheData, id: string, data: T) => void
   invalidateCache: (key: keyof CacheData, id?: string) => void
   clearAllCache: () => void
+  isLoading: (key: keyof CacheData, id: string) => boolean
 }
 
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes in milliseconds
+const CACHE_EXPIRY = 60 * 60 * 1000 // 1 hour in milliseconds (changed from 5 minutes)
 const STORAGE_KEY = "electivepro_data_cache"
 
 const DataCacheContext = createContext<DataCacheContextType | undefined>(undefined)
@@ -290,6 +291,12 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY)
   }
 
+  // Add this function after the clearAllCache function
+  const isLoading = (key: keyof CacheData, id: string): boolean => {
+    // If we have valid cached data, we're not loading
+    return getCachedData(key, id) === null
+  }
+
   return (
     <DataCacheContext.Provider
       value={{
@@ -297,6 +304,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         setCachedData,
         invalidateCache,
         clearAllCache,
+        isLoading,
       }}
     >
       {children}

@@ -12,97 +12,11 @@ import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
-
-// Move mock data outside the component to avoid recreating it on each render
-const courseElectivePacks = [
-  {
-    id: "1",
-    title: "Fall 2023",
-    program: "Master in Management",
-    programCode: "MiM",
-    status: "active",
-    courses: 12,
-    selections: 45,
-    createdBy: "John Doe",
-    createdAt: "2023-09-01",
-    deadline: "2023-09-15",
-  },
-  {
-    id: "2",
-    title: "Spring 2024",
-    program: "Master in Business Analytics",
-    programCode: "MiBA",
-    status: "active",
-    courses: 8,
-    selections: 32,
-    createdBy: "Jane Smith",
-    createdAt: "2023-09-02",
-    deadline: "2023-12-15",
-  },
-  {
-    id: "3",
-    title: "Spring 2023",
-    program: "Master in Management",
-    programCode: "MiM",
-    status: "inactive",
-    courses: 10,
-    selections: 38,
-    createdBy: "John Doe",
-    createdAt: "2022-09-01",
-    deadline: "2022-12-15",
-  },
-  {
-    id: "4",
-    title: "Fall 2022",
-    program: "Master in Business Analytics",
-    programCode: "MiBA",
-    status: "inactive",
-    courses: 9,
-    selections: 30,
-    createdBy: "Jane Smith",
-    createdAt: "2022-09-01",
-    deadline: "2022-09-15",
-  },
-]
-
-const exchangePacks = [
-  {
-    id: "1",
-    title: "Fall 2023",
-    program: "Master in Management",
-    programCode: "MiM",
-    status: "active",
-    universities: 8,
-    selections: 28,
-    createdBy: "John Doe",
-    createdAt: "2023-09-01",
-    deadline: "2023-09-10",
-  },
-  {
-    id: "2",
-    title: "Spring 2024",
-    program: "Master in Business Analytics",
-    programCode: "MiBA",
-    status: "active",
-    universities: 6,
-    selections: 15,
-    createdBy: "Jane Smith",
-    createdAt: "2023-09-02",
-    deadline: "2023-12-10",
-  },
-  {
-    id: "3",
-    title: "Spring 2023",
-    program: "Master in Management",
-    programCode: "MiM",
-    status: "inactive",
-    universities: 7,
-    selections: 20,
-    createdBy: "John Doe",
-    createdAt: "2022-09-01",
-    deadline: "2022-12-10",
-  },
-]
+import { Skeleton } from "@/components/ui/skeleton"
+import { supabase } from "@/lib/supabase"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useToast } from "@/hooks/use-toast"
+import { useInstitutionContext } from "@/lib/institution-context"
 
 export default function AdminElectivesPage() {
   const searchParams = useSearchParams()
@@ -113,11 +27,188 @@ export default function AdminElectivesPage() {
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const { t } = useLanguage()
+  const { toast } = useToast()
+  const { institution } = useInstitutionContext()
+  const { getCachedData, setCachedData } = useDataCache()
+
+  const [courseElectivePacks, setCourseElectivePacks] = useState<any[]>([])
+  const [exchangePacks, setExchangePacks] = useState<any[]>([])
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true)
+  const [isLoadingExchange, setIsLoadingExchange] = useState(true)
+  const [programs, setPrograms] = useState<any[]>([])
+  const [semesters, setSemesters] = useState<string[]>([])
 
   // Update activeTab when URL parameters change
   useEffect(() => {
     setActiveTab(tabParam === "exchange" ? "exchange" : "courses")
   }, [tabParam])
+
+  // Fetch programs for filtering
+  useEffect(() => {
+    if (!institution?.id) return
+
+    const fetchPrograms = async () => {
+      try {
+        // Try to get programs from cache
+        const cachedPrograms = getCachedData<any[]>("programs", institution.id)
+
+        if (cachedPrograms) {
+          setPrograms(cachedPrograms)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from("programs")
+          .select("id, name, code")
+          .eq("institution_id", institution.id)
+          .order("name")
+
+        if (error) throw error
+
+        if (data) {
+          setPrograms(data)
+          setCachedData("programs", institution.id, data)
+        }
+      } catch (error) {
+        console.error("Error fetching programs:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load programs data",
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchPrograms()
+  }, [institution?.id, getCachedData, setCachedData, toast])
+
+  // Fetch elective packs data
+  useEffect(() => {
+    if (!institution?.id) return
+
+    const fetchElectivePacks = async () => {
+      try {
+        // Try to get course electives from cache
+        const cachedCourseElectives = getCachedData<any[]>("courseElectives", institution.id)
+
+        if (cachedCourseElectives) {
+          setCourseElectivePacks(cachedCourseElectives)
+          setIsLoadingCourses(false)
+        } else {
+          setIsLoadingCourses(true)
+
+          // Fetch course elective packs
+          const { data: courseData, error: courseError } = await supabase
+            .from("elective_packs")
+            .select(`
+              id, 
+              title, 
+              status, 
+              created_at, 
+              deadline,
+              program:program_id(id, name, code),
+              courses:elective_courses(id),
+              selections:student_course_selections(id)
+            `)
+            .eq("institution_id", institution.id)
+            .eq("type", "course")
+            .order("created_at", { ascending: false })
+
+          if (courseError) throw courseError
+
+          if (courseData) {
+            // Format the data
+            const formattedCourseData = courseData.map((pack) => ({
+              id: pack.id,
+              title: pack.title,
+              program: pack.program?.name || "Unknown",
+              programCode: pack.program?.code || "N/A",
+              status: pack.status,
+              courses: pack.courses?.length || 0,
+              selections: pack.selections?.length || 0,
+              createdAt: pack.created_at,
+              deadline: pack.deadline,
+            }))
+
+            setCourseElectivePacks(formattedCourseData)
+            setCachedData("courseElectives", institution.id, formattedCourseData)
+
+            // Extract unique semesters
+            const semesterList = [...new Set(formattedCourseData.map((pack) => pack.title))]
+            setSemesters(semesterList)
+          }
+
+          setIsLoadingCourses(false)
+        }
+
+        // Try to get exchange programs from cache
+        const cachedExchangePrograms = getCachedData<any[]>("exchangePrograms", institution.id)
+
+        if (cachedExchangePrograms) {
+          setExchangePacks(cachedExchangePrograms)
+          setIsLoadingExchange(false)
+        } else {
+          setIsLoadingExchange(true)
+
+          // Fetch exchange programs
+          const { data: exchangeData, error: exchangeError } = await supabase
+            .from("elective_packs")
+            .select(`
+              id, 
+              title, 
+              status, 
+              created_at, 
+              deadline,
+              program:program_id(id, name, code),
+              universities:exchange_universities(id),
+              selections:student_exchange_selections(id)
+            `)
+            .eq("institution_id", institution.id)
+            .eq("type", "exchange")
+            .order("created_at", { ascending: false })
+
+          if (exchangeError) throw exchangeError
+
+          if (exchangeData) {
+            // Format the data
+            const formattedExchangeData = exchangeData.map((pack) => ({
+              id: pack.id,
+              title: pack.title,
+              program: pack.program?.name || "Unknown",
+              programCode: pack.program?.code || "N/A",
+              status: pack.status,
+              universities: pack.universities?.length || 0,
+              selections: pack.selections?.length || 0,
+              createdAt: pack.created_at,
+              deadline: pack.deadline,
+            }))
+
+            setExchangePacks(formattedExchangeData)
+            setCachedData("exchangePrograms", institution.id, formattedExchangeData)
+
+            // Update semesters if needed
+            if (semesters.length === 0) {
+              const semesterList = [...new Set(formattedExchangeData.map((pack) => pack.title))]
+              setSemesters(semesterList)
+            }
+          }
+
+          setIsLoadingExchange(false)
+        }
+      } catch (error) {
+        console.error("Error fetching elective packs:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load elective packs data",
+          variant: "destructive",
+        })
+        setIsLoadingCourses(false)
+        setIsLoadingExchange(false)
+      }
+    }
+
+    fetchElectivePacks()
+  }, [institution?.id, getCachedData, setCachedData, toast])
 
   // Use useMemo to avoid recalculating filtered data on every render
   const filteredCoursePacks = useMemo(() => {
@@ -131,7 +222,7 @@ export default function AdminElectivesPage() {
         (statusFilter === "all" || selection.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter])
+  }, [courseElectivePacks, searchTerm, programFilter, semesterFilter, statusFilter])
 
   const filteredExchangePacks = useMemo(() => {
     return exchangePacks.filter((program) => {
@@ -144,35 +235,33 @@ export default function AdminElectivesPage() {
         (statusFilter === "all" || program.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter])
+  }, [exchangePacks, searchTerm, programFilter, semesterFilter, statusFilter])
 
   // Get status badge based on status
-  const getStatusBadge = useMemo(() => {
-    return (status: string) => {
-      switch (status) {
-        case "active":
-          return (
-            <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-              {t("manager.electives.active")}
-            </Badge>
-          )
-        case "inactive":
-          return (
-            <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-              {t("manager.electives.inactive")}
-            </Badge>
-          )
-        case "draft":
-          return (
-            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-              {t("manager.electives.draft")}
-            </Badge>
-          )
-        default:
-          return <Badge variant="outline">{status}</Badge>
-      }
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return (
+          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            {t("manager.electives.active")}
+          </Badge>
+        )
+      case "inactive":
+        return (
+          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            {t("manager.electives.inactive")}
+          </Badge>
+        )
+      case "draft":
+        return (
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
+            {t("manager.electives.draft")}
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{status}</Badge>
     }
-  }, [t])
+  }
 
   // Handle tab change
   const handleTabChange = (value: string) => {
@@ -182,6 +271,44 @@ export default function AdminElectivesPage() {
 
   // Custom responsive grid class based on specific breakpoints
   const responsiveGridClass = "grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+
+  // Render skeleton cards for loading state
+  const renderSkeletonCards = () => {
+    return Array.from({ length: 6 }).map((_, index) => (
+      <Card key={`skeleton-${index}`} className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-6 w-16" />
+          </div>
+          <Skeleton className="h-4 w-32 mt-1" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div>
+              <Skeleton className="h-4 w-16 mb-1" />
+              <Skeleton className="h-6 w-8" />
+            </div>
+            <div>
+              <Skeleton className="h-4 w-16 mb-1" />
+              <Skeleton className="h-6 w-8" />
+            </div>
+            <div className="col-span-2">
+              <Skeleton className="h-4 w-24 mb-1" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="col-span-2">
+              <Skeleton className="h-4 w-24 mb-1" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </CardContent>
+      </Card>
+    ))
+  }
 
   return (
     <DashboardLayout userRole="admin">
@@ -227,8 +354,11 @@ export default function AdminElectivesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">{t("manager.electives.allPrograms")}</SelectItem>
-                        <SelectItem value="MiM">Master in Management</SelectItem>
-                        <SelectItem value="MiBA">Master in Business Analytics</SelectItem>
+                        {programs.map((program) => (
+                          <SelectItem key={program.id} value={program.code}>
+                            {program.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
 
@@ -239,10 +369,11 @@ export default function AdminElectivesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">{t("manager.electives.allSemesters")}</SelectItem>
-                        <SelectItem value="Fall 2023">Fall 2023</SelectItem>
-                        <SelectItem value="Spring 2024">Spring 2024</SelectItem>
-                        <SelectItem value="Spring 2023">Spring 2023</SelectItem>
-                        <SelectItem value="Fall 2022">Fall 2022</SelectItem>
+                        {semesters.map((semester) => (
+                          <SelectItem key={semester} value={semester}>
+                            {semester}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
 
@@ -262,7 +393,9 @@ export default function AdminElectivesPage() {
                 </div>
 
                 <TabsContent value="courses" className="mt-0">
-                  {filteredCoursePacks.length > 0 ? (
+                  {isLoadingCourses ? (
+                    <div className={responsiveGridClass}>{renderSkeletonCards()}</div>
+                  ) : filteredCoursePacks.length > 0 ? (
                     <div className={responsiveGridClass}>
                       {filteredCoursePacks.map((pack) => (
                         <Card key={pack.id} className="overflow-hidden">
@@ -290,10 +423,8 @@ export default function AdminElectivesPage() {
                                 <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}:</p>
-                                <p className="text-sm">
-                                  {pack.createdBy} on {new Date(pack.createdAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdAt")}:</p>
+                                <p className="text-sm">{new Date(pack.createdAt).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex justify-center">
@@ -316,7 +447,9 @@ export default function AdminElectivesPage() {
                 </TabsContent>
 
                 <TabsContent value="exchange" className="mt-0">
-                  {filteredExchangePacks.length > 0 ? (
+                  {isLoadingExchange ? (
+                    <div className={responsiveGridClass}>{renderSkeletonCards()}</div>
+                  ) : filteredExchangePacks.length > 0 ? (
                     <div className={responsiveGridClass}>
                       {filteredExchangePacks.map((pack) => (
                         <Card key={pack.id} className="overflow-hidden">
@@ -344,10 +477,8 @@ export default function AdminElectivesPage() {
                                 <p className="text-sm">{new Date(pack.deadline).toLocaleDateString()}</p>
                               </div>
                               <div className="col-span-2">
-                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdBy")}:</p>
-                                <p className="text-sm">
-                                  {pack.createdBy} on {new Date(pack.createdAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-sm text-muted-foreground">{t("manager.electives.createdAt")}:</p>
+                                <p className="text-sm">{new Date(pack.createdAt).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex justify-center">

@@ -1,77 +1,164 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Users, GraduationCap, BookOpen, Globe, Layers, Building } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { Skeleton } from "@/components/ui/skeleton"
+import { supabase } from "@/lib/supabase"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useToast } from "@/hooks/use-toast"
+import { useInstitutionContext } from "@/lib/institution-context"
 
 export default function AdminDashboard() {
-  const { language } = useLanguage()
-  const translations = {
-    title: language === "en" ? "Dashboard" : "Панель управления",
+  const { t } = useLanguage()
+  const { toast } = useToast()
+  const { institution } = useInstitutionContext()
+  const { getCachedData, setCachedData } = useDataCache()
 
-    // Course Electives
-    courseElectives: language === "en" ? "Course Electives" : "Элективные курсы",
-    totalCourseElectives: language === "en" ? "Total course elective selections" : "Всего выборов элективных курсов",
-    manageCourseElectives: language === "en" ? "Manage" : "Управлять",
+  const [dashboardStats, setDashboardStats] = useState({
+    users: { count: 0, isLoading: true },
+    programs: { count: 0, isLoading: true },
+    courses: { count: 0, isLoading: true },
+    groups: { count: 0, isLoading: true },
+    courseElectives: { count: 0, isLoading: true },
+    exchangePrograms: { count: 0, isLoading: true },
+    universities: { count: 0, isLoading: true },
+  })
 
-    // Exchange Programs
-    exchangePrograms: language === "en" ? "Exchange Programs" : "Программы обмена",
-    totalExchangePrograms: language === "en" ? "Total exchange programs available" : "Всего доступных программ обмена",
-    manageExchangePrograms: language === "en" ? "Manage" : "Управлять",
+  useEffect(() => {
+    if (!institution?.id) return
 
-    // Courses
-    courses: language === "en" ? "Courses" : "Курсы",
-    totalCourses: language === "en" ? "Courses in the system" : "Курсы в системе",
-    manageCourses: language === "en" ? "Manage" : "Управлять",
+    const fetchDashboardStats = async () => {
+      try {
+        // Try to get stats from cache
+        const cachedStats = getCachedData<typeof dashboardStats>("dashboardStats", institution.id)
 
-    // Programs
-    programs: language === "en" ? "Programs" : "Программы",
-    totalPrograms: language === "en" ? "Academic programs configured" : "Настроенные академические программы",
-    managePrograms: language === "en" ? "Manage" : "Управлять",
+        if (cachedStats) {
+          setDashboardStats(cachedStats)
+          return
+        }
 
-    // Groups
-    groups: language === "en" ? "Groups" : "Группы",
-    totalGroups: language === "en" ? "Student groups created" : "Созданные группы студентов",
-    manageGroups: language === "en" ? "Manage" : "Управлять",
+        // Fetch users count
+        const { count: usersCount, error: usersError } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-    // Degrees
-    degrees: language === "en" ? "Degrees" : "Степени",
-    totalDegrees: language === "en" ? "Degree types available" : "Доступные типы степеней",
-    manageDegrees: language === "en" ? "Manage" : "Управлять",
+        if (usersError) throw usersError
 
-    // Users
-    users: language === "en" ? "Users" : "Пользователи",
-    totalUsers: language === "en" ? "Total users in the system" : "Всего пользователей в системе",
-    manageUsers: language === "en" ? "Manage" : "Управлять",
+        // Fetch programs count
+        const { count: programsCount, error: programsError } = await supabase
+          .from("programs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-    // Universities
-    universities: language === "en" ? "Universities" : "Университеты",
-    totalUniversities: language === "en" ? "Total universities in the system" : "Всего университетов в системе",
-    manageUniversities: language === "en" ? "Manage" : "Управлять",
-  }
+        if (programsError) throw programsError
+
+        // Fetch courses count
+        const { count: coursesCount, error: coursesError } = await supabase
+          .from("courses")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+
+        if (coursesError) throw coursesError
+
+        // Fetch groups count
+        const { count: groupsCount, error: groupsError } = await supabase
+          .from("groups")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+
+        if (groupsError) throw groupsError
+
+        // Fetch course electives count
+        const { count: electivesCount, error: electivesError } = await supabase
+          .from("elective_packs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("type", "course")
+
+        if (electivesError) throw electivesError
+
+        // Fetch exchange programs count
+        const { count: exchangeCount, error: exchangeError } = await supabase
+          .from("elective_packs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("type", "exchange")
+
+        if (exchangeError) throw exchangeError
+
+        // Fetch universities count
+        const { count: universitiesCount, error: universitiesError } = await supabase
+          .from("universities")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+
+        if (universitiesError) throw universitiesError
+
+        const newStats = {
+          users: { count: usersCount || 0, isLoading: false },
+          programs: { count: programsCount || 0, isLoading: false },
+          courses: { count: coursesCount || 0, isLoading: false },
+          groups: { count: groupsCount || 0, isLoading: false },
+          courseElectives: { count: electivesCount || 0, isLoading: false },
+          exchangePrograms: { count: exchangeCount || 0, isLoading: false },
+          universities: { count: universitiesCount || 0, isLoading: false },
+        }
+
+        setDashboardStats(newStats)
+
+        // Cache the stats
+        setCachedData("dashboardStats", institution.id, newStats)
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard statistics",
+          variant: "destructive",
+        })
+
+        // Set all loading states to false even on error
+        setDashboardStats((prev) => {
+          const updated = { ...prev }
+          Object.keys(updated).forEach((key) => {
+            updated[key as keyof typeof updated].isLoading = false
+          })
+          return updated
+        })
+      }
+    }
+
+    fetchDashboardStats()
+  }, [institution?.id, getCachedData, setCachedData, toast])
 
   return (
     <DashboardLayout userRole="admin">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{translations.title}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.dashboard.title")}</h1>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3">
           {/* Course Electives Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.courseElectives}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.courseElectives")}</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">{translations.totalCourseElectives}</p>
+              {dashboardStats.courseElectives.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.courseElectives.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourseElectives")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/electives?tab=courses">{translations.manageCourseElectives}</Link>
+                <Link href="/admin/electives?tab=courses">{t("admin.dashboard.manageCourseElectives")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -79,14 +166,18 @@ export default function AdminDashboard() {
           {/* Exchange Programs Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.exchangePrograms}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.exchangePrograms")}</CardTitle>
               <Globe className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">{translations.totalExchangePrograms}</p>
+              {dashboardStats.exchangePrograms.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.exchangePrograms.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalExchangePrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/electives?tab=exchange">{translations.manageExchangePrograms}</Link>
+                <Link href="/admin/electives?tab=exchange">{t("admin.dashboard.manageExchangePrograms")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -94,14 +185,18 @@ export default function AdminDashboard() {
           {/* Courses Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.courses}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.courses")}</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">42</div>
-              <p className="text-xs text-muted-foreground">{translations.totalCourses}</p>
+              {dashboardStats.courses.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.courses.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourses")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/courses">{translations.manageCourses}</Link>
+                <Link href="/admin/courses">{t("admin.dashboard.manageCourses")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -109,14 +204,18 @@ export default function AdminDashboard() {
           {/* Programs Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.programs}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.programs")}</CardTitle>
               <GraduationCap className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">{translations.totalPrograms}</p>
+              {dashboardStats.programs.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.programs.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalPrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/programs">{translations.managePrograms}</Link>
+                <Link href="/admin/programs">{t("admin.dashboard.managePrograms")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -124,14 +223,18 @@ export default function AdminDashboard() {
           {/* Groups Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.groups}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.groups")}</CardTitle>
               <Layers className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">16</div>
-              <p className="text-xs text-muted-foreground">{translations.totalGroups}</p>
+              {dashboardStats.groups.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.groups.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalGroups")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/groups">{translations.manageGroups}</Link>
+                <Link href="/admin/groups">{t("admin.dashboard.manageGroups")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -139,14 +242,18 @@ export default function AdminDashboard() {
           {/* Universities Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.universities}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.universities")}</CardTitle>
               <Building className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">{translations.totalUniversities}</p>
+              {dashboardStats.universities.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.universities.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalUniversities")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/universities">{translations.manageUniversities}</Link>
+                <Link href="/admin/universities">{t("admin.dashboard.manageUniversities")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -154,14 +261,18 @@ export default function AdminDashboard() {
           {/* Users Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{translations.users}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("admin.dashboard.users")}</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">156</div>
-              <p className="text-xs text-muted-foreground">{translations.totalUsers}</p>
+              {dashboardStats.users.isLoading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{dashboardStats.users.count}</div>
+              )}
+              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalUsers")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/users">{translations.manageUsers}</Link>
+                <Link href="/admin/users">{t("admin.dashboard.manageUsers")}</Link>
               </Button>
             </CardContent>
           </Card>

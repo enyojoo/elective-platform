@@ -21,45 +21,148 @@ import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { useCachedPrograms } from "@/hooks/use-cached-programs"
-import { useCachedDegrees } from "@/hooks/use-cached-degrees"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ProgramsPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
-  const [institutionId, setInstitutionId] = useState<string | undefined>(undefined)
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { toast } = useToast()
+
+  const [programs, setPrograms] = useState<any[]>([])
+  const [degrees, setDegrees] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [levelFilter, setLevelFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const itemsPerPage = 10
 
+  // Fetch programs and degrees data
   useEffect(() => {
-    if (institution?.id) {
-      setInstitutionId(institution.id)
-    }
-  }, [institution])
+    if (!institution?.id) return
 
-  const { programs, isLoading: programsLoading, error: programsError } = useCachedPrograms(institutionId)
-  const { degrees, isLoading: degreesLoading, error: degreesError } = useCachedDegrees(institutionId)
+    const fetchData = async () => {
+      setIsLoading(true)
+
+      try {
+        // Try to get data from cache first
+        const cachedPrograms = getCachedData<any[]>("programs", institution.id)
+        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
+
+        if (cachedPrograms && cachedDegrees) {
+          setPrograms(cachedPrograms)
+          setDegrees(cachedDegrees)
+          setIsLoading(false)
+          return
+        }
+
+        // If not in cache, fetch from Supabase
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Fetch programs
+        if (!cachedPrograms) {
+          const { data: programsData, error: programsError } = await supabase
+            .from("programs")
+            .select("*, degrees(name, code)")
+            .eq("institution_id", institution.id)
+
+          if (programsError) throw programsError
+
+          setPrograms(programsData || [])
+          setCachedData("programs", institution.id, programsData || [])
+        }
+
+        // Fetch degrees
+        if (!cachedDegrees) {
+          const { data: degreesData, error: degreesError } = await supabase
+            .from("degrees")
+            .select("*")
+            .eq("institution_id", institution.id)
+
+          if (degreesError) throw degreesError
+
+          setDegrees(degreesData || [])
+          setCachedData("degrees", institution.id, degreesData || [])
+        }
+      } catch (error: any) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load data. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [institution?.id, getCachedData, setCachedData, toast])
+
+  // Function to toggle program status
+  const toggleProgramStatus = async (programId: string, currentStatus: string) => {
+    if (!institution?.id || isUpdating) return
+
+    setIsUpdating(true)
+
+    try {
+      const newStatus = currentStatus === "active" ? "inactive" : "active"
+
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+      const { error } = await supabase.from("programs").update({ status: newStatus }).eq("id", programId)
+
+      if (error) throw error
+
+      // Update local state
+      setPrograms((prevPrograms) =>
+        prevPrograms.map((program) => (program.id === programId ? { ...program, status: newStatus } : program)),
+      )
+
+      // Update cache
+      invalidateCache("programs", institution.id)
+      setCachedData(
+        "programs",
+        institution.id,
+        programs.map((program) => (program.id === programId ? { ...program, status: newStatus } : program)),
+      )
+
+      toast({
+        title: "Success",
+        description: `Program ${newStatus === "active" ? "activated" : "deactivated"} successfully.`,
+      })
+    } catch (error: any) {
+      console.error("Error updating program status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update program status. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
 
   // Filter programs based on search term and filters
-  const filteredPrograms =
-    programs?.filter((program) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        program.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        program.code?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPrograms = programs.filter((program) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      program.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      program.code?.toLowerCase().includes(searchTerm.toLowerCase())
 
-      const matchesStatus = statusFilter === "all" || program.status === statusFilter
+    const matchesStatus = statusFilter === "all" || program.status === statusFilter
 
-      const degree = degrees?.find((d) => d.id === program.degree_id)
-      const degreeCode = degree?.code || ""
-      const matchesLevel = levelFilter === "all" || degreeCode === levelFilter
+    const degree = degrees.find((d) => d.id === program.degree_id)
+    const degreeCode = degree?.code || ""
+    const matchesLevel = levelFilter === "all" || degreeCode === levelFilter
 
-      return matchesSearch && matchesStatus && matchesLevel
-    }) || []
+    return matchesSearch && matchesStatus && matchesLevel
+  })
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage
@@ -89,7 +192,7 @@ export default function ProgramsPage() {
 
   // Get degree name based on degree_id
   const getDegreeLevel = (degreeId: string) => {
-    const degree = degrees?.find((d) => d.id === degreeId)
+    const degree = degrees.find((d) => d.id === degreeId)
     if (!degree) return t("admin.programs.unknown")
 
     switch (degree.code) {
@@ -100,15 +203,6 @@ export default function ProgramsPage() {
       default:
         return degree.name || t("admin.programs.unknown")
     }
-  }
-
-  // Only show skeleton on first load, not when navigating back to this page
-  if (programsLoading || degreesLoading) {
-    return (
-      <DashboardLayout>
-        <PageSkeleton type="table" />
-      </DashboardLayout>
-    )
   }
 
   return (
@@ -197,7 +291,34 @@ export default function ProgramsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length > 0 ? (
+                    {isLoading ? (
+                      // Show skeleton rows while loading
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-20" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-20" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : currentItems.length > 0 ? (
                       currentItems.map((program) => (
                         <TableRow key={program.id}>
                           <TableCell className="font-medium">{program.name}</TableCell>
@@ -209,7 +330,7 @@ export default function ProgramsPage() {
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isUpdating}>
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
@@ -225,7 +346,12 @@ export default function ProgramsPage() {
                                     {t("admin.programs.viewStudents")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault()
+                                    toggleProgramStatus(program.id, program.status)
+                                  }}
+                                >
                                   {program.status === "active"
                                     ? t("admin.programs.deactivate")
                                     : t("admin.programs.activate")}

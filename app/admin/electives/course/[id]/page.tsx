@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,14 +27,18 @@ import {
   Clock,
   Download,
   FileDown,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useDataCache } from "@/lib/data-cache-context"
+import { useInstitution } from "@/lib/institution-context"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -45,6 +50,13 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   // Add the language hook near the top of the component
   const { t, language } = useLanguage()
   const { toast } = useToast()
+  const supabase = createClientComponentClient()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { institution } = useInstitution()
+
+  // State for loading
+  const [isLoading, setIsLoading] = useState(true)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // State for dialogs
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -52,158 +64,122 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editedCourses, setEditedCourses] = useState<string[]>([])
 
-  // Mock elective course data
-  const electiveCourse = {
-    id: params.id,
-    name:
-      params.id === "fall-2023"
-        ? "Fall Semester 2023"
-        : params.id === "spring-2024"
-          ? "Spring Semester 2024"
-          : "Elective Courses",
-    description:
-      "Select your preferred courses for this semester's elective program. You can choose up to the maximum number of courses allowed for this program.",
-    semester: params.id.includes("fall") ? "Fall" : "Spring",
-    year: params.id.includes("2023") ? 2023 : params.id.includes("2024") ? 2024 : 2025,
-    maxSelections: params.id === "spring-2024" ? 3 : 2,
-    status: ElectivePackStatus.PUBLISHED,
-    startDate: params.id.includes("fall") ? "2023-08-01" : "2024-01-10",
-    endDate: params.id.includes("fall") ? "2023-08-15" : "2024-01-25",
-    coursesCount: params.id === "spring-2024" ? 8 : 6,
-    studentsEnrolled: params.id === "fall-2023" ? 42 : params.id === "spring-2024" ? 28 : 0,
-    createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
-  }
+  // State for elective course data
+  const [electiveCourse, setElectiveCourse] = useState<any>(null)
+  const [courses, setCourses] = useState<any[]>([])
+  const [studentSelections, setStudentSelections] = useState<any[]>([])
 
-  // Mock courses data for this elective program
-  const courses = [
-    {
-      id: "1",
-      name: "Strategic Management",
-      description: "This course focuses on the strategic management of organizations.",
-      maxStudents: 30,
-      currentStudents: 25,
-      professor: "Dr. Smith",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "2",
-      name: "International Marketing",
-      description: "This course covers marketing strategies in an international context.",
-      maxStudents: 25,
-      currentStudents: 25,
-      professor: "Dr. Johnson",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "3",
-      name: "Financial Management",
-      description: "This course covers financial management principles and practices.",
-      maxStudents: 35,
-      currentStudents: 20,
-      professor: "Dr. Williams",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "4",
-      name: "Organizational Behavior",
-      description: "This course examines human behavior in organizational settings.",
-      maxStudents: 30,
-      currentStudents: 30,
-      professor: "Dr. Brown",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "5",
-      name: "Business Ethics",
-      description: "This course explores ethical issues in business and management.",
-      maxStudents: 40,
-      currentStudents: 15,
-      professor: "Dr. Davis",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["International Management"],
-    },
-    {
-      id: "6",
-      name: "Supply Chain Management",
-      description: "This course covers the management of supply chains and logistics.",
-      maxStudents: 25,
-      currentStudents: 20,
-      professor: "Dr. Miller",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-  ]
+  // Fetch elective course data
+  useEffect(() => {
+    const fetchElectiveCourseData = async () => {
+      if (!institution?.id) return
 
-  // Mock student selections data
-  const studentSelections = [
-    {
-      id: "1",
-      studentName: "Alex Johnson",
-      studentId: "st123456",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "alex.johnson@student.gsom.spbu.ru",
-      selectedCourses: ["Strategic Management", "Financial Management"],
-      selectionDate: "2023-08-05",
-      status: SelectionStatus.APPROVED,
-      statementFile: "alex_johnson_statement.pdf",
-    },
-    {
-      id: "2",
-      studentName: "Maria Petrova",
-      studentId: "st123457",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "maria.petrova@student.gsom.spbu.ru",
-      selectedCourses: ["International Marketing", "Supply Chain Management"],
-      selectionDate: "2023-08-06",
-      status: SelectionStatus.APPROVED,
-      statementFile: "maria_petrova_statement.pdf",
-    },
-    {
-      id: "3",
-      studentName: "Ivan Sokolov",
-      studentId: "st123458",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "ivan.sokolov@student.gsom.spbu.ru",
-      selectedCourses: ["Organizational Behavior", "Business Ethics"],
-      selectionDate: "2023-08-07",
-      status: SelectionStatus.PENDING,
-      statementFile: "ivan_sokolov_statement.pdf",
-    },
-    {
-      id: "4",
-      studentName: "Elena Ivanova",
-      studentId: "st123459",
-      group: "23.B11-vshm",
-      program: "International Management",
-      email: "elena.ivanova@student.gsom.spbu.ru",
-      selectedCourses: ["Strategic Management", "Business Ethics"],
-      selectionDate: "2023-08-08",
-      status: SelectionStatus.PENDING,
-      statementFile: null,
-    },
-  ]
+      try {
+        // Try to get from cache first
+        const cacheKey = `electiveCourse-${params.id}`
+        const cachedData = getCachedData<any>(cacheKey, institution.id)
+
+        if (cachedData) {
+          setElectiveCourse(cachedData.electiveCourse)
+          setCourses(cachedData.courses)
+          setStudentSelections(cachedData.studentSelections)
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch from Supabase if not in cache
+        const { data: packData, error: packError } = await supabase
+          .from("elective_packs")
+          .select("*")
+          .eq("id", params.id)
+          .eq("institution_id", institution.id)
+          .eq("type", "course")
+          .single()
+
+        if (packError) {
+          throw packError
+        }
+
+        // Fetch courses for this elective pack
+        const { data: coursesData, error: coursesError } = await supabase
+          .from("elective_courses")
+          .select("*")
+          .eq("pack_id", params.id)
+
+        if (coursesError) {
+          throw coursesError
+        }
+
+        // Fetch student selections for this elective pack
+        const { data: selectionsData, error: selectionsError } = await supabase
+          .from("student_selections")
+          .select(`
+            id,
+            student_id,
+            selection_date,
+            status,
+            statement_file,
+            selected_courses,
+            profiles(
+              id,
+              full_name,
+              email,
+              student_id,
+              group
+            )
+          `)
+          .eq("pack_id", params.id)
+
+        if (selectionsError) {
+          throw selectionsError
+        }
+
+        // Format student selections data
+        const formattedSelections = selectionsData.map((selection) => ({
+          id: selection.id,
+          studentName: selection.profiles.full_name,
+          studentId: selection.profiles.student_id,
+          group: selection.profiles.group,
+          program: "Management", // This would need to be fetched from the database
+          email: selection.profiles.email,
+          selectedCourses: selection.selected_courses || [],
+          selectionDate: selection.selection_date,
+          status: selection.status,
+          statementFile: selection.statement_file,
+        }))
+
+        // Set state with fetched data
+        setElectiveCourse(packData)
+        setCourses(coursesData)
+        setStudentSelections(formattedSelections)
+
+        // Cache the data
+        setCachedData(cacheKey, institution.id, {
+          electiveCourse: packData,
+          courses: coursesData,
+          studentSelections: formattedSelections,
+        })
+      } catch (error) {
+        console.error("Error fetching elective course data:", error)
+        toast({
+          title: t("admin.electives.fetchError", "Failed to fetch elective course data"),
+          description: t(
+            "admin.electives.fetchErrorDesc",
+            "There was an error fetching the elective course data. Please try again.",
+          ),
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchElectiveCourseData()
+  }, [params.id, institution?.id, getCachedData, setCachedData, supabase, toast, t])
 
   // Format date helper
   const formatDate = (dateString: string) => {
+    if (!dateString) return ""
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
@@ -272,9 +248,11 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
 
   // Function to handle course selection in edit dialog
   const handleCourseSelection = (courseName: string, checked: boolean) => {
+    if (!electiveCourse) return
+
     if (checked) {
       // Add course if it's not already selected and we haven't reached the max
-      if (!editedCourses.includes(courseName) && editedCourses.length < electiveCourse.maxSelections) {
+      if (!editedCourses.includes(courseName) && editedCourses.length < electiveCourse.max_selections) {
         setEditedCourses([...editedCourses, courseName])
       }
     } else {
@@ -284,18 +262,58 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   }
 
   // Function to save edited courses
-  const saveEditedCourses = () => {
-    // In a real app, you would make an API call here to update the database
-    // For this demo, we'll just show a success message
-    setEditDialogOpen(false)
+  const saveEditedCourses = async () => {
+    if (!selectedStudent) return
+    setIsUpdating(true)
 
-    // Use setTimeout to ensure the toast appears after the dialog closes
-    window.setTimeout(() => {
+    try {
+      // Update the selection in the database
+      const { error } = await supabase
+        .from("student_selections")
+        .update({
+          selected_courses: editedCourses,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedStudent.id)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) =>
+          selection.id === selectedStudent.id ? { ...selection, selectedCourses: editedCourses } : selection,
+        ),
+      )
+
+      // Invalidate cache
+      if (institution?.id) {
+        const cacheKey = `electiveCourse-${params.id}`
+        invalidateCache(cacheKey, institution.id)
+      }
+
+      // Close dialog
+      setEditDialogOpen(false)
+
+      // Show success toast
       toast({
         title: t("toast.selection.updated"),
         description: t("toast.selection.updated.course.description").replace("{0}", selectedStudent.studentName),
       })
-    }, 100)
+    } catch (error) {
+      console.error("Error updating selection:", error)
+      toast({
+        title: t("toast.selection.updateError", "Failed to update selection"),
+        description: t(
+          "toast.selection.updateErrorDesc",
+          "There was an error updating the selection. Please try again.",
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   // Function to export course enrollments to CSV
@@ -349,7 +367,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   }
 
   // Function to download student statement
-  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
+  const downloadStudentStatement = async (studentName: string, fileName: string | null) => {
     if (!fileName) {
       toast({
         title: t("toast.statement.notAvailable"),
@@ -358,12 +376,24 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
       return
     }
 
-    // In a real app, this would download the actual file
-    // For this demo, we'll just show a toast
-    toast({
-      title: t("toast.statement.download.success"),
-      description: t("toast.statement.download.success.description"),
-    })
+    try {
+      // In a real implementation, you would download the file from storage
+      // For this demo, we'll just show a toast
+      toast({
+        title: t("toast.statement.download.success"),
+        description: t("toast.statement.download.success.description"),
+      })
+    } catch (error) {
+      console.error("Error downloading statement:", error)
+      toast({
+        title: t("toast.statement.downloadError", "Failed to download statement"),
+        description: t(
+          "toast.statement.downloadErrorDesc",
+          "There was an error downloading the statement. Please try again.",
+        ),
+        variant: "destructive",
+      })
+    }
   }
 
   // Function to export all student selections to CSV
@@ -409,12 +439,170 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
     link.setAttribute("href", url)
     link.setAttribute(
       "download",
-      `${electiveCourse.name.replace(/\s+/g, "_")}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
+      `${electiveCourse?.name_en.replace(/\s+/g, "_") || "elective_course"}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
     )
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // Function to update student selection status
+  const updateSelectionStatus = async (studentId: string, newStatus: SelectionStatus) => {
+    setIsUpdating(true)
+
+    try {
+      // Update the selection status in the database
+      const { error } = await supabase
+        .from("student_selections")
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", studentId)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) => (selection.id === studentId ? { ...selection, status: newStatus } : selection)),
+      )
+
+      // Invalidate cache
+      if (institution?.id) {
+        const cacheKey = `electiveCourse-${params.id}`
+        invalidateCache(cacheKey, institution.id)
+      }
+
+      // Show success toast
+      const student = studentSelections.find((s) => s.id === studentId)
+      const statusMessage =
+        newStatus === SelectionStatus.APPROVED
+          ? t("toast.selection.approved", "Selection approved")
+          : newStatus === SelectionStatus.REJECTED
+            ? t("toast.selection.rejected", "Selection rejected")
+            : t("toast.selection.withdrawn", "Selection withdrawn")
+
+      toast({
+        title: statusMessage,
+        description: t("toast.selection.statusChanged", "The selection status for {0} has been updated.").replace(
+          "{0}",
+          student?.studentName || "",
+        ),
+      })
+    } catch (error) {
+      console.error("Error updating selection status:", error)
+      toast({
+        title: t("toast.selection.updateError", "Failed to update selection"),
+        description: t(
+          "toast.selection.updateErrorDesc",
+          "There was an error updating the selection. Please try again.",
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+      setViewDialogOpen(false) // Close dialog if open
+    }
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.ADMIN}>
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Link href="/admin/electives?tab=courses">
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </Link>
+              <div>
+                <Skeleton className="h-9 w-64" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-24" />
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Skeleton className="h-6 w-48" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="flex justify-between">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-48" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="courses">
+            <TabsList>
+              <TabsTrigger value="courses">{t("manager.courseDetails.coursesTab")}</TabsTrigger>
+              <TabsTrigger value="students">{t("manager.courseDetails.studentsTab")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="courses" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    <Skeleton className="h-6 w-48" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.professor")}
+                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.enrollment")}
+                          </th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">
+                            {t("manager.courseDetails.export")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[1, 2, 3, 4].map((i) => (
+                          <tr key={i} className="border-b">
+                            <td className="py-3 px-4 text-sm">
+                              <Skeleton className="h-5 w-32" />
+                            </td>
+                            <td className="py-3 px-4 text-sm">
+                              <Skeleton className="h-5 w-24" />
+                            </td>
+                            <td className="py-3 px-4 text-sm">
+                              <Skeleton className="h-5 w-16" />
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <Skeleton className="h-5 w-24 mx-auto" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -428,10 +616,12 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{electiveCourse.name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{electiveCourse?.name_en || "Elective Course"}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">{getStatusBadge(electiveCourse.status)}</div>
+          <div className="flex items-center gap-2">
+            {electiveCourse && getStatusBadge(electiveCourse.status as ElectivePackStatus)}
+          </div>
         </div>
 
         <Card>
@@ -443,30 +633,30 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.selectionPeriod")}:</dt>
                 <dd>
-                  {formatDate(electiveCourse.startDate)} - {formatDate(electiveCourse.endDate)}
+                  {formatDate(electiveCourse?.start_date)} - {formatDate(electiveCourse?.end_date)}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
                 <dd>
-                  {electiveCourse.maxSelections} {t("manager.courseDetails.courses")}
+                  {electiveCourse?.max_selections} {t("manager.courseDetails.courses")}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.courses")}:</dt>
-                <dd>{electiveCourse.coursesCount}</dd>
+                <dd>{courses?.length || 0}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
-                <dd>{electiveCourse.studentsEnrolled}</dd>
+                <dd>{studentSelections?.length || 0}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
-                <dd>{formatDate(electiveCourse.createdAt)}</dd>
+                <dd>{formatDate(electiveCourse?.created_at)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
-                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
+                <dd>{t(`manager.status.${(electiveCourse?.status || "").toLowerCase()}`)}</dd>
               </div>
             </dl>
           </CardContent>
@@ -502,28 +692,38 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                       </tr>
                     </thead>
                     <tbody>
-                      {courses.map((course) => (
-                        <tr key={course.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{course.name}</td>
-                          <td className="py-3 px-4 text-sm">{course.professor}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
-                              {course.currentStudents}/{course.maxStudents}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => exportCourseEnrollmentsToCSV(course.name)}
-                              className="flex items-center gap-1 mx-auto"
-                            >
-                              <FileDown className="h-4 w-4" />
-                              {t("manager.courseDetails.download")}
-                            </Button>
+                      {courses.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-center text-muted-foreground">
+                            {t("manager.courseDetails.noCourses", "No courses found for this elective program.")}
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        courses.map((course) => (
+                          <tr key={course.id} className="border-b">
+                            <td className="py-3 px-4 text-sm">{course.name_en}</td>
+                            <td className="py-3 px-4 text-sm">{course.instructor_en}</td>
+                            <td className="py-3 px-4 text-sm">
+                              <Badge
+                                variant={course.current_students >= course.max_students ? "destructive" : "secondary"}
+                              >
+                                {course.current_students || 0}/{course.max_students || 30}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => exportCourseEnrollmentsToCSV(course.name_en)}
+                                className="flex items-center gap-1 mx-auto"
+                              >
+                                <FileDown className="h-4 w-4" />
+                                {t("manager.courseDetails.download")}
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -570,92 +770,87 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                       </tr>
                     </thead>
                     <tbody>
-                      {studentSelections.map((selection) => (
-                        <tr key={selection.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{selection.studentName}</td>
-                          <td className="py-3 px-4 text-sm">{selection.group}</td>
-                          <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
-                          <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            {selection.statementFile ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
+                      {studentSelections.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-4 text-center text-muted-foreground">
+                            {t(
+                              "manager.courseDetails.noStudents",
+                              "No student selections found for this elective program.",
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
+                        </tr>
+                      ) : (
+                        studentSelections.map((selection) => (
+                          <tr key={selection.id} className="border-b">
+                            <td className="py-3 px-4 text-sm">{selection.studentName}</td>
+                            <td className="py-3 px-4 text-sm">{selection.group}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
+                            <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              {selection.statementFile ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    downloadStudentStatement(selection.studentName, selection.statementFile)
+                                  }
+                                >
+                                  <Download className="h-4 w-4" />
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  {t("manager.courseDetails.edit")}
-                                </DropdownMenuItem>
-                                {selection.status === SelectionStatus.PENDING && (
-                                  <>
-                                    <DropdownMenuItem
-                                      className="text-green-600"
-                                      onClick={() => {
-                                        toast({
-                                          title: "Selection approved",
-                                          description: `The selection for ${selection.studentName} has been approved.`,
-                                        })
-                                      }}
-                                    >
-                                      <CheckCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.approve")}
-                                    </DropdownMenuItem>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditDialog(selection)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    {t("manager.courseDetails.edit")}
+                                  </DropdownMenuItem>
+                                  {selection.status === SelectionStatus.PENDING && (
+                                    <>
+                                      <DropdownMenuItem
+                                        className="text-green-600"
+                                        onClick={() => updateSelectionStatus(selection.id, SelectionStatus.APPROVED)}
+                                      >
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        {t("manager.exchangeDetails.approve")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={() => updateSelectionStatus(selection.id, SelectionStatus.REJECTED)}
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        {t("manager.exchangeDetails.reject")}
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {selection.status === SelectionStatus.APPROVED && (
                                     <DropdownMenuItem
                                       className="text-red-600"
-                                      onClick={() => {
-                                        toast({
-                                          title: "Selection rejected",
-                                          description: `The selection for ${selection.studentName} has been rejected.`,
-                                        })
-                                      }}
+                                      onClick={() => updateSelectionStatus(selection.id, SelectionStatus.REJECTED)}
                                     >
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.reject")}
+                                      {t("manager.courseDetails.withdraw")}
                                     </DropdownMenuItem>
-                                  </>
-                                )}
-                                {selection.status === SelectionStatus.APPROVED && (
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() => {
-                                      toast({
-                                        title: t("toast.selection.withdrawn"),
-                                        description: t("toast.selection.withdrawn.description").replace(
-                                          "{0}",
-                                          selection.studentName,
-                                        ),
-                                      })
-                                    }}
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    {t("manager.courseDetails.withdraw")}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -767,33 +962,27 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                     <Button
                       variant="outline"
                       className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection approved",
-                            description: `The selection for ${selectedStudent.studentName} has been approved.`,
-                          })
-                        }, 100)
-                      }}
+                      onClick={() => updateSelectionStatus(selectedStudent.id, SelectionStatus.APPROVED)}
+                      disabled={isUpdating}
                     >
-                      <CheckCircle className="mr-2 h-4 w-4" />
+                      {isUpdating ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                      )}
                       {t("manager.exchangeDetails.approve")}
                     </Button>
                     <Button
                       variant="outline"
                       className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection rejected",
-                            description: `The selection for ${selectedStudent.studentName} has been rejected.`,
-                          })
-                        }, 100)
-                      }}
+                      onClick={() => updateSelectionStatus(selectedStudent.id, SelectionStatus.REJECTED)}
+                      disabled={isUpdating}
                     >
-                      <XCircle className="mr-2 h-4 w-4" />
+                      {isUpdating ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <XCircle className="mr-2 h-4 w-4" />
+                      )}
                       {t("manager.exchangeDetails.reject")}
                     </Button>
                   </>
@@ -840,7 +1029,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                   <div>
                     <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {t("manager.courseDetails.selectUpTo")} {electiveCourse.maxSelections}{" "}
+                      {t("manager.courseDetails.selectUpTo")} {electiveCourse?.max_selections || 2}{" "}
                       {t("manager.courseDetails.courses")}
                     </p>
                     <div className="mt-3 space-y-3">
@@ -848,23 +1037,23 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                         <div key={course.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`course-${course.id}`}
-                            checked={editedCourses.includes(course.name)}
-                            onCheckedChange={(checked) => handleCourseSelection(course.name, checked as boolean)}
+                            checked={editedCourses.includes(course.name_en)}
+                            onCheckedChange={(checked) => handleCourseSelection(course.name_en, checked as boolean)}
                             disabled={
-                              !editedCourses.includes(course.name) &&
-                              editedCourses.length >= electiveCourse.maxSelections
+                              !editedCourses.includes(course.name_en) &&
+                              editedCourses.length >= (electiveCourse?.max_selections || 2)
                             }
                           />
                           <Label
                             htmlFor={`course-${course.id}`}
                             className={
-                              !editedCourses.includes(course.name) &&
-                              editedCourses.length >= electiveCourse.maxSelections
+                              !editedCourses.includes(course.name_en) &&
+                              editedCourses.length >= (electiveCourse?.max_selections || 2)
                                 ? "text-muted-foreground"
                                 : ""
                             }
                           >
-                            {course.name}
+                            {course.name_en}
                           </Label>
                         </div>
                       ))}
@@ -873,11 +1062,18 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isUpdating}>
                   {t("manager.courseDetails.cancel")}
                 </Button>
-                <Button onClick={saveEditedCourses} disabled={editedCourses.length === 0}>
-                  {t("manager.courseDetails.saveChanges")}
+                <Button onClick={saveEditedCourses} disabled={editedCourses.length === 0 || isUpdating}>
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("manager.courseDetails.saving", "Saving...")}
+                    </>
+                  ) : (
+                    t("manager.courseDetails.saveChanges")
+                  )}
                 </Button>
               </DialogFooter>
             </>

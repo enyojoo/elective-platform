@@ -12,15 +12,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, Users, Filter, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Users,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
-
-const initialGroups: any[] = []
+import { useInstitution } from "@/lib/institution-context"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface GroupFormData {
   id?: string
@@ -34,6 +45,7 @@ interface GroupFormData {
 
 export default function GroupsPage() {
   const { t } = useLanguage()
+  const { institution } = useInstitution()
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -50,6 +62,8 @@ export default function GroupsPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [degrees, setDegrees] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
@@ -70,32 +84,20 @@ export default function GroupsPage() {
   useEffect(() => {
     return () => {
       isMounted.current = false
-
-      // Force cleanup of any lingering dialog effects
-      document.body.style.removeProperty("overflow")
-      document.body.style.removeProperty("padding-right")
-
-      // Remove any aria-hidden attributes from the body
-      document.body.removeAttribute("aria-hidden")
-
-      // Remove any data-radix-* attributes from the body
-      const attributes = [...document.body.attributes]
-      attributes.forEach((attr) => {
-        if (attr.name.startsWith("data-radix-")) {
-          document.body.removeAttribute(attr.name)
-        }
-      })
     }
   }, [])
 
   // Fetch groups from Supabase with caching
   useEffect(() => {
     const fetchGroups = async () => {
+      if (!institution?.id) return
+
       try {
         setIsLoading(true)
+        setError(null)
 
         // Try to get data from cache first
-        const cachedGroups = getCachedData<any[]>("groups", "all")
+        const cachedGroups = getCachedData<any[]>("groups", institution.id)
 
         if (cachedGroups) {
           console.log("Using cached groups data")
@@ -106,7 +108,11 @@ export default function GroupsPage() {
         }
 
         // First, fetch the groups
-        const { data: groupsData, error: groupsError } = await supabase.from("groups").select("*").order("name")
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .order("name")
 
         if (groupsError) throw groupsError
 
@@ -184,17 +190,18 @@ export default function GroupsPage() {
         }))
 
         // Save to cache
-        setCachedData("groups", "all", formattedGroups)
+        setCachedData("groups", institution.id, formattedGroups)
 
         if (isMounted.current) {
           setGroups(formattedGroups)
           setFilteredGroups(formattedGroups)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch groups:", error)
+        setError(error.message || t("admin.groups.errorFetching"))
         toast({
           title: t("admin.groups.error"),
-          description: t("admin.groups.errorFetching"),
+          description: error.message || t("admin.groups.errorFetching"),
           variant: "destructive",
         })
       } finally {
@@ -205,14 +212,16 @@ export default function GroupsPage() {
     }
 
     fetchGroups()
-  }, [t, toast, getCachedData, setCachedData])
+  }, [t, toast, getCachedData, setCachedData, institution?.id])
 
   // Fetch reference data (programs and degrees) with caching
   useEffect(() => {
     const fetchReferenceData = async () => {
+      if (!institution?.id) return
+
       try {
         // Try to get programs from cache
-        const cachedPrograms = getCachedData<any[]>("programs", "all")
+        const cachedPrograms = getCachedData<any[]>("programs", institution.id)
         if (cachedPrograms) {
           setPrograms(cachedPrograms)
         } else {
@@ -220,6 +229,7 @@ export default function GroupsPage() {
           const { data: programsData, error: programsError } = await supabase
             .from("programs")
             .select("id, name, degree_id")
+            .eq("institution_id", institution.id)
             .order("name")
 
           if (programsError) throw programsError
@@ -227,12 +237,12 @@ export default function GroupsPage() {
           if (programsData && isMounted.current) {
             setPrograms(programsData)
             // Cache the programs data
-            setCachedData("programs", "all", programsData)
+            setCachedData("programs", institution.id, programsData)
           }
         }
 
         // Try to get degrees from cache
-        const cachedDegrees = getCachedData<any[]>("degrees", "all")
+        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
         if (cachedDegrees) {
           setDegrees(cachedDegrees)
         } else {
@@ -240,6 +250,7 @@ export default function GroupsPage() {
           const { data: degreesData, error: degreesError } = await supabase
             .from("degrees")
             .select("id, name")
+            .eq("institution_id", institution.id)
             .order("name")
 
           if (degreesError) throw degreesError
@@ -247,21 +258,21 @@ export default function GroupsPage() {
           if (degreesData && isMounted.current) {
             setDegrees(degreesData)
             // Cache the degrees data
-            setCachedData("degrees", "all", degreesData)
+            setCachedData("degrees", institution.id, degreesData)
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch reference data:", error)
         toast({
           title: t("admin.groups.error"),
-          description: t("admin.groups.errorFetchingReferenceData"),
+          description: error.message || t("admin.groups.errorFetchingReferenceData"),
           variant: "destructive",
         })
       }
     }
 
     fetchReferenceData()
-  }, [t, toast, getCachedData, setCachedData])
+  }, [t, toast, getCachedData, setCachedData, institution?.id])
 
   // Get unique values for filters
   const programsList = [...new Set(groups.map((group) => group.program))]
@@ -323,47 +334,20 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         displayName: "",
-        programId: programs[0]?.id.toString() || "",
-        degreeId: degrees[0]?.id.toString() || "",
+        programId: programs.length > 0 ? programs[0]?.id.toString() : "",
+        degreeId: degrees.length > 0 ? degrees[0]?.id.toString() : "",
         year: new Date().getFullYear().toString(),
         status: "active",
       })
       setIsEditing(false)
     }
 
-    // Ensure body is in a clean state before opening dialog
-    document.body.style.removeProperty("overflow")
-    document.body.removeAttribute("aria-hidden")
-
-    // Set timeout to ensure DOM is ready
-    setTimeout(() => {
-      if (isMounted.current) {
-        setIsDialogOpen(true)
-      }
-    }, 0)
+    setIsDialogOpen(true)
   }
 
   // Safe dialog close handler
   const handleCloseDialog = () => {
     setIsDialogOpen(false)
-
-    // Ensure cleanup after dialog closes
-    setTimeout(() => {
-      if (isMounted.current) {
-        // Reset body styles
-        document.body.style.removeProperty("overflow")
-        document.body.style.removeProperty("padding-right")
-        document.body.removeAttribute("aria-hidden")
-
-        // Remove any data-radix-* attributes from the body
-        const attributes = [...document.body.attributes]
-        attributes.forEach((attr) => {
-          if (attr.name.startsWith("data-radix-")) {
-            document.body.removeAttribute(attr.name)
-          }
-        })
-      }
-    }, 300) // Wait for animation to complete
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -387,6 +371,17 @@ export default function GroupsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!institution?.id) {
+      toast({
+        title: t("admin.groups.error"),
+        description: t("admin.groups.noInstitution"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
 
     try {
       if (isEditing) {
@@ -432,7 +427,7 @@ export default function GroupsPage() {
           setGroups(updatedGroups)
 
           // Update cache
-          setCachedData("groups", "all", updatedGroups)
+          setCachedData("groups", institution.id, updatedGroups)
 
           toast({
             title: t("admin.groups.success"),
@@ -450,6 +445,7 @@ export default function GroupsPage() {
             degree_id: currentGroup.degreeId, // No need to parse as integer for UUID
             year: currentGroup.year,
             status: currentGroup.status,
+            institution_id: institution.id,
           })
           .select()
 
@@ -477,7 +473,7 @@ export default function GroupsPage() {
           setGroups(updatedGroups)
 
           // Update cache
-          setCachedData("groups", "all", updatedGroups)
+          setCachedData("groups", institution.id, updatedGroups)
 
           toast({
             title: t("admin.groups.success"),
@@ -494,10 +490,14 @@ export default function GroupsPage() {
         description: error.message || t("admin.groups.errorSaving"),
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (id: string) => {
+    if (!institution?.id) return
+
     if (confirm(t("admin.groups.deleteConfirm"))) {
       try {
         const { error } = await supabase.from("groups").delete().eq("id", id)
@@ -508,7 +508,7 @@ export default function GroupsPage() {
         setGroups(updatedGroups)
 
         // Update cache
-        setCachedData("groups", "all", updatedGroups)
+        setCachedData("groups", institution.id, updatedGroups)
 
         toast({
           title: t("admin.groups.success"),
@@ -526,6 +526,8 @@ export default function GroupsPage() {
   }
 
   const toggleStatus = async (id: string) => {
+    if (!institution?.id) return
+
     try {
       const group = groups.find((g) => g.id === id)
       if (!group) return
@@ -549,7 +551,7 @@ export default function GroupsPage() {
       setGroups(updatedGroups)
 
       // Update cache
-      setCachedData("groups", "all", updatedGroups)
+      setCachedData("groups", institution.id, updatedGroups)
 
       toast({
         title: t("admin.groups.success"),
@@ -627,6 +629,14 @@ export default function GroupsPage() {
             {t("admin.groups.addGroup")}
           </Button>
         </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{t("admin.groups.error")}</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardContent className="pt-6">
@@ -824,136 +834,129 @@ export default function GroupsPage() {
         </Card>
       </div>
 
-      {/* Use forceMount to ensure proper cleanup */}
-      {isDialogOpen && (
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) handleCloseDialog()
-          }}
-        >
-          <DialogContent
-            className="sm:max-w-[500px]"
-            onEscapeKeyDown={(e) => {
-              // Prevent escape key from propagating
-              e.stopPropagation()
-              handleCloseDialog()
-            }}
-            onPointerDownOutside={(e) => {
-              // Prevent clicks outside from propagating
-              e.preventDefault()
-              handleCloseDialog()
-            }}
-            onInteractOutside={(e) => {
-              // Prevent any interaction outside from propagating
-              e.preventDefault()
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={currentGroup.name}
-                    onChange={handleInputChange}
-                    placeholder={t("admin.groups.groupCodePlaceholder")}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
-                  <Input
-                    id="displayName"
-                    name="displayName"
-                    value={currentGroup.displayName}
-                    onChange={handleInputChange}
-                    placeholder={t("admin.groups.displayNamePlaceholder")}
-                    required
-                  />
-                </div>
-              </div>
-
+      {/* Dialog for adding/editing groups */}
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? t("admin.groups.editGroup") : t("admin.groups.addNewGroup")}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="programId">{t("admin.groups.program")}</Label>
+                <Label htmlFor="name">{t("admin.groups.groupCodeLabel")}</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={currentGroup.name}
+                  onChange={handleInputChange}
+                  placeholder={t("admin.groups.groupCodePlaceholder")}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="displayName">{t("admin.groups.displayNameLabel")}</Label>
+                <Input
+                  id="displayName"
+                  name="displayName"
+                  value={currentGroup.displayName}
+                  onChange={handleInputChange}
+                  placeholder={t("admin.groups.displayNamePlaceholder")}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="programId">{t("admin.groups.program")}</Label>
+              <select
+                id="programId"
+                name="programId"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                value={currentGroup.programId}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="">{t("admin.groups.selectProgram")}</option>
+                {programs.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
                 <select
-                  id="programId"
-                  name="programId"
+                  id="degreeId"
+                  name="degreeId"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentGroup.programId}
+                  value={currentGroup.degreeId}
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">{t("admin.groups.selectProgram")}</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.name}
+                  <option value="">{t("admin.groups.selectDegree")}</option>
+                  {degrees.map((degree) => (
+                    <option key={degree.id} value={degree.id}>
+                      {degree.name}
                     </option>
                   ))}
                 </select>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
-                  <select
-                    id="degreeId"
-                    name="degreeId"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    value={currentGroup.degreeId}
-                    onChange={handleInputChange}
-                    required
-                  >
-                    <option value="">{t("admin.groups.selectDegree")}</option>
-                    {degrees.map((degree) => (
-                      <option key={degree.id} value={degree.id}>
-                        {degree.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="year">{t("admin.groups.year")}</Label>
-                  <Input
-                    id="year"
-                    name="year"
-                    type="text"
-                    value={currentGroup.year}
-                    onChange={handleInputChange}
-                    placeholder="2024"
-                    required
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="status">{t("admin.groups.status")}</Label>
-                <select
-                  id="status"
-                  name="status"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  value={currentGroup.status}
+                <Label htmlFor="year">{t("admin.groups.year")}</Label>
+                <Input
+                  id="year"
+                  name="year"
+                  type="text"
+                  value={currentGroup.year}
                   onChange={handleInputChange}
-                >
-                  <option value="active">{t("admin.groups.active")}</option>
-                  <option value="inactive">{t("admin.groups.inactive")}</option>
-                </select>
+                  placeholder="2024"
+                  required
+                />
               </div>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                  {t("admin.groups.cancel")}
-                </Button>
-                <Button type="submit">{isEditing ? t("admin.groups.update") : t("admin.groups.create")}</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="space-y-2">
+              <Label htmlFor="status">{t("admin.groups.status")}</Label>
+              <select
+                id="status"
+                name="status"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                value={currentGroup.status}
+                onChange={handleInputChange}
+              >
+                <option value="active">{t("admin.groups.active")}</option>
+                <option value="inactive">{t("admin.groups.inactive")}</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                {t("admin.groups.cancel")}
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    {isEditing ? t("admin.groups.updating") : t("admin.groups.creating")}
+                  </>
+                ) : isEditing ? (
+                  t("admin.groups.update")
+                ) : (
+                  t("admin.groups.create")
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

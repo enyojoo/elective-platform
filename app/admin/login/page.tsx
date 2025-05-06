@@ -93,7 +93,16 @@ export default function InstitutionLoginPage() {
   }
 
   if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
+        <div className="mx-auto max-w-md space-y-6 w-full">
+          <div className="flex justify-center mb-6">
+            <div className="h-10 w-40 bg-gray-200 animate-pulse rounded"></div>
+          </div>
+          <div className="h-[400px] bg-gray-200 animate-pulse rounded-lg"></div>
+        </div>
+      </div>
+    )
   }
 
   if (isSubdomainAccess) {
