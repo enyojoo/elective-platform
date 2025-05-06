@@ -193,18 +193,24 @@ export interface Database {
         Row: {
           profile_id: string
           program_id: string | null
+          degree_id: string | null
+          academic_year_id: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           profile_id: string
           program_id?: string | null
+          degree_id?: string | null
+          academic_year_id?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           profile_id?: string
           program_id?: string | null
+          degree_id?: string | null
+          academic_year_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -219,6 +225,18 @@ export interface Database {
             foreignKeyName: "manager_profiles_program_id_fkey"
             columns: ["program_id"]
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manager_profiles_degree_id_fkey"
+            columns: ["degree_id"]
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manager_profiles_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            referencedRelation: "academic_years"
             referencedColumns: ["id"]
           },
         ]
