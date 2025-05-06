@@ -1,124 +1,293 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 
-type CacheEntry<T> = {
-  data: T
-  timestamp: number
-}
+type CacheData = {
+  // Admin caches
+  users?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  institutionSettings?: {
+    data: any
+    timestamp: number
+    institutionId: string
+  }
+  adminProfile?: {
+    data: any
+    timestamp: number
+    userId: string
+  }
+  programs?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  courses?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  degrees?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  groups?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  courseElectives?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
+  exchangePrograms?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
 
-type CacheStore = {
-  [key: string]: {
-    [id: string]: CacheEntry<any>
+  // Manager caches
+  managerProfile?: {
+    data: any
+    timestamp: number
+    userId: string
+  }
+  programDetails?: {
+    data: any
+    timestamp: number
+    programId: string
+  }
+  programStudents?: {
+    data: any[]
+    timestamp: number
+    programId: string
+  }
+
+  // Student caches
+  studentProfile?: {
+    data: any
+    timestamp: number
+    userId: string
+  }
+  studentCourseSelections?: {
+    data: any[]
+    timestamp: number
+    userId: string
+  }
+  studentExchangeSelections?: {
+    data: any[]
+    timestamp: number
+    userId: string
+  }
+
+  // Super admin caches
+  institutions?: {
+    data: any[]
+    timestamp: number
+  }
+  plans?: {
+    data: any[]
+    timestamp: number
+  }
+  superAdminProfile?: {
+    data: any
+    timestamp: number
+    userId: string
   }
 }
 
 type DataCacheContextType = {
-  getCachedData: <T>(type: string, id: string) => T | null
-  setCachedData: <T>(type: string, id: string, data: T) => void
-  invalidateCache: (type: string, id?: string) => void
-  clearCache: () => void
-  isCached: (type: string, id: string) => boolean
+  getCachedData: <T>(key: keyof CacheData, id: string) => T | null
+  setCachedData: <T>(key: keyof CacheData, id: string, data: T) => void
+  invalidateCache: (key: keyof CacheData, id?: string) => void
+  clearAllCache: () => void
 }
+
+const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes in milliseconds
+const STORAGE_KEY = "electivepro_data_cache"
 
 const DataCacheContext = createContext<DataCacheContextType | undefined>(undefined)
 
-// Cache expiration time in milliseconds (5 minutes)
-const CACHE_EXPIRATION = 5 * 60 * 1000
-
 export function DataCacheProvider({ children }: { children: ReactNode }) {
-  const [cache, setCache] = useState<CacheStore>({})
+  const [cacheData, setCacheData] = useState<CacheData>({})
 
-  // Initialize cache from localStorage on mount
+  // Load cache from localStorage on initial render
   useEffect(() => {
     try {
-      const storedCache = localStorage.getItem("dataCache")
+      const storedCache = localStorage.getItem(STORAGE_KEY)
       if (storedCache) {
-        setCache(JSON.parse(storedCache))
+        setCacheData(JSON.parse(storedCache))
       }
     } catch (error) {
       console.error("Error loading cache from localStorage:", error)
-      // If there's an error, clear the localStorage cache
-      localStorage.removeItem("dataCache")
+      // If there's an error, clear the cache
+      localStorage.removeItem(STORAGE_KEY)
     }
   }, [])
 
-  // Save cache to localStorage when it changes
+  // Save cache to localStorage whenever it changes
   useEffect(() => {
-    if (Object.keys(cache).length > 0) {
+    if (Object.keys(cacheData).length > 0) {
       try {
-        localStorage.setItem("dataCache", JSON.stringify(cache))
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cacheData))
       } catch (error) {
         console.error("Error saving cache to localStorage:", error)
       }
     }
-  }, [cache])
+  }, [cacheData])
 
-  const isCached = (type: string, id: string): boolean => {
-    if (!cache[type] || !cache[type][id]) {
-      return false
-    }
+  // Get cached data if it exists and is not expired
+  const getCachedData = <T,>(key: keyof CacheData, id: string): T | null => {
+    const cache = cacheData[key]
 
-    const entry = cache[type][id]
+    if (!cache) return null
+
+    // Check if cache is expired
     const now = Date.now()
-
-    // Check if the cache entry has expired
-    if (now - entry.timestamp > CACHE_EXPIRATION) {
-      // Remove expired entry
-      const newCache = { ...cache }
-      delete newCache[type][id]
-      setCache(newCache)
-      return false
-    }
-
-    return true
-  }
-
-  const getCachedData = <T,>(type: string, id: string): T | null => {
-    if (!isCached(type, id)) {
+    if (now - cache.timestamp > CACHE_EXPIRY) {
       return null
     }
 
-    return cache[type][id].data as T
+    // Check if the ID matches based on the cache key type
+    if (
+      (key === "users" ||
+        key === "institutionSettings" ||
+        key === "programs" ||
+        key === "courses" ||
+        key === "degrees" ||
+        key === "groups" ||
+        key === "courseElectives" ||
+        key === "exchangePrograms") &&
+      cache.institutionId !== id
+    ) {
+      return null
+    }
+
+    if (
+      (key === "adminProfile" || key === "managerProfile" || key === "studentProfile" || key === "superAdminProfile") &&
+      cache.userId !== id
+    ) {
+      return null
+    }
+
+    if ((key === "programDetails" || key === "programStudents") && cache.programId !== id) {
+      return null
+    }
+
+    if ((key === "studentCourseSelections" || key === "studentExchangeSelections") && cache.userId !== id) {
+      return null
+    }
+
+    // For institutions and plans, no ID check is needed
+    if (key === "institutions" || key === "plans") {
+      return cache.data as T
+    }
+
+    return cache.data as T
   }
 
-  const setCachedData = <T,>(type: string, id: string, data: T) => {
+  // Set cached data with current timestamp
+  const setCachedData = <T,>(key: keyof CacheData, id: string, data: T) => {
     const now = Date.now()
-    setCache((prevCache) => ({
-      ...prevCache,
-      [type]: {
-        ...(prevCache[type] || {}),
-        [id]: {
+
+    setCacheData((prev) => {
+      const newCache = { ...prev }
+
+      if (
+        key === "users" ||
+        key === "institutionSettings" ||
+        key === "programs" ||
+        key === "courses" ||
+        key === "degrees" ||
+        key === "groups" ||
+        key === "courseElectives" ||
+        key === "exchangePrograms"
+      ) {
+        newCache[key] = {
           data,
           timestamp: now,
-        },
-      },
-    }))
+          institutionId: id,
+        }
+      } else if (
+        key === "adminProfile" ||
+        key === "managerProfile" ||
+        key === "studentProfile" ||
+        key === "superAdminProfile" ||
+        key === "studentCourseSelections" ||
+        key === "studentExchangeSelections"
+      ) {
+        newCache[key] = {
+          data,
+          timestamp: now,
+          userId: id,
+        }
+      } else if (key === "programDetails" || key === "programStudents") {
+        newCache[key] = {
+          data,
+          timestamp: now,
+          programId: id,
+        }
+      } else if (key === "institutions" || key === "plans") {
+        newCache[key] = {
+          data,
+          timestamp: now,
+        }
+      }
+
+      return newCache
+    })
   }
 
-  const invalidateCache = (type: string, id?: string) => {
-    if (!id) {
-      // Invalidate all entries of this type
-      setCache((prevCache) => {
-        const newCache = { ...prevCache }
-        delete newCache[type]
-        return newCache
-      })
-      return
-    }
+  // Invalidate specific cache
+  const invalidateCache = (key: keyof CacheData, id?: string) => {
+    setCacheData((prev) => {
+      const newCache = { ...prev }
 
-    if (cache[type] && cache[type][id]) {
-      setCache((prevCache) => {
-        const newCache = { ...prevCache }
-        delete newCache[type][id]
+      if (!id) {
+        // Invalidate all caches for this key
+        delete newCache[key]
         return newCache
-      })
-    }
+      }
+
+      // Invalidate based on ID and key type
+      if (
+        (key === "users" ||
+          key === "institutionSettings" ||
+          key === "programs" ||
+          key === "courses" ||
+          key === "degrees" ||
+          key === "groups" ||
+          key === "courseElectives" ||
+          key === "exchangePrograms") &&
+        newCache[key]?.institutionId === id
+      ) {
+        delete newCache[key]
+      } else if (
+        (key === "adminProfile" ||
+          key === "managerProfile" ||
+          key === "studentProfile" ||
+          key === "superAdminProfile" ||
+          key === "studentCourseSelections" ||
+          key === "studentExchangeSelections") &&
+        newCache[key]?.userId === id
+      ) {
+        delete newCache[key]
+      } else if ((key === "programDetails" || key === "programStudents") && newCache[key]?.programId === id) {
+        delete newCache[key]
+      }
+
+      return newCache
+    })
   }
 
-  const clearCache = () => {
-    setCache({})
-    localStorage.removeItem("dataCache")
+  // Clear all cache
+  const clearAllCache = () => {
+    setCacheData({})
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   return (
@@ -127,8 +296,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         getCachedData,
         setCachedData,
         invalidateCache,
-        clearCache,
-        isCached,
+        clearAllCache,
       }}
     >
       {children}

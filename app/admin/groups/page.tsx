@@ -1,17 +1,5 @@
 "use client"
 
-import { Label } from "@/components/ui/label"
-
-import { DialogTitle } from "@/components/ui/dialog"
-
-import { DialogHeader } from "@/components/ui/dialog"
-
-import { DialogContent } from "@/components/ui/dialog"
-
-import { Dialog } from "@/components/ui/dialog"
-
-import { Badge } from "@/components/ui/badge"
-
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -20,15 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Plus } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, Users, Filter, ChevronLeft, ChevronRight } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
-import { useCachedGroups } from "@/hooks/use-cached-groups"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useDataCache } from "@/lib/data-cache-context"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@supabase/supabase-js"
 
 // Mock groups data
 const initialGroups = [
@@ -166,40 +152,9 @@ interface GroupFormData {
 
 export default function GroupsPage() {
   const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const { toast } = useToast()
-  const { data: groups, isLoading, error, isInitialized } = useCachedGroups(institution?.id)
-  const { invalidateCache } = useDataCache()
-  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [groups, setGroups] = useState(initialGroups)
+  const [filteredGroups, setFilteredGroups] = useState(initialGroups)
   const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const itemsPerPage = 10
-
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-  // Filter groups based on search term
-  useEffect(() => {
-    if (!groups) return
-
-    let result = [...groups]
-
-    if (searchTerm) {
-      result = result.filter((group) => group.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    }
-
-    setFilteredGroups(result)
-    setTotalPages(Math.ceil(result.length / itemsPerPage))
-    setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, groups])
-
-  // Get current page items
-  const getCurrentPageItems = () => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return filteredGroups.slice(startIndex, endIndex)
-  }
-
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
     name: "",
@@ -212,8 +167,8 @@ export default function GroupsPage() {
   const [isEditing, setIsEditing] = useState(false)
 
   // Pagination
-  // const [currentPage, setCurrentPage] = useState(1)
-  // const itemsPerPage = 10
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Filters
   const [programFilter, setProgramFilter] = useState("")
@@ -221,49 +176,49 @@ export default function GroupsPage() {
   const [degreeFilter, setDegreeFilter] = useState("")
 
   // Get unique values for filters
-  const programs = [...new Set(initialGroups.map((group) => group.program))]
-  const years = [...new Set(initialGroups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
-  const degrees = [...new Set(initialGroups.map((group) => group.degree))]
+  const programs = [...new Set(groups.map((group) => group.program))]
+  const years = [...new Set(groups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
+  const degrees = [...new Set(groups.map((group) => group.degree))]
 
   // Apply filters and search
-  // useEffect(() => {
-  //   let result = initialGroups
+  useEffect(() => {
+    let result = groups
 
-  //   // Apply program filter
-  //   if (programFilter && programFilter !== "all") {
-  //     result = result.filter((group) => group.program === programFilter)
-  //   }
+    // Apply program filter
+    if (programFilter && programFilter !== "all") {
+      result = result.filter((group) => group.program === programFilter)
+    }
 
-  //   // Apply year filter
-  //   if (yearFilter && yearFilter !== "all") {
-  //     result = result.filter((group) => group.year === yearFilter)
-  //   }
+    // Apply year filter
+    if (yearFilter && yearFilter !== "all") {
+      result = result.filter((group) => group.year === yearFilter)
+    }
 
-  //   // Apply degree filter
-  //   if (degreeFilter && degreeFilter !== "all") {
-  //     result = result.filter((group) => group.degree === degreeFilter)
-  //   }
+    // Apply degree filter
+    if (degreeFilter && degreeFilter !== "all") {
+      result = result.filter((group) => group.degree === degreeFilter)
+    }
 
-  //   // Apply search
-  //   if (searchTerm) {
-  //     result = result.filter(
-  //       (group) =>
-  //         group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //         group.displayName.toLowerCase().includes(searchTerm.toLowerCase()),
-  //     )
-  //   }
+    // Apply search
+    if (searchTerm) {
+      result = result.filter(
+        (group) =>
+          group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          group.displayName.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
 
-  //   setFilteredGroups(result)
-  //   setCurrentPage(1) // Reset to first page when filters change
-  // }, [initialGroups, searchTerm, programFilter, yearFilter, degreeFilter])
+    setFilteredGroups(result)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [groups, searchTerm, programFilter, yearFilter, degreeFilter])
 
   // Get current page items
-  // const indexOfLastItem = currentPage * itemsPerPage
-  // const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  // const currentItems = filteredGroups.slice(indexOfFirstItem, indexOfLastItem)
-  // const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentItems = filteredGroups.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
-  const handleOpenDialog = (group?: (typeof initialGroups)[0]) => {
+  const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
       setCurrentGroup({
         id: group.id,
@@ -302,11 +257,11 @@ export default function GroupsPage() {
 
     if (isEditing) {
       // Update existing group
-      // setGroups(
-      //   groups.map((group) =>
-      //     group.id === currentGroup.id ? { ...group, ...currentGroup, students: group.students } : group,
-      //   ),
-      // )
+      setGroups(
+        groups.map((group) =>
+          group.id === currentGroup.id ? { ...group, ...currentGroup, students: group.students } : group,
+        ),
+      )
     } else {
       // Add new group
       const newGroup = {
@@ -314,7 +269,7 @@ export default function GroupsPage() {
         id: Math.random().toString(36).substring(2, 9),
         students: 0,
       }
-      // setGroups([...groups, newGroup])
+      setGroups([...groups, newGroup])
     }
 
     setIsDialogOpen(false)
@@ -322,22 +277,22 @@ export default function GroupsPage() {
 
   const handleDelete = (id: string) => {
     if (confirm(t("admin.groups.deleteConfirm"))) {
-      // setGroups(groups.filter((group) => group.id !== id))
+      setGroups(groups.filter((group) => group.id !== id))
     }
   }
 
   const toggleStatus = (id: string) => {
-    // setGroups(
-    //   groups.map((group) => {
-    //     if (group.id === id) {
-    //       return {
-    //         ...group,
-    //         status: group.status === "active" ? "inactive" : "active",
-    //       }
-    //     }
-    //     return group
-    //   }),
-    // )
+    setGroups(
+      groups.map((group) => {
+        if (group.id === id) {
+          return {
+            ...group,
+            status: group.status === "active" ? "inactive" : "active",
+          }
+        }
+        return group
+      }),
+    )
   }
 
   const resetFilters = () => {
@@ -389,70 +344,6 @@ export default function GroupsPage() {
     }
   }
 
-  if (!isInitialized) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <Skeleton className="h-10 w-[250px]" />
-              <Skeleton className="h-4 w-[350px] mt-2" />
-            </div>
-            <Skeleton className="h-10 w-[150px]" />
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Skeleton className="h-10 flex-1" />
-                </div>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[180px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -482,7 +373,7 @@ export default function GroupsPage() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  {/* <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                     <Select value={programFilter || "all"} onValueChange={setProgramFilter}>
                       <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
@@ -527,7 +418,7 @@ export default function GroupsPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div> */}
+                  </div>
                 </div>
               </div>
 
@@ -546,14 +437,14 @@ export default function GroupsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {getCurrentPageItems().length === 0 ? (
+                    {currentItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {t("admin.groups.noGroups")}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      getCurrentPageItems().map((group) => (
+                      currentItems.map((group) => (
                         <TableRow key={group.id}>
                           <TableCell className="font-medium">{group.name}</TableCell>
                           <TableCell>{group.displayName}</TableCell>
@@ -562,7 +453,7 @@ export default function GroupsPage() {
                           <TableCell>{group.year}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              {/* <Users className="h-4 w-4 text-muted-foreground" /> */}
+                              <Users className="h-4 w-4 text-muted-foreground" />
                               {group.students}
                             </div>
                           </TableCell>
@@ -576,11 +467,11 @@ export default function GroupsPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenDialog(group)}>
-                                  {/* <Pencil className="mr-2 h-4 w-4" /> */}
+                                  <Pencil className="mr-2 h-4 w-4" />
                                   {t("admin.groups.edit")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(group.id)}>
-                                  {/* <Trash2 className="mr-2 h-4 w-4" /> */}
+                                  <Trash2 className="mr-2 h-4 w-4" />
                                   {t("admin.groups.delete")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => toggleStatus(group.id)}>
@@ -608,7 +499,7 @@ export default function GroupsPage() {
                     disabled={currentPage === 1}
                     aria-label={t("pagination.previous")}
                   >
-                    {/* <ChevronLeft className="h-4 w-4 mr-2" /> */}
+                    <ChevronLeft className="h-4 w-4 mr-2" />
                     {t("pagination.previous")}
                   </Button>
                   <div className="flex items-center gap-1">
@@ -624,7 +515,7 @@ export default function GroupsPage() {
                     aria-label={t("pagination.next")}
                   >
                     {t("pagination.next")}
-                    {/* <ChevronRight className="h-4 w-4 ml-2" /> */}
+                    <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
               )}

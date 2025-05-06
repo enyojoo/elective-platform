@@ -12,12 +12,9 @@ import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
-import { useCachedElectives } from "@/hooks/use-cached-electives"
-import { useInstitution } from "@/lib/institution-context"
-import { Skeleton } from "@/components/ui/skeleton"
 
 // Move mock data outside the component to avoid recreating it on each render
-const courseElectivePacksMock = [
+const courseElectivePacks = [
   {
     id: "1",
     title: "Fall 2023",
@@ -68,7 +65,7 @@ const courseElectivePacksMock = [
   },
 ]
 
-const exchangePacksMock = [
+const exchangePacks = [
   {
     id: "1",
     title: "Fall 2023",
@@ -116,15 +113,6 @@ export default function AdminElectivesPage() {
   const [semesterFilter, setSemesterFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const { t } = useLanguage()
-  const { institution } = useInstitution()
-
-  // Use cached electives data
-  const { data: electivesData, isLoading, isInitialized } = useCachedElectives(institution?.id)
-
-  // Use the mock data as fallback until we have real data
-  const courseElectivePacks = electivesData?.coursePacks || courseElectivePacksMock
-
-  const exchangePacks = electivesData?.exchangePacks || exchangePacksMock
 
   // Update activeTab when URL parameters change
   useEffect(() => {
@@ -143,7 +131,7 @@ export default function AdminElectivesPage() {
         (statusFilter === "all" || selection.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter, courseElectivePacks])
+  }, [searchTerm, programFilter, semesterFilter, statusFilter])
 
   const filteredExchangePacks = useMemo(() => {
     return exchangePacks.filter((program) => {
@@ -156,7 +144,7 @@ export default function AdminElectivesPage() {
         (statusFilter === "all" || program.status === statusFilter)
       )
     })
-  }, [searchTerm, programFilter, semesterFilter, statusFilter, exchangePacks])
+  }, [searchTerm, programFilter, semesterFilter, statusFilter])
 
   // Get status badge based on status
   const getStatusBadge = useMemo(() => {
@@ -194,58 +182,6 @@ export default function AdminElectivesPage() {
 
   // Custom responsive grid class based on specific breakpoints
   const responsiveGridClass = "grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
-
-  if (!isInitialized) {
-    return (
-      <DashboardLayout userRole="admin">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div>
-              <Skeleton className="h-10 w-[250px]" />
-              <Skeleton className="h-4 w-[350px] mt-2" />
-            </div>
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex justify-between items-center mb-4">
-                <Skeleton className="h-10 w-[250px]" />
-              </div>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Skeleton className="h-10 flex-1" />
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <Skeleton className="h-10 w-[180px]" />
-                    <Skeleton className="h-10 w-[180px]" />
-                    <Skeleton className="h-10 w-[130px]" />
-                  </div>
-                </div>
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Card key={i}>
-                      <CardHeader className="pb-2">
-                        <Skeleton className="h-6 w-[200px]" />
-                        <Skeleton className="h-4 w-[150px]" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 gap-2 mb-4">
-                          <Skeleton className="h-4 w-full" />
-                          <Skeleton className="h-4 w-full" />
-                          <Skeleton className="h-4 w-full" />
-                          <Skeleton className="h-4 w-full" />
-                        </div>
-                        <Skeleton className="h-10 w-[150px] mx-auto" />
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
 
   return (
     <DashboardLayout userRole="admin">

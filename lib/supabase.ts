@@ -10,6 +10,3 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 export const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient<Database>(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
   : supabase
-
-// Re-export createClient for use in other modules
-export { createClient }

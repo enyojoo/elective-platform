@@ -18,15 +18,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, Plus, AlertCircle } from "lucide-react"
+import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
+
+// First, import the useLanguage hook at the top of the file with the other imports
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useCachedCourses } from "@/hooks/use-cached-courses"
-import { useDataCache } from "@/lib/data-cache-context"
-import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
 
 // Mock courses data
 const mockCourses = [
@@ -105,53 +100,39 @@ const mockPrograms = [
   { id: 5, name: "Bachelor in Management", code: "BiM" },
 ]
 
+// Then, inside the CoursesPage component, add the useLanguage hook after the useState declarations
 export default function CoursesPage() {
-  const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const { data: fetchedCourses, isLoading, error, isInitialized } = useCachedCourses(institution?.id)
-  const { invalidateCache } = useDataCache()
-  const { toast } = useToast()
+  const [courses, setCourses] = useState(mockCourses)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [programFilter, setProgramFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [filteredCourses, setFilteredCourses] = useState<any[]>([])
   const itemsPerPage = 10
-
-  // Use mock data for development, replace with fetched data in production
-  const courses = fetchedCourses || mockCourses
-
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const { t } = useLanguage()
 
   // Filter courses based on search term and filters
   useEffect(() => {
-    let result = [...courses]
+    let filteredCourses = mockCourses
 
     if (searchTerm) {
-      result = result.filter(
+      filteredCourses = filteredCourses.filter(
         (course) =>
           course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          course.instructor?.toLowerCase().includes(searchTerm.toLowerCase()),
+          course.instructor.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
     if (statusFilter !== "all") {
-      result = result.filter((course) => course.status === statusFilter)
+      filteredCourses = filteredCourses.filter((course) => course.status === statusFilter)
     }
 
     if (programFilter !== "all") {
-      result = result.filter((course) => course.program === programFilter || course.programCode === programFilter)
+      filteredCourses = filteredCourses.filter((course) => course.program === programFilter)
     }
 
-    setFilteredCourses(result)
+    setCourses(filteredCourses)
     setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, statusFilter, programFilter, courses])
-
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredCourses.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage)
+  }, [searchTerm, statusFilter, programFilter])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -179,106 +160,13 @@ export default function CoursesPage() {
     }
   }
 
-  // Handle course status change
-  const handleStatusChange = async (courseId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase.from("courses").update({ status: newStatus }).eq("id", courseId)
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentItems = courses.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(courses.length / itemsPerPage)
 
-      if (error) throw error
-
-      // Invalidate the courses cache
-      if (institution?.id) {
-        invalidateCache("courses", institution.id)
-      }
-
-      toast({
-        title: "Success",
-        description: `Course has been ${newStatus === "active" ? "activated" : "deactivated"}`,
-      })
-    } catch (error: any) {
-      console.error("Error updating course status:", error)
-      toast({
-        title: "Error",
-        description: `Failed to update course status: ${error.message}`,
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Only show skeleton on initial load, not when data is cached
-  if (!isInitialized) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <Skeleton className="h-10 w-[250px]" />
-              <Skeleton className="h-4 w-[350px] mt-2" />
-            </div>
-            <Skeleton className="h-10 w-[150px]" />
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Skeleton className="h-10 flex-1" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-10 w-[130px]" />
-                    <Skeleton className="h-10 w-[180px]" />
-                  </div>
-                </div>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-5 w-full" />
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
+  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -294,14 +182,6 @@ export default function CoursesPage() {
             </Button>
           </Link>
         </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
 
         <Card>
           <CardContent className="pt-6">
@@ -360,34 +240,7 @@ export default function CoursesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      // Skeleton loading state
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[150px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : currentItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          {t("admin.courses.noCoursesFound")}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {currentItems.length > 0 ? (
                       currentItems.map((course) => (
                         <TableRow key={course.id}>
                           <TableCell className="font-medium">{course.name}</TableCell>
@@ -410,14 +263,7 @@ export default function CoursesPage() {
                                     {t("admin.courses.edit")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleStatusChange(
-                                      course.id.toString(),
-                                      course.status === "active" ? "inactive" : "active",
-                                    )
-                                  }
-                                >
+                                <DropdownMenuItem>
                                   {course.status === "active"
                                     ? t("admin.courses.deactivate")
                                     : t("admin.courses.activate")}
@@ -430,12 +276,18 @@ export default function CoursesPage() {
                           </TableCell>
                         </TableRow>
                       ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                          {t("admin.courses.noCoursesFound")}
+                        </TableCell>
+                      </TableRow>
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              {filteredCourses.length > itemsPerPage && (
+              {courses.length > itemsPerPage && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -446,20 +298,21 @@ export default function CoursesPage() {
                           if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === 1}
                         aria-label={t("pagination.previous")}
-                      />
+                      >
+                        {t("pagination.previous")}
+                      </PaginationPrevious>
                     </PaginationItem>
 
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <PaginationItem key={page}>
                         <PaginationLink
                           href="#"
+                          isActive={currentPage === page}
                           onClick={(e) => {
                             e.preventDefault()
                             setCurrentPage(page)
                           }}
-                          isActive={currentPage === page}
                           aria-label={`${t("pagination.page")} ${page}`}
                         >
                           {page}
@@ -475,9 +328,10 @@ export default function CoursesPage() {
                           if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === totalPages}
                         aria-label={t("pagination.next")}
-                      />
+                      >
+                        {t("pagination.next")}
+                      </PaginationNext>
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>

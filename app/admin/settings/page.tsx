@@ -12,7 +12,6 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 import { Loader2 } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
@@ -40,38 +39,7 @@ export default function SettingsPage() {
   }, [])
 
   // Use the cached admin profile
-  const { profile: adminProfile, isLoading: isLoadingProfile, isInitialized } = useCachedAdminProfile(userId)
-
-  // Show skeleton only when not initialized
-  if (!isInitialized) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <Skeleton className="h-10 w-[250px]" />
-              <Skeleton className="h-4 w-[350px] mt-2" />
-            </div>
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-6">
-                <Skeleton className="h-10 w-[250px]" />
-                <div className="space-y-4">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-10 w-[120px]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
+  const { profile: adminProfile, isLoading: isLoadingProfile } = useCachedAdminProfile(userId)
 
   return (
     <DashboardLayout>
@@ -96,7 +64,7 @@ export default function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="account" className="space-y-6">
-                {isLoadingProfile && isInitialized ? (
+                {isLoadingProfile ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
