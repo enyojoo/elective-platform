@@ -2,13 +2,13 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { SafeDialog } from "@/components/safe-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -16,6 +16,7 @@ import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 // Mock degree data for initial state
 const initialDegrees = [
@@ -70,6 +71,25 @@ export default function DegreesPage() {
   })
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const isMounted = useRef(true)
+  const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Component lifecycle management
+  useEffect(() => {
+    isMounted.current = true
+
+    return () => {
+      isMounted.current = false
+
+      // Clear any pending timeouts
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+      }
+
+      // Force cleanup on unmount
+      cleanupDialogEffects()
+    }
+  }, [])
 
   // Fetch degrees from Supabase
   useEffect(() => {
@@ -80,7 +100,7 @@ export default function DegreesPage() {
 
         if (error) throw error
 
-        if (data) {
+        if (data && isMounted.current) {
           const formattedDegrees = data.map((degree) => ({
             id: degree.id.toString(),
             name: degree.name,
@@ -95,13 +115,17 @@ export default function DegreesPage() {
         }
       } catch (error: any) {
         console.error("Failed to fetch degrees:", error)
-        toast({
-          title: t("admin.degrees.error"),
-          description: t("admin.degrees.errorFetching"),
-          variant: "destructive",
-        })
+        if (isMounted.current) {
+          toast({
+            title: t("admin.degrees.error"),
+            description: t("admin.degrees.errorFetching"),
+            variant: "destructive",
+          })
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted.current) {
+          setIsLoading(false)
+        }
       }
     }
 
@@ -125,9 +149,10 @@ export default function DegreesPage() {
     setFilteredDegrees(filtered)
   }, [degrees, searchTerm])
 
+  // Function to safely open the dialog
   const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
     // Ensure body is in normal state before opening dialog
-    document.body.style.removeProperty("overflow")
+    cleanupDialogEffects()
 
     if (degree) {
       setCurrentDegree(degree)
@@ -142,7 +167,29 @@ export default function DegreesPage() {
       })
       setIsEditing(false)
     }
-    setIsDialogOpen(true)
+
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      if (isMounted.current) {
+        setIsDialogOpen(true)
+      }
+    }, 50)
+  }
+
+  // Function to safely close the dialog
+  const handleCloseDialog = () => {
+    if (isMounted.current) {
+      setIsDialogOpen(false)
+
+      // Schedule cleanup after animation completes
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+      }
+
+      cleanupTimeoutRef.current = setTimeout(() => {
+        cleanupDialogEffects()
+      }, 300) // 300ms should be enough for most animations
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,12 +220,14 @@ export default function DegreesPage() {
         if (error) throw error
 
         // Update local state
-        setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
+        if (isMounted.current) {
+          setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
 
-        toast({
-          title: t("admin.degrees.success"),
-          description: t("admin.degrees.degreeUpdated"),
-        })
+          toast({
+            title: t("admin.degrees.success"),
+            description: t("admin.degrees.degreeUpdated"),
+          })
+        }
       } else {
         // Add new degree
         const { data, error } = await supabase
@@ -194,7 +243,7 @@ export default function DegreesPage() {
 
         if (error) throw error
 
-        if (data && data[0]) {
+        if (data && data[0] && isMounted.current) {
           const newDegree = {
             id: data[0].id.toString(),
             name: data[0].name,
@@ -213,14 +262,16 @@ export default function DegreesPage() {
         }
       }
 
-      setIsDialogOpen(false)
+      handleCloseDialog()
     } catch (error: any) {
       console.error("Error saving degree:", error)
-      toast({
-        title: t("admin.degrees.error"),
-        description: error.message || t("admin.degrees.errorSaving"),
-        variant: "destructive",
-      })
+      if (isMounted.current) {
+        toast({
+          title: t("admin.degrees.error"),
+          description: error.message || t("admin.degrees.errorSaving"),
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -231,19 +282,23 @@ export default function DegreesPage() {
 
         if (error) throw error
 
-        setDegrees(degrees.filter((degree) => degree.id !== id))
+        if (isMounted.current) {
+          setDegrees(degrees.filter((degree) => degree.id !== id))
 
-        toast({
-          title: t("admin.degrees.success"),
-          description: t("admin.degrees.degreeDeleted"),
-        })
+          toast({
+            title: t("admin.degrees.success"),
+            description: t("admin.degrees.degreeDeleted"),
+          })
+        }
       } catch (error: any) {
         console.error("Error deleting degree:", error)
-        toast({
-          title: t("admin.degrees.error"),
-          description: error.message || t("admin.degrees.errorDeleting"),
-          variant: "destructive",
-        })
+        if (isMounted.current) {
+          toast({
+            title: t("admin.degrees.error"),
+            description: error.message || t("admin.degrees.errorDeleting"),
+            variant: "destructive",
+          })
+        }
       }
     }
   }
@@ -259,29 +314,33 @@ export default function DegreesPage() {
 
       if (error) throw error
 
-      setDegrees(
-        degrees.map((degree) => {
-          if (degree.id === id) {
-            return {
-              ...degree,
-              status: newStatus,
+      if (isMounted.current) {
+        setDegrees(
+          degrees.map((degree) => {
+            if (degree.id === id) {
+              return {
+                ...degree,
+                status: newStatus,
+              }
             }
-          }
-          return degree
-        }),
-      )
+            return degree
+          }),
+        )
 
-      toast({
-        title: t("admin.degrees.success"),
-        description: t("admin.degrees.statusUpdated"),
-      })
+        toast({
+          title: t("admin.degrees.success"),
+          description: t("admin.degrees.statusUpdated"),
+        })
+      }
     } catch (error: any) {
       console.error("Error updating status:", error)
-      toast({
-        title: t("admin.degrees.error"),
-        description: error.message || t("admin.degrees.errorUpdatingStatus"),
-        variant: "destructive",
-      })
+      if (isMounted.current) {
+        toast({
+          title: t("admin.degrees.error"),
+          description: error.message || t("admin.degrees.errorUpdatingStatus"),
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -304,24 +363,6 @@ export default function DegreesPage() {
         return <Badge>{status}</Badge>
     }
   }
-
-  // Add cleanup effect for dialog
-  useEffect(() => {
-    return () => {
-      // Cleanup function to ensure body scrolling is restored when component unmounts
-      document.body.classList.remove("overflow-hidden")
-      document.body.style.removeProperty("overflow")
-      document.body.style.removeProperty("padding-right")
-
-      // Remove any lingering backdrop/overlay elements
-      const overlays = document.querySelectorAll("[data-radix-portal]")
-      overlays.forEach((overlay) => {
-        if (overlay.parentNode) {
-          overlay.parentNode.removeChild(overlay)
-        }
-      })
-    }
-  }, [])
 
   return (
     <DashboardLayout>
@@ -418,72 +459,89 @@ export default function DegreesPage() {
         </Card>
       </div>
 
-      <SafeDialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open)
-          if (!open) {
-            // Add a small delay to ensure animations complete before cleanup
-            setTimeout(() => {
-              document.body.style.removeProperty("overflow")
-              document.body.style.removeProperty("padding-right")
-            }, 300)
-          }
-        }}
-        title={isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}
-        className="sm:max-w-[500px]"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
-              <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
-              <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="code">{t("admin.degrees.code")}</Label>
-              <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
-              <Input
-                id="durationYears"
-                name="durationYears"
-                type="number"
-                min="0.5"
-                step="0.5"
-                value={currentDegree.durationYears}
-                onChange={handleInputChange}
-                required
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="status">{t("admin.degrees.status")}</Label>
-            <select
-              id="status"
-              name="status"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-              value={currentDegree.status}
-              onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
-            >
-              <option value="active">{t("admin.degrees.active")}</option>
-              <option value="inactive">{t("admin.degrees.inactive")}</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-              {t("admin.degrees.cancel")}
-            </Button>
-            <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
-          </div>
-        </form>
-      </SafeDialog>
+      {/* Only render dialog when it's open to avoid issues */}
+      {isDialogOpen && (
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseDialog()
+            }
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[500px]"
+            onEscapeKeyDown={() => handleCloseDialog()}
+            onInteractOutside={() => handleCloseDialog()}
+            onPointerDownOutside={(e) => {
+              e.preventDefault()
+              handleCloseDialog()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
+                  <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
+                  <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code">{t("admin.degrees.code")}</Label>
+                  <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
+                  <Input
+                    id="durationYears"
+                    name="durationYears"
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={currentDegree.durationYears}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">{t("admin.degrees.status")}</Label>
+                <select
+                  id="status"
+                  name="status"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                  value={currentDegree.status}
+                  onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
+                >
+                  <option value="active">{t("admin.degrees.active")}</option>
+                  <option value="inactive">{t("admin.degrees.inactive")}</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleCloseDialog()
+                  }}
+                >
+                  {t("admin.degrees.cancel")}
+                </Button>
+                <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </DashboardLayout>
   )
 }
