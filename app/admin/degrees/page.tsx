@@ -12,14 +12,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, AlertCircle, Loader2 } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useInstitution } from "@/lib/institution-context"
-import { useDataCache } from "@/lib/data-cache-context"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
+
+// Mock degree data for initial state
+const initialDegrees = [
+  {
+    id: "1",
+    name: "Bachelor's",
+    nameRu: "Бакалавриат",
+    code: "bachelor",
+    durationYears: 4,
+    status: "active",
+  },
+  {
+    id: "2",
+    name: "Master's",
+    nameRu: "Магистратура",
+    code: "master",
+    durationYears: 2,
+    status: "active",
+  },
+  {
+    id: "3",
+    name: "Executive MBA",
+    nameRu: "Исполнительный MBA",
+    code: "emba",
+    durationYears: 1.5,
+    status: "inactive",
+  },
+]
 
 interface DegreeFormData {
   id?: string
@@ -32,9 +57,8 @@ interface DegreeFormData {
 
 export default function DegreesPage() {
   const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
+  const [degrees, setDegrees] = useState(initialDegrees)
+  const [filteredDegrees, setFilteredDegrees] = useState(initialDegrees)
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -47,11 +71,8 @@ export default function DegreesPage() {
   })
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
-
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Component lifecycle management
   useEffect(() => {
@@ -59,34 +80,23 @@ export default function DegreesPage() {
 
     return () => {
       isMounted.current = false
+
+      // Clear any pending timeouts
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+      }
+
+      // Force cleanup on unmount
+      cleanupDialogEffects()
     }
   }, [])
 
-  // Fetch degrees from Supabase with caching
+  // Fetch degrees from Supabase
   useEffect(() => {
     const fetchDegrees = async () => {
-      if (!institution?.id) return
-
       try {
         setIsLoading(true)
-        setError(null)
-
-        // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
-
-        if (cachedDegrees) {
-          console.log("Using cached degrees data")
-          setDegrees(cachedDegrees)
-          setFilteredDegrees(cachedDegrees)
-          setIsLoading(false)
-          return
-        }
-
-        const { data, error } = await supabase
-          .from("degrees")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .order("name")
+        const { data, error } = await supabase.from("degrees").select("*").order("name")
 
         if (error) throw error
 
@@ -100,19 +110,15 @@ export default function DegreesPage() {
             status: degree.status,
           }))
 
-          // Save to cache
-          setCachedData("degrees", institution.id, formattedDegrees)
-
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
         }
       } catch (error: any) {
         console.error("Failed to fetch degrees:", error)
         if (isMounted.current) {
-          setError(error.message || t("admin.degrees.errorFetching"))
           toast({
             title: t("admin.degrees.error"),
-            description: error.message || t("admin.degrees.errorFetching"),
+            description: t("admin.degrees.errorFetching"),
             variant: "destructive",
           })
         }
@@ -124,7 +130,7 @@ export default function DegreesPage() {
     }
 
     fetchDegrees()
-  }, [t, toast, institution?.id, getCachedData, setCachedData])
+  }, [t, toast])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -145,6 +151,9 @@ export default function DegreesPage() {
 
   // Function to safely open the dialog
   const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
+    // Ensure body is in normal state before opening dialog
+    cleanupDialogEffects()
+
     if (degree) {
       setCurrentDegree(degree)
       setIsEditing(true)
@@ -159,12 +168,28 @@ export default function DegreesPage() {
       setIsEditing(false)
     }
 
-    setIsDialogOpen(true)
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      if (isMounted.current) {
+        setIsDialogOpen(true)
+      }
+    }, 50)
   }
 
   // Function to safely close the dialog
   const handleCloseDialog = () => {
-    setIsDialogOpen(false)
+    if (isMounted.current) {
+      setIsDialogOpen(false)
+
+      // Schedule cleanup after animation completes
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+      }
+
+      cleanupTimeoutRef.current = setTimeout(() => {
+        cleanupDialogEffects()
+      }, 300) // 300ms should be enough for most animations
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,17 +202,6 @@ export default function DegreesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!institution?.id) {
-      toast({
-        title: t("admin.degrees.error"),
-        description: t("admin.degrees.noInstitution"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
 
     try {
       if (isEditing) {
@@ -207,14 +221,7 @@ export default function DegreesPage() {
 
         // Update local state
         if (isMounted.current) {
-          const updatedDegrees = degrees.map((degree) =>
-            degree.id === currentDegree.id ? { ...currentDegree } : degree,
-          )
-
-          setDegrees(updatedDegrees)
-
-          // Update cache
-          setCachedData("degrees", institution.id, updatedDegrees)
+          setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
 
           toast({
             title: t("admin.degrees.success"),
@@ -231,7 +238,6 @@ export default function DegreesPage() {
             code: currentDegree.code,
             duration_years: currentDegree.durationYears,
             status: currentDegree.status,
-            institution_id: institution.id,
           })
           .select()
 
@@ -247,11 +253,7 @@ export default function DegreesPage() {
             status: data[0].status,
           }
 
-          const updatedDegrees = [...degrees, newDegree]
-          setDegrees(updatedDegrees)
-
-          // Update cache
-          setCachedData("degrees", institution.id, updatedDegrees)
+          setDegrees([...degrees, newDegree])
 
           toast({
             title: t("admin.degrees.success"),
@@ -270,14 +272,10 @@ export default function DegreesPage() {
           variant: "destructive",
         })
       }
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!institution?.id) return
-
     if (confirm(t("admin.degrees.deleteConfirm"))) {
       try {
         const { error } = await supabase.from("degrees").delete().eq("id", id)
@@ -285,11 +283,7 @@ export default function DegreesPage() {
         if (error) throw error
 
         if (isMounted.current) {
-          const updatedDegrees = degrees.filter((degree) => degree.id !== id)
-          setDegrees(updatedDegrees)
-
-          // Update cache
-          setCachedData("degrees", institution.id, updatedDegrees)
+          setDegrees(degrees.filter((degree) => degree.id !== id))
 
           toast({
             title: t("admin.degrees.success"),
@@ -310,8 +304,6 @@ export default function DegreesPage() {
   }
 
   const toggleStatus = async (id: string) => {
-    if (!institution?.id) return
-
     try {
       const degree = degrees.find((d) => d.id === id)
       if (!degree) return
@@ -323,20 +315,17 @@ export default function DegreesPage() {
       if (error) throw error
 
       if (isMounted.current) {
-        const updatedDegrees = degrees.map((degree) => {
-          if (degree.id === id) {
-            return {
-              ...degree,
-              status: newStatus,
+        setDegrees(
+          degrees.map((degree) => {
+            if (degree.id === id) {
+              return {
+                ...degree,
+                status: newStatus,
+              }
             }
-          }
-          return degree
-        })
-
-        setDegrees(updatedDegrees)
-
-        // Update cache
-        setCachedData("degrees", institution.id, updatedDegrees)
+            return degree
+          }),
+        )
 
         toast({
           title: t("admin.degrees.success"),
@@ -389,14 +378,6 @@ export default function DegreesPage() {
           </Button>
         </div>
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{t("admin.degrees.error")}</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
@@ -424,29 +405,11 @@ export default function DegreesPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      // Skeleton loader only in the table rows
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-6 w-32" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-32" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-12" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          {t("common.loading")}
+                        </TableCell>
+                      </TableRow>
                     ) : filteredDegrees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
@@ -496,81 +459,89 @@ export default function DegreesPage() {
         </Card>
       </div>
 
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleCloseDialog()
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
-                <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
+      {/* Only render dialog when it's open to avoid issues */}
+      {isDialogOpen && (
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseDialog()
+            }
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[500px]"
+            onEscapeKeyDown={() => handleCloseDialog()}
+            onInteractOutside={() => handleCloseDialog()}
+            onPointerDownOutside={(e) => {
+              e.preventDefault()
+              handleCloseDialog()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
+                  <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
+                  <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code">{t("admin.degrees.code")}</Label>
+                  <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
+                  <Input
+                    id="durationYears"
+                    name="durationYears"
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={currentDegree.durationYears}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
-                <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
+                <Label htmlFor="status">{t("admin.degrees.status")}</Label>
+                <select
+                  id="status"
+                  name="status"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                  value={currentDegree.status}
+                  onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
+                >
+                  <option value="active">{t("admin.degrees.active")}</option>
+                  <option value="inactive">{t("admin.degrees.inactive")}</option>
+                </select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">{t("admin.degrees.code")}</Label>
-                <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleCloseDialog()
+                  }}
+                >
+                  {t("admin.degrees.cancel")}
+                </Button>
+                <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
-                <Input
-                  id="durationYears"
-                  name="durationYears"
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={currentDegree.durationYears}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">{t("admin.degrees.status")}</Label>
-              <select
-                id="status"
-                name="status"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                value={currentDegree.status}
-                onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
-              >
-                <option value="active">{t("admin.degrees.active")}</option>
-                <option value="inactive">{t("admin.degrees.inactive")}</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                {t("admin.degrees.cancel")}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isEditing ? t("admin.degrees.updating") : t("admin.degrees.creating")}
-                  </>
-                ) : isEditing ? (
-                  t("admin.degrees.update")
-                ) : (
-                  t("admin.degrees.create")
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </DashboardLayout>
   )
 }

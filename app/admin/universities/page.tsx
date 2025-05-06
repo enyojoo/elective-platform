@@ -20,195 +20,127 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus, Globe } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
-import { useDataCache } from "@/lib/data-cache-context"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@supabase/supabase-js"
-import { Skeleton } from "@/components/ui/skeleton"
+
+// Mock universities data
+const mockUniversities = [
+  {
+    id: 1,
+    name: "Harvard University",
+    country: "United States",
+    city: "Cambridge",
+    website: "https://www.harvard.edu",
+    exchangePrograms: 5,
+    status: "active",
+  },
+  {
+    id: 2,
+    name: "University of Oxford",
+    country: "United Kingdom",
+    city: "Oxford",
+    website: "https://www.ox.ac.uk",
+    exchangePrograms: 3,
+    status: "active",
+  },
+  {
+    id: 3,
+    name: "ETH Zurich",
+    country: "Switzerland",
+    city: "Zurich",
+    website: "https://ethz.ch",
+    exchangePrograms: 2,
+    status: "inactive",
+  },
+  {
+    id: 4,
+    name: "National University of Singapore",
+    country: "Singapore",
+    city: "Singapore",
+    website: "https://www.nus.edu.sg",
+    exchangePrograms: 4,
+    status: "active",
+  },
+  {
+    id: 5,
+    name: "University of Tokyo",
+    country: "Japan",
+    city: "Tokyo",
+    website: "https://www.u-tokyo.ac.jp",
+    exchangePrograms: 1,
+    status: "draft",
+  },
+  {
+    id: 6,
+    name: "Sorbonne University",
+    country: "France",
+    city: "Paris",
+    website: "https://www.sorbonne-universite.fr",
+    exchangePrograms: 3,
+    status: "active",
+  },
+  {
+    id: 7,
+    name: "Tsinghua University",
+    country: "China",
+    city: "Beijing",
+    website: "https://www.tsinghua.edu.cn",
+    exchangePrograms: 2,
+    status: "inactive",
+  },
+  {
+    id: 8,
+    name: "University of Melbourne",
+    country: "Australia",
+    city: "Melbourne",
+    website: "https://www.unimelb.edu.au",
+    exchangePrograms: 3,
+    status: "active",
+  },
+]
+
+// Mock countries for filtering
+const countries = [
+  "United States",
+  "United Kingdom",
+  "Switzerland",
+  "Singapore",
+  "Japan",
+  "France",
+  "China",
+  "Australia",
+]
 
 export default function UniversitiesPage() {
-  const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
-  const { toast } = useToast()
-
-  const [universities, setUniversities] = useState<any[]>([])
-  const [countries, setCountries] = useState<string[]>([])
+  const [universities, setUniversities] = useState(mockUniversities)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [countryFilter, setCountryFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isUpdating, setIsUpdating] = useState(false)
   const itemsPerPage = 10
-
-  // Fetch universities data
-  useEffect(() => {
-    if (!institution?.id) return
-
-    const fetchData = async () => {
-      setIsLoading(true)
-
-      try {
-        // Try to get universities from cache first
-        const cachedUniversities = getCachedData<any[]>("universities", institution.id)
-
-        if (cachedUniversities) {
-          setUniversities(cachedUniversities)
-
-          // Extract unique countries from cached data
-          const uniqueCountries = Array.from(
-            new Set(cachedUniversities.map((uni) => uni.country).filter(Boolean)),
-          ) as string[]
-
-          setCountries(uniqueCountries)
-          setIsLoading(false)
-          return
-        }
-
-        // If not in cache, fetch from Supabase
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-        const { data: universitiesData, error: universitiesError } = await supabase
-          .from("partner_universities")
-          .select("*")
-          .eq("institution_id", institution.id)
-
-        if (universitiesError) throw universitiesError
-
-        setUniversities(universitiesData || [])
-        setCachedData("universities", institution.id, universitiesData || [])
-
-        // Extract unique countries
-        const uniqueCountries = Array.from(
-          new Set(universitiesData?.map((uni) => uni.country).filter(Boolean)),
-        ) as string[]
-
-        setCountries(uniqueCountries)
-      } catch (error: any) {
-        console.error("Error fetching universities:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load universities data. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [institution?.id, getCachedData, setCachedData, toast])
-
-  // Function to toggle university status
-  const toggleUniversityStatus = async (universityId: string, currentStatus: string) => {
-    if (!institution?.id || isUpdating) return
-
-    setIsUpdating(true)
-
-    try {
-      const newStatus = currentStatus === "active" ? "inactive" : "active"
-
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      const { error } = await supabase.from("partner_universities").update({ status: newStatus }).eq("id", universityId)
-
-      if (error) throw error
-
-      // Update local state
-      setUniversities((prevUniversities) =>
-        prevUniversities.map((university) =>
-          university.id === universityId ? { ...university, status: newStatus } : university,
-        ),
-      )
-
-      // Update cache
-      invalidateCache("universities", institution.id)
-      setCachedData(
-        "universities",
-        institution.id,
-        universities.map((university) =>
-          university.id === universityId ? { ...university, status: newStatus } : university,
-        ),
-      )
-
-      toast({
-        title: "Success",
-        description: `University ${newStatus === "active" ? "activated" : "deactivated"} successfully.`,
-      })
-    } catch (error: any) {
-      console.error("Error updating university status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update university status. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
-  // Function to delete a university
-  const deleteUniversity = async (universityId: string) => {
-    if (!institution?.id || isUpdating) return
-
-    if (!confirm(t("admin.universities.confirmDelete", "Are you sure you want to delete this university?"))) return
-
-    setIsUpdating(true)
-
-    try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      const { error } = await supabase.from("partner_universities").delete().eq("id", universityId)
-
-      if (error) throw error
-
-      // Update local state
-      setUniversities((prevUniversities) => prevUniversities.filter((university) => university.id !== universityId))
-
-      // Update cache
-      invalidateCache("universities", institution.id)
-      setCachedData(
-        "universities",
-        institution.id,
-        universities.filter((university) => university.id !== universityId),
-      )
-
-      toast({
-        title: "Success",
-        description: "University deleted successfully.",
-      })
-    } catch (error: any) {
-      console.error("Error deleting university:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete university. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-    }
-  }
+  const { t } = useLanguage()
 
   // Filter universities based on search term and filters
-  const filteredUniversities = universities.filter((university) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      university.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      university.city?.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    let filteredUniversities = mockUniversities
 
-    const matchesStatus = statusFilter === "all" || university.status === statusFilter
+    if (searchTerm) {
+      filteredUniversities = filteredUniversities.filter(
+        (university) =>
+          university.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          university.city.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
 
-    const matchesCountry = countryFilter === "all" || university.country === countryFilter
+    if (statusFilter !== "all") {
+      filteredUniversities = filteredUniversities.filter((university) => university.status === statusFilter)
+    }
 
-    return matchesSearch && matchesStatus && matchesCountry
-  })
+    if (countryFilter !== "all") {
+      filteredUniversities = filteredUniversities.filter((university) => university.country === countryFilter)
+    }
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredUniversities.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(filteredUniversities.length / itemsPerPage)
+    setUniversities(filteredUniversities)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, statusFilter, countryFilter])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -216,25 +148,31 @@ export default function UniversitiesPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("admin.universities.status.active", "Active")}
+            {t("admin.universities.status.active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("admin.universities.status.inactive", "Inactive")}
+            {t("admin.universities.status.inactive")}
           </Badge>
         )
       case "draft":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("admin.universities.status.draft", "Draft")}
+            {t("admin.universities.status.draft")}
           </Badge>
         )
       default:
-        return <Badge variant="outline">{status || "Unknown"}</Badge>
+        return <Badge variant="outline">{status}</Badge>
     }
   }
+
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentItems = universities.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(universities.length / itemsPerPage)
 
   return (
     <DashboardLayout>
@@ -267,20 +205,11 @@ export default function UniversitiesPage() {
                     placeholder={t("admin.universities.search", "Search universities...")}
                     className="pl-8"
                     value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value)
-                      setCurrentPage(1)
-                    }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                      setStatusFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.universities.status.label", "Status")} />
@@ -293,13 +222,7 @@ export default function UniversitiesPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={countryFilter}
-                    onValueChange={(value) => {
-                      setCountryFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={countryFilter} onValueChange={setCountryFilter}>
                     <SelectTrigger className="w-[180px]">
                       <Globe className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.universities.country", "Country")} />
@@ -329,42 +252,18 @@ export default function UniversitiesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      // Show skeleton rows while loading
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : currentItems.length > 0 ? (
+                    {currentItems.length > 0 ? (
                       currentItems.map((university) => (
                         <TableRow key={university.id}>
                           <TableCell className="font-medium">{university.name}</TableCell>
                           <TableCell>{university.country}</TableCell>
                           <TableCell>{university.city}</TableCell>
-                          <TableCell>{university.exchange_programs_count || 0}</TableCell>
+                          <TableCell>{university.exchangePrograms}</TableCell>
                           <TableCell>{getStatusBadge(university.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isUpdating}>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
@@ -380,23 +279,12 @@ export default function UniversitiesPage() {
                                     {t("admin.universities.edit", "Edit")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    toggleUniversityStatus(university.id, university.status)
-                                  }}
-                                >
+                                <DropdownMenuItem>
                                   {university.status === "active"
                                     ? t("admin.universities.deactivate", "Deactivate")
                                     : t("admin.universities.activate", "Activate")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    deleteUniversity(university.id)
-                                  }}
-                                >
+                                <DropdownMenuItem className="text-red-600">
                                   {t("admin.universities.delete", "Delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -415,7 +303,7 @@ export default function UniversitiesPage() {
                 </Table>
               </div>
 
-              {filteredUniversities.length > itemsPerPage && (
+              {universities.length > itemsPerPage && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -426,7 +314,6 @@ export default function UniversitiesPage() {
                           if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === 1}
                         aria-label={t("pagination.previous", "Previous")}
                       />
                     </PaginationItem>
@@ -455,7 +342,6 @@ export default function UniversitiesPage() {
                           if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === totalPages}
                         aria-label={t("pagination.next", "Next")}
                       />
                     </PaginationItem>

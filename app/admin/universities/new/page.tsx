@@ -15,10 +15,6 @@ import { ArrowLeft, X, Plus } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useDataCache } from "@/lib/data-cache-context"
-import { useInstitution } from "@/lib/institution-context"
 
 // Mock countries data
 const countries = [
@@ -50,11 +46,6 @@ export default function NewUniversityPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { t } = useLanguage()
-  const { toast } = useToast()
-  const supabase = createClientComponentClient()
-  const { invalidateCache } = useDataCache()
-  const { institution } = useInstitution()
-
   const [university, setUniversity] = useState({
     nameEn: "",
     nameRu: "",
@@ -124,46 +115,21 @@ export default function NewUniversityPage() {
     setIsSubmitting(true)
 
     try {
-      if (!institution?.id) {
-        throw new Error("Institution ID is required")
-      }
-
       // Prepare data with languages and programs
       const universityData = {
         ...university,
         languages,
         programs,
-        institution_id: institution.id,
       }
 
-      // Insert the university into the database
-      const { data, error } = await supabase.from("universities").insert([universityData]).select()
-
-      if (error) {
-        throw error
-      }
-
-      // Invalidate the universities cache
-      invalidateCache("universities", institution.id)
-
-      // Show success toast
-      toast({
-        title: t("admin.universities.createSuccess", "University created successfully"),
-        description: t("admin.universities.createSuccessDesc", "The university has been added to your institution."),
-      })
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("University data to submit:", universityData)
 
       // Redirect to universities page after successful submission
       router.push("/admin/universities")
     } catch (error) {
       console.error("Error creating university:", error)
-      toast({
-        title: t("admin.universities.createError", "Failed to create university"),
-        description: t(
-          "admin.universities.createErrorDesc",
-          "There was an error creating the university. Please try again.",
-        ),
-        variant: "destructive",
-      })
     } finally {
       setIsSubmitting(false)
     }

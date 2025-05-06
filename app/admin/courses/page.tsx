@@ -19,196 +19,120 @@ import {
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
+
+// First, import the useLanguage hook at the top of the file with the other imports
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
-import { useDataCache } from "@/lib/data-cache-context"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@supabase/supabase-js"
-import { Skeleton } from "@/components/ui/skeleton"
 
+// Mock courses data
+const mockCourses = [
+  {
+    id: 1,
+    name: "Strategic Management",
+    instructor: "Prof. John Smith",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "active",
+  },
+  {
+    id: 2,
+    name: "Financial Accounting",
+    instructor: "Dr. Jane Doe",
+    program: "Master in Finance",
+    programCode: "MiF",
+    status: "active",
+  },
+  {
+    id: 3,
+    name: "Marketing Analytics",
+    instructor: "Prof. Robert Johnson",
+    program: "Master in Business Analytics",
+    programCode: "MBA",
+    status: "inactive",
+  },
+  {
+    id: 4,
+    name: "Organizational Behavior",
+    instructor: "Dr. Emily Chen",
+    program: "Bachelor in Management",
+    programCode: "BiM",
+    status: "draft",
+  },
+  {
+    id: 5,
+    name: "Business Ethics",
+    instructor: "Prof. Michael Brown",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "active",
+  },
+  {
+    id: 6,
+    name: "International Economics",
+    instructor: "Dr. Sarah Wilson",
+    program: "Master in International Business",
+    programCode: "MIB",
+    status: "active",
+  },
+  {
+    id: 7,
+    name: "Corporate Finance",
+    instructor: "Prof. David Lee",
+    program: "Master in Finance",
+    programCode: "MiF",
+    status: "inactive",
+  },
+  {
+    id: 8,
+    name: "Supply Chain Management",
+    instructor: "Dr. Thomas Anderson",
+    program: "Master in Management",
+    programCode: "MiM",
+    status: "draft",
+  },
+]
+
+// Mock programs data
+const mockPrograms = [
+  { id: 1, name: "Master in Management", code: "MiM" },
+  { id: 2, name: "Master in Finance", code: "MiF" },
+  { id: 3, name: "Master in Business Analytics", code: "MBA" },
+  { id: 4, name: "Master in International Business", code: "MIB" },
+  { id: 5, name: "Bachelor in Management", code: "BiM" },
+]
+
+// Then, inside the CoursesPage component, add the useLanguage hook after the useState declarations
 export default function CoursesPage() {
-  const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
-  const { toast } = useToast()
-
-  const [courses, setCourses] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
+  const [courses, setCourses] = useState(mockCourses)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [programFilter, setProgramFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isUpdating, setIsUpdating] = useState(false)
   const itemsPerPage = 10
-
-  // Fetch courses and programs data
-  useEffect(() => {
-    if (!institution?.id) return
-
-    const fetchData = async () => {
-      setIsLoading(true)
-
-      try {
-        // Try to get courses from cache first
-        const cachedCourses = getCachedData<any[]>("courses", institution.id)
-        const cachedPrograms = getCachedData<any[]>("programs", institution.id)
-
-        if (cachedCourses && cachedPrograms) {
-          setCourses(cachedCourses)
-          setPrograms(cachedPrograms)
-          setIsLoading(false)
-          return
-        }
-
-        // If not in cache, fetch from Supabase
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-        // Fetch courses
-        if (!cachedCourses) {
-          const { data: coursesData, error: coursesError } = await supabase
-            .from("courses")
-            .select("*, programs(name, code)")
-            .eq("institution_id", institution.id)
-
-          if (coursesError) throw coursesError
-
-          setCourses(coursesData || [])
-          setCachedData("courses", institution.id, coursesData || [])
-        }
-
-        // Fetch programs
-        if (!cachedPrograms) {
-          const { data: programsData, error: programsError } = await supabase
-            .from("programs")
-            .select("id, name, code")
-            .eq("institution_id", institution.id)
-
-          if (programsError) throw programsError
-
-          setPrograms(programsData || [])
-          setCachedData("programs", institution.id, programsData || [])
-        }
-      } catch (error: any) {
-        console.error("Error fetching data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load data. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [institution?.id, getCachedData, setCachedData, toast])
-
-  // Function to toggle course status
-  const toggleCourseStatus = async (courseId: string, currentStatus: string) => {
-    if (!institution?.id || isUpdating) return
-
-    setIsUpdating(true)
-
-    try {
-      const newStatus = currentStatus === "active" ? "inactive" : "active"
-
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      const { error } = await supabase.from("courses").update({ status: newStatus }).eq("id", courseId)
-
-      if (error) throw error
-
-      // Update local state
-      setCourses((prevCourses) =>
-        prevCourses.map((course) => (course.id === courseId ? { ...course, status: newStatus } : course)),
-      )
-
-      // Update cache
-      invalidateCache("courses", institution.id)
-      setCachedData(
-        "courses",
-        institution.id,
-        courses.map((course) => (course.id === courseId ? { ...course, status: newStatus } : course)),
-      )
-
-      toast({
-        title: "Success",
-        description: `Course ${newStatus === "active" ? "activated" : "deactivated"} successfully.`,
-      })
-    } catch (error: any) {
-      console.error("Error updating course status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update course status. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
-  // Function to delete a course
-  const deleteCourse = async (courseId: string) => {
-    if (!institution?.id || isUpdating) return
-
-    if (!confirm(t("admin.courses.confirmDelete"))) return
-
-    setIsUpdating(true)
-
-    try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      const { error } = await supabase.from("courses").delete().eq("id", courseId)
-
-      if (error) throw error
-
-      // Update local state
-      setCourses((prevCourses) => prevCourses.filter((course) => course.id !== courseId))
-
-      // Update cache
-      invalidateCache("courses", institution.id)
-      setCachedData(
-        "courses",
-        institution.id,
-        courses.filter((course) => course.id !== courseId),
-      )
-
-      toast({
-        title: "Success",
-        description: "Course deleted successfully.",
-      })
-    } catch (error: any) {
-      console.error("Error deleting course:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete course. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-    }
-  }
+  const { t } = useLanguage()
 
   // Filter courses based on search term and filters
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      course.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.instructor?.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    let filteredCourses = mockCourses
 
-    const matchesStatus = statusFilter === "all" || course.status === statusFilter
+    if (searchTerm) {
+      filteredCourses = filteredCourses.filter(
+        (course) =>
+          course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          course.instructor.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
 
-    const matchesProgram = programFilter === "all" || course.program?.id === programFilter
+    if (statusFilter !== "all") {
+      filteredCourses = filteredCourses.filter((course) => course.status === statusFilter)
+    }
 
-    return matchesSearch && matchesStatus && matchesProgram
-  })
+    if (programFilter !== "all") {
+      filteredCourses = filteredCourses.filter((course) => course.program === programFilter)
+    }
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredCourses.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage)
+    setCourses(filteredCourses)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, statusFilter, programFilter])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -236,6 +160,13 @@ export default function CoursesPage() {
     }
   }
 
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentItems = courses.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(courses.length / itemsPerPage)
+
+  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -263,20 +194,11 @@ export default function CoursesPage() {
                     placeholder={t("admin.courses.search")}
                     className="pl-8"
                     value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value)
-                      setCurrentPage(1)
-                    }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                      setStatusFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.courses.status")} />
@@ -289,21 +211,15 @@ export default function CoursesPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={programFilter}
-                    onValueChange={(value) => {
-                      setProgramFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
+                  <Select value={programFilter} onValueChange={setProgramFilter}>
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.courses.program")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.courses.allPrograms")}</SelectItem>
-                      {programs.map((program) => (
-                        <SelectItem key={program.id} value={program.id}>
+                      {mockPrograms.map((program) => (
+                        <SelectItem key={program.id} value={program.name}>
                           {program.name}
                         </SelectItem>
                       ))}
@@ -324,40 +240,19 @@ export default function CoursesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      // Show skeleton rows while loading
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : currentItems.length > 0 ? (
+                    {currentItems.length > 0 ? (
                       currentItems.map((course) => (
                         <TableRow key={course.id}>
                           <TableCell className="font-medium">{course.name}</TableCell>
                           <TableCell>{course.instructor}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{course.programs?.code || "N/A"}</Badge>
+                            <Badge variant="outline">{course.programCode}</Badge>
                           </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isUpdating}>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
@@ -368,23 +263,12 @@ export default function CoursesPage() {
                                     {t("admin.courses.edit")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    toggleCourseStatus(course.id, course.status)
-                                  }}
-                                >
+                                <DropdownMenuItem>
                                   {course.status === "active"
                                     ? t("admin.courses.deactivate")
                                     : t("admin.courses.activate")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    deleteCourse(course.id)
-                                  }}
-                                >
+                                <DropdownMenuItem className="text-red-600">
                                   {t("admin.courses.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -403,7 +287,7 @@ export default function CoursesPage() {
                 </Table>
               </div>
 
-              {filteredCourses.length > itemsPerPage && (
+              {courses.length > itemsPerPage && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -414,9 +298,10 @@ export default function CoursesPage() {
                           if (currentPage > 1) setCurrentPage(currentPage - 1)
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === 1}
                         aria-label={t("pagination.previous")}
-                      />
+                      >
+                        {t("pagination.previous")}
+                      </PaginationPrevious>
                     </PaginationItem>
 
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -443,9 +328,10 @@ export default function CoursesPage() {
                           if (currentPage < totalPages) setCurrentPage(currentPage + 1)
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                        aria-disabled={currentPage === totalPages}
                         aria-label={t("pagination.next")}
-                      />
+                      >
+                        {t("pagination.next")}
+                      </PaginationNext>
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>

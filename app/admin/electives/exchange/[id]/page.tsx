@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,28 +15,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  ArrowLeft,
-  Edit,
-  Eye,
-  MoreVertical,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Download,
-  Loader2,
-} from "lucide-react"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useDataCache } from "@/lib/data-cache-context"
-import { useInstitution } from "@/lib/institution-context"
-import { Skeleton } from "@/components/ui/skeleton"
 
 interface ExchangeProgramDetailPageProps {
   params: {
@@ -46,10 +31,6 @@ interface ExchangeProgramDetailPageProps {
 }
 
 export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetailPageProps) {
-  // State for loading
-  const [isLoading, setIsLoading] = useState(true)
-  const [isUpdating, setIsUpdating] = useState(false)
-
   // State for dialog
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
@@ -59,122 +40,6 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
   // Add the language hook near the top of the component
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
-  const { institution } = useInstitution()
-
-  // State for exchange program data
-  const [exchangeProgram, setExchangeProgram] = useState<any>(null)
-  const [universities, setUniversities] = useState<any[]>([])
-  const [studentSelections, setStudentSelections] = useState<any[]>([])
-
-  // Fetch exchange program data
-  useEffect(() => {
-    const fetchExchangeProgramData = async () => {
-      if (!institution?.id) return
-
-      try {
-        // Try to get from cache first
-        const cacheKey = `exchangeProgram-${params.id}`
-        const cachedData = getCachedData<any>(cacheKey, institution.id)
-
-        if (cachedData) {
-          setExchangeProgram(cachedData.exchangeProgram)
-          setUniversities(cachedData.universities)
-          setStudentSelections(cachedData.studentSelections)
-          setIsLoading(false)
-          return
-        }
-
-        // Fetch from Supabase if not in cache
-        const { data: packData, error: packError } = await supabase
-          .from("elective_packs")
-          .select("*")
-          .eq("id", params.id)
-          .eq("institution_id", institution.id)
-          .eq("type", "exchange")
-          .single()
-
-        if (packError) {
-          throw packError
-        }
-
-        // Fetch universities for this exchange program
-        const { data: universitiesData, error: universitiesError } = await supabase
-          .from("exchange_universities")
-          .select("*")
-          .eq("pack_id", params.id)
-
-        if (universitiesError) {
-          throw universitiesError
-        }
-
-        // Fetch student selections for this exchange program
-        const { data: selectionsData, error: selectionsError } = await supabase
-          .from("student_selections")
-          .select(`
-            id,
-            student_id,
-            selection_date,
-            status,
-            statement_file,
-            selected_universities,
-            profiles(
-              id,
-              full_name,
-              email,
-              student_id,
-              group
-            )
-          `)
-          .eq("pack_id", params.id)
-
-        if (selectionsError) {
-          throw selectionsError
-        }
-
-        // Format student selections data
-        const formattedSelections = selectionsData.map((selection) => ({
-          id: selection.id,
-          studentName: selection.profiles.full_name,
-          studentId: selection.profiles.student_id,
-          group: selection.profiles.group,
-          program: "Management", // This would need to be fetched from the database
-          email: selection.profiles.email,
-          selectedUniversities: selection.selected_universities || [],
-          selectionDate: selection.selection_date,
-          status: selection.status,
-          statementFile: selection.statement_file,
-        }))
-
-        // Set state with fetched data
-        setExchangeProgram(packData)
-        setUniversities(universitiesData)
-        setStudentSelections(formattedSelections)
-
-        // Cache the data
-        setCachedData(cacheKey, institution.id, {
-          exchangeProgram: packData,
-          universities: universitiesData,
-          studentSelections: formattedSelections,
-        })
-      } catch (error) {
-        console.error("Error fetching exchange program data:", error)
-        toast({
-          title: t("admin.electives.fetchError", "Failed to fetch exchange program data"),
-          description: t(
-            "admin.electives.fetchErrorDesc",
-            "There was an error fetching the exchange program data. Please try again.",
-          ),
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchExchangeProgramData()
-  }, [params.id, institution?.id, getCachedData, setCachedData, supabase, toast, t])
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -195,9 +60,178 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     return "Exchange Program" // Default if no pattern is found
   }
 
+  // Mock exchange program data
+  const exchangeProgram = {
+    id: params.id,
+    name: getExchangeProgramName(params.id),
+    description:
+      "Select your preferred universities for this semester's exchange program. You can choose up to the maximum number of universities allowed for this program.",
+    semester: params.id.includes("fall") ? "Fall" : "Spring",
+    year: params.id.includes("2023") ? 2023 : params.id.includes("2024") ? 2024 : 2025,
+    maxSelections: params.id === "spring-2024" ? 3 : 2,
+    status: ElectivePackStatus.PUBLISHED,
+    startDate: params.id.includes("fall") ? "2023-08-01" : "2024-01-10",
+    endDate: params.id.includes("fall") ? "2023-08-15" : "2024-01-25",
+    universitiesCount: params.id === "spring-2024" ? 8 : 6,
+    studentsEnrolled: params.id === "fall-2023" ? 42 : params.id === "spring-2024" ? 28 : 0,
+    createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
+  }
+
+  // Mock universities data for this exchange program
+  const universities = [
+    {
+      id: "1",
+      name: "University of Amsterdam",
+      description: "One of the largest research universities in Europe with a rich academic tradition.",
+      country: "Netherlands",
+      city: "Amsterdam",
+      language: "English, Dutch",
+      maxStudents: 5,
+      currentStudents: 3,
+      website: "https://www.uva.nl/en",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["Management", "International Management"],
+    },
+    {
+      id: "2",
+      name: "HEC Paris",
+      description: "One of Europe's leading business schools with a strong focus on management education.",
+      country: "France",
+      city: "Paris",
+      language: "English, French",
+      maxStudents: 4,
+      currentStudents: 4,
+      website: "https://www.hec.edu/en",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["Management", "International Management"],
+    },
+    {
+      id: "3",
+      name: "Copenhagen Business School",
+      description: "One of the largest business schools in Europe with a broad range of programs.",
+      country: "Denmark",
+      city: "Copenhagen",
+      language: "English, Danish",
+      maxStudents: 6,
+      currentStudents: 2,
+      website: "https://www.cbs.dk/en",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["Management", "International Management", "Public Administration"],
+    },
+    {
+      id: "4",
+      name: "Bocconi University",
+      description: "A private university in Milan, Italy, specializing in economics, management, and finance.",
+      country: "Italy",
+      city: "Milan",
+      language: "English, Italian",
+      maxStudents: 5,
+      currentStudents: 5,
+      website: "https://www.unibocconi.eu/",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["Management", "International Management", "Public Administration"],
+    },
+    {
+      id: "5",
+      name: "Vienna University of Economics and Business",
+      description:
+        "One of Europe's largest business universities focusing on business, economics, and social sciences.",
+      country: "Austria",
+      city: "Vienna",
+      language: "English, German",
+      maxStudents: 4,
+      currentStudents: 2,
+      website: "https://www.wu.ac.at/en/",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["International Management"],
+    },
+    {
+      id: "6",
+      name: "Stockholm School of Economics",
+      description: "A private business school with a strong international presence and research focus.",
+      country: "Sweden",
+      city: "Stockholm",
+      language: "English, Swedish",
+      maxStudents: 3,
+      currentStudents: 2,
+      website: "https://www.hhs.se/en/",
+      academicYear: 2,
+      semester: exchangeProgram.semester,
+      year: exchangeProgram.year,
+      degree: "Bachelor",
+      programs: ["Management", "International Management"],
+    },
+  ]
+
+  // Mock student selections data
+  const studentSelections = [
+    {
+      id: "1",
+      studentName: "Alex Johnson",
+      studentId: "st123456",
+      group: "23.B12-vshm",
+      program: "Management",
+      email: "alex.johnson@student.gsom.spbu.ru",
+      selectedUniversities: ["University of Amsterdam", "Copenhagen Business School"],
+      selectionDate: "2023-08-05",
+      status: SelectionStatus.APPROVED,
+      statementFile: "alex_johnson_exchange_statement.pdf",
+    },
+    {
+      id: "2",
+      studentName: "Maria Petrova",
+      studentId: "st123457",
+      group: "23.B12-vshm",
+      program: "Management",
+      email: "maria.petrova@student.gsom.spbu.ru",
+      selectedUniversities: ["HEC Paris", "Stockholm School of Economics"],
+      selectionDate: "2023-08-06",
+      status: SelectionStatus.APPROVED,
+      statementFile: "maria_petrova_exchange_statement.pdf",
+    },
+    {
+      id: "3",
+      studentName: "Ivan Sokolov",
+      studentId: "st123458",
+      group: "23.B12-vshm",
+      program: "Management",
+      email: "ivan.sokolov@student.gsom.spbu.ru",
+      selectedUniversities: ["Bocconi University", "Vienna University of Economics and Business"],
+      selectionDate: "2023-08-07",
+      status: SelectionStatus.PENDING,
+      statementFile: "ivan_sokolov_exchange_statement.pdf",
+    },
+    {
+      id: "4",
+      studentName: "Elena Ivanova",
+      studentId: "st123459",
+      group: "23.B11-vshm",
+      program: "International Management",
+      email: "elena.ivanova@student.gsom.spbu.ru",
+      selectedUniversities: ["University of Amsterdam", "Vienna University of Economics and Business"],
+      selectionDate: "2023-08-08",
+      status: SelectionStatus.PENDING,
+      statementFile: null,
+    },
+  ]
+
   // Format date helper
   const formatDate = (dateString: string) => {
-    if (!dateString) return ""
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
@@ -266,11 +300,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
   // Function to handle university selection in edit dialog
   const handleUniversitySelection = (universityName: string, checked: boolean) => {
-    if (!exchangeProgram) return
-
     if (checked) {
       // Add university if it's not already selected and we haven't reached the max
-      if (!editedUniversities.includes(universityName) && editedUniversities.length < exchangeProgram.max_selections) {
+      if (!editedUniversities.includes(universityName) && editedUniversities.length < exchangeProgram.maxSelections) {
         setEditedUniversities([...editedUniversities, universityName])
       }
     } else {
@@ -279,62 +311,24 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     }
   }
 
-  // Function to save edited universities
-  const saveEditedUniversities = async () => {
-    if (!selectedStudent) return
-    setIsUpdating(true)
+  // Replace this function:
+  const saveEditedUniversities = () => {
+    // In a real app, you would make an API call here to update the database
+    // For this demo, we'll just show a success message
+    setEditDialogOpen(false)
 
-    try {
-      // Update the selection in the database
-      const { error } = await supabase
-        .from("student_selections")
-        .update({
-          selected_universities: editedUniversities,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedStudent.id)
-
-      if (error) {
-        throw error
-      }
-
-      // Update local state
-      setStudentSelections((prev) =>
-        prev.map((selection) =>
-          selection.id === selectedStudent.id ? { ...selection, selectedUniversities: editedUniversities } : selection,
-        ),
-      )
-
-      // Invalidate cache
-      if (institution?.id) {
-        const cacheKey = `exchangeProgram-${params.id}`
-        invalidateCache(cacheKey, institution.id)
-      }
-
-      // Close dialog
-      setEditDialogOpen(false)
-
-      // Show success toast
+    // Use setTimeout to ensure the toast appears after the dialog closes
+    window.setTimeout(() => {
       toast({
         title: t("toast.selection.updated"),
         description: t("toast.selection.updated.exchange.description").replace("{0}", selectedStudent.studentName),
       })
-    } catch (error) {
-      console.error("Error updating selection:", error)
-      toast({
-        title: t("toast.selection.updateError", "Failed to update selection"),
-        description: t(
-          "toast.selection.updateErrorDesc",
-          "There was an error updating the selection. Please try again.",
-        ),
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-    }
+    }, 100)
   }
 
-  // Function to export university to CSV
+  // Also update the exportUniversityToCSV function to ensure consistent formatting
+  // Replace the entire exportUniversityToCSV function with this corrected version:
+
   const exportUniversityToCSV = (university: any) => {
     // Define column headers based on language
     const headers = {
@@ -347,14 +341,14 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
     // Add data row
     const location = `${university.city}, ${university.country}`
-    const enrollment = `${university.current_students || 0}/${university.max_students || 0}`
-    const programs = university.programs ? university.programs.join("; ") : ""
+    const enrollment = `${university.currentStudents}/${university.maxStudents}`
+    const programs = university.programs.join("; ")
 
     // Escape fields that might contain commas
     const row = [
-      `"${university.name_en}"`,
+      `"${university.name}"`,
       `"${location}"`,
-      `"${university.language || ""}"`,
+      `"${university.language}"`,
       `"${enrollment}"`,
       `"${programs}"`,
     ]
@@ -365,7 +359,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), universityContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `university_${university.name_en.replace(/\s+/g, "_")}_${language}.csv`
+    const fileName = `university_${university.name.replace(/\s+/g, "_")}_${language}.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -375,8 +369,8 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     document.body.removeChild(link)
   }
 
-  // Function to download student statement
-  const downloadStudentStatement = async (studentName: string, fileName: string | null) => {
+  // Function to export a single university to CSV
+  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
     if (!fileName) {
       toast({
         title: t("toast.statement.notAvailable"),
@@ -385,27 +379,17 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       return
     }
 
-    try {
-      // In a real implementation, you would download the file from storage
-      // For this demo, we'll just show a toast
-      toast({
-        title: t("toast.statement.download.success"),
-        description: t("toast.statement.download.success.description"),
-      })
-    } catch (error) {
-      console.error("Error downloading statement:", error)
-      toast({
-        title: t("toast.statement.downloadError", "Failed to download statement"),
-        description: t(
-          "toast.statement.downloadErrorDesc",
-          "There was an error downloading the statement. Please try again.",
-        ),
-        variant: "destructive",
-      })
-    }
+    // In a real app, this would download the actual file
+    // For this demo, we'll just show a toast
+    toast({
+      title: t("toast.statement.download.success"),
+      description: t("toast.statement.download.success.description"),
+    })
   }
 
-  // Function to export student selections to CSV
+  // Update the exportStudentSelectionsToCSV function to fix the date and column alignment issues
+  // Replace the entire exportStudentSelectionsToCSV function with this corrected version:
+
   const exportStudentSelectionsToCSV = () => {
     // Define column headers based on language
     const headers = {
@@ -448,7 +432,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     }
 
     // Create CSV content
-    let selectionsContent = headers[language as keyof typeof headers].map((header) => `"${header}"`).join(",") + "\n"
+    let selectionsContent = headers[language as keyof typeof headers].join(",") + "\n"
 
     // Add data rows
     studentSelections.forEach((selection) => {
@@ -485,7 +469,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), selectionsContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `student_selections_${exchangeProgram?.name_en.replace(/\s+/g, "_") || "exchange_program"}_${language}.csv`
+    const fileName = `student_selections_${exchangeProgram.name.replace(/\s+/g, "_")}_${language}.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -493,172 +477,6 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-  }
-
-  // Function to update student selection status
-  const updateSelectionStatus = async (studentId: string, newStatus: SelectionStatus) => {
-    setIsUpdating(true)
-
-    try {
-      // Update the selection status in the database
-      const { error } = await supabase
-        .from("student_selections")
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", studentId)
-
-      if (error) {
-        throw error
-      }
-
-      // Update local state
-      setStudentSelections((prev) =>
-        prev.map((selection) => (selection.id === studentId ? { ...selection, status: newStatus } : selection)),
-      )
-
-      // Invalidate cache
-      if (institution?.id) {
-        const cacheKey = `exchangeProgram-${params.id}`
-        invalidateCache(cacheKey, institution.id)
-      }
-
-      // Show success toast
-      const student = studentSelections.find((s) => s.id === studentId)
-      const statusMessage =
-        newStatus === SelectionStatus.APPROVED
-          ? t("toast.selection.approved", "Selection approved")
-          : newStatus === SelectionStatus.REJECTED
-            ? t("toast.selection.rejected", "Selection rejected")
-            : t("toast.selection.withdrawn", "Selection withdrawn")
-
-      toast({
-        title: statusMessage,
-        description: t("toast.selection.statusChanged", "The selection status for {0} has been updated.").replace(
-          "{0}",
-          student?.studentName || "",
-        ),
-      })
-    } catch (error) {
-      console.error("Error updating selection status:", error)
-      toast({
-        title: t("toast.selection.updateError", "Failed to update selection"),
-        description: t(
-          "toast.selection.updateErrorDesc",
-          "There was an error updating the selection. Please try again.",
-        ),
-        variant: "destructive",
-      })
-    } finally {
-      setIsUpdating(false)
-      setViewDialogOpen(false) // Close dialog if open
-    }
-  }
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.ADMIN}>
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link href="/admin/electives?tab=exchange">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </Link>
-              <div>
-                <Skeleton className="h-9 w-64" />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-6 w-24" />
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <Skeleton className="h-6 w-48" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="flex justify-between">
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-5 w-48" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Tabs defaultValue="universities">
-            <TabsList>
-              <TabsTrigger value="universities">{t("manager.exchangeDetails.universitiesTab")}</TabsTrigger>
-              <TabsTrigger value="students">{t("manager.exchangeDetails.studentsTab")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="universities" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    <Skeleton className="h-6 w-48" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.exchangeDetails.name")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.exchangeDetails.location")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.exchangeDetails.language")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.exchangeDetails.enrollment")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.exchangeDetails.export")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[1, 2, 3, 4].map((i) => (
-                          <tr key={i} className="border-b">
-                            <td className="py-3 px-4 text-sm">
-                              <Skeleton className="h-5 w-32" />
-                            </td>
-                            <td className="py-3 px-4 text-sm">
-                              <Skeleton className="h-5 w-24" />
-                            </td>
-                            <td className="py-3 px-4 text-sm">
-                              <Skeleton className="h-5 w-20" />
-                            </td>
-                            <td className="py-3 px-4 text-sm">
-                              <Skeleton className="h-5 w-16" />
-                            </td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              <Skeleton className="h-5 w-24 mx-auto" />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </DashboardLayout>
-    )
   }
 
   return (
@@ -672,14 +490,10 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {exchangeProgram?.name_en || getExchangeProgramName(params.id)}
-              </h1>
+              <h1 className="text-3xl font-bold tracking-tight">{exchangeProgram.name}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {exchangeProgram && getStatusBadge(exchangeProgram.status as ElectivePackStatus)}
-          </div>
+          <div className="flex items-center gap-2">{getStatusBadge(exchangeProgram.status)}</div>
         </div>
 
         <Card>
@@ -691,30 +505,30 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.selectionPeriod")}:</dt>
                 <dd>
-                  {formatDate(exchangeProgram?.start_date)} - {formatDate(exchangeProgram?.end_date)}
+                  {formatDate(exchangeProgram.startDate)} - {formatDate(exchangeProgram.endDate)}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.maxSelections")}:</dt>
                 <dd>
-                  {exchangeProgram?.max_selections} {t("manager.exchangeDetails.universities")}
+                  {exchangeProgram.maxSelections} {t("manager.exchangeDetails.universities")}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.universities")}:</dt>
-                <dd>{universities?.length || 0}</dd>
+                <dd>{exchangeProgram.universitiesCount}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.studentsEnrolled")}:</dt>
-                <dd>{studentSelections?.length || 0}</dd>
+                <dd>{exchangeProgram.studentsEnrolled}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.created")}:</dt>
-                <dd>{formatDate(exchangeProgram?.created_at)}</dd>
+                <dd>{formatDate(exchangeProgram.createdAt)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.exchangeDetails.status")}:</dt>
-                <dd>{t(`manager.status.${(exchangeProgram?.status || "").toLowerCase()}`)}</dd>
+                <dd>{t(`manager.status.${exchangeProgram.status.toLowerCase()}`)}</dd>
               </div>
             </dl>
           </CardContent>
@@ -751,48 +565,35 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       </tr>
                     </thead>
                     <tbody>
-                      {universities.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="py-4 text-center text-muted-foreground">
-                            {t(
-                              "manager.exchangeDetails.noUniversities",
-                              "No universities found for this exchange program.",
-                            )}
+                      {universities.map((university) => (
+                        <tr key={university.id} className="border-b">
+                          <td className="py-3 px-4 text-sm">{university.name}</td>
+                          <td className="py-3 px-4 text-sm">
+                            {university.city}, {university.country}
+                          </td>
+                          <td className="py-3 px-4 text-sm">{university.language}</td>
+                          <td className="py-3 px-4 text-sm">
+                            <Badge
+                              variant={
+                                university.currentStudents >= university.maxStudents ? "destructive" : "secondary"
+                              }
+                            >
+                              {university.currentStudents}/{university.maxStudents}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => exportUniversityToCSV(university)}
+                              className="flex mx-auto"
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              {t("manager.exchangeDetails.download")}
+                            </Button>
                           </td>
                         </tr>
-                      ) : (
-                        universities.map((university) => (
-                          <tr key={university.id} className="border-b">
-                            <td className="py-3 px-4 text-sm">{university.name_en}</td>
-                            <td className="py-3 px-4 text-sm">
-                              {university.city_en}, {university.country}
-                            </td>
-                            <td className="py-3 px-4 text-sm">{university.language || "English"}</td>
-                            <td className="py-3 px-4 text-sm">
-                              <Badge
-                                variant={
-                                  (university.current_students || 0) >= (university.max_students || 0)
-                                    ? "destructive"
-                                    : "secondary"
-                                }
-                              >
-                                {university.current_students || 0}/{university.max_students || 5}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => exportUniversityToCSV(university)}
-                                className="flex mx-auto"
-                              >
-                                <Download className="h-4 w-4 mr-1" />
-                                {t("manager.exchangeDetails.download")}
-                              </Button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -845,87 +646,89 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       </tr>
                     </thead>
                     <tbody>
-                      {studentSelections.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="py-4 text-center text-muted-foreground">
-                            {t(
-                              "manager.exchangeDetails.noStudents",
-                              "No student selections found for this exchange program.",
+                      {studentSelections.map((selection) => (
+                        <tr key={selection.id} className="border-b">
+                          <td className="py-3 px-4 text-sm">{selection.studentName}</td>
+                          <td className="py-3 px-4 text-sm">{selection.group}</td>
+                          <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
+                          <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            {selection.statementFile ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </td>
-                        </tr>
-                      ) : (
-                        studentSelections.map((selection) => (
-                          <tr key={selection.id} className="border-b">
-                            <td className="py-3 px-4 text-sm">{selection.studentName}</td>
-                            <td className="py-3 px-4 text-sm">{selection.group}</td>
-                            <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
-                            <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              {selection.statementFile ? (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    downloadStudentStatement(selection.studentName, selection.statementFile)
-                                  }
-                                >
-                                  <Download className="h-4 w-4" />
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
                                 </Button>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditDialog(selection)}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    {t("manager.exchangeDetails.edit")}
-                                  </DropdownMenuItem>
-                                  {selection.status === SelectionStatus.PENDING && (
-                                    <>
-                                      <DropdownMenuItem
-                                        className="text-green-600"
-                                        onClick={() => updateSelectionStatus(selection.id, SelectionStatus.APPROVED)}
-                                      >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.approve")}
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-red-600"
-                                        onClick={() => updateSelectionStatus(selection.id, SelectionStatus.REJECTED)}
-                                      >
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.reject")}
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                  {selection.status === SelectionStatus.APPROVED && (
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  {t("manager.exchangeDetails.edit")}
+                                </DropdownMenuItem>
+                                {selection.status === SelectionStatus.PENDING && (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="text-green-600"
+                                      onClick={() => {
+                                        toast({
+                                          title: "Selection approved",
+                                          description: `The selection for ${selection.studentName} has been approved.`,
+                                        })
+                                      }}
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      {t("manager.exchangeDetails.approve")}
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="text-red-600"
-                                      onClick={() => updateSelectionStatus(selection.id, SelectionStatus.REJECTED)}
+                                      onClick={() => {
+                                        toast({
+                                          title: "Selection rejected",
+                                          description: `The selection for ${selection.studentName} has been rejected.`,
+                                        })
+                                      }}
                                     >
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.withdraw")}
+                                      {t("manager.exchangeDetails.reject")}
                                     </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                                  </>
+                                )}
+                                {selection.status === SelectionStatus.APPROVED && (
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => {
+                                      toast({
+                                        title: "Selection withdrawn",
+                                        description: `The selection for ${selection.studentName} has been withdrawn.`,
+                                      })
+                                    }}
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    {t("manager.exchangeDetails.withdraw")}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -977,19 +780,15 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                   <div>
                     <h3 className="text-sm font-medium">{t("manager.exchangeDetails.selectedUniversities")}</h3>
                     <div className="mt-2 space-y-2">
-                      {selectedStudent.selectedUniversities.map((university: string, index: number) => {
-                        const universityData = universities.find((u) => u.name_en === university)
-                        return (
-                          <div key={index} className="rounded-md border p-2">
-                            <p className="font-medium">{university}</p>
-                            {universityData && (
-                              <p className="text-xs text-muted-foreground">
-                                {universityData.city_en}, {universityData.country}
-                              </p>
-                            )}
-                          </div>
-                        )
-                      })}
+                      {selectedStudent.selectedUniversities.map((university: string, index: number) => (
+                        <div key={index} className="rounded-md border p-2">
+                          <p className="font-medium">{university}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {universities.find((u) => u.name === university)?.city},{" "}
+                            {universities.find((u) => u.name === university)?.country}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <div>
@@ -1041,36 +840,38 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                 </div>
               </div>
               <DialogFooter>
-                {selectedStudent.status === SelectionStatus.PENDING && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => updateSelectionStatus(selectedStudent.id, SelectionStatus.APPROVED)}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                      )}
-                      {t("manager.exchangeDetails.approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => updateSelectionStatus(selectedStudent.id, SelectionStatus.REJECTED)}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <XCircle className="mr-2 h-4 w-4" />
-                      )}
-                      {t("manager.exchangeDetails.reject")}
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                  onClick={() => {
+                    setViewDialogOpen(false)
+                    window.setTimeout(() => {
+                      toast({
+                        title: "Selection approved",
+                        description: `The selection for ${selectedStudent.studentName} has been approved.`,
+                      })
+                    }, 100)
+                  }}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.approve")}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                  onClick={() => {
+                    setViewDialogOpen(false)
+                    window.setTimeout(() => {
+                      toast({
+                        title: "Selection rejected",
+                        description: `The selection for ${selectedStudent.studentName} has been rejected.`,
+                      })
+                    }, 100)
+                  }}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.reject")}
+                </Button>
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   {t("manager.exchangeDetails.close")}
                 </Button>
@@ -1113,7 +914,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                   <div>
                     <h3 className="text-sm font-medium">{t("manager.exchangeDetails.editUniversities")}</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {t("manager.exchangeDetails.selectUpTo")} {exchangeProgram?.max_selections || 2}{" "}
+                      {t("manager.exchangeDetails.selectUpTo")} {exchangeProgram.maxSelections}{" "}
                       {t("manager.exchangeDetails.universities")}
                     </p>
                     <div className="mt-3 space-y-3">
@@ -1121,27 +922,27 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <div key={university.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`university-${university.id}`}
-                            checked={editedUniversities.includes(university.name_en)}
+                            checked={editedUniversities.includes(university.name)}
                             onCheckedChange={(checked) =>
-                              handleUniversitySelection(university.name_en, checked as boolean)
+                              handleUniversitySelection(university.name, checked as boolean)
                             }
                             disabled={
-                              !editedUniversities.includes(university.name_en) &&
-                              editedUniversities.length >= (exchangeProgram?.max_selections || 2)
+                              !editedUniversities.includes(university.name) &&
+                              editedUniversities.length >= exchangeProgram.maxSelections
                             }
                           />
                           <Label
                             htmlFor={`university-${university.id}`}
                             className={
-                              !editedUniversities.includes(university.name_en) &&
-                              editedUniversities.length >= (exchangeProgram?.max_selections || 2)
+                              !editedUniversities.includes(university.name) &&
+                              editedUniversities.length >= exchangeProgram.maxSelections
                                 ? "text-muted-foreground"
                                 : ""
                             }
                           >
-                            {university.name_en}
+                            {university.name}
                             <span className="text-xs text-muted-foreground ml-1">
-                              ({university.city_en}, {university.country})
+                              ({university.city}, {university.country})
                             </span>
                           </Label>
                         </div>
@@ -1151,18 +952,11 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isUpdating}>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                   {t("manager.exchangeDetails.cancel")}
                 </Button>
-                <Button onClick={saveEditedUniversities} disabled={editedUniversities.length === 0 || isUpdating}>
-                  {isUpdating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t("manager.exchangeDetails.saving", "Saving...")}
-                    </>
-                  ) : (
-                    t("manager.exchangeDetails.saveChanges")
-                  )}
+                <Button onClick={saveEditedUniversities} disabled={editedUniversities.length === 0}>
+                  {t("manager.exchangeDetails.saveChanges")}
                 </Button>
               </DialogFooter>
             </>
