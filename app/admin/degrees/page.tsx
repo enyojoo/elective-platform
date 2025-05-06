@@ -32,7 +32,7 @@ interface DegreeFormData {
 export default function DegreesPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
-  const { getCachedData, setCachedData } = useDataCache()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
   const [degrees, setDegrees] = useState<any[]>([])
   const [filteredDegrees, setFilteredDegrees] = useState<any[]>([])
   const { toast } = useToast()
@@ -48,10 +48,12 @@ export default function DegreesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const isMounted = useRef(true)
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const dataFetchedRef = useRef(false)
 
   // Component lifecycle management
   useEffect(() => {
     isMounted.current = true
+    dataFetchedRef.current = false
 
     return () => {
       isMounted.current = false
@@ -68,7 +70,7 @@ export default function DegreesPage() {
 
   // Fetch degrees from cache or Supabase
   useEffect(() => {
-    if (!institution?.id) return
+    if (!institution?.id || dataFetchedRef.current) return
 
     const fetchDegrees = async () => {
       try {
@@ -77,7 +79,7 @@ export default function DegreesPage() {
         // Try to get data from cache first
         const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
 
-        if (cachedDegrees) {
+        if (cachedDegrees && cachedDegrees.length > 0) {
           console.log("Using cached degrees data")
           const formattedDegrees = cachedDegrees.map((degree) => ({
             id: degree.id.toString(),
@@ -90,6 +92,7 @@ export default function DegreesPage() {
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
           setIsLoading(false)
+          dataFetchedRef.current = true
           return
         }
 
@@ -117,6 +120,7 @@ export default function DegreesPage() {
 
           setDegrees(formattedDegrees)
           setFilteredDegrees(formattedDegrees)
+          dataFetchedRef.current = true
         }
       } catch (error: any) {
         console.error("Failed to fetch degrees:", error)
@@ -224,7 +228,22 @@ export default function DegreesPage() {
 
         // Update local state
         if (isMounted.current) {
-          setDegrees(degrees.map((degree) => (degree.id === currentDegree.id ? { ...currentDegree } : degree)))
+          const updatedDegrees = degrees.map((degree) =>
+            degree.id === currentDegree.id ? { ...currentDegree } : degree,
+          )
+
+          setDegrees(updatedDegrees)
+
+          // Update cache with the new data
+          const rawDegrees = await supabase
+            .from("degrees")
+            .select("*")
+            .eq("institution_id", institution?.id)
+            .order("name")
+
+          if (!rawDegrees.error && rawDegrees.data) {
+            setCachedData("degrees", institution?.id || "", rawDegrees.data)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -255,7 +274,19 @@ export default function DegreesPage() {
             status: data[0].status,
           }
 
-          setDegrees([...degrees, newDegree])
+          const updatedDegrees = [...degrees, newDegree]
+          setDegrees(updatedDegrees)
+
+          // Update cache with the new data
+          const rawDegrees = await supabase
+            .from("degrees")
+            .select("*")
+            .eq("institution_id", institution?.id)
+            .order("name")
+
+          if (!rawDegrees.error && rawDegrees.data) {
+            setCachedData("degrees", institution?.id || "", rawDegrees.data)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -285,7 +316,19 @@ export default function DegreesPage() {
         if (error) throw error
 
         if (isMounted.current) {
-          setDegrees(degrees.filter((degree) => degree.id !== id))
+          const updatedDegrees = degrees.filter((degree) => degree.id !== id)
+          setDegrees(updatedDegrees)
+
+          // Update cache with the new data
+          const rawDegrees = await supabase
+            .from("degrees")
+            .select("*")
+            .eq("institution_id", institution?.id)
+            .order("name")
+
+          if (!rawDegrees.error && rawDegrees.data) {
+            setCachedData("degrees", institution?.id || "", rawDegrees.data)
+          }
 
           toast({
             title: t("admin.degrees.success"),
@@ -317,17 +360,28 @@ export default function DegreesPage() {
       if (error) throw error
 
       if (isMounted.current) {
-        setDegrees(
-          degrees.map((degree) => {
-            if (degree.id === id) {
-              return {
-                ...degree,
-                status: newStatus,
-              }
+        const updatedDegrees = degrees.map((degree) => {
+          if (degree.id === id) {
+            return {
+              ...degree,
+              status: newStatus,
             }
-            return degree
-          }),
-        )
+          }
+          return degree
+        })
+
+        setDegrees(updatedDegrees)
+
+        // Update cache with the new data
+        const rawDegrees = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution?.id)
+          .order("name")
+
+        if (!rawDegrees.error && rawDegrees.data) {
+          setCachedData("degrees", institution?.id || "", rawDegrees.data)
+        }
 
         toast({
           title: t("admin.degrees.success"),
@@ -406,16 +460,26 @@ export default function DegreesPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-24">
-                          <div className="w-full flex items-center justify-center">
+                      <>
+                        <TableRow>
+                          <TableCell colSpan={5}>
                             <Skeleton className="w-full h-10" />
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={5}>
+                            <Skeleton className="w-full h-10" />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={5}>
+                            <Skeleton className="w-full h-10" />
+                          </TableCell>
+                        </TableRow>
+                      </>
                     ) : filteredDegrees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           {t("admin.degrees.noDegreesFound")}
                         </TableCell>
                       </TableRow>
