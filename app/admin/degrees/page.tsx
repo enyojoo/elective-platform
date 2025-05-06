@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SafeDialog } from "@/components/safe-dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -126,6 +126,9 @@ export default function DegreesPage() {
   }, [degrees, searchTerm])
 
   const handleOpenDialog = (degree?: (typeof degrees)[0]) => {
+    // Ensure body is in normal state before opening dialog
+    document.body.style.removeProperty("overflow")
+
     if (degree) {
       setCurrentDegree(degree)
       setIsEditing(true)
@@ -302,6 +305,24 @@ export default function DegreesPage() {
     }
   }
 
+  // Add cleanup effect for dialog
+  useEffect(() => {
+    return () => {
+      // Cleanup function to ensure body scrolling is restored when component unmounts
+      document.body.classList.remove("overflow-hidden")
+      document.body.style.removeProperty("overflow")
+      document.body.style.removeProperty("padding-right")
+
+      // Remove any lingering backdrop/overlay elements
+      const overlays = document.querySelectorAll("[data-radix-portal]")
+      overlays.forEach((overlay) => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay)
+        }
+      })
+    }
+  }, [])
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -397,63 +418,72 @@ export default function DegreesPage() {
         </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
-                <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
-                <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">{t("admin.degrees.code")}</Label>
-                <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
-                <Input
-                  id="durationYears"
-                  name="durationYears"
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={currentDegree.durationYears}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
+      <SafeDialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open)
+          if (!open) {
+            // Add a small delay to ensure animations complete before cleanup
+            setTimeout(() => {
+              document.body.style.removeProperty("overflow")
+              document.body.style.removeProperty("padding-right")
+            }, 300)
+          }
+        }}
+        title={isEditing ? t("admin.degrees.editDegree") : t("admin.degrees.addNewDegree")}
+        className="sm:max-w-[500px]"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("admin.degrees.nameEn")}</Label>
+              <Input id="name" name="name" value={currentDegree.name} onChange={handleInputChange} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">{t("admin.degrees.status")}</Label>
-              <select
-                id="status"
-                name="status"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                value={currentDegree.status}
-                onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
-              >
-                <option value="active">{t("admin.degrees.active")}</option>
-                <option value="inactive">{t("admin.degrees.inactive")}</option>
-              </select>
+              <Label htmlFor="nameRu">{t("admin.degrees.nameRu")}</Label>
+              <Input id="nameRu" name="nameRu" value={currentDegree.nameRu} onChange={handleInputChange} required />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                {t("admin.degrees.cancel")}
-              </Button>
-              <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="code">{t("admin.degrees.code")}</Label>
+              <Input id="code" name="code" value={currentDegree.code} onChange={handleInputChange} required />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-2">
+              <Label htmlFor="durationYears">{t("admin.degrees.duration")}</Label>
+              <Input
+                id="durationYears"
+                name="durationYears"
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={currentDegree.durationYears}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="status">{t("admin.degrees.status")}</Label>
+            <select
+              id="status"
+              name="status"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+              value={currentDegree.status}
+              onChange={(e) => setCurrentDegree({ ...currentDegree, status: e.target.value })}
+            >
+              <option value="active">{t("admin.degrees.active")}</option>
+              <option value="inactive">{t("admin.degrees.inactive")}</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+              {t("admin.degrees.cancel")}
+            </Button>
+            <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
+          </div>
+        </form>
+      </SafeDialog>
     </DashboardLayout>
   )
 }
