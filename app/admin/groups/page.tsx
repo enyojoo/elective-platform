@@ -144,28 +144,21 @@ export default function GroupsPage() {
           })
         }
 
-        // Count students in each group
-        const { data: studentCounts, error: countError } = await supabase
-          .from("profiles")
-          .select("group_id, count")
-          .in(
-            "group_id",
-            groupsData.map((g) => g.id),
-          )
-          .eq("role", "student")
-          .group("group_id")
-
-        if (countError) {
-          console.error("Error fetching student counts:", countError)
-          // Continue without student counts
-        }
-
-        // Create a map of group_id to student count
+        // Count students in each group using a different approach
         const studentCountMap = new Map()
-        if (studentCounts) {
-          studentCounts.forEach((item) => {
-            studentCountMap.set(item.group_id, Number.parseInt(item.count))
-          })
+        for (const group of groupsData) {
+          const { count, error: countError } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .eq("group_id", group.id)
+            .eq("role", "student")
+
+          if (countError) {
+            console.error("Error counting students for group", group.id, countError)
+            studentCountMap.set(group.id, 0)
+          } else {
+            studentCountMap.set(group.id, count || 0)
+          }
         }
 
         // Format the groups data
