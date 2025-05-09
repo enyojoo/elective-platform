@@ -10,7 +10,7 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData } = useDataCache()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
 
@@ -50,7 +50,10 @@ export function useCachedUsers(institutionId: string | undefined) {
         const groupMap = new Map()
 
         // Fetch degrees if there are any degree_ids
-        const degreeIds = profilesData.filter((profile) => profile.degree_id).map((profile) => profile.degree_id)
+        const degreeIds = profilesData
+          .filter((profile) => profile.degree_id)
+          .map((profile) => profile.degree_id)
+          .filter((id, index, self) => self.indexOf(id) === index) // Get unique IDs
 
         if (degreeIds.length > 0) {
           const { data: degreesData, error: degreesError } = await supabase
@@ -67,7 +70,10 @@ export function useCachedUsers(institutionId: string | undefined) {
         }
 
         // Fetch groups if there are any group_ids
-        const groupIds = profilesData.filter((profile) => profile.group_id).map((profile) => profile.group_id)
+        const groupIds = profilesData
+          .filter((profile) => profile.group_id)
+          .map((profile) => profile.group_id)
+          .filter((id, index, self) => self.indexOf(id) === index) // Get unique IDs
 
         if (groupIds.length > 0) {
           const { data: groupsData, error: groupsError } = await supabase
@@ -89,13 +95,18 @@ export function useCachedUsers(institutionId: string | undefined) {
           let degreeName = ""
           if (profile.degree_id && degreeMap.has(profile.degree_id)) {
             const degree = degreeMap.get(profile.degree_id)
-            degreeName = language === "ru" && degree.name_ru ? degree.name_ru : degree.name
+            // Use Russian name if language is Russian and name_ru exists, otherwise use English name
+            if (language === "ru" && degree.name_ru) {
+              degreeName = degree.name_ru
+            } else {
+              degreeName = degree.name || ""
+            }
           }
 
           // Get group information
           let groupName = ""
           if (profile.group_id && groupMap.has(profile.group_id)) {
-            groupName = groupMap.get(profile.group_id).name
+            groupName = groupMap.get(profile.group_id).name || ""
           }
 
           return {
@@ -133,12 +144,5 @@ export function useCachedUsers(institutionId: string | undefined) {
     fetchUsers()
   }, [institutionId, getCachedData, setCachedData, toast, language])
 
-  // Function to invalidate cache and refresh data
-  const refreshUsers = () => {
-    if (institutionId) {
-      setCachedData("users", institutionId, null)
-    }
-  }
-
-  return { users, isLoading, error, refreshUsers }
+  return { users, isLoading, error }
 }
