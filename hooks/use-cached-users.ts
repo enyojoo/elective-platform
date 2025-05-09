@@ -10,9 +10,16 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData } = useDataCache()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
+
+  useEffect(() => {
+    // Invalidate cache when language changes to force a refresh
+    if (institutionId) {
+      invalidateCache("users", institutionId)
+    }
+  }, [language, institutionId, invalidateCache])
 
   useEffect(() => {
     if (!institutionId) {
@@ -51,21 +58,29 @@ export function useCachedUsers(institutionId: string | undefined) {
             degree_id, 
             group_id, 
             academic_year,
-            degrees(id, name, name_ru),
-            groups(id, name)
+            degrees:degree_id(id, name, name_ru),
+            groups:group_id(id, name)
           `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
+        console.log("Fetched profiles data:", profilesData)
+
         // Transform the data
         const transformedUsers = profilesData.map((profile) => {
           // Get degree name based on language
-          const degreeName = profile.degrees
-            ? language === "ru" && profile.degrees.name_ru
-              ? profile.degrees.name_ru
-              : profile.degrees.name
-            : ""
+          let degreeName = ""
+
+          if (profile.degrees) {
+            if (language === "ru" && profile.degrees.name_ru) {
+              degreeName = profile.degrees.name_ru
+              console.log(`Using Russian name for degree: ${degreeName}`)
+            } else {
+              degreeName = profile.degrees.name || ""
+              console.log(`Using English name for degree: ${degreeName}`)
+            }
+          }
 
           return {
             id: profile.id,
