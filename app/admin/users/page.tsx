@@ -98,10 +98,10 @@ export default function UsersPage() {
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{t("admin.users.admin")}</Badge>
         )
-      case "manager":
+      case "program_manager":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
-            {t("admin.users.manager")}
+            {t("admin.users.program_manager")}
           </Badge>
         )
       case "student":

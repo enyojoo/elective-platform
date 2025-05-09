@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
 export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
@@ -11,6 +12,7 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
+  const { language } = useLanguage()
 
   useEffect(() => {
     if (!institutionId) {
@@ -37,26 +39,47 @@ export function useCachedUsers(institutionId: string | undefined) {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profiles
+        // Fetch profiles with degree, group, and year information
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, full_name, email, role, is_active")
+          .select(`
+            id, 
+            full_name, 
+            email, 
+            role, 
+            is_active, 
+            degree_id, 
+            group_id, 
+            academic_year,
+            degrees(id, name, name_ru),
+            groups(id, name)
+          `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
-        // Fetch additional data (student profiles, manager profiles, etc.)
-        // ... (similar to the code in the users page)
-
         // Transform the data
-        const transformedUsers = profilesData.map((profile) => ({
-          id: profile.id,
-          name: profile.full_name || "",
-          email: profile.email || "",
-          role: profile.role || "",
-          status: profile.is_active ? "active" : "inactive",
-          // Add other fields as needed
-        }))
+        const transformedUsers = profilesData.map((profile) => {
+          // Get degree name based on language
+          const degreeName = profile.degrees
+            ? language === "ru" && profile.degrees.name_ru
+              ? profile.degrees.name_ru
+              : profile.degrees.name
+            : ""
+
+          return {
+            id: profile.id,
+            name: profile.full_name || "",
+            email: profile.email || "",
+            role: profile.role || "",
+            status: profile.is_active ? "active" : "inactive",
+            degreeId: profile.degree_id || "",
+            degreeName: degreeName,
+            groupId: profile.group_id || "",
+            groupName: profile.groups ? profile.groups.name : "",
+            year: profile.academic_year || "",
+          }
+        })
 
         // Save to cache
         setCachedData("users", institutionId, transformedUsers)
@@ -77,7 +100,7 @@ export function useCachedUsers(institutionId: string | undefined) {
     }
 
     fetchUsers()
-  }, [institutionId, getCachedData, setCachedData, toast])
+  }, [institutionId, getCachedData, setCachedData, toast, language])
 
   return { users, isLoading, error }
 }
