@@ -15,20 +15,17 @@ export function useCachedGroups() {
   const { institution } = useInstitutionContext()
   const institutionId = institution?.id
 
-  const isMounted = useRef(true)
+  // Use a ref to track if data has been fetched
   const dataFetchedRef = useRef(false)
 
   useEffect(() => {
     // Return early if we've already fetched data or don't have an institution
-    if (dataFetchedRef.current || !institutionId) {
-      setIsLoading(false)
+    if (!institutionId || dataFetchedRef.current) {
+      if (isLoading) setIsLoading(false)
       return
     }
 
     const fetchGroups = async () => {
-      setIsLoading(true)
-      setError(null)
-
       // Try to get data from cache first
       const cachedGroups = getCachedData<any[]>("groups", institutionId)
 
@@ -45,7 +42,7 @@ export function useCachedGroups() {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // First, fetch the groups
+        // First, fetch the groups with degrees in a single query
         const { data: groupsData, error: groupsError } = await supabase
           .from("groups")
           .select("*, degrees(id, name)")
@@ -57,25 +54,27 @@ export function useCachedGroups() {
         if (!groupsData) {
           setGroups([])
           setIsLoading(false)
+          dataFetchedRef.current = true
           return
         }
 
         // Count students in each group
-        const studentCountMap = new Map()
-        for (const group of groupsData) {
-          const { count, error: countError } = await supabase
+        const studentCountPromises = groupsData.map((group) =>
+          supabase
             .from("profiles")
             .select("*", { count: "exact", head: true })
             .eq("group_id", group.id)
-            .eq("role", "student")
+            .eq("role", "student"),
+        )
 
-          if (countError) {
-            console.error("Error counting students for group", group.id, countError)
-            studentCountMap.set(group.id, 0)
-          } else {
-            studentCountMap.set(group.id, count || 0)
-          }
-        }
+        const studentCountResults = await Promise.all(studentCountPromises)
+
+        // Create a map of group ID to student count
+        const studentCountMap = new Map()
+        studentCountResults.forEach((result, index) => {
+          const groupId = groupsData[index].id
+          studentCountMap.set(groupId, result.count || 0)
+        })
 
         // Format the groups data
         const formattedGroups = groupsData.map((group) => ({
@@ -109,7 +108,7 @@ export function useCachedGroups() {
     }
 
     fetchGroups()
-  }, [institutionId, getCachedData, setCachedData, toast])
+  }, [institutionId]) // Only depend on institutionId
 
   return { groups, isLoading, error }
 }

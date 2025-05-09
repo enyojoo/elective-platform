@@ -17,7 +17,6 @@ import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
@@ -35,97 +34,71 @@ export default function StudentSignupPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Data loading states
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
-  const [isLoadingYears, setIsLoadingYears] = useState(true)
-  const [isLoadingGroups, setIsLoadingGroups] = useState(true)
-
   // Data states
   const [degrees, setDegrees] = useState<any[]>([])
   const [years, setYears] = useState<string[]>([])
   const [groups, setGroups] = useState<any[]>([])
-  const yearsFetchedRef = useRef(false)
-
-  // Filtered lists based on selections
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+
+  // Refs to prevent multiple fetches
+  const dataFetchedRef = useRef(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Load degrees, years, and groups data
+  // Load all data once when the component mounts
   useEffect(() => {
-    async function loadData() {
-      if (!institution) return
+    if (!institution || dataFetchedRef.current) return
 
+    async function loadAllData() {
       try {
-        // Load degrees
-        setIsLoadingDegrees(true)
-        const { data: degreesData } = await supabase
-          .from("degrees")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
+        dataFetchedRef.current = true
 
-        if (degreesData) {
-          setDegrees(degreesData)
-          if (degreesData.length > 0 && !degree) {
-            setDegree(degreesData[0].id.toString())
-          }
+        // Fetch all data in parallel
+        const [degreesResponse, groupsResponse] = await Promise.all([
+          supabase.from("degrees").select("*").eq("institution_id", institution.id).eq("status", "active"),
+          supabase.from("groups").select("*").eq("institution_id", institution.id).eq("status", "active"),
+        ])
+
+        // Process degrees
+        if (degreesResponse.data && degreesResponse.data.length > 0) {
+          setDegrees(degreesResponse.data)
+          setDegree(degreesResponse.data[0].id.toString())
         }
-        setIsLoadingDegrees(false)
 
-        // Only fetch years if not already fetched
-        if (!yearsFetchedRef.current) {
-          setIsLoadingYears(true)
-          // Load academic years from groups table
-          const { data: groupYearsData } = await supabase
-            .from("groups")
-            .select("academic_year")
-            .eq("institution_id", institution.id)
-            .eq("status", "active")
-            .order("academic_year", { ascending: false })
+        // Process groups
+        if (groupsResponse.data && groupsResponse.data.length > 0) {
+          setGroups(groupsResponse.data)
 
-          if (groupYearsData && groupYearsData.length > 0) {
-            const uniqueYears = [...new Set(groupYearsData.map((g) => g.academic_year).filter(Boolean))]
-            setYears(uniqueYears)
-            yearsFetchedRef.current = true
+          // Extract unique years from groups
+          const uniqueYears = [...new Set(groupsResponse.data.map((g) => g.academic_year).filter(Boolean))]
+            .sort()
+            .reverse()
 
-            // Set current year as default if available
+          setYears(uniqueYears)
+
+          // Set default year
+          if (uniqueYears.length > 0) {
             const currentYear = new Date().getFullYear().toString()
             if (uniqueYears.includes(currentYear)) {
               setYear(currentYear)
-            } else if (uniqueYears.length > 0) {
+            } else {
               setYear(uniqueYears[0])
             }
           }
-          setIsLoadingYears(false)
         }
-
-        // Load groups
-        setIsLoadingGroups(true)
-        const { data: groupsData } = await supabase
-          .from("groups")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
-
-        if (groupsData) {
-          setGroups(groupsData)
-        }
-        setIsLoadingGroups(false)
       } catch (error) {
         console.error("Error loading data:", error)
-        setIsLoadingDegrees(false)
-        setIsLoadingYears(false)
-        setIsLoadingGroups(false)
       }
     }
 
-    loadData()
-  }, [institution, supabase, degree])
+    loadAllData()
+  }, [institution, supabase])
 
-  // Filter groups based on selected degree and year
+  // Filter groups when degree or year changes
   useEffect(() => {
-    let filtered = groups
+    if (!groups.length) return
+
+    let filtered = [...groups]
 
     if (degree) {
       filtered = filtered.filter((g) => g.degree_id?.toString() === degree)
@@ -137,13 +110,9 @@ export default function StudentSignupPage() {
 
     setFilteredGroups(filtered)
 
-    // Reset group selection if current selection is not in filtered list
-    if (filtered.length > 0) {
-      if (!group || !filtered.find((g) => g.id?.toString() === group)) {
-        setGroup(filtered[0]?.id?.toString() || "")
-      }
-    } else {
-      setGroup("")
+    // Set default group if available and not already set
+    if (filtered.length > 0 && (!group || !filtered.find((g) => g.id?.toString() === group))) {
+      setGroup(filtered[0].id?.toString() || "")
     }
   }, [degree, year, groups, group])
 
@@ -265,63 +234,51 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
-                {isLoadingDegrees ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Select value={degree} onValueChange={setDegree} required>
-                    <SelectTrigger id="degree" className="w-full">
-                      <SelectValue placeholder={t("auth.signup.selectDegree")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {degrees.map((d) => (
-                        <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Select value={degree} onValueChange={setDegree} required>
+                  <SelectTrigger id="degree" className="w-full">
+                    <SelectValue placeholder={t("auth.signup.selectDegree")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {degrees.map((d) => (
+                      <SelectItem key={d.id} value={d.id?.toString() || ""}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("auth.signup.year")}</Label>
-                  {isLoadingYears ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : (
-                    <Select value={year} onValueChange={setYear} required>
-                      <SelectTrigger id="year" className="w-full">
-                        <SelectValue placeholder={t("auth.signup.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((y) => (
-                          <SelectItem key={y} value={y}>
-                            {y}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={year} onValueChange={setYear} required>
+                    <SelectTrigger id="year" className="w-full">
+                      <SelectValue placeholder={t("auth.signup.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y} value={y}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="group">{t("auth.signup.group")}</Label>
-                  {isLoadingGroups ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : (
-                    <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
-                      <SelectTrigger id="group" className="w-full">
-                        <SelectValue placeholder={t("auth.signup.selectGroup")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredGroups.map((g) => (
-                          <SelectItem key={g.id} value={g.id?.toString() || ""}>
-                            {g.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
+                    <SelectTrigger id="group" className="w-full">
+                      <SelectValue placeholder={t("auth.signup.selectGroup")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id?.toString() || ""}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
