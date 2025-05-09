@@ -226,7 +226,7 @@ function GroupsTableContent() {
       try {
         // Try to get degrees from cache
         const cachedDegrees = getCachedData<any[]>("degrees", "all")
-        if (cachedDegrees && cachedDegrees.length > 0) {
+        if (cachedDegrees && cachedDegrees.length > 0 && cachedDegrees[0].name_ru !== undefined) {
           setDegrees(cachedDegrees)
           setIsLoadingDegrees(false)
         } else {
@@ -287,6 +287,16 @@ function GroupsTableContent() {
 
     fetchReferenceData()
   }, [t, toast, getCachedData, setCachedData, institution, language])
+
+  // Add this after the other useEffect hooks
+  useEffect(() => {
+    // Force re-render when language changes to update degree names in the UI
+    if (isDialogOpen) {
+      // If dialog is open, we need to ensure degrees are displayed in the correct language
+      const updatedDegrees = [...degrees]
+      setDegrees(updatedDegrees)
+    }
+  }, [language, isDialogOpen])
 
   // Get unique values for filters
   const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a))
@@ -897,11 +907,14 @@ function GroupsTableContent() {
                       required
                     >
                       <option value="">{t("admin.groups.selectDegree")}</option>
-                      {degrees.map((degree) => (
-                        <option key={degree.id} value={degree.id}>
-                          {language === "ru" && degree.name_ru ? degree.name_ru : degree.name}
-                        </option>
-                      ))}
+                      {degrees.map((degree) => {
+                        const displayName = language === "ru" && degree.name_ru ? degree.name_ru : degree.name
+                        return (
+                          <option key={degree.id} value={degree.id}>
+                            {displayName}
+                          </option>
+                        )
+                      })}
                     </select>
                   )}
                 </div>
