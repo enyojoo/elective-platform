@@ -19,6 +19,8 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
+// Import the useCachedYears hook
+import { useCachedYears } from "@/hooks/use-cached-years"
 
 const initialGroups: any[] = []
 
@@ -30,6 +32,7 @@ interface GroupFormData {
   status: string
 }
 
+// Add the useCachedYears hook to the component
 export default function GroupsPage() {
   const { t } = useLanguage()
   const [groups, setGroups] = useState<any[]>([])
@@ -46,6 +49,7 @@ export default function GroupsPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [degrees, setDegrees] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { years, isLoading: isLoadingYears } = useCachedYears()
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
@@ -260,7 +264,7 @@ export default function GroupsPage() {
 
   // Get unique values for filters
   const programsList = [...new Set(groups.map((group) => group.program))]
-  const years = [...new Set(groups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
+  const groupYears = [...new Set(groups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
   const degreesList = [...new Set(groups.map((group) => group.degree))]
 
   // Apply filters and search
@@ -297,6 +301,7 @@ export default function GroupsPage() {
   const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
   // Safe dialog open handler
+  // Update the handleOpenDialog function to use the first year from the years array
   const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
       setCurrentGroup({
@@ -311,7 +316,7 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         degreeId: degrees[0]?.id.toString() || "",
-        year: new Date().getFullYear().toString(),
+        year: years.length > 0 ? years[0].year : new Date().getFullYear().toString(),
         status: "active",
       })
       setIsEditing(false)
@@ -613,7 +618,7 @@ export default function GroupsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">{t("admin.groups.allYears")}</SelectItem>
-                        {years.map((year) => (
+                        {groupYears.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
                           </SelectItem>
@@ -821,17 +826,31 @@ export default function GroupsPage() {
                     ))}
                   </select>
                 </div>
+                {/* Update the year field in the form to use a select dropdown with years from the years table */}
+                {/* Replace the year input field with this select dropdown */}
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("admin.groups.year")}</Label>
-                  <Input
+                  <select
                     id="year"
                     name="year"
-                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     value={currentGroup.year}
                     onChange={handleInputChange}
-                    placeholder="2024"
                     required
-                  />
+                  >
+                    <option value="">{t("admin.groups.selectYear")}</option>
+                    {isLoadingYears ? (
+                      <option value="" disabled>
+                        Loading years...
+                      </option>
+                    ) : (
+                      years.map((year) => (
+                        <option key={year.id} value={year.year}>
+                          {year.year}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
               </div>
 
