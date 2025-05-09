@@ -330,6 +330,7 @@ export function DegreesSettings() {
       if (isMounted.current) {
         const updatedDegrees = degrees.filter((degree) => degree.id !== degreeToDelete)
         setDegrees(updatedDegrees)
+        setFilteredDegrees(updatedDegrees)
 
         // Update cache with the new data
         const rawDegrees = await supabase
@@ -360,8 +361,10 @@ export function DegreesSettings() {
       setIsDeleteDialogOpen(false)
       setDegreeToDelete(null)
 
-      // Clean up dialog effects
-      setTimeout(() => cleanupDialogEffects(), 300)
+      // Force cleanup after state updates
+      setTimeout(() => {
+        cleanupDialogEffects()
+      }, 100)
     }
   }
 
@@ -627,18 +630,31 @@ export function DegreesSettings() {
 
             cleanupTimeoutRef.current = setTimeout(() => {
               cleanupDialogEffects()
-            }, 300) // 300ms should be enough for most animations
+            }, 300)
           }
         }}
       >
         <DialogContent
           className="sm:max-w-[425px]"
-          onEscapeKeyDown={() => {
+          onEscapeKeyDown={(e) => {
+            e.preventDefault()
             setIsDeleteDialogOpen(false)
             setDegreeToDelete(null)
 
-            // Clean up dialog effects
-            setTimeout(() => cleanupDialogEffects(), 300)
+            // Schedule cleanup
+            if (cleanupTimeoutRef.current) {
+              clearTimeout(cleanupTimeoutRef.current)
+            }
+
+            cleanupTimeoutRef.current = setTimeout(() => {
+              cleanupDialogEffects()
+            }, 300)
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
           }}
         >
           <DialogHeader>
@@ -655,8 +671,14 @@ export function DegreesSettings() {
                 setIsDeleteDialogOpen(false)
                 setDegreeToDelete(null)
 
-                // Clean up dialog effects
-                setTimeout(() => cleanupDialogEffects(), 300)
+                // Schedule cleanup
+                if (cleanupTimeoutRef.current) {
+                  clearTimeout(cleanupTimeoutRef.current)
+                }
+
+                cleanupTimeoutRef.current = setTimeout(() => {
+                  cleanupDialogEffects()
+                }, 300)
               }}
             >
               {t("admin.degrees.deleteConfirmCancel")}
@@ -667,8 +689,14 @@ export function DegreesSettings() {
               onClick={() => {
                 confirmDelete()
 
-                // Clean up dialog effects
-                setTimeout(() => cleanupDialogEffects(), 300)
+                // Schedule cleanup
+                if (cleanupTimeoutRef.current) {
+                  clearTimeout(cleanupTimeoutRef.current)
+                }
+
+                cleanupTimeoutRef.current = setTimeout(() => {
+                  cleanupDialogEffects()
+                }, 300)
               }}
             >
               {t("admin.degrees.deleteConfirmDelete")}
