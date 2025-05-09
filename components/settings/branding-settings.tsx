@@ -441,16 +441,17 @@ export function BrandingSettings() {
             </div>
           </div>
 
-          {/* Login Links */}
+          {/* Login Links - Now on the same line */}
           <div className="mt-4 space-y-3">
             <h4 className="text-sm font-medium">{t("settings.branding.loginLinks")}</h4>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Student Login */}
+              <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">{t("settings.branding.studentLogin")}:</div>
                 {isLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <div className="flex-1 flex items-center">
+                  <div className="flex items-center">
                     <div className="bg-muted px-3 py-2 text-sm rounded-l-md border border-r-0 border-input flex-1 truncate">
                       {getStudentLoginUrl()}
                     </div>
@@ -465,12 +466,14 @@ export function BrandingSettings() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Manager Login */}
+              <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">{t("settings.branding.managerLogin")}:</div>
                 {isLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <div className="flex-1 flex items-center">
+                  <div className="flex items-center">
                     <div className="bg-muted px-3 py-2 text-sm rounded-l-md border border-r-0 border-input flex-1 truncate">
                       {getManagerLoginUrl()}
                     </div>
