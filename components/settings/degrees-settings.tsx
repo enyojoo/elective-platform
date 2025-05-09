@@ -49,6 +49,9 @@ export function DegreesSettings() {
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const dataFetchedRef = useRef(false)
 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [degreeToDelete, setDegreeToDelete] = useState<string | null>(null)
+
   // Component lifecycle management
   useEffect(() => {
     isMounted.current = true
@@ -308,42 +311,50 @@ export function DegreesSettings() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm(t("admin.degrees.deleteConfirm"))) {
-      try {
-        const { error } = await supabase.from("degrees").delete().eq("id", id)
+    setDegreeToDelete(id)
+    setIsDeleteDialogOpen(true)
+  }
 
-        if (error) throw error
+  const confirmDelete = async () => {
+    if (!degreeToDelete) return
 
-        if (isMounted.current) {
-          const updatedDegrees = degrees.filter((degree) => degree.id !== id)
-          setDegrees(updatedDegrees)
+    try {
+      const { error } = await supabase.from("degrees").delete().eq("id", degreeToDelete)
 
-          // Update cache with the new data
-          const rawDegrees = await supabase
-            .from("degrees")
-            .select("*")
-            .eq("institution_id", institution?.id)
-            .order("name")
+      if (error) throw error
 
-          if (!rawDegrees.error && rawDegrees.data) {
-            setCachedData("degrees", institution?.id || "", rawDegrees.data)
-          }
+      if (isMounted.current) {
+        const updatedDegrees = degrees.filter((degree) => degree.id !== degreeToDelete)
+        setDegrees(updatedDegrees)
 
-          toast({
-            title: t("admin.degrees.success"),
-            description: t("admin.settings.degrees.deleteSuccess"),
-          })
+        // Update cache with the new data
+        const rawDegrees = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution?.id)
+          .order("name")
+
+        if (!rawDegrees.error && rawDegrees.data) {
+          setCachedData("degrees", institution?.id || "", rawDegrees.data)
         }
-      } catch (error: any) {
-        console.error("Error deleting degree:", error)
-        if (isMounted.current) {
-          toast({
-            title: t("admin.degrees.error"),
-            description: error.message || t("admin.degrees.errorDeleting"),
-            variant: "destructive",
-          })
-        }
+
+        toast({
+          title: t("admin.degrees.success"),
+          description: t("admin.settings.degrees.deleteSuccess"),
+        })
       }
+    } catch (error: any) {
+      console.error("Error deleting degree:", error)
+      if (isMounted.current) {
+        toast({
+          title: t("admin.degrees.error"),
+          description: error.message || t("admin.degrees.errorDeleting"),
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setDegreeToDelete(null)
     }
   }
 
@@ -589,6 +600,51 @@ export function DegreesSettings() {
                 <Button type="submit">{isEditing ? t("admin.degrees.update") : t("admin.degrees.create")}</Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {isDeleteDialogOpen && (
+        <Dialog
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsDeleteDialogOpen(false)
+              setDegreeToDelete(null)
+            }
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[425px]"
+            onEscapeKeyDown={() => setIsDeleteDialogOpen(false)}
+            onInteractOutside={() => setIsDeleteDialogOpen(false)}
+            onPointerDownOutside={(e) => {
+              e.preventDefault()
+              setIsDeleteDialogOpen(false)
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{t("admin.degrees.deleteTitle")}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p>{t("admin.degrees.deleteDescription")}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteDialogOpen(false)
+                  setDegreeToDelete(null)
+                }}
+              >
+                {t("admin.degrees.deleteCancel")}
+              </Button>
+              <Button type="button" variant="destructive" onClick={confirmDelete}>
+                {t("admin.degrees.deleteConfirm")}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
