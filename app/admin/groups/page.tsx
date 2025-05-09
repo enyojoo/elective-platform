@@ -19,8 +19,6 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
-// Import the useCachedYears hook
-import { useCachedYears } from "@/hooks/use-cached-years"
 
 const initialGroups: any[] = []
 
@@ -32,7 +30,6 @@ interface GroupFormData {
   status: string
 }
 
-// Add the useCachedYears hook to the component
 export default function GroupsPage() {
   const { t } = useLanguage()
   const [groups, setGroups] = useState<any[]>([])
@@ -46,13 +43,15 @@ export default function GroupsPage() {
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
-  const [programs, setPrograms] = useState<any[]>([])
   const [degrees, setDegrees] = useState<any[]>([])
+  const [years, setYears] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { years, isLoading: isLoadingYears } = useCachedYears()
+  const [isLoadingYears, setIsLoadingYears] = useState(true)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
+  const dataFetchedRef = useRef(false)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -90,17 +89,20 @@ export default function GroupsPage() {
   // Fetch groups from Supabase with caching
   useEffect(() => {
     const fetchGroups = async () => {
+      if (dataFetchedRef.current) return
+
       try {
         setIsLoading(true)
 
         // Try to get data from cache first
         const cachedGroups = getCachedData<any[]>("groups", "all")
 
-        if (cachedGroups) {
+        if (cachedGroups && cachedGroups.length > 0) {
           console.log("Using cached groups data")
           setGroups(cachedGroups)
           setFilteredGroups(cachedGroups)
           setIsLoading(false)
+          dataFetchedRef.current = true
           return
         }
 
@@ -113,20 +115,12 @@ export default function GroupsPage() {
           setGroups([])
           setFilteredGroups([])
           setIsLoading(false)
+          dataFetchedRef.current = true
           return
         }
 
-        // Fetch program and degree information separately
-        const programIds = [...new Set(groupsData.map((g) => g.program_id).filter(Boolean))]
+        // Fetch degree information separately
         const degreeIds = [...new Set(groupsData.map((g) => g.degree_id).filter(Boolean))]
-
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
-          .select("id, name")
-          .in("id", programIds)
-
-        if (programsError) throw programsError
 
         // Fetch degrees
         const { data: degreesData, error: degreesError } = await supabase
@@ -137,13 +131,6 @@ export default function GroupsPage() {
         if (degreesError) throw degreesError
 
         // Create maps for quick lookups
-        const programMap = new Map()
-        if (programsData) {
-          programsData.forEach((program) => {
-            programMap.set(program.id, program.name)
-          })
-        }
-
         const degreeMap = new Map()
         if (degreesData) {
           degreesData.forEach((degree) => {
@@ -173,8 +160,6 @@ export default function GroupsPage() {
           id: group.id.toString(),
           name: group.name,
           displayName: group.display_name,
-          program: programMap.get(group.program_id) || "Unknown",
-          programId: group.program_id,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
           year: group.year,
@@ -188,6 +173,7 @@ export default function GroupsPage() {
         if (isMounted.current) {
           setGroups(formattedGroups)
           setFilteredGroups(formattedGroups)
+          dataFetchedRef.current = true
         }
       } catch (error) {
         console.error("Failed to fetch groups:", error)
@@ -206,34 +192,15 @@ export default function GroupsPage() {
     fetchGroups()
   }, [t, toast, getCachedData, setCachedData])
 
-  // Fetch reference data (programs and degrees) with caching
+  // Fetch reference data (degrees and years) with caching
   useEffect(() => {
     const fetchReferenceData = async () => {
       try {
-        // Try to get programs from cache
-        const cachedPrograms = getCachedData<any[]>("programs", "all")
-        if (cachedPrograms) {
-          setPrograms(cachedPrograms)
-        } else {
-          // Fetch programs
-          const { data: programsData, error: programsError } = await supabase
-            .from("programs")
-            .select("id, name, degree_id")
-            .order("name")
-
-          if (programsError) throw programsError
-
-          if (programsData && isMounted.current) {
-            setPrograms(programsData)
-            // Cache the programs data
-            setCachedData("programs", "all", programsData)
-          }
-        }
-
         // Try to get degrees from cache
         const cachedDegrees = getCachedData<any[]>("degrees", "all")
-        if (cachedDegrees) {
+        if (cachedDegrees && cachedDegrees.length > 0) {
           setDegrees(cachedDegrees)
+          setIsLoadingDegrees(false)
         } else {
           // Fetch degrees
           const { data: degreesData, error: degreesError } = await supabase
@@ -248,6 +215,29 @@ export default function GroupsPage() {
             // Cache the degrees data
             setCachedData("degrees", "all", degreesData)
           }
+          setIsLoadingDegrees(false)
+        }
+
+        // Try to get years from cache
+        const cachedYears = getCachedData<any[]>("years", "global")
+        if (cachedYears && cachedYears.length > 0) {
+          setYears(cachedYears)
+          setIsLoadingYears(false)
+        } else {
+          // Fetch years from the years table
+          const { data: yearsData, error: yearsError } = await supabase
+            .from("years")
+            .select("id, year")
+            .order("year", { ascending: false })
+
+          if (yearsError) throw yearsError
+
+          if (yearsData && isMounted.current) {
+            setYears(yearsData)
+            // Cache the years data
+            setCachedData("years", "global", yearsData)
+          }
+          setIsLoadingYears(false)
         }
       } catch (error) {
         console.error("Failed to fetch reference data:", error)
@@ -256,6 +246,8 @@ export default function GroupsPage() {
           description: t("admin.groups.errorFetchingReferenceData"),
           variant: "destructive",
         })
+        setIsLoadingDegrees(false)
+        setIsLoadingYears(false)
       }
     }
 
@@ -263,7 +255,6 @@ export default function GroupsPage() {
   }, [t, toast, getCachedData, setCachedData])
 
   // Get unique values for filters
-  const programsList = [...new Set(groups.map((group) => group.program))]
   const groupYears = [...new Set(groups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
   const degreesList = [...new Set(groups.map((group) => group.degree))]
 
@@ -286,7 +277,7 @@ export default function GroupsPage() {
       result = result.filter(
         (group) =>
           group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          group.displayName.toLowerCase().includes(searchTerm.toLowerCase()),
+          (group.displayName && group.displayName.toLowerCase().includes(searchTerm.toLowerCase())),
       )
     }
 
@@ -301,7 +292,6 @@ export default function GroupsPage() {
   const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
   // Safe dialog open handler
-  // Update the handleOpenDialog function to use the first year from the years array
   const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
       setCurrentGroup({
@@ -315,7 +305,7 @@ export default function GroupsPage() {
     } else {
       setCurrentGroup({
         name: "",
-        degreeId: degrees[0]?.id.toString() || "",
+        degreeId: degrees.length > 0 ? degrees[0].id.toString() : "",
         year: years.length > 0 ? years[0].year : new Date().getFullYear().toString(),
         status: "active",
       })
@@ -683,7 +673,7 @@ export default function GroupsPage() {
                       ))
                     ) : currentItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           {t("admin.groups.noGroups")}
                         </TableCell>
                       </TableRow>
@@ -810,47 +800,47 @@ export default function GroupsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="degreeId">{t("admin.groups.degree")}</Label>
-                  <select
-                    id="degreeId"
-                    name="degreeId"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    value={currentGroup.degreeId}
-                    onChange={handleInputChange}
-                    required
-                  >
-                    <option value="">{t("admin.groups.selectDegree")}</option>
-                    {degrees.map((degree) => (
-                      <option key={degree.id} value={degree.id}>
-                        {degree.name}
-                      </option>
-                    ))}
-                  </select>
+                  {isLoadingDegrees ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <select
+                      id="degreeId"
+                      name="degreeId"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      value={currentGroup.degreeId}
+                      onChange={handleInputChange}
+                      required
+                    >
+                      <option value="">{t("admin.groups.selectDegree")}</option>
+                      {degrees.map((degree) => (
+                        <option key={degree.id} value={degree.id}>
+                          {degree.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                {/* Update the year field in the form to use a select dropdown with years from the years table */}
-                {/* Replace the year input field with this select dropdown */}
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("admin.groups.year")}</Label>
-                  <select
-                    id="year"
-                    name="year"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    value={currentGroup.year}
-                    onChange={handleInputChange}
-                    required
-                  >
-                    <option value="">{t("admin.groups.selectYear")}</option>
-                    {isLoadingYears ? (
-                      <option value="" disabled>
-                        Loading years...
-                      </option>
-                    ) : (
-                      years.map((year) => (
+                  {isLoadingYears ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <select
+                      id="year"
+                      name="year"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      value={currentGroup.year}
+                      onChange={handleInputChange}
+                      required
+                    >
+                      <option value="">{t("admin.groups.selectYear")}</option>
+                      {years.map((year) => (
                         <option key={year.id} value={year.year}>
                           {year.year}
                         </option>
-                      ))
-                    )}
-                  </select>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
