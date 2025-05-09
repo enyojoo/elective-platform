@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -29,7 +28,7 @@ interface DegreeFormData {
   status: string
 }
 
-export default function DegreesPage() {
+export function DegreesSettings() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { getCachedData, setCachedData, invalidateCache } = useDataCache()
@@ -421,109 +420,107 @@ export default function DegreesPage() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("admin.degrees.title")}</h1>
-            <p className="text-muted-foreground mt-2">{t("admin.degrees.subtitle")}</p>
-          </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("admin.degrees.addDegree")}
-          </Button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold">{t("admin.degrees.title")}</h2>
+          <p className="text-muted-foreground mt-1">{t("admin.degrees.subtitle")}</p>
         </div>
+        <Button onClick={() => handleOpenDialog()}>
+          <Plus className="mr-2 h-4 w-4" />
+          {t("admin.degrees.addDegree")}
+        </Button>
+      </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t("admin.degrees.searchDegrees")}
-                  className="pl-8 max-w-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t("admin.degrees.searchDegrees")}
+                className="pl-8 max-w-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("admin.degrees.nameEn")}</TableHead>
-                      <TableHead>{t("admin.degrees.nameRu")}</TableHead>
-                      <TableHead>{t("admin.degrees.code")}</TableHead>
-                      <TableHead>{t("admin.degrees.status")}</TableHead>
-                      <TableHead className="w-[80px]">{t("admin.degrees.action")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <>
-                        <TableRow>
-                          <TableCell colSpan={5}>
-                            <Skeleton className="w-full h-10" />
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={5}>
-                            <Skeleton className="w-full h-10" />
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={5}>
-                            <Skeleton className="w-full h-10" />
-                          </TableCell>
-                        </TableRow>
-                      </>
-                    ) : filteredDegrees.length === 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("admin.degrees.nameEn")}</TableHead>
+                    <TableHead>{t("admin.degrees.nameRu")}</TableHead>
+                    <TableHead>{t("admin.degrees.code")}</TableHead>
+                    <TableHead>{t("admin.degrees.status")}</TableHead>
+                    <TableHead className="w-[80px]">{t("admin.degrees.action")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <>
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          {t("admin.degrees.noDegreesFound")}
+                        <TableCell colSpan={5}>
+                          <Skeleton className="w-full h-10" />
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      filteredDegrees.map((degree) => (
-                        <TableRow key={degree.id}>
-                          <TableCell className="font-medium">{degree.name}</TableCell>
-                          <TableCell>{degree.nameRu}</TableCell>
-                          <TableCell>{degree.code}</TableCell>
-                          <TableCell>{getStatusBadge(degree.status)}</TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleOpenDialog(degree)}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  {t("admin.degrees.edit")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(degree.id)}>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  {t("admin.degrees.delete")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toggleStatus(degree.id)}>
-                                  {degree.status === "active"
-                                    ? t("admin.degrees.deactivate")
-                                    : t("admin.degrees.activate")}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <Skeleton className="w-full h-10" />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <Skeleton className="w-full h-10" />
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  ) : filteredDegrees.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        {t("admin.degrees.noDegreesFound")}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDegrees.map((degree) => (
+                      <TableRow key={degree.id}>
+                        <TableCell className="font-medium">{degree.name}</TableCell>
+                        <TableCell>{degree.nameRu}</TableCell>
+                        <TableCell>{degree.code}</TableCell>
+                        <TableCell>{getStatusBadge(degree.status)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenDialog(degree)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {t("admin.degrees.edit")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(degree.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {t("admin.degrees.delete")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toggleStatus(degree.id)}>
+                                {degree.status === "active"
+                                  ? t("admin.degrees.deactivate")
+                                  : t("admin.degrees.activate")}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Only render dialog when it's open to avoid issues */}
       {isDialogOpen && (
@@ -595,6 +592,6 @@ export default function DegreesPage() {
           </DialogContent>
         </Dialog>
       )}
-    </DashboardLayout>
+    </div>
   )
 }

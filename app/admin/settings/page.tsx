@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { BrandingSettings } from "@/components/settings/branding-settings"
 import { AccountSettings } from "@/components/settings/account-settings"
+import { DegreesSettings } from "@/components/settings/degrees-settings"
 import { useLanguage } from "@/lib/language-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { useInstitution } from "@/lib/institution-context"
@@ -53,9 +54,10 @@ export default function SettingsPage() {
         <Card>
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 md:w-auto">
+              <TabsList className="grid w-full grid-cols-3 md:w-auto">
                 <TabsTrigger value="branding">{t("admin.settings.tabs.branding")}</TabsTrigger>
                 <TabsTrigger value="account">{t("admin.settings.tabs.account")}</TabsTrigger>
+                <TabsTrigger value="degrees">{t("admin.settings.tabs.degrees")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="branding" className="space-y-6">
@@ -64,6 +66,10 @@ export default function SettingsPage() {
 
               <TabsContent value="account" className="space-y-6">
                 <AccountSettings adminProfile={adminProfile} isLoading={isLoadingProfile} />
+              </TabsContent>
+
+              <TabsContent value="degrees" className="space-y-6">
+                <DegreesSettings />
               </TabsContent>
             </Tabs>
           </CardContent>

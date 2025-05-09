@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
@@ -11,16 +11,12 @@ export function useCachedDegrees(institutionId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
-  const dataFetchedRef = useRef(false)
 
   useEffect(() => {
     if (!institutionId) {
       setIsLoading(false)
       return
     }
-
-    // If data has already been fetched, don't fetch again
-    if (dataFetchedRef.current) return
 
     const fetchDegrees = async () => {
       setIsLoading(true)
@@ -29,11 +25,10 @@ export function useCachedDegrees(institutionId: string | undefined) {
       // Try to get data from cache first
       const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
 
-      if (cachedDegrees && cachedDegrees.length > 0) {
+      if (cachedDegrees) {
         console.log("Using cached degrees data")
         setDegrees(cachedDegrees)
         setIsLoading(false)
-        dataFetchedRef.current = true
         return
       }
 
@@ -51,7 +46,6 @@ export function useCachedDegrees(institutionId: string | undefined) {
 
         // Update state
         setDegrees(data)
-        dataFetchedRef.current = true
       } catch (error: any) {
         console.error("Error fetching degrees:", error)
         setError(error.message)
