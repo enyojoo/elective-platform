@@ -1,13 +1,13 @@
 "use client"
 
 import type React from "react"
-import { usePathname, useRouter } from "next/navigation"
+
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { BookOpen, Home, Users, BookMarked, X, Globe, Book, Group, CheckSquare, Settings } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { useEffect } from "react"
 
 interface SidebarProps {
   open: boolean
@@ -16,7 +16,6 @@ interface SidebarProps {
 
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const { t, language } = useLanguage()
 
   // Determine user role based on URL path
@@ -32,34 +31,6 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       : isStudent
         ? "/student/login"
         : "/auth/login"
-
-  // Prefetch all possible routes to ensure smooth navigation
-  useEffect(() => {
-    // Admin routes
-    if (isAdmin) {
-      router.prefetch("/admin/dashboard")
-      router.prefetch("/admin/electives")
-      router.prefetch("/admin/courses")
-      router.prefetch("/admin/universities")
-      router.prefetch("/admin/groups")
-      router.prefetch("/admin/degrees")
-      router.prefetch("/admin/users")
-      router.prefetch("/admin/settings")
-    }
-
-    // Manager routes
-    if (isManager) {
-      router.prefetch("/manager/dashboard")
-      router.prefetch("/manager/electives")
-    }
-
-    // Student routes
-    if (isStudent) {
-      router.prefetch("/student/dashboard")
-      router.prefetch("/student/courses")
-      router.prefetch("/student/exchange")
-    }
-  }, [isAdmin, isManager, isStudent, router])
 
   return (
     <>
@@ -251,26 +222,18 @@ interface NavItemProps {
 }
 
 function NavItem({ href, icon, active, children }: NavItemProps) {
-  const router = useRouter()
-
-  // Handle click to prevent default navigation and use router.push instead
-  // This ensures smoother transitions between pages
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
-    router.push(href)
-  }
-
   return (
-    <a
+    <Link
       href={href}
-      onClick={handleClick}
       className={cn(
         "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
         active ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-accent-foreground",
       )}
+      prefetch={true}
+      scroll={false} // Add this to prevent scrolling to top on navigation
     >
       {icon}
       <span>{children}</span>
-    </a>
+    </Link>
   )
 }

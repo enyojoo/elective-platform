@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo } from "react"
 import type { ReactNode } from "react"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
@@ -11,7 +11,8 @@ interface DashboardLayoutProps {
   children: ReactNode
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+// Use memo to prevent unnecessary re-renders of the layout
+export const DashboardLayout = memo(function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Add a safety cleanup effect
@@ -47,4 +48,4 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <Toaster />
     </div>
   )
-}
+})

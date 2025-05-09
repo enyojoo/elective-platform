@@ -72,13 +72,8 @@ export default function InstitutionSignupPage() {
       }
     }
 
-    // Only check when subdomain changes and has at least 3 characters
-    if (subdomain && subdomain.length >= 3) {
-      const timer = setTimeout(checkSubdomain, 500)
-      return () => clearTimeout(timer)
-    } else {
-      setSubdomainStatus(null)
-    }
+    const timer = setTimeout(checkSubdomain, 500)
+    return () => clearTimeout(timer)
   }, [subdomain, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
@@ -15,13 +15,20 @@ export function useCachedGroups() {
   const { institution } = useInstitutionContext()
   const institutionId = institution?.id
 
+  const isMounted = useRef(true)
+  const dataFetchedRef = useRef(false)
+
   useEffect(() => {
-    if (!institutionId) {
+    // Return early if we've already fetched data or don't have an institution
+    if (dataFetchedRef.current || !institutionId) {
       setIsLoading(false)
       return
     }
 
     const fetchGroups = async () => {
+      setIsLoading(true)
+      setError(null)
+
       // Try to get data from cache first
       const cachedGroups = getCachedData<any[]>("groups", institutionId)
 
@@ -29,13 +36,11 @@ export function useCachedGroups() {
         console.log("Using cached groups data")
         setGroups(cachedGroups)
         setIsLoading(false)
+        dataFetchedRef.current = true
         return
       }
 
       // If not in cache, fetch from API
-      setIsLoading(true)
-      setError(null)
-
       console.log("Fetching groups data from API")
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -98,7 +103,7 @@ export function useCachedGroups() {
           displayName: group.display_name,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
-          year: group.academic_year,
+          year: group.year,
           students: studentCountMap.get(group.id) || 0,
           status: group.status,
         }))
@@ -118,6 +123,7 @@ export function useCachedGroups() {
         })
       } finally {
         setIsLoading(false)
+        dataFetchedRef.current = true
       }
     }
 

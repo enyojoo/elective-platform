@@ -3,137 +3,52 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
-import { Eye, EyeOff } from "lucide-react"
-import { useLanguage } from "@/lib/language-context"
-import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/components/ui/use-toast"
+import { useLanguage } from "@/lib/language-context"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
-import { DynamicBranding } from "@/components/dynamic-branding"
+import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { Eye, EyeOff } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ManagerSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
+  const { institution } = useInstitution()
+
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+
+  // Data loading states
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
+  const [isLoadingYears, setIsLoadingYears] = useState(true)
+
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
     email: "",
     password: "",
-  })
-  const [passwordStrength, setPasswordStrength] = useState({
-    score: 0,
-    message: "",
-    color: "bg-gray-200",
+    name: "",
+    degreeId: "",
+    academicYear: "",
   })
 
-  const [institution, setInstitution] = useState(null)
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
-  const [degrees, setDegrees] = useState([])
-  const [years, setYears] = useState([])
+  // Data states
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
   const yearsFetchedRef = useRef(false)
-  const [isLoadingYears, setIsLoadingYears] = useState(false)
+
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Check password strength when password field changes
-    if (name === "password") {
-      checkPasswordStrength(value)
-    }
-  }
-
-  const checkPasswordStrength = (password: string) => {
-    // Simple password strength checker
-    let score = 0
-    let message = t("passwordStrength.weak")
-    let color = "bg-red-500"
-
-    if (password.length === 0) {
-      setPasswordStrength({ score: 0, message: "", color: "bg-gray-200" })
-      return
-    }
-
-    // Length check
-    if (password.length >= 8) score += 1
-    if (password.length >= 12) score += 1
-
-    // Complexity checks
-    if (/[A-Z]/.test(password)) score += 1
-    if (/[0-9]/.test(password)) score += 1
-    if (/[^A-Za-z0-9]/.test(password)) score += 1
-
-    // Set message and color based on score
-    if (score >= 4) {
-      message = t("passwordStrength.strong")
-      color = "bg-green-500"
-    } else if (score >= 2) {
-      message = t("passwordStrength.medium")
-      color = "bg-yellow-500"
-    }
-
-    setPasswordStrength({ score, message, color })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    try {
-      // First, create the user in auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            role: "manager",
-          },
-        },
-      })
-
-      if (authError) throw authError
-
-      // Create the profile in the profiles table
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user?.id,
-        email: formData.email,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        role: "manager",
-      })
-
-      if (profileError) throw profileError
-
-      toast({
-        title: t("success"),
-        description: t("manager.signup.successMessage"),
-      })
-
-      // Redirect to login page
-      router.push("/manager/login")
-    } catch (error: any) {
-      console.error("Signup error:", error)
-      toast({
-        title: t("error"),
-        description: error.message || t("manager.signup.errorMessage"),
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+  // Load degrees and academic years data
   useEffect(() => {
     async function loadData() {
       if (!institution) return
@@ -200,117 +115,222 @@ export default function ManagerSignupPage() {
     loadData()
   }, [institution, supabase, formData.degreeId])
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData({
+      ...formData,
+      [name]: value,
+    })
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData({
+      ...formData,
+      [name]: value,
+    })
+  }
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      if (!formData.degreeId) {
+        throw new Error(t("auth.error.incompleteFields"))
+      }
+
+      // Create the user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+          },
+        },
+      })
+
+      if (authError) throw new Error(authError.message)
+
+      // Create manager profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user!.id,
+        institution_id: institution!.id,
+        full_name: formData.name,
+        role: "manager",
+        email: formData.email,
+        degree_id: formData.degreeId,
+        year: formData.academicYear,
+      })
+
+      if (profileError) throw new Error(profileError.message)
+
+      toast({
+        title: t("auth.signup.success"),
+        description: t("auth.signup.successMessage"),
+      })
+
+      // Redirect to login page
+      router.push("/manager/login")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.signup.error"))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Generate enrollment years if no years are available from the database
+  const enrollmentYears =
+    years.length > 0 ? years : Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString())
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="flex flex-1 flex-col justify-center items-center p-4 sm:p-8">
-        <div className="w-full max-w-md">
-          <div className="mb-8 flex flex-col items-center text-center">
-            <DynamicBranding type="logo" className="mb-4 h-12 w-auto" />
-            <h1 className="text-2xl font-bold">{t("manager.signup.title")}</h1>
-            <p className="text-muted-foreground">{t("manager.signup.subtitle")}</p>
-          </div>
+    <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center space-y-2 text-center">
+          {institution?.logo_url ? (
+            <Image
+              src={institution.logo_url || "/placeholder.svg"}
+              alt={`${institution.name} Logo`}
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          ) : (
+            <Image
+              src="/images/elective-pro-logo.svg"
+              alt="Elective Pro Logo"
+              width={160}
+              height={45}
+              className="h-10 w-auto"
+            />
+          )}
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("manager.signup.formTitle")}</CardTitle>
-              <CardDescription>{t("manager.signup.formDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">{t("firstName")}</Label>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      placeholder={t("firstNamePlaceholder")}
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">{t("lastName")}</Label>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      placeholder={t("lastNamePlaceholder")}
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("auth.signup.createAccount")}</CardTitle>
+            <CardDescription>Create a new manager account for your institution</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t("email")}</Label>
+              {/* Basic Information */}
+              <div className="space-y-2">
+                <Label htmlFor="name">{t("admin.users.fullName")}</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder={t("auth.signup.fullNamePlaceholder")}
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">{t("auth.signup.email")}</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="manager@university.edu"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">{t("auth.signup.password")}</Label>
+                <div className="relative">
                   <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder={t("emailPlaceholder")}
-                    value={formData.email}
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
                     onChange={handleInputChange}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">{t("password")}</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder={t("passwordPlaceholder")}
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
+              {/* Degree Assignment */}
+              <div className="space-y-2">
+                <Label htmlFor="degree">{t("admin.users.degree")}</Label>
+                {isLoadingDegrees ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={formData.degreeId}
+                    onValueChange={(value) => handleSelectChange("degreeId", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.users.selectDegree")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.id.toString()}>
+                          {degree.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-                  {/* Password strength indicator */}
-                  {formData.password && (
-                    <div className="mt-2 space-y-1">
-                      <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${passwordStrength.color} transition-all duration-300`}
-                          style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{passwordStrength.message}</p>
-                    </div>
-                  )}
-                </div>
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? t("loading") : t("manager.signup.submit")}
-                </Button>
-              </form>
+              <div className="space-y-2">
+                <Label htmlFor="academicYear">{t("admin.users.academicYear")}</Label>
+                {isLoadingYears ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={formData.academicYear}
+                    onValueChange={(value) => handleSelectChange("academicYear", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enrollmentYears.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </CardContent>
-            <CardFooter className="flex flex-col items-center gap-4">
-              <div className="text-sm text-center">
-                {t("manager.signup.alreadyHaveAccount")}{" "}
+            <CardFooter className="flex flex-col space-y-4">
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? t("auth.signup.creating") : t("auth.signup.createAccount")}
+              </Button>
+              <div className="text-center text-sm">
+                {t("auth.signup.alreadyHaveAccount")}{" "}
                 <Link href="/manager/login" className="text-primary hover:underline">
-                  {t("manager.signup.loginLink")}
+                  {t("auth.signup.login")}
                 </Link>
               </div>
             </CardFooter>
-          </Card>
-        </div>
-      </div>
-
-      <div className="p-4 border-t">
-        <div className="mx-auto flex max-w-md items-center justify-between">
-          <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} ElectivePRO</p>
+          </form>
+        </Card>
+        <div className="flex justify-center mt-8">
           <AuthLanguageSwitcher />
         </div>
       </div>

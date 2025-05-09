@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
 import { useInstitution } from "@/lib/institution-context"
 
-export default function GroupsPage() {
+// Create a separate component for the groups table content
+function GroupsTableContent() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const [groups, setGroups] = useState<any[]>([])
@@ -36,9 +38,9 @@ export default function GroupsPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [degrees, setDegrees] = useState<any[]>([])
   const [years, setYears] = useState<any[]>([])
-  const [isLoadingData, setIsLoadingData] = useState(false)
-  const [isLoadingYears, setIsLoadingYears] = useState(false)
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingYears, setIsLoadingYears] = useState(true)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
@@ -64,6 +66,8 @@ export default function GroupsPage() {
       // Force cleanup of any lingering dialog effects
       document.body.style.removeProperty("overflow")
       document.body.style.removeProperty("padding-right")
+
+      // Remove any aria-hidden attributes from the body
       document.body.removeAttribute("aria-hidden")
 
       // Remove any data-radix-* attributes from the body
@@ -76,33 +80,13 @@ export default function GroupsPage() {
     }
   }, [])
 
-  // Initialize with empty placeholder data to prevent layout shifts
-  useEffect(() => {
-    // Create placeholder data for initial render
-    const placeholderGroups = Array(5)
-      .fill(null)
-      .map((_, index) => ({
-        id: `placeholder-${index}`,
-        name: "",
-        degree: "",
-        degreeId: "",
-        academicYear: "",
-        students: 0,
-        status: "",
-        isPlaceholder: true,
-      }))
-
-    setGroups(placeholderGroups)
-    setFilteredGroups(placeholderGroups)
-  }, [])
-
   // Fetch groups from Supabase with caching
   useEffect(() => {
     const fetchGroups = async () => {
       if (dataFetchedRef.current || !institution?.id) return
 
       try {
-        setIsLoadingData(true)
+        setIsLoading(true)
 
         // Try to get data from cache first
         const cachedGroups = getCachedData<any[]>("groups", "all")
@@ -111,7 +95,7 @@ export default function GroupsPage() {
           console.log("Using cached groups data")
           setGroups(cachedGroups)
           setFilteredGroups(cachedGroups)
-          setIsLoadingData(false)
+          setIsLoading(false)
           dataFetchedRef.current = true
           return
         }
@@ -125,10 +109,10 @@ export default function GroupsPage() {
 
         if (groupsError) throw groupsError
 
-        if (!groupsData || groupsData.length === 0) {
+        if (!groupsData) {
           setGroups([])
           setFilteredGroups([])
-          setIsLoadingData(false)
+          setIsLoading(false)
           dataFetchedRef.current = true
           return
         }
@@ -154,7 +138,7 @@ export default function GroupsPage() {
 
         // Count students in each group using a different approach
         const studentCountMap = new Map()
-        const studentCountPromises = groupsData.map(async (group) => {
+        for (const group of groupsData) {
           const { count, error: countError } = await supabase
             .from("profiles")
             .select("*", { count: "exact", head: true })
@@ -167,10 +151,7 @@ export default function GroupsPage() {
           } else {
             studentCountMap.set(group.id, count || 0)
           }
-        })
-
-        // Wait for all student count queries to complete
-        await Promise.all(studentCountPromises)
+        }
 
         // Format the groups data
         const formattedGroups = groupsData.map((group) => ({
@@ -201,12 +182,11 @@ export default function GroupsPage() {
         })
       } finally {
         if (isMounted.current) {
-          setIsLoadingData(false)
+          setIsLoading(false)
         }
       }
     }
 
-    // Start fetching data immediately
     fetchGroups()
   }, [t, toast, getCachedData, setCachedData, institution])
 
@@ -281,16 +261,11 @@ export default function GroupsPage() {
   }, [t, toast, getCachedData, setCachedData, institution])
 
   // Get unique values for filters
-  const groupYears = [...new Set(groups.filter((g) => !g.isPlaceholder).map((group) => group.academicYear))].sort(
-    (a, b) => b.localeCompare(a),
-  )
-  const degreesList = [...new Set(groups.filter((g) => !g.isPlaceholder).map((group) => group.degree))]
+  const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a))
+  const degreesList = [...new Set(groups.map((group) => group.degree))]
 
   // Apply filters and search
   useEffect(() => {
-    // Don't apply filters if we're still using placeholder data
-    if (groups.some((g) => g.isPlaceholder)) return
-
     let result = groups
 
     // Apply year filter
@@ -480,7 +455,7 @@ export default function GroupsPage() {
             status: data[0].status,
           }
 
-          const updatedGroups = [...groups.filter((g) => !g.isPlaceholder), newGroup]
+          const updatedGroups = [...groups, newGroup]
           setGroups(updatedGroups)
 
           // Update cache
@@ -615,7 +590,7 @@ export default function GroupsPage() {
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
@@ -690,7 +665,31 @@ export default function GroupsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length === 0 ? (
+                    {isLoading ? (
+                      // Skeleton loader only in the table rows
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-6 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-20" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : currentItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           {t("admin.groups.noGroups")}
@@ -699,55 +698,39 @@ export default function GroupsPage() {
                     ) : (
                       currentItems.map((group) => (
                         <TableRow key={group.id}>
-                          <TableCell className="font-medium">
-                            {group.isPlaceholder ? <Skeleton className="h-6 w-24" /> : group.name}
-                          </TableCell>
+                          <TableCell className="font-medium">{group.name}</TableCell>
+                          <TableCell>{getDegreeBadge(group.degree)}</TableCell>
+                          <TableCell>{group.academicYear}</TableCell>
                           <TableCell>
-                            {group.isPlaceholder ? <Skeleton className="h-6 w-16" /> : getDegreeBadge(group.degree)}
+                            <div className="flex items-center gap-1">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              {group.students}
+                            </div>
                           </TableCell>
+                          <TableCell>{getStatusBadge(group.status)}</TableCell>
                           <TableCell>
-                            {group.isPlaceholder ? <Skeleton className="h-6 w-16" /> : group.academicYear}
-                          </TableCell>
-                          <TableCell>
-                            {group.isPlaceholder ? (
-                              <Skeleton className="h-6 w-16" />
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                                {group.students}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {group.isPlaceholder ? <Skeleton className="h-6 w-20" /> : getStatusBadge(group.status)}
-                          </TableCell>
-                          <TableCell>
-                            {group.isPlaceholder ? (
-                              <Skeleton className="h-8 w-8 rounded-full" />
-                            ) : (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleOpenDialog(group)}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    {t("admin.groups.edit")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(group.id)}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    {t("admin.groups.delete")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => toggleStatus(group.id)}>
-                                    {group.status === "active"
-                                      ? t("admin.groups.deactivate")
-                                      : t("admin.groups.activate")}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenDialog(group)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {t("admin.groups.edit")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(group.id)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {t("admin.groups.delete")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleStatus(group.id)}>
+                                  {group.status === "active"
+                                    ? t("admin.groups.deactivate")
+                                    : t("admin.groups.activate")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))
@@ -903,6 +886,18 @@ export default function GroupsPage() {
           </DialogContent>
         </Dialog>
       )}
+    </>
+  )
+}
+
+// Main page component
+export default function GroupsPage() {
+  return (
+    <DashboardLayout>
+      {/* Remove the Suspense boundary that's causing the blinking */}
+      <GroupsTableContent />
     </DashboardLayout>
   )
 }
+
+// Remove the GroupsPageSkeleton function since we're not using it anymore
