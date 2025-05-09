@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
+import { useInstitution } from "@/lib/institution-context" // Import the institution context
 
 const initialGroups: any[] = []
 
@@ -32,6 +33,7 @@ interface GroupFormData {
 
 export default function GroupsPage() {
   const { t } = useLanguage()
+  const { institution } = useInstitution() // Get the current institution
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -90,7 +92,7 @@ export default function GroupsPage() {
   // Fetch groups from Supabase with caching
   useEffect(() => {
     const fetchGroups = async () => {
-      if (dataFetchedRef.current) return
+      if (dataFetchedRef.current || !institution?.id) return
 
       try {
         setIsLoading(true)
@@ -107,8 +109,12 @@ export default function GroupsPage() {
           return
         }
 
-        // First, fetch the groups
-        const { data: groupsData, error: groupsError } = await supabase.from("groups").select("*").order("name")
+        // First, fetch the groups for the current institution
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .order("name")
 
         if (groupsError) throw groupsError
 
@@ -191,11 +197,13 @@ export default function GroupsPage() {
     }
 
     fetchGroups()
-  }, [t, toast, getCachedData, setCachedData])
+  }, [t, toast, getCachedData, setCachedData, institution])
 
   // Fetch reference data (degrees and years) with caching
   useEffect(() => {
     const fetchReferenceData = async () => {
+      if (!institution?.id) return
+
       try {
         // Try to get degrees from cache
         const cachedDegrees = getCachedData<any[]>("degrees", "all")
@@ -203,10 +211,11 @@ export default function GroupsPage() {
           setDegrees(cachedDegrees)
           setIsLoadingDegrees(false)
         } else {
-          // Fetch degrees
+          // Fetch degrees for the current institution
           const { data: degreesData, error: degreesError } = await supabase
             .from("degrees")
             .select("id, name")
+            .eq("institution_id", institution.id)
             .order("name")
 
           if (degreesError) throw degreesError
@@ -258,7 +267,7 @@ export default function GroupsPage() {
     }
 
     fetchReferenceData()
-  }, [t, toast, getCachedData, setCachedData])
+  }, [t, toast, getCachedData, setCachedData, institution])
 
   // Get unique values for filters
   const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a)) // Sort descending
@@ -371,6 +380,16 @@ export default function GroupsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Check if institution is available
+    if (!institution?.id) {
+      toast({
+        title: t("admin.groups.error"),
+        description: t("admin.groups.noInstitution"),
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       if (isEditing) {
         // Update existing group
@@ -381,6 +400,7 @@ export default function GroupsPage() {
             degree_id: currentGroup.degreeId,
             academic_year: currentGroup.academicYear, // Use academic_year instead of year
             status: currentGroup.status,
+            // No need to update institution_id as it shouldn't change
           })
           .eq("id", currentGroup.id)
 
@@ -425,6 +445,7 @@ export default function GroupsPage() {
             degree_id: currentGroup.degreeId,
             academic_year: currentGroup.academicYear, // Use academic_year instead of year
             status: currentGroup.status,
+            institution_id: institution.id, // Add the institution_id
           })
           .select()
 
@@ -582,6 +603,80 @@ export default function GroupsPage() {
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  // Show loading state if institution is not loaded yet
+  if (!institution) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-96 mt-2" />
+            </div>
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-10 w-full" />
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                        <TableHead>
+                          <Skeleton className="h-4 w-24" />
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-6 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-6 w-20" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
