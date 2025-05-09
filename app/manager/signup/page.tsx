@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
@@ -33,6 +33,14 @@ export default function ManagerSignupPage() {
     message: "",
     color: "bg-gray-200",
   })
+
+  const [institution, setInstitution] = useState(null)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
+  const [degrees, setDegrees] = useState([])
+  const [years, setYears] = useState([])
+  const yearsFetchedRef = useRef(false)
+  const [isLoadingYears, setIsLoadingYears] = useState(false)
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -81,8 +89,6 @@ export default function ManagerSignupPage() {
     setIsLoading(true)
 
     try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
       // First, create the user in auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -127,6 +133,72 @@ export default function ManagerSignupPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function loadData() {
+      if (!institution) return
+
+      try {
+        // Load degrees
+        setIsLoadingDegrees(true)
+        const { data: degreesData } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (degreesData) {
+          setDegrees(degreesData)
+          if (degreesData.length > 0 && !formData.degreeId) {
+            setFormData((prev) => ({
+              ...prev,
+              degreeId: degreesData[0].id.toString(),
+            }))
+          }
+        }
+        setIsLoadingDegrees(false)
+
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          setIsLoadingYears(true)
+          // Load academic years
+          const { data: yearsData } = await supabase
+            .from("academic_years")
+            .select("year")
+            .eq("institution_id", institution.id)
+            .eq("is_active", true)
+            .order("year", { ascending: false })
+
+          if (yearsData && yearsData.length > 0) {
+            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+            setYears(uniqueYears)
+            yearsFetchedRef.current = true
+
+            // Set current year as default if available
+            const currentYear = new Date().getFullYear().toString()
+            if (uniqueYears.includes(currentYear)) {
+              setFormData((prev) => ({
+                ...prev,
+                academicYear: currentYear,
+              }))
+            } else if (uniqueYears.length > 0) {
+              setFormData((prev) => ({
+                ...prev,
+                academicYear: uniqueYears[0],
+              }))
+            }
+          }
+          setIsLoadingYears(false)
+        }
+      } catch (error) {
+        console.error("Error loading data:", error)
+        setIsLoadingDegrees(false)
+        setIsLoadingYears(false)
+      }
+    }
+
+    loadData()
+  }, [institution, supabase, formData.degreeId])
 
   return (
     <div className="flex min-h-screen flex-col">

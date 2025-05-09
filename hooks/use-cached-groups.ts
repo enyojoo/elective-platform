@@ -16,17 +16,12 @@ export function useCachedGroups() {
   const institutionId = institution?.id
 
   useEffect(() => {
-    console.log("useCachedGroups hook running with institutionId:", institutionId)
-
     if (!institutionId) {
       setIsLoading(false)
       return
     }
 
     const fetchGroups = async () => {
-      setIsLoading(true)
-      setError(null)
-
       // Try to get data from cache first
       const cachedGroups = getCachedData<any[]>("groups", institutionId)
 
@@ -38,6 +33,9 @@ export function useCachedGroups() {
       }
 
       // If not in cache, fetch from API
+      setIsLoading(true)
+      setError(null)
+
       console.log("Fetching groups data from API")
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -100,7 +98,7 @@ export function useCachedGroups() {
           displayName: group.display_name,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
-          year: group.year,
+          year: group.academic_year,
           students: studentCountMap.get(group.id) || 0,
           status: group.status,
         }))

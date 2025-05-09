@@ -16,8 +16,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
 import { DynamicBranding } from "@/components/dynamic-branding"
-import { useSupabase } from "@/lib/supabase-provider"
-import { useInstitution } from "@/lib/institution-context"
+import { useSupabase } from "@/providers/supabase-provider"
+import { useInstitution } from "@/providers/institution-provider"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
@@ -28,12 +28,22 @@ export default function StudentSignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [groups, setGroups] = useState<any[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
+  const [isLoadingYears, setIsLoadingYears] = useState(false)
+  const [degree, setDegree] = useState<string>("")
+  const [year, setYear] = useState<string>("")
+  const [group, setGroup] = useState<string>("")
+  const yearsFetchedRef = useRef(false)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
+    degreeId: "",
     groupId: "",
   })
   const [passwordStrength, setPasswordStrength] = useState({
@@ -41,13 +51,6 @@ export default function StudentSignupPage() {
     message: "",
     color: "bg-gray-200",
   })
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [degree, setDegree] = useState<string | null>(null)
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
-  const [years, setYears] = useState<string[]>([])
-  const [year, setYear] = useState<string | null>(null)
-  const [isLoadingYears, setIsLoadingYears] = useState(false)
-  const yearsFetchedRef = useRef(false)
 
   // Initialize with placeholder data to prevent layout shifts
   useEffect(() => {
@@ -61,6 +64,8 @@ export default function StudentSignupPage() {
 
     setGroups(placeholderGroups)
   }, [])
+
+  // Update the useEffect that loads data to properly fetch and display groups
 
   useEffect(() => {
     async function loadData() {
@@ -77,8 +82,11 @@ export default function StudentSignupPage() {
 
         if (degreesData) {
           setDegrees(degreesData)
-          if (degreesData.length > 0 && !degree) {
-            setDegree(degreesData[0].id.toString())
+          if (degreesData.length > 0 && !formData.degreeId) {
+            setFormData((prev) => ({
+              ...prev,
+              degreeId: degreesData[0].id.toString(),
+            }))
           }
         }
         setIsLoadingDegrees(false)
@@ -86,16 +94,17 @@ export default function StudentSignupPage() {
         // Only fetch years if not already fetched
         if (!yearsFetchedRef.current) {
           setIsLoadingYears(true)
-          // Load academic years directly from groups table
-          const { data: groupsYearsData } = await supabase
-            .from("groups")
-            .select("academic_year")
+          // Load academic years
+          const { data: yearsData } = await supabase
+            .from("academic_years")
+            .select("year")
             .eq("institution_id", institution.id)
-            .eq("status", "active")
+            .eq("is_active", true)
+            .order("year", { ascending: false })
 
-          if (groupsYearsData && groupsYearsData.length > 0) {
-            const uniqueYears = [...new Set(groupsYearsData.map((g) => g.academic_year).filter(Boolean))]
-            setYears(uniqueYears.sort((a, b) => b.localeCompare(a))) // Sort years in descending order
+          if (yearsData && yearsData.length > 0) {
+            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+            setYears(uniqueYears)
             yearsFetchedRef.current = true
 
             // Set current year as default if available
@@ -113,7 +122,7 @@ export default function StudentSignupPage() {
         setIsLoadingGroups(true)
         const { data: groupsData } = await supabase
           .from("groups")
-          .select("id, name, degree_id, academic_year, display_name")
+          .select("id, name, degree_id, academic_year")
           .eq("institution_id", institution.id)
           .eq("status", "active")
 
@@ -131,6 +140,24 @@ export default function StudentSignupPage() {
 
     loadData()
   }, [institution, supabase, degree])
+
+  // Update the useEffect that filters groups
+  useEffect(() => {
+    let filtered = groups
+
+    if (degree) {
+      filtered = filtered.filter((g) => g.degree_id?.toString() === degree)
+    }
+
+    if (year) {
+      filtered = filtered.filter((g) => g.academic_year === year)
+    }
+
+    setFilteredGroups(filtered)
+    if (filtered.length > 0 && (!group || !filtered.find((g) => g.id?.toString() === group))) {
+      setGroup(filtered[0]?.id?.toString() || "")
+    }
+  }, [degree, year, group, groups])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
