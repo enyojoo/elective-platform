@@ -43,7 +43,7 @@ import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 // Create a separate component for the groups table content
 function GroupsTableContent() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
@@ -233,7 +233,7 @@ function GroupsTableContent() {
           // Fetch degrees for the current institution
           const { data: degreesData, error: degreesError } = await supabase
             .from("degrees")
-            .select("id, name")
+            .select("id, name, name_ru")
             .eq("institution_id", institution.id)
             .order("name")
 
@@ -286,7 +286,7 @@ function GroupsTableContent() {
     }
 
     fetchReferenceData()
-  }, [t, toast, getCachedData, setCachedData, institution])
+  }, [t, toast, getCachedData, setCachedData, institution, language])
 
   // Get unique values for filters
   const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a))
@@ -899,7 +899,7 @@ function GroupsTableContent() {
                       <option value="">{t("admin.groups.selectDegree")}</option>
                       {degrees.map((degree) => (
                         <option key={degree.id} value={degree.id}>
-                          {degree.name}
+                          {language === "ru" && degree.name_ru ? degree.name_ru : degree.name}
                         </option>
                       ))}
                     </select>
