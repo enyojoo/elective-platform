@@ -76,16 +76,16 @@ export default function StudentSignupPage() {
         // Only fetch years if not already fetched
         if (!yearsFetchedRef.current) {
           setIsLoadingYears(true)
-          // Load academic years
-          const { data: yearsData } = await supabase
-            .from("academic_years")
-            .select("year")
+          // Load academic years from groups table
+          const { data: groupYearsData } = await supabase
+            .from("groups")
+            .select("academic_year")
             .eq("institution_id", institution.id)
-            .eq("is_active", true)
-            .order("year", { ascending: false })
+            .eq("status", "active")
+            .order("academic_year", { ascending: false })
 
-          if (yearsData && yearsData.length > 0) {
-            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+          if (groupYearsData && groupYearsData.length > 0) {
+            const uniqueYears = [...new Set(groupYearsData.map((g) => g.academic_year).filter(Boolean))]
             setYears(uniqueYears)
             yearsFetchedRef.current = true
 
@@ -136,10 +136,16 @@ export default function StudentSignupPage() {
     }
 
     setFilteredGroups(filtered)
-    if (filtered.length > 0 && (!group || !filtered.find((g) => g.id?.toString() === group))) {
-      setGroup(filtered[0]?.id?.toString() || "")
+
+    // Reset group selection if current selection is not in filtered list
+    if (filtered.length > 0) {
+      if (!group || !filtered.find((g) => g.id?.toString() === group)) {
+        setGroup(filtered[0]?.id?.toString() || "")
+      }
+    } else {
+      setGroup("")
     }
-  }, [degree, year, group, groups])
+  }, [degree, year, groups, group])
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)

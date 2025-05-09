@@ -76,16 +76,16 @@ export default function ManagerSignupPage() {
         // Only fetch years if not already fetched
         if (!yearsFetchedRef.current) {
           setIsLoadingYears(true)
-          // Load academic years
-          const { data: yearsData } = await supabase
-            .from("academic_years")
-            .select("year")
+          // Load academic years from groups table
+          const { data: groupYearsData } = await supabase
+            .from("groups")
+            .select("academic_year")
             .eq("institution_id", institution.id)
-            .eq("is_active", true)
-            .order("year", { ascending: false })
+            .eq("status", "active")
+            .order("academic_year", { ascending: false })
 
-          if (yearsData && yearsData.length > 0) {
-            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+          if (groupYearsData && groupYearsData.length > 0) {
+            const uniqueYears = [...new Set(groupYearsData.map((g) => g.academic_year).filter(Boolean))]
             setYears(uniqueYears)
             yearsFetchedRef.current = true
 
@@ -186,7 +186,7 @@ export default function ManagerSignupPage() {
 
   // Generate enrollment years if no years are available from the database
   const enrollmentYears =
-    years.length > 0 ? years : Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString())
+    years.length > 0 ? years : Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - 2 + i).toString())
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
