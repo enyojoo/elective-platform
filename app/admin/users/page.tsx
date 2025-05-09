@@ -22,7 +22,7 @@ import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -57,17 +57,17 @@ export default function UsersPage() {
   const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
   // Filter users based on search term and filters
   useEffect(() => {
-    if (!users) return
-
-    let result = [...users]
+    let result = users || []
 
     if (searchTerm) {
       result = result.filter(
         (user) =>
-          (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())),
+          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -81,13 +81,11 @@ export default function UsersPage() {
 
     setFilteredUsers(result)
     setTotalPages(Math.ceil(result.length / itemsPerPage))
-    setCurrentPage((prev) => (prev > Math.ceil(result.length / itemsPerPage) ? 1 : prev))
+    setCurrentPage(1) // Reset to first page when filters change
   }, [searchTerm, roleFilter, statusFilter, users])
 
   // Get current page items
   const getCurrentPageItems = () => {
-    if (!filteredUsers.length) return []
-
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return filteredUsers.slice(startIndex, endIndex)
@@ -101,7 +99,6 @@ export default function UsersPage() {
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{t("admin.users.admin")}</Badge>
         )
       case "program_manager":
-      case "manager":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
             {t("admin.users.program_manager")}
@@ -361,7 +358,7 @@ export default function UsersPage() {
                                 {(user.role !== "admin" ||
                                   (user.role === "admin" &&
                                     user.id !==
-                                      users?.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
+                                      users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => handleDeleteUser(user.id)}

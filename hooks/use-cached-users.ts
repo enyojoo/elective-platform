@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/language-context"
 
@@ -10,29 +10,24 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData } = useDataCache()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
-  const isMounted = useRef(true)
-  const fetchingRef = useRef(false)
 
   useEffect(() => {
-    // Cleanup function to set isMounted to false when component unmounts
-    return () => {
-      isMounted.current = false
+    // Invalidate cache when language changes to force a refresh
+    if (institutionId) {
+      invalidateCache("users", institutionId)
     }
-  }, [])
+  }, [language, institutionId, invalidateCache])
 
   useEffect(() => {
-    if (!institutionId || fetchingRef.current) {
+    if (!institutionId) {
+      setIsLoading(false)
       return
     }
 
     const fetchUsers = async () => {
-      // Prevent concurrent fetches
-      if (fetchingRef.current) return
-      fetchingRef.current = true
-
       setIsLoading(true)
       setError(null)
 
@@ -43,13 +38,14 @@ export function useCachedUsers(institutionId: string | undefined) {
         console.log("Using cached users data")
         setUsers(cachedUsers)
         setIsLoading(false)
-        fetchingRef.current = false
         return
       }
 
       // If not in cache, fetch from API
       console.log("Fetching users data from API")
       try {
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
         // Fetch profiles with degree, group, and year information
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
@@ -59,69 +55,32 @@ export function useCachedUsers(institutionId: string | undefined) {
             email, 
             role, 
             is_active, 
-            student_profiles(group_id, enrollment_year),
-            manager_profiles(degree_id, academic_year_id)
+            degree_id, 
+            group_id, 
+            academic_year,
+            degrees:degree_id(id, name, name_ru),
+            groups:group_id(id, name)
           `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
-        if (!isMounted.current) {
-          fetchingRef.current = false
-          return
-        }
-
-        // Fetch degrees and groups in separate queries to avoid deep nesting
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name, name_ru")
-          .eq("institution_id", institutionId)
-
-        if (degreesError) throw degreesError
-
-        if (!isMounted.current) {
-          fetchingRef.current = false
-          return
-        }
-
-        const { data: groupsData, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name")
-          .eq("institution_id", institutionId)
-
-        if (groupsError) throw groupsError
-
-        if (!isMounted.current) {
-          fetchingRef.current = false
-          return
-        }
-
-        // Create lookup maps for degrees and groups
-        const degreesMap = new Map(degreesData.map((degree) => [degree.id, degree]))
-        const groupsMap = new Map(groupsData.map((group) => [group.id, group]))
+        console.log("Fetched profiles data:", profilesData)
 
         // Transform the data
         const transformedUsers = profilesData.map((profile) => {
-          // Get student profile data
-          const studentProfile = profile.student_profiles && profile.student_profiles[0]
-          const groupId = studentProfile ? studentProfile.group_id : null
-          const year = studentProfile ? studentProfile.enrollment_year : null
-
-          // Get manager profile data
-          const managerProfile = profile.manager_profiles && profile.manager_profiles[0]
-          const degreeId = managerProfile ? managerProfile.degree_id : null
-
           // Get degree name based on language
           let degreeName = ""
-          if (degreeId) {
-            const degree = degreesMap.get(degreeId)
-            if (degree) {
-              degreeName = language === "ru" && degree.name_ru ? degree.name_ru : degree.name || ""
+
+          if (profile.degrees) {
+            if (language === "ru" && profile.degrees.name_ru) {
+              degreeName = profile.degrees.name_ru
+              console.log(`Using Russian name for degree: ${degreeName}`)
+            } else {
+              degreeName = profile.degrees.name || ""
+              console.log(`Using English name for degree: ${degreeName}`)
             }
           }
-
-          // Get group name
-          const groupName = groupId && groupsMap.get(groupId) ? groupsMap.get(groupId)!.name : ""
 
           return {
             id: profile.id,
@@ -129,11 +88,11 @@ export function useCachedUsers(institutionId: string | undefined) {
             email: profile.email || "",
             role: profile.role || "",
             status: profile.is_active ? "active" : "inactive",
-            degreeId: degreeId || "",
+            degreeId: profile.degree_id || "",
             degreeName: degreeName,
-            groupId: groupId || "",
-            groupName: groupName,
-            year: year || "",
+            groupId: profile.group_id || "",
+            groupName: profile.groups ? profile.groups.name : "",
+            year: profile.academic_year || "",
           }
         })
 
@@ -151,10 +110,7 @@ export function useCachedUsers(institutionId: string | undefined) {
           variant: "destructive",
         })
       } finally {
-        if (isMounted.current) {
-          setIsLoading(false)
-        }
-        fetchingRef.current = false
+        setIsLoading(false)
       }
     }
 
