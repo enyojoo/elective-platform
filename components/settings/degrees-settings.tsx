@@ -49,6 +49,8 @@ export function DegreesSettings() {
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const dataFetchedRef = useRef(false)
 
+  // First, add a new state variable for the delete confirmation dialog after the other state declarations (around line 50)
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [degreeToDelete, setDegreeToDelete] = useState<string | null>(null)
 
@@ -310,6 +312,8 @@ export function DegreesSettings() {
     }
   }
 
+  // Replace the handleDelete function with this new implementation (around line 250)
+
   const handleDelete = async (id: string) => {
     setDegreeToDelete(id)
     setIsDeleteDialogOpen(true)
@@ -340,7 +344,7 @@ export function DegreesSettings() {
 
         toast({
           title: t("admin.degrees.success"),
-          description: t("admin.settings.degrees.deleteSuccess"),
+          description: t("admin.degrees.deleteSuccess"),
         })
       }
     } catch (error: any) {
@@ -603,6 +607,7 @@ export function DegreesSettings() {
           </DialogContent>
         </Dialog>
       )}
+      {/* Add the delete confirmation dialog at the end of the component, just before the final closing tag (around line 500) */}
 
       {/* Delete Confirmation Dialog */}
       {isDeleteDialogOpen && (
@@ -617,20 +622,27 @@ export function DegreesSettings() {
         >
           <DialogContent
             className="sm:max-w-[425px]"
-            onEscapeKeyDown={() => setIsDeleteDialogOpen(false)}
-            onInteractOutside={() => setIsDeleteDialogOpen(false)}
+            onEscapeKeyDown={() => {
+              setIsDeleteDialogOpen(false)
+              setDegreeToDelete(null)
+            }}
+            onInteractOutside={() => {
+              setIsDeleteDialogOpen(false)
+              setDegreeToDelete(null)
+            }}
             onPointerDownOutside={(e) => {
               e.preventDefault()
               setIsDeleteDialogOpen(false)
+              setDegreeToDelete(null)
             }}
           >
             <DialogHeader>
-              <DialogTitle>{t("admin.degrees.deleteTitle")}</DialogTitle>
+              <DialogTitle>{t("admin.degrees.deleteConfirmTitle")}</DialogTitle>
             </DialogHeader>
             <div className="py-4">
-              <p>{t("admin.degrees.deleteDescription")}</p>
+              <p className="text-muted-foreground">{t("admin.degrees.deleteConfirmMessage")}</p>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -639,10 +651,10 @@ export function DegreesSettings() {
                   setDegreeToDelete(null)
                 }}
               >
-                {t("admin.degrees.deleteCancel")}
+                {t("admin.degrees.deleteConfirmCancel")}
               </Button>
               <Button type="button" variant="destructive" onClick={confirmDelete}>
-                {t("admin.degrees.deleteConfirm")}
+                {t("admin.degrees.deleteConfirmDelete")}
               </Button>
             </div>
           </DialogContent>
