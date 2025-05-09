@@ -981,7 +981,7 @@ function GroupsTableContent() {
               {t("admin.groups.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription className="pt-2">
-              {t("admin.groups.deleteConfirmDescription", { group: getGroupToDeleteName() })}
+              {t("admin.groups.deleteConfirmDescription", { 0: getGroupToDeleteName() })}
               {getGroupToDeleteStudentCount() > 0 && (
                 <div className="mt-2 text-destructive font-medium">
                   {t("admin.groups.deleteConfirmStudents", { count: getGroupToDeleteStudentCount() })}
