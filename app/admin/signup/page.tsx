@@ -55,14 +55,19 @@ export default function InstitutionSignupPage() {
 
       try {
         // Check if subdomain exists
-        const { data, error } = await supabase.from("institutions").select("id").eq("subdomain", subdomain).single()
+        const response = await fetch(`/api/subdomain/${subdomain}`)
 
-        if (error && error.code === "PGRST116") {
-          // No results found, subdomain is available
+        if (response.ok) {
+          const data = await response.json()
+          // If the API returns that the institution exists, the subdomain is unavailable
+          setSubdomainStatus("unavailable")
+        } else if (response.status === 404) {
+          // 404 means the subdomain doesn't exist, so it's available
           setSubdomainStatus("available")
         } else {
-          // Subdomain exists
-          setSubdomainStatus("unavailable")
+          // Any other error
+          console.error("Error checking subdomain:", response.statusText)
+          setSubdomainStatus(null)
         }
       } catch (err) {
         console.error("Error checking subdomain:", err)
@@ -74,7 +79,12 @@ export default function InstitutionSignupPage() {
 
     const timer = setTimeout(checkSubdomain, 500)
     return () => clearTimeout(timer)
-  }, [subdomain, supabase])
+  }, [subdomain])
+
+  // Add this after the useEffect hook
+  useEffect(() => {
+    console.log("Current subdomain status:", subdomainStatus)
+  }, [subdomainStatus])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

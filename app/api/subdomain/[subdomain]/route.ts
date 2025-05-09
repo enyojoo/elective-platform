@@ -17,11 +17,23 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
       .eq("is_active", true)
       .single()
 
-    if (error || !data) {
+    if (error) {
+      // Check if it's a "not found" error (PGRST116)
+      if (error.code === "PGRST116") {
+        // Subdomain is available (not found in database)
+        return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
+      }
+
       console.error("API: Error fetching institution by subdomain:", error)
-      return NextResponse.json({ exists: false, message: "Institution not found" }, { status: 404 })
+      return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
     }
 
+    if (!data) {
+      // Subdomain is available (not found in database)
+      return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
+    }
+
+    // Subdomain exists and is in use
     return NextResponse.json({
       exists: true,
       institution: {
@@ -35,6 +47,6 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
     })
   } catch (error) {
     console.error("API: Unexpected error in subdomain check:", error)
-    return NextResponse.json({ exists: false, message: "Error checking subdomain" }, { status: 500 })
+    return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
   }
 }
