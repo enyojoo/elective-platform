@@ -70,7 +70,7 @@ export default function ManagerLoginPage() {
 
         const { role, institutionId } = await response.json()
 
-        if (role === "manager") {
+        if (role === "program_manager") {
           // If accessed via subdomain, check if manager belongs to this institution
           if (isSubdomainAccess && institution && institutionId !== institution.id) {
             await supabase.auth.signOut()

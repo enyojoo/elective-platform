@@ -954,7 +954,7 @@ const translations: Translations = {
     "auth.signup.title": "Регистрация доступа",
     "auth.signup.description": "Создайте новый аккаунт с вашей университетской почтой",
     "auth.signup.email": "Электронная почта",
-    "auth.signup.name": "Полное имя",
+    "auth.signup.name": "По��ное имя",
     "auth.signup.fullName": "Полное имя",
     "auth.signup.fullNamePlaceholder": "Введите ваше полное имя",
     "auth.signup.degree": "Степень",
