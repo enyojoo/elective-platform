@@ -74,7 +74,7 @@ export function DegreesSettings() {
 
   // Fetch degrees from cache or Supabase
   useEffect(() => {
-    let ignore = false
+    if (!institution?.id || dataFetchedRef.current) return
 
     const fetchDegrees = async () => {
       try {
@@ -142,13 +142,7 @@ export function DegreesSettings() {
       }
     }
 
-    if (institution?.id) {
-      fetchDegrees()
-    }
-
-    return () => {
-      ignore = true
-    }
+    fetchDegrees()
   }, [institution?.id, getCachedData, setCachedData, t, toast])
 
   // Filter degrees based on search term
@@ -336,7 +330,6 @@ export function DegreesSettings() {
       if (isMounted.current) {
         const updatedDegrees = degrees.filter((degree) => degree.id !== degreeToDelete)
         setDegrees(updatedDegrees)
-        setFilteredDegrees(updatedDegrees) // Also update filtered degrees
 
         // Update cache with the new data
         const rawDegrees = await supabase
@@ -367,10 +360,8 @@ export function DegreesSettings() {
       setIsDeleteDialogOpen(false)
       setDegreeToDelete(null)
 
-      // Ensure dialog effects are cleaned up
-      setTimeout(() => {
-        cleanupDialogEffects()
-      }, 300)
+      // Clean up dialog effects
+      setTimeout(() => cleanupDialogEffects(), 300)
     }
   }
 
@@ -629,27 +620,25 @@ export function DegreesSettings() {
             setIsDeleteDialogOpen(false)
             setDegreeToDelete(null)
 
-            // Add cleanup timeout to ensure overlay is removed after animation
-            setTimeout(() => {
+            // Schedule cleanup after animation completes
+            if (cleanupTimeoutRef.current) {
+              clearTimeout(cleanupTimeoutRef.current)
+            }
+
+            cleanupTimeoutRef.current = setTimeout(() => {
               cleanupDialogEffects()
-            }, 300)
+            }, 300) // 300ms should be enough for most animations
           }
         }}
       >
         <DialogContent
           className="sm:max-w-[425px]"
-          onEscapeKeyDown={(e) => {
-            e.preventDefault()
+          onEscapeKeyDown={() => {
             setIsDeleteDialogOpen(false)
             setDegreeToDelete(null)
 
-            // Add cleanup timeout
-            setTimeout(() => {
-              cleanupDialogEffects()
-            }, 300)
-          }}
-          onPointerDownOutside={(e) => {
-            e.preventDefault()
+            // Clean up dialog effects
+            setTimeout(() => cleanupDialogEffects(), 300)
           }}
         >
           <DialogHeader>
@@ -666,10 +655,8 @@ export function DegreesSettings() {
                 setIsDeleteDialogOpen(false)
                 setDegreeToDelete(null)
 
-                // Add cleanup timeout
-                setTimeout(() => {
-                  cleanupDialogEffects()
-                }, 300)
+                // Clean up dialog effects
+                setTimeout(() => cleanupDialogEffects(), 300)
               }}
             >
               {t("admin.degrees.deleteConfirmCancel")}
@@ -680,10 +667,8 @@ export function DegreesSettings() {
               onClick={() => {
                 confirmDelete()
 
-                // Add cleanup timeout
-                setTimeout(() => {
-                  cleanupDialogEffects()
-                }, 300)
+                // Clean up dialog effects
+                setTimeout(() => cleanupDialogEffects(), 300)
               }}
             >
               {t("admin.degrees.deleteConfirmDelete")}
@@ -694,21 +679,3 @@ export function DegreesSettings() {
     </div>
   )
 }
-
-// Add this useEffect after the other useEffect hooks
-useEffect(() => {
-  return () => {
-    // Force document body to be clickable on unmount
-    document.body.style.pointerEvents = ""
-    document.body.style.overflow = ""
-    document.body.classList.remove("overflow-hidden")
-
-    // Remove any lingering backdrop elements
-    const backdrops = document.querySelectorAll("[data-radix-portal], .fixed.inset-0")
-    backdrops.forEach((el) => {
-      if (el.parentNode) {
-        el.parentNode.removeChild(el)
-      }
-    })
-  }
-}, [])
