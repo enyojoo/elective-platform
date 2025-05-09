@@ -10,7 +10,7 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
 
@@ -28,86 +28,44 @@ export function useCachedUsers(institutionId: string | undefined) {
       const cachedUsers = getCachedData<any[]>("users", institutionId)
 
       if (cachedUsers) {
+        console.log("Using cached users data")
         setUsers(cachedUsers)
         setIsLoading(false)
         return
       }
 
       // If not in cache, fetch from API
+      console.log("Fetching users data from API")
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profiles
+        // Fetch profiles with degree, group, and year information
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, full_name, email, role, is_active, degree_id, group_id, academic_year")
+          .select(`
+            id, 
+            full_name, 
+            email, 
+            role, 
+            is_active, 
+            degree_id, 
+            group_id, 
+            academic_year,
+            degrees(id, name, name_ru),
+            groups(id, name)
+          `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
-        // Create a map to store degree and group information
-        const degreeMap = new Map()
-        const groupMap = new Map()
-
-        // Fetch degrees if there are any degree_ids
-        const degreeIds = profilesData
-          .filter((profile) => profile.degree_id)
-          .map((profile) => profile.degree_id)
-          .filter((id, index, self) => self.indexOf(id) === index) // Get unique IDs
-
-        if (degreeIds.length > 0) {
-          const { data: degreesData, error: degreesError } = await supabase
-            .from("degrees")
-            .select("id, name, name_ru")
-            .in("id", degreeIds)
-
-          if (degreesError) throw degreesError
-
-          // Store degrees in the map
-          degreesData.forEach((degree) => {
-            degreeMap.set(degree.id, degree)
-          })
-        }
-
-        // Fetch groups if there are any group_ids
-        const groupIds = profilesData
-          .filter((profile) => profile.group_id)
-          .map((profile) => profile.group_id)
-          .filter((id, index, self) => self.indexOf(id) === index) // Get unique IDs
-
-        if (groupIds.length > 0) {
-          const { data: groupsData, error: groupsError } = await supabase
-            .from("groups")
-            .select("id, name")
-            .in("id", groupIds)
-
-          if (groupsError) throw groupsError
-
-          // Store groups in the map
-          groupsData.forEach((group) => {
-            groupMap.set(group.id, group)
-          })
-        }
-
         // Transform the data
         const transformedUsers = profilesData.map((profile) => {
-          // Get degree information
-          let degreeName = ""
-          if (profile.degree_id && degreeMap.has(profile.degree_id)) {
-            const degree = degreeMap.get(profile.degree_id)
-            // Use Russian name if language is Russian and name_ru exists, otherwise use English name
-            if (language === "ru" && degree.name_ru) {
-              degreeName = degree.name_ru
-            } else {
-              degreeName = degree.name || ""
-            }
-          }
-
-          // Get group information
-          let groupName = ""
-          if (profile.group_id && groupMap.has(profile.group_id)) {
-            groupName = groupMap.get(profile.group_id).name || ""
-          }
+          // Get degree name based on language
+          const degreeName = profile.degrees
+            ? language === "ru" && profile.degrees.name_ru
+              ? profile.degrees.name_ru
+              : profile.degrees.name
+            : ""
 
           return {
             id: profile.id,
@@ -118,7 +76,7 @@ export function useCachedUsers(institutionId: string | undefined) {
             degreeId: profile.degree_id || "",
             degreeName: degreeName,
             groupId: profile.group_id || "",
-            groupName: groupName,
+            groupName: profile.groups ? profile.groups.name : "",
             year: profile.academic_year || "",
           }
         })
