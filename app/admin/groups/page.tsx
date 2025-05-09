@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -19,26 +19,17 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
-import { useInstitution } from "@/lib/institution-context" // Import the institution context
+import { useInstitution } from "@/lib/institution-context"
 
-const initialGroups: any[] = []
-
-interface GroupFormData {
-  id?: string
-  name: string
-  degreeId: string
-  academicYear: string
-  status: string
-}
-
-export default function GroupsPage() {
+// Create a separate component for the groups table content
+function GroupsTableContent() {
   const { t } = useLanguage()
-  const { institution } = useInstitution() // Get the current institution
+  const { institution } = useInstitution()
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
+  const [currentGroup, setCurrentGroup] = useState<any>({
     name: "",
     degreeId: "",
     academicYear: "",
@@ -65,7 +56,7 @@ export default function GroupsPage() {
   const [degreeFilter, setDegreeFilter] = useState("")
 
   const { toast } = useToast()
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { getCachedData, setCachedData } = useDataCache()
 
   // Set up cleanup when component unmounts
   useEffect(() => {
@@ -169,7 +160,7 @@ export default function GroupsPage() {
           displayName: group.display_name,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
-          academicYear: group.academic_year, // Use academic_year instead of year
+          academicYear: group.academic_year,
           students: studentCountMap.get(group.id) || 0,
           status: group.status,
         }))
@@ -270,7 +261,7 @@ export default function GroupsPage() {
   }, [t, toast, getCachedData, setCachedData, institution])
 
   // Get unique values for filters
-  const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a)) // Sort descending
+  const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a))
   const degreesList = [...new Set(groups.map((group) => group.degree))]
 
   // Apply filters and search
@@ -328,7 +319,7 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         degreeId: degrees.length > 0 ? degrees[0].id.toString() : "",
-        academicYear: getCurrentYearOption(), // Use the current year if available
+        academicYear: getCurrentYearOption(),
         status: "active",
       })
       setIsEditing(false)
@@ -398,9 +389,8 @@ export default function GroupsPage() {
           .update({
             name: currentGroup.name,
             degree_id: currentGroup.degreeId,
-            academic_year: currentGroup.academicYear, // Use academic_year instead of year
+            academic_year: currentGroup.academicYear,
             status: currentGroup.status,
-            // No need to update institution_id as it shouldn't change
           })
           .eq("id", currentGroup.id)
 
@@ -421,7 +411,7 @@ export default function GroupsPage() {
             name: data.name,
             degree: degree?.name || "Unknown",
             degreeId: data.degree_id,
-            academicYear: data.academic_year, // Use academic_year instead of year
+            academicYear: data.academic_year,
             status: data.status,
           }
 
@@ -443,9 +433,9 @@ export default function GroupsPage() {
           .insert({
             name: currentGroup.name,
             degree_id: currentGroup.degreeId,
-            academic_year: currentGroup.academicYear, // Use academic_year instead of year
+            academic_year: currentGroup.academicYear,
             status: currentGroup.status,
-            institution_id: institution.id, // Add the institution_id
+            institution_id: institution.id,
           })
           .select()
 
@@ -460,7 +450,7 @@ export default function GroupsPage() {
             name: data[0].name,
             degree: degree?.name || "Unknown",
             degreeId: data[0].degree_id,
-            academicYear: data[0].academic_year, // Use academic_year instead of year
+            academicYear: data[0].academic_year,
             students: 0,
             status: data[0].status,
           }
@@ -557,12 +547,6 @@ export default function GroupsPage() {
     }
   }
 
-  const resetFilters = () => {
-    setYearFilter("")
-    setDegreeFilter("")
-    setSearchTerm("")
-  }
-
   // Helper function to get degree badge
   const getDegreeBadge = (degree: string) => {
     // Map the English degree names to translation keys
@@ -605,82 +589,8 @@ export default function GroupsPage() {
     }
   }
 
-  // Show loading state if institution is not loaded yet
-  if (!institution) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <Skeleton className="h-8 w-64" />
-              <Skeleton className="h-4 w-96 mt-2" />
-            </div>
-            <Skeleton className="h-10 w-32" />
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col gap-4">
-                <Skeleton className="h-10 w-full" />
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                        <TableHead>
-                          <Skeleton className="h-4 w-24" />
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-6 w-24" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-6 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
-    <DashboardLayout>
+    <>
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
@@ -976,6 +886,89 @@ export default function GroupsPage() {
           </DialogContent>
         </Dialog>
       )}
+    </>
+  )
+}
+
+// Main page component
+export default function GroupsPage() {
+  return (
+    <DashboardLayout>
+      <Suspense fallback={<GroupsPageSkeleton />}>
+        <GroupsTableContent />
+      </Suspense>
     </DashboardLayout>
+  )
+}
+
+// Skeleton loader for the entire page
+function GroupsPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96 mt-2" />
+        </div>
+        <Skeleton className="h-10 w-32" />
+      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4">
+            <Skeleton className="h-10 w-full" />
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell>
+                        <Skeleton className="h-6 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

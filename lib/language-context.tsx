@@ -63,6 +63,7 @@ const translations: Translations = {
     "auth.signup.email": "Email",
     "auth.signup.name": "Full Name",
     "auth.signup.fullName": "Full Name",
+    "auth.signup.fullNamePlaceholder": "Enter your full name",
     "auth.signup.degree": "Degree",
     "auth.signup.program": "Program",
     "auth.signup.year": "Year",
@@ -936,6 +937,7 @@ const translations: Translations = {
     "auth.signup.email": "Электронная почта",
     "auth.signup.name": "Полное имя",
     "auth.signup.fullName": "Полное имя",
+    "auth.signup.fullNamePlaceholder": "Введите ваше полное имя",
     "auth.signup.degree": "Степень",
     "auth.signup.program": "Программа",
     "auth.signup.year": "Год",
@@ -1134,7 +1136,6 @@ const translations: Translations = {
     "student.statement.fileUploaded": "Файл загружен:",
     statement: "Заявление",
     statementFile: "Файл заявления",
-    downloadStatement: "Скачать заявление",
 
     // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Вернуться к элективам",

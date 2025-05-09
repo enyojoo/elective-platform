@@ -1,10 +1,8 @@
 "use client"
 
-import { useRef } from "react"
-
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -19,23 +17,28 @@ import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switch
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ManagerSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { institution } = useInstitution()
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+
+  // Data loading states
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
+  const [isLoadingYears, setIsLoadingYears] = useState(true)
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: "",
     degreeId: "",
-    academicYear: new Date().getFullYear().toString(),
+    academicYear: "",
   })
 
   // Data states
@@ -52,6 +55,7 @@ export default function ManagerSignupPage() {
 
       try {
         // Load degrees
+        setIsLoadingDegrees(true)
         const { data: degreesData } = await supabase
           .from("degrees")
           .select("*")
@@ -60,10 +64,18 @@ export default function ManagerSignupPage() {
 
         if (degreesData) {
           setDegrees(degreesData)
+          if (degreesData.length > 0 && !formData.degreeId) {
+            setFormData((prev) => ({
+              ...prev,
+              degreeId: degreesData[0].id.toString(),
+            }))
+          }
         }
+        setIsLoadingDegrees(false)
 
         // Only fetch years if not already fetched
         if (!yearsFetchedRef.current) {
+          setIsLoadingYears(true)
           // Load academic years
           const { data: yearsData } = await supabase
             .from("academic_years")
@@ -72,7 +84,7 @@ export default function ManagerSignupPage() {
             .eq("is_active", true)
             .order("year", { ascending: false })
 
-          if (yearsData) {
+          if (yearsData && yearsData.length > 0) {
             const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
             setYears(uniqueYears)
             yearsFetchedRef.current = true
@@ -91,14 +103,17 @@ export default function ManagerSignupPage() {
               }))
             }
           }
+          setIsLoadingYears(false)
         }
       } catch (error) {
         console.error("Error loading data:", error)
+        setIsLoadingDegrees(false)
+        setIsLoadingYears(false)
       }
     }
 
     loadData()
-  }, [institution, supabase])
+  }, [institution, supabase, formData.degreeId])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -169,10 +184,6 @@ export default function ManagerSignupPage() {
     }
   }
 
-  if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
-  }
-
   // Generate enrollment years if no years are available from the database
   const enrollmentYears =
     years.length > 0 ? years : Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString())
@@ -215,7 +226,7 @@ export default function ManagerSignupPage() {
                 <Input
                   id="name"
                   name="name"
-                  placeholder={t("admin.users.fullName")}
+                  placeholder={t("auth.signup.fullNamePlaceholder")}
                   value={formData.name}
                   onChange={handleInputChange}
                   required
@@ -260,42 +271,50 @@ export default function ManagerSignupPage() {
               {/* Degree Assignment */}
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("admin.users.degree")}</Label>
-                <Select
-                  value={formData.degreeId}
-                  onValueChange={(value) => handleSelectChange("degreeId", value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("admin.users.selectDegree")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {degrees.map((degree) => (
-                      <SelectItem key={degree.id} value={degree.id.toString()}>
-                        {degree.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isLoadingDegrees ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={formData.degreeId}
+                    onValueChange={(value) => handleSelectChange("degreeId", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.users.selectDegree")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.id.toString()}>
+                          {degree.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="academicYear">{t("admin.users.academicYear")}</Label>
-                <Select
-                  value={formData.academicYear}
-                  onValueChange={(value) => handleSelectChange("academicYear", value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("admin.users.selectYear")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enrollmentYears.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isLoadingYears ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={formData.academicYear}
+                    onValueChange={(value) => handleSelectChange("academicYear", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enrollmentYears.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">

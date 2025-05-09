@@ -17,12 +17,13 @@ import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { institution } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -33,6 +34,11 @@ export default function StudentSignupPage() {
   const [group, setGroup] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  // Data loading states
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
+  const [isLoadingYears, setIsLoadingYears] = useState(true)
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true)
 
   // Data states
   const [degrees, setDegrees] = useState<any[]>([])
@@ -52,6 +58,7 @@ export default function StudentSignupPage() {
 
       try {
         // Load degrees
+        setIsLoadingDegrees(true)
         const { data: degreesData } = await supabase
           .from("degrees")
           .select("*")
@@ -60,10 +67,15 @@ export default function StudentSignupPage() {
 
         if (degreesData) {
           setDegrees(degreesData)
+          if (degreesData.length > 0 && !degree) {
+            setDegree(degreesData[0].id.toString())
+          }
         }
+        setIsLoadingDegrees(false)
 
         // Only fetch years if not already fetched
         if (!yearsFetchedRef.current) {
+          setIsLoadingYears(true)
           // Load academic years
           const { data: yearsData } = await supabase
             .from("academic_years")
@@ -72,7 +84,7 @@ export default function StudentSignupPage() {
             .eq("is_active", true)
             .order("year", { ascending: false })
 
-          if (yearsData) {
+          if (yearsData && yearsData.length > 0) {
             const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
             setYears(uniqueYears)
             yearsFetchedRef.current = true
@@ -85,9 +97,11 @@ export default function StudentSignupPage() {
               setYear(uniqueYears[0])
             }
           }
+          setIsLoadingYears(false)
         }
 
         // Load groups
+        setIsLoadingGroups(true)
         const { data: groupsData } = await supabase
           .from("groups")
           .select("*")
@@ -97,13 +111,17 @@ export default function StudentSignupPage() {
         if (groupsData) {
           setGroups(groupsData)
         }
+        setIsLoadingGroups(false)
       } catch (error) {
         console.error("Error loading data:", error)
+        setIsLoadingDegrees(false)
+        setIsLoadingYears(false)
+        setIsLoadingGroups(false)
       }
     }
 
     loadData()
-  }, [institution, supabase])
+  }, [institution, supabase, degree])
 
   // Filter groups based on selected degree and year
   useEffect(() => {
@@ -118,8 +136,8 @@ export default function StudentSignupPage() {
     }
 
     setFilteredGroups(filtered)
-    if (filtered.length > 0 && group && !filtered.find((g) => g.id?.toString() === group)) {
-      setGroup("")
+    if (filtered.length > 0 && (!group || !filtered.find((g) => g.id?.toString() === group))) {
+      setGroup(filtered[0]?.id?.toString() || "")
     }
   }, [degree, year, group, groups])
 
@@ -183,10 +201,6 @@ export default function StudentSignupPage() {
     }
   }
 
-  if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
-  }
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
@@ -245,51 +259,63 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
-                <Select value={degree} onValueChange={setDegree} required>
-                  <SelectTrigger id="degree" className="w-full">
-                    <SelectValue placeholder={t("auth.signup.selectDegree")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {degrees.map((d) => (
-                      <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isLoadingDegrees ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={degree} onValueChange={setDegree} required>
+                    <SelectTrigger id="degree" className="w-full">
+                      <SelectValue placeholder={t("auth.signup.selectDegree")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {degrees.map((d) => (
+                        <SelectItem key={d.id} value={d.id?.toString() || ""}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("auth.signup.year")}</Label>
-                  <Select value={year} onValueChange={setYear} required>
-                    <SelectTrigger id="year" className="w-full">
-                      <SelectValue placeholder={t("auth.signup.selectYear")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map((y) => (
-                        <SelectItem key={y} value={y}>
-                          {y}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoadingYears ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={year} onValueChange={setYear} required>
+                      <SelectTrigger id="year" className="w-full">
+                        <SelectValue placeholder={t("auth.signup.selectYear")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((y) => (
+                          <SelectItem key={y} value={y}>
+                            {y}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="group">{t("auth.signup.group")}</Label>
-                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
-                    <SelectTrigger id="group" className="w-full">
-                      <SelectValue placeholder={t("auth.signup.selectGroup")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id?.toString() || ""}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoadingGroups ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
+                      <SelectTrigger id="group" className="w-full">
+                        <SelectValue placeholder={t("auth.signup.selectGroup")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredGroups.map((g) => (
+                          <SelectItem key={g.id} value={g.id?.toString() || ""}>
+                            {g.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
 

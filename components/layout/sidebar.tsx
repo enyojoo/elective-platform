@@ -53,6 +53,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           <Link
             href={isAdmin ? "/admin/dashboard" : isManager ? "/manager/dashboard" : "/student/dashboard"}
             className="flex items-center gap-2"
+            prefetch={true}
           >
             {/* Ensure the logo path is correct and the dimensions are appropriate */}
             <Image
@@ -61,6 +62,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               width={110}
               height={30}
               className="h-7 w-auto"
+              priority
             />
           </Link>
           <button
@@ -227,6 +229,7 @@ function NavItem({ href, icon, active, children }: NavItemProps) {
         "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
         active ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-accent-foreground",
       )}
+      prefetch={true}
     >
       {icon}
       <span>{children}</span>
