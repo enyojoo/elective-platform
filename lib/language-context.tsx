@@ -900,7 +900,6 @@ const translations: Translations = {
     "admin.signup.error": "Registration failed",
     "admin.groups.error": "Error",
     "admin.groups.noInstitution": "Institution not found",
-    "auth.signup.fullNamePlaceholder": "Enter your full name",
   },
   ru: {
     // Existing translations...
@@ -1690,6 +1689,7 @@ const translations: Translations = {
     "admin.universities.exchangePrograms": "Программы обмена",
     "admin.universities.action": "Действие",
     "admin.universities.view": "Просмотр деталей",
+    "admin.universities.edit": "Редактировать",
     // Admin Dashboard
     "admin.dashboard.title": "Панель управления",
     "admin.dashboard.universities": "Университеты",
@@ -1824,7 +1824,6 @@ const translations: Translations = {
     "admin.signup.error": "Ошибка регистрации",
     "admin.groups.error": "Ошибка",
     "admin.groups.noInstitution": "Учреждение не найдено",
-    "auth.signup.fullNamePlaceholder": "Введите ваше полное имя",
   },
 }
 

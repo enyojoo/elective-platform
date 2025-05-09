@@ -14,18 +14,15 @@ import { AuthLanguageSwitcher } from "../../auth/components/auth-language-switch
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useDataCache } from "@/lib/data-cache-context"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution, isLoading: institutionLoading } = useInstitution()
-  const { getCachedData, setCachedData } = useDataCache()
 
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -41,7 +38,6 @@ export default function StudentSignupPage() {
   const [degrees, setDegrees] = useState<any[]>([])
   const [years, setYears] = useState<string[]>([])
   const [groups, setGroups] = useState<any[]>([])
-  const [isDataLoading, setIsDataLoading] = useState(true)
   const yearsFetchedRef = useRef(false)
 
   // Filtered lists based on selections
@@ -54,39 +50,31 @@ export default function StudentSignupPage() {
     async function loadData() {
       if (!institution) return
 
-      setIsDataLoading(true)
       try {
-        // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
-        const cachedGroups = getCachedData<any[]>("groups", institution.id)
+        // Load degrees
+        const { data: degreesData } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
 
-        if (cachedDegrees) {
-          console.log("Using cached degrees data")
-          setDegrees(cachedDegrees.filter((d) => d.status === "active"))
-        } else {
-          // Load degrees
-          console.log("Fetching degrees data from API")
-          const { data: degreesData } = await supabase
-            .from("degrees")
-            .select("*")
-            .eq("institution_id", institution.id)
-            .eq("status", "active")
-
-          if (degreesData) {
-            setDegrees(degreesData)
-            setCachedData("degrees", institution.id, degreesData)
-          }
+        if (degreesData) {
+          setDegrees(degreesData)
         }
 
-        if (cachedGroups) {
-          console.log("Using cached groups data")
-          const activeGroups = cachedGroups.filter((g) => g.status === "active")
-          setGroups(activeGroups)
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          // Load academic years
+          const { data: yearsData } = await supabase
+            .from("academic_years")
+            .select("year")
+            .eq("institution_id", institution.id)
+            .eq("is_active", true)
+            .order("year", { ascending: false })
 
-          // Extract unique academic years from groups
-          if (!yearsFetchedRef.current) {
-            const uniqueYears = [...new Set(activeGroups.map((g) => g.academic_year).filter(Boolean))]
-            setYears(uniqueYears.sort((a, b) => b.localeCompare(a))) // Sort in descending order
+          if (yearsData) {
+            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+            setYears(uniqueYears)
             yearsFetchedRef.current = true
 
             // Set current year as default if available
@@ -97,44 +85,25 @@ export default function StudentSignupPage() {
               setYear(uniqueYears[0])
             }
           }
-        } else {
-          // Load groups
-          console.log("Fetching groups data from API")
-          const { data: groupsData } = await supabase
-            .from("groups")
-            .select("*")
-            .eq("institution_id", institution.id)
-            .eq("status", "active")
+        }
 
-          if (groupsData) {
-            setGroups(groupsData)
-            setCachedData("groups", institution.id, groupsData)
+        // Load groups
+        const { data: groupsData } = await supabase
+          .from("groups")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
 
-            // Extract unique academic years from groups
-            if (!yearsFetchedRef.current) {
-              const uniqueYears = [...new Set(groupsData.map((g) => g.academic_year).filter(Boolean))]
-              setYears(uniqueYears.sort((a, b) => b.localeCompare(a))) // Sort in descending order
-              yearsFetchedRef.current = true
-
-              // Set current year as default if available
-              const currentYear = new Date().getFullYear().toString()
-              if (uniqueYears.includes(currentYear)) {
-                setYear(currentYear)
-              } else if (uniqueYears.length > 0) {
-                setYear(uniqueYears[0])
-              }
-            }
-          }
+        if (groupsData) {
+          setGroups(groupsData)
         }
       } catch (error) {
         console.error("Error loading data:", error)
-      } finally {
-        setIsDataLoading(false)
       }
     }
 
     loadData()
-  }, [institution, supabase, getCachedData, setCachedData])
+  }, [institution, supabase])
 
   // Filter groups based on selected degree and year
   useEffect(() => {
@@ -215,35 +184,7 @@ export default function StudentSignupPage() {
   }
 
   if (institutionLoading) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="flex flex-col items-center space-y-2 text-center">
-            <Skeleton className="h-10 w-40" />
-          </div>
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-8 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-full" />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Array(5)
-                .fill(0)
-                .map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <Skeleton className="h-4 w-1/4" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ))}
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-4 w-3/4 mx-auto" />
-            </CardFooter>
-          </Card>
-        </div>
-      </div>
-    )
+    return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
   return (
@@ -280,131 +221,103 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
-                {isDataLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="student@university.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                )}
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="student@university.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="name">{t("auth.signup.name")}</Label>
-                {isDataLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder={t("auth.signup.fullNamePlaceholder")}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                )}
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder={t("auth.signup.fullNamePlaceholder")}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
-                {isDataLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Select value={degree} onValueChange={setDegree} required>
-                    <SelectTrigger id="degree" className="w-full">
-                      <SelectValue placeholder={t("auth.signup.selectDegree")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {degrees.map((d) => (
-                        <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Select value={degree} onValueChange={setDegree} required>
+                  <SelectTrigger id="degree" className="w-full">
+                    <SelectValue placeholder={t("auth.signup.selectDegree")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {degrees.map((d) => (
+                      <SelectItem key={d.id} value={d.id?.toString() || ""}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("auth.signup.year")}</Label>
-                  {isDataLoading ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : (
-                    <Select value={year} onValueChange={setYear} required>
-                      <SelectTrigger id="year" className="w-full">
-                        <SelectValue placeholder={t("auth.signup.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((y) => (
-                          <SelectItem key={y} value={y}>
-                            {y}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={year} onValueChange={setYear} required>
+                    <SelectTrigger id="year" className="w-full">
+                      <SelectValue placeholder={t("auth.signup.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y} value={y}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="group">{t("auth.signup.group")}</Label>
-                  {isDataLoading ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : (
-                    <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
-                      <SelectTrigger id="group" className="w-full">
-                        <SelectValue placeholder={t("auth.signup.selectGroup")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredGroups.map((g) => (
-                          <SelectItem key={g.id} value={g.id?.toString() || ""}>
-                            {g.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
+                    <SelectTrigger id="group" className="w-full">
+                      <SelectValue placeholder={t("auth.signup.selectGroup")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id?.toString() || ""}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
-                {isDataLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={togglePasswordVisibility}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                )}
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              {isDataLoading ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? t("auth.signup.loading") : t("auth.signup.button")}
-                </Button>
-              )}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? t("auth.signup.loading") : t("auth.signup.button")}
+              </Button>
               <div className="text-center text-sm">
                 {t("auth.signup.hasAccount")}{" "}
                 <Link href="/student/login" className="text-primary hover:underline">
