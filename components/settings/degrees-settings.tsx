@@ -74,7 +74,7 @@ export function DegreesSettings() {
 
   // Fetch degrees from cache or Supabase
   useEffect(() => {
-    if (!institution?.id || dataFetchedRef.current) return
+    let ignore = false
 
     const fetchDegrees = async () => {
       try {
@@ -142,7 +142,13 @@ export function DegreesSettings() {
       }
     }
 
-    fetchDegrees()
+    if (institution?.id) {
+      fetchDegrees()
+    }
+
+    return () => {
+      ignore = true
+    }
   }, [institution?.id, getCachedData, setCachedData, t, toast])
 
   // Filter degrees based on search term
@@ -330,6 +336,7 @@ export function DegreesSettings() {
       if (isMounted.current) {
         const updatedDegrees = degrees.filter((degree) => degree.id !== degreeToDelete)
         setDegrees(updatedDegrees)
+        setFilteredDegrees(updatedDegrees) // Also update filtered degrees
 
         // Update cache with the new data
         const rawDegrees = await supabase
@@ -359,6 +366,11 @@ export function DegreesSettings() {
     } finally {
       setIsDeleteDialogOpen(false)
       setDegreeToDelete(null)
+
+      // Ensure dialog effects are cleaned up
+      setTimeout(() => {
+        cleanupDialogEffects()
+      }, 300)
     }
   }
 
@@ -616,14 +628,28 @@ export function DegreesSettings() {
           if (!open) {
             setIsDeleteDialogOpen(false)
             setDegreeToDelete(null)
+
+            // Add cleanup timeout to ensure overlay is removed after animation
+            setTimeout(() => {
+              cleanupDialogEffects()
+            }, 300)
           }
         }}
       >
         <DialogContent
           className="sm:max-w-[425px]"
-          onEscapeKeyDown={() => {
+          onEscapeKeyDown={(e) => {
+            e.preventDefault()
             setIsDeleteDialogOpen(false)
             setDegreeToDelete(null)
+
+            // Add cleanup timeout
+            setTimeout(() => {
+              cleanupDialogEffects()
+            }, 300)
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
           }}
         >
           <DialogHeader>
@@ -639,11 +665,27 @@ export function DegreesSettings() {
               onClick={() => {
                 setIsDeleteDialogOpen(false)
                 setDegreeToDelete(null)
+
+                // Add cleanup timeout
+                setTimeout(() => {
+                  cleanupDialogEffects()
+                }, 300)
               }}
             >
               {t("admin.degrees.deleteConfirmCancel")}
             </Button>
-            <Button type="button" variant="destructive" onClick={confirmDelete}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                confirmDelete()
+
+                // Add cleanup timeout
+                setTimeout(() => {
+                  cleanupDialogEffects()
+                }, 300)
+              }}
+            >
               {t("admin.degrees.deleteConfirmDelete")}
             </Button>
           </div>
@@ -652,3 +694,21 @@ export function DegreesSettings() {
     </div>
   )
 }
+
+// Add this useEffect after the other useEffect hooks
+useEffect(() => {
+  return () => {
+    // Force document body to be clickable on unmount
+    document.body.style.pointerEvents = ""
+    document.body.style.overflow = ""
+    document.body.classList.remove("overflow-hidden")
+
+    // Remove any lingering backdrop elements
+    const backdrops = document.querySelectorAll("[data-radix-portal], .fixed.inset-0")
+    backdrops.forEach((el) => {
+      if (el.parentNode) {
+        el.parentNode.removeChild(el)
+      }
+    })
+  }
+}, [])
