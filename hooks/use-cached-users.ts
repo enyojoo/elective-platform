@@ -28,45 +28,74 @@ export function useCachedUsers(institutionId: string | undefined) {
       const cachedUsers = getCachedData<any[]>("users", institutionId)
 
       if (cachedUsers) {
-        console.log("Using cached users data")
         setUsers(cachedUsers)
         setIsLoading(false)
         return
       }
 
       // If not in cache, fetch from API
-      console.log("Fetching users data from API")
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profiles with degree, group, and year information
+        // Fetch profiles
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select(`
-            id, 
-            full_name, 
-            email, 
-            role, 
-            is_active, 
-            degree_id, 
-            group_id, 
-            academic_year,
-            degrees(id, name, name_ru),
-            groups(id, name)
-          `)
+          .select("id, full_name, email, role, is_active, degree_id, group_id, academic_year")
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
+        // Create a map to store degree and group information
+        const degreeMap = new Map()
+        const groupMap = new Map()
+
+        // Fetch degrees if there are any degree_ids
+        const degreeIds = profilesData.filter((profile) => profile.degree_id).map((profile) => profile.degree_id)
+
+        if (degreeIds.length > 0) {
+          const { data: degreesData, error: degreesError } = await supabase
+            .from("degrees")
+            .select("id, name, name_ru")
+            .in("id", degreeIds)
+
+          if (degreesError) throw degreesError
+
+          // Store degrees in the map
+          degreesData.forEach((degree) => {
+            degreeMap.set(degree.id, degree)
+          })
+        }
+
+        // Fetch groups if there are any group_ids
+        const groupIds = profilesData.filter((profile) => profile.group_id).map((profile) => profile.group_id)
+
+        if (groupIds.length > 0) {
+          const { data: groupsData, error: groupsError } = await supabase
+            .from("groups")
+            .select("id, name")
+            .in("id", groupIds)
+
+          if (groupsError) throw groupsError
+
+          // Store groups in the map
+          groupsData.forEach((group) => {
+            groupMap.set(group.id, group)
+          })
+        }
+
         // Transform the data
-        console.log("Current language:", language)
-        console.log("Sample degree data:", profilesData[0]?.degrees)
         const transformedUsers = profilesData.map((profile) => {
-          // Get degree name based on language
+          // Get degree information
           let degreeName = ""
-          if (profile.degrees) {
-            degreeName =
-              language === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name || ""
+          if (profile.degree_id && degreeMap.has(profile.degree_id)) {
+            const degree = degreeMap.get(profile.degree_id)
+            degreeName = language === "ru" && degree.name_ru ? degree.name_ru : degree.name
+          }
+
+          // Get group information
+          let groupName = ""
+          if (profile.group_id && groupMap.has(profile.group_id)) {
+            groupName = groupMap.get(profile.group_id).name
           }
 
           return {
@@ -78,7 +107,7 @@ export function useCachedUsers(institutionId: string | undefined) {
             degreeId: profile.degree_id || "",
             degreeName: degreeName,
             groupId: profile.group_id || "",
-            groupName: profile.groups ? profile.groups.name : "",
+            groupName: groupName,
             year: profile.academic_year || "",
           }
         })
@@ -104,5 +133,12 @@ export function useCachedUsers(institutionId: string | undefined) {
     fetchUsers()
   }, [institutionId, getCachedData, setCachedData, toast, language])
 
-  return { users, isLoading, error }
+  // Function to invalidate cache and refresh data
+  const refreshUsers = () => {
+    if (institutionId) {
+      setCachedData("users", institutionId, null)
+    }
+  }
+
+  return { users, isLoading, error, refreshUsers }
 }
