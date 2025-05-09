@@ -10,16 +10,9 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+  const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
-
-  useEffect(() => {
-    // Invalidate cache when language changes to force a refresh
-    if (institutionId) {
-      invalidateCache("users", institutionId)
-    }
-  }, [language, institutionId, invalidateCache])
 
   useEffect(() => {
     if (!institutionId) {
@@ -58,28 +51,22 @@ export function useCachedUsers(institutionId: string | undefined) {
             degree_id, 
             group_id, 
             academic_year,
-            degrees:degree_id(id, name, name_ru),
-            groups:group_id(id, name)
+            degrees(id, name, name_ru),
+            groups(id, name)
           `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
 
-        console.log("Fetched profiles data:", profilesData)
-
         // Transform the data
+        console.log("Current language:", language)
+        console.log("Sample degree data:", profilesData[0]?.degrees)
         const transformedUsers = profilesData.map((profile) => {
           // Get degree name based on language
           let degreeName = ""
-
           if (profile.degrees) {
-            if (language === "ru" && profile.degrees.name_ru) {
-              degreeName = profile.degrees.name_ru
-              console.log(`Using Russian name for degree: ${degreeName}`)
-            } else {
-              degreeName = profile.degrees.name || ""
-              console.log(`Using English name for degree: ${degreeName}`)
-            }
+            degreeName =
+              language === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name || ""
           }
 
           return {
