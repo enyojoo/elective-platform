@@ -11,16 +11,16 @@ export function useCachedDegrees(institutionId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
-
-  // Use a ref to track if data has been fetched
   const dataFetchedRef = useRef(false)
 
   useEffect(() => {
-    // Return early if we've already fetched data or don't have an institution
-    if (!institutionId || dataFetchedRef.current) {
-      if (isLoading) setIsLoading(false)
+    if (!institutionId) {
+      setIsLoading(false)
       return
     }
+
+    // If data has already been fetched, don't fetch again
+    if (dataFetchedRef.current) return
 
     const fetchDegrees = async () => {
       setIsLoading(true)
@@ -29,7 +29,7 @@ export function useCachedDegrees(institutionId: string | undefined) {
       // Try to get data from cache first
       const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
 
-      if (cachedDegrees) {
+      if (cachedDegrees && cachedDegrees.length > 0) {
         console.log("Using cached degrees data")
         setDegrees(cachedDegrees)
         setIsLoading(false)
@@ -66,7 +66,7 @@ export function useCachedDegrees(institutionId: string | undefined) {
     }
 
     fetchDegrees()
-  }, [institutionId]) // Only depend on institutionId
+  }, [institutionId, getCachedData, setCachedData, toast])
 
   return { degrees, isLoading, error }
 }

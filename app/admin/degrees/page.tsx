@@ -29,8 +29,7 @@ interface DegreeFormData {
   status: string
 }
 
-// Create a separate component for the degrees table content
-function DegreesTableContent() {
+export default function DegreesPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { getCachedData, setCachedData } = useDataCache()
@@ -47,11 +46,9 @@ function DegreesTableContent() {
   })
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Ref to track if component is mounted and if data has been fetched
   const isMounted = useRef(true)
-  const dataFetchedRef = useRef(false)
   const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const dataFetchedRef = useRef(false)
 
   // Component lifecycle management
   useEffect(() => {
@@ -72,7 +69,10 @@ function DegreesTableContent() {
 
   // Fetch degrees from cache or Supabase
   useEffect(() => {
-    if (!institution?.id || dataFetchedRef.current) return
+    if (!institution?.id) return
+
+    // If data has already been fetched, don't fetch again
+    if (dataFetchedRef.current) return
 
     const fetchDegrees = async () => {
       try {
@@ -91,12 +91,10 @@ function DegreesTableContent() {
             status: degree.status,
           }))
 
-          if (isMounted.current) {
-            setDegrees(formattedDegrees)
-            setFilteredDegrees(formattedDegrees)
-            setIsLoading(false)
-            dataFetchedRef.current = true
-          }
+          setDegrees(formattedDegrees)
+          setFilteredDegrees(formattedDegrees)
+          setIsLoading(false)
+          dataFetchedRef.current = true
           return
         }
 
@@ -143,7 +141,7 @@ function DegreesTableContent() {
     }
 
     fetchDegrees()
-  }, [institution?.id]) // Only depend on institution ID
+  }, [institution?.id, getCachedData, setCachedData, t, toast])
 
   // Filter degrees based on search term
   useEffect(() => {
@@ -425,7 +423,7 @@ function DegreesTableContent() {
   }
 
   return (
-    <>
+    <DashboardLayout>
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <div>
@@ -599,15 +597,6 @@ function DegreesTableContent() {
           </DialogContent>
         </Dialog>
       )}
-    </>
-  )
-}
-
-// Main page component
-export default function DegreesPage() {
-  return (
-    <DashboardLayout>
-      <DegreesTableContent />
     </DashboardLayout>
   )
 }
