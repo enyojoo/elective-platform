@@ -38,12 +38,14 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
+import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 
 export default function UsersPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
   const { users, isLoading, error } = useCachedUsers(institution?.id)
+  const { adminProfile } = useCachedAdminProfile(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -133,6 +135,11 @@ export default function UsersPage() {
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  // Helper function to check if user is the current admin
+  const isCurrentAdmin = (userId: string) => {
+    return adminProfile?.id === userId
   }
 
   // Handle user status change
@@ -344,34 +351,31 @@ export default function UsersPage() {
                           <TableCell>{user.year}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                  <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
-                                </DropdownMenuItem>
-                                {user.role === "manager" && (
+                            {/* Hide action dropdown for current admin user */}
+                            {!isCurrentAdmin(user.id) ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
                                   <DropdownMenuItem>
-                                    <Link href={`/admin/users/${user.id}/assign`}>
-                                      {t("admin.users.reassignProgram")}
-                                    </Link>
+                                    <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
                                   </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  className={user.status === "active" ? "text-destructive" : "text-green-600"}
-                                  onClick={() => handleStatusChange(user.id, user.status !== "active")}
-                                >
-                                  {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
-                                </DropdownMenuItem>
-                                {/* Only show delete option for non-admin users or if current admin is viewing other admin users */}
-                                {(user.role !== "admin" ||
-                                  (user.role === "admin" &&
-                                    user.id !==
-                                      users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
+                                  {user.role === "manager" && (
+                                    <DropdownMenuItem>
+                                      <Link href={`/admin/users/${user.id}/assign`}>
+                                        {t("admin.users.reassignProgram")}
+                                      </Link>
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    className={user.status === "active" ? "text-destructive" : "text-green-600"}
+                                    onClick={() => handleStatusChange(user.id, user.status !== "active")}
+                                  >
+                                    {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => handleDeleteUser(user.id)}
@@ -379,9 +383,13 @@ export default function UsersPage() {
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     {t("admin.users.delete") || "Delete"}
                                   </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              <span className="text-muted-foreground text-sm italic">
+                                {t("admin.users.currentUser") || "Current user"}
+                              </span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))
