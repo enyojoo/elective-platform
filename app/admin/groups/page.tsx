@@ -26,7 +26,7 @@ interface GroupFormData {
   id?: string
   name: string
   degreeId: string
-  year: string
+  academicYear: string
   status: string
 }
 
@@ -39,7 +39,7 @@ export default function GroupsPage() {
   const [currentGroup, setCurrentGroup] = useState<GroupFormData>({
     name: "",
     degreeId: "",
-    year: "",
+    academicYear: "",
     status: "active",
   })
   const [isEditing, setIsEditing] = useState(false)
@@ -52,6 +52,7 @@ export default function GroupsPage() {
   // Ref to track if component is mounted
   const isMounted = useRef(true)
   const dataFetchedRef = useRef(false)
+  const yearsFetchedRef = useRef(false)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -162,7 +163,7 @@ export default function GroupsPage() {
           displayName: group.display_name,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
-          year: group.year,
+          academicYear: group.academic_year, // Use academic_year instead of year
           students: studentCountMap.get(group.id) || 0,
           status: group.status,
         }))
@@ -218,26 +219,31 @@ export default function GroupsPage() {
           setIsLoadingDegrees(false)
         }
 
-        // Try to get years from cache
-        const cachedYears = getCachedData<any[]>("years", "global")
-        if (cachedYears && cachedYears.length > 0) {
-          setYears(cachedYears)
-          setIsLoadingYears(false)
-        } else {
-          // Fetch years from the years table
-          const { data: yearsData, error: yearsError } = await supabase
-            .from("years")
-            .select("id, year")
-            .order("year", { ascending: false })
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          // Try to get years from cache
+          const cachedYears = getCachedData<any[]>("years", "global")
+          if (cachedYears && cachedYears.length > 0) {
+            setYears(cachedYears)
+            setIsLoadingYears(false)
+            yearsFetchedRef.current = true
+          } else {
+            // Fetch years from the years table
+            const { data: yearsData, error: yearsError } = await supabase
+              .from("years")
+              .select("id, year")
+              .order("year", { ascending: false })
 
-          if (yearsError) throw yearsError
+            if (yearsError) throw yearsError
 
-          if (yearsData && isMounted.current) {
-            setYears(yearsData)
-            // Cache the years data
-            setCachedData("years", "global", yearsData)
+            if (yearsData && isMounted.current) {
+              setYears(yearsData)
+              // Cache the years data
+              setCachedData("years", "global", yearsData)
+              yearsFetchedRef.current = true
+            }
+            setIsLoadingYears(false)
           }
-          setIsLoadingYears(false)
         }
       } catch (error) {
         console.error("Failed to fetch reference data:", error)
@@ -255,7 +261,7 @@ export default function GroupsPage() {
   }, [t, toast, getCachedData, setCachedData])
 
   // Get unique values for filters
-  const groupYears = [...new Set(groups.map((group) => group.year))].sort((a, b) => b.localeCompare(a)) // Sort descending
+  const groupYears = [...new Set(groups.map((group) => group.academicYear))].sort((a, b) => b.localeCompare(a)) // Sort descending
   const degreesList = [...new Set(groups.map((group) => group.degree))]
 
   // Apply filters and search
@@ -264,7 +270,7 @@ export default function GroupsPage() {
 
     // Apply year filter
     if (yearFilter && yearFilter !== "all") {
-      result = result.filter((group) => group.year === yearFilter)
+      result = result.filter((group) => group.academicYear === yearFilter)
     }
 
     // Apply degree filter
@@ -305,7 +311,7 @@ export default function GroupsPage() {
         id: group.id,
         name: group.name,
         degreeId: group.degreeId?.toString() || "",
-        year: group.year,
+        academicYear: group.academicYear,
         status: group.status,
       })
       setIsEditing(true)
@@ -313,7 +319,7 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         degreeId: degrees.length > 0 ? degrees[0].id.toString() : "",
-        year: getCurrentYearOption(), // Use the current year if available
+        academicYear: getCurrentYearOption(), // Use the current year if available
         status: "active",
       })
       setIsEditing(false)
@@ -373,7 +379,7 @@ export default function GroupsPage() {
           .update({
             name: currentGroup.name,
             degree_id: currentGroup.degreeId,
-            year: currentGroup.year,
+            academic_year: currentGroup.academicYear, // Use academic_year instead of year
             status: currentGroup.status,
           })
           .eq("id", currentGroup.id)
@@ -395,7 +401,7 @@ export default function GroupsPage() {
             name: data.name,
             degree: degree?.name || "Unknown",
             degreeId: data.degree_id,
-            year: data.year,
+            academicYear: data.academic_year, // Use academic_year instead of year
             status: data.status,
           }
 
@@ -417,7 +423,7 @@ export default function GroupsPage() {
           .insert({
             name: currentGroup.name,
             degree_id: currentGroup.degreeId,
-            year: currentGroup.year,
+            academic_year: currentGroup.academicYear, // Use academic_year instead of year
             status: currentGroup.status,
           })
           .select()
@@ -433,7 +439,7 @@ export default function GroupsPage() {
             name: data[0].name,
             degree: degree?.name || "Unknown",
             degreeId: data[0].degree_id,
-            year: data[0].year,
+            academicYear: data[0].academic_year, // Use academic_year instead of year
             students: 0,
             status: data[0].status,
           }
@@ -689,7 +695,7 @@ export default function GroupsPage() {
                         <TableRow key={group.id}>
                           <TableCell className="font-medium">{group.name}</TableCell>
                           <TableCell>{getDegreeBadge(group.degree)}</TableCell>
-                          <TableCell>{group.year}</TableCell>
+                          <TableCell>{group.academicYear}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Users className="h-4 w-4 text-muted-foreground" />
@@ -828,15 +834,15 @@ export default function GroupsPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="year">{t("admin.groups.year")}</Label>
+                  <Label htmlFor="academicYear">{t("admin.groups.year")}</Label>
                   {isLoadingYears ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
                     <select
-                      id="year"
-                      name="year"
+                      id="academicYear"
+                      name="academicYear"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      value={currentGroup.year}
+                      value={currentGroup.academicYear}
                       onChange={handleInputChange}
                       required
                     >
