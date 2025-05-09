@@ -204,6 +204,27 @@ export function DegreesSettings() {
     }
   }
 
+  // Update the handleCloseDeleteDialog function to be more robust
+
+  // Add this new function after the handleCloseDialog function (around line 200)
+  const handleCloseDeleteDialog = () => {
+    if (isMounted.current) {
+      setIsDeleteDialogOpen(false)
+      setDegreeToDelete(null)
+
+      // Schedule cleanup after animation completes
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+      }
+
+      cleanupTimeoutRef.current = setTimeout(() => {
+        if (isMounted.current) {
+          cleanupDialogEffects()
+        }
+      }, 300) // 300ms should be enough for most animations
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setCurrentDegree({
@@ -319,6 +340,7 @@ export function DegreesSettings() {
     setIsDeleteDialogOpen(true)
   }
 
+  // Update the confirmDelete function to use the new handleCloseDeleteDialog function
   const confirmDelete = async () => {
     if (!degreeToDelete) return
 
@@ -358,13 +380,8 @@ export function DegreesSettings() {
         })
       }
     } finally {
-      setIsDeleteDialogOpen(false)
-      setDegreeToDelete(null)
-
-      // Force cleanup after state updates
-      setTimeout(() => {
-        cleanupDialogEffects()
-      }, 100)
+      // Use the new function to safely close the dialog
+      handleCloseDeleteDialog()
     }
   }
 
@@ -615,22 +632,15 @@ export function DegreesSettings() {
       )}
       {/* Add the delete confirmation dialog at the end of the component, just before the final closing tag (around line 500) */}
 
+      {/* Update the Delete Confirmation Dialog to use the new handleCloseDeleteDialog function
+      // Replace the entire Dialog component at the end of the file with this: */}
+
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={isDeleteDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setIsDeleteDialogOpen(false)
-            setDegreeToDelete(null)
-
-            // Schedule cleanup after animation completes
-            if (cleanupTimeoutRef.current) {
-              clearTimeout(cleanupTimeoutRef.current)
-            }
-
-            cleanupTimeoutRef.current = setTimeout(() => {
-              cleanupDialogEffects()
-            }, 300)
+            handleCloseDeleteDialog()
           }
         }}
       >
@@ -638,17 +648,7 @@ export function DegreesSettings() {
           className="sm:max-w-[425px]"
           onEscapeKeyDown={(e) => {
             e.preventDefault()
-            setIsDeleteDialogOpen(false)
-            setDegreeToDelete(null)
-
-            // Schedule cleanup
-            if (cleanupTimeoutRef.current) {
-              clearTimeout(cleanupTimeoutRef.current)
-            }
-
-            cleanupTimeoutRef.current = setTimeout(() => {
-              cleanupDialogEffects()
-            }, 300)
+            handleCloseDeleteDialog()
           }}
           onPointerDownOutside={(e) => {
             e.preventDefault()
@@ -668,17 +668,7 @@ export function DegreesSettings() {
               type="button"
               variant="outline"
               onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setDegreeToDelete(null)
-
-                // Schedule cleanup
-                if (cleanupTimeoutRef.current) {
-                  clearTimeout(cleanupTimeoutRef.current)
-                }
-
-                cleanupTimeoutRef.current = setTimeout(() => {
-                  cleanupDialogEffects()
-                }, 300)
+                handleCloseDeleteDialog()
               }}
             >
               {t("admin.degrees.deleteConfirmCancel")}
@@ -688,15 +678,6 @@ export function DegreesSettings() {
               variant="destructive"
               onClick={() => {
                 confirmDelete()
-
-                // Schedule cleanup
-                if (cleanupTimeoutRef.current) {
-                  clearTimeout(cleanupTimeoutRef.current)
-                }
-
-                cleanupTimeoutRef.current = setTimeout(() => {
-                  cleanupDialogEffects()
-                }, 300)
               }}
             >
               {t("admin.degrees.deleteConfirmDelete")}

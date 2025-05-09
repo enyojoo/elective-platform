@@ -24,11 +24,15 @@ export function cleanupDialogEffects() {
     bodyStyle.removeProperty("bottom")
     bodyStyle.removeProperty("pointer-events")
 
-    // Remove any lingering backdrop/overlay elements
+    // Remove any lingering backdrop/overlay elements - SAFELY
     const overlays = document.querySelectorAll("[data-radix-portal], [role='dialog'], .fixed.inset-0")
     overlays.forEach((overlay) => {
-      if (overlay.parentNode) {
-        overlay.parentNode.removeChild(overlay)
+      try {
+        if (overlay.parentNode && overlay.parentElement) {
+          overlay.parentNode.removeChild(overlay)
+        }
+      } catch (err) {
+        console.log("Skipping overlay removal - already removed")
       }
     })
 
