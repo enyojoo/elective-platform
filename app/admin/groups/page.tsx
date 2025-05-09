@@ -291,6 +291,13 @@ export default function GroupsPage() {
   const currentItems = filteredGroups.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(filteredGroups.length / itemsPerPage)
 
+  // Find the current year in the years array
+  const getCurrentYearOption = () => {
+    const currentYear = new Date().getFullYear().toString()
+    const yearOption = years.find((y) => y.year === currentYear)
+    return yearOption ? yearOption.year : years.length > 0 ? years[0].year : ""
+  }
+
   // Safe dialog open handler
   const handleOpenDialog = (group?: (typeof groups)[0]) => {
     if (group) {
@@ -306,7 +313,7 @@ export default function GroupsPage() {
       setCurrentGroup({
         name: "",
         degreeId: degrees.length > 0 ? degrees[0].id.toString() : "",
-        year: years.length > 0 ? years[0].year : new Date().getFullYear().toString(),
+        year: getCurrentYearOption(), // Use the current year if available
         status: "active",
       })
       setIsEditing(false)
