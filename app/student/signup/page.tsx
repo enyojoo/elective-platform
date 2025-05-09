@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
@@ -16,11 +16,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
 import { DynamicBranding } from "@/components/dynamic-branding"
+import { useSupabase } from "@/lib/supabase-provider"
+import { useInstitution } from "@/lib/institution-context"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
+  const { supabase } = useSupabase()
+  const { institution } = useInstitution()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [groups, setGroups] = useState<any[]>([])
@@ -37,6 +41,13 @@ export default function StudentSignupPage() {
     message: "",
     color: "bg-gray-200",
   })
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [degree, setDegree] = useState<string | null>(null)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
+  const [years, setYears] = useState<string[]>([])
+  const [year, setYear] = useState<string | null>(null)
+  const [isLoadingYears, setIsLoadingYears] = useState(false)
+  const yearsFetchedRef = useRef(false)
 
   // Initialize with placeholder data to prevent layout shifts
   useEffect(() => {
@@ -52,63 +63,74 @@ export default function StudentSignupPage() {
   }, [])
 
   useEffect(() => {
-    const fetchGroups = async () => {
+    async function loadData() {
+      if (!institution) return
+
       try {
-        setIsLoadingGroups(true)
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-        const { data, error } = await supabase
-          .from("groups")
-          .select("id, name, degree_id, academic_year")
+        // Load degrees
+        setIsLoadingDegrees(true)
+        const { data: degreesData } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", institution.id)
           .eq("status", "active")
-          .order("name")
 
-        if (error) throw error
-
-        // Also fetch degrees to get their names
-        const degreeIds = [...new Set(data?.map((g) => g.degree_id).filter(Boolean) || [])]
-
-        const degreeMap = new Map()
-        if (degreeIds.length > 0) {
-          const { data: degreesData, error: degreesError } = await supabase
-            .from("degrees")
-            .select("id, name")
-            .in("id", degreeIds)
-
-          if (degreesError) throw degreesError
-
-          if (degreesData) {
-            degreesData.forEach((degree) => {
-              degreeMap.set(degree.id, degree.name)
-            })
+        if (degreesData) {
+          setDegrees(degreesData)
+          if (degreesData.length > 0 && !degree) {
+            setDegree(degreesData[0].id.toString())
           }
         }
+        setIsLoadingDegrees(false)
 
-        // Format the groups with degree names
-        const formattedGroups =
-          data?.map((group) => ({
-            id: group.id,
-            name: group.name,
-            degreeName: degreeMap.get(group.degree_id) || "",
-            year: group.academic_year,
-            displayName: `${group.name} (${degreeMap.get(group.degree_id) || ""} - ${group.academic_year})`,
-          })) || []
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          setIsLoadingYears(true)
+          // Load academic years directly from groups table
+          const { data: groupsYearsData } = await supabase
+            .from("groups")
+            .select("academic_year")
+            .eq("institution_id", institution.id)
+            .eq("status", "active")
 
-        setGroups(formattedGroups)
+          if (groupsYearsData && groupsYearsData.length > 0) {
+            const uniqueYears = [...new Set(groupsYearsData.map((g) => g.academic_year).filter(Boolean))]
+            setYears(uniqueYears.sort((a, b) => b.localeCompare(a))) // Sort years in descending order
+            yearsFetchedRef.current = true
+
+            // Set current year as default if available
+            const currentYear = new Date().getFullYear().toString()
+            if (uniqueYears.includes(currentYear)) {
+              setYear(currentYear)
+            } else if (uniqueYears.length > 0) {
+              setYear(uniqueYears[0])
+            }
+          }
+          setIsLoadingYears(false)
+        }
+
+        // Load groups
+        setIsLoadingGroups(true)
+        const { data: groupsData } = await supabase
+          .from("groups")
+          .select("id, name, degree_id, academic_year, display_name")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (groupsData) {
+          setGroups(groupsData)
+        }
+        setIsLoadingGroups(false)
       } catch (error) {
-        console.error("Error fetching groups:", error)
-        toast({
-          title: t("error"),
-          description: t("errorFetchingGroups"),
-          variant: "destructive",
-        })
-      } finally {
+        console.error("Error loading data:", error)
+        setIsLoadingDegrees(false)
+        setIsLoadingYears(false)
         setIsLoadingGroups(false)
       }
     }
 
-    fetchGroups()
-  }, [t, toast])
+    loadData()
+  }, [institution, supabase, degree])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target

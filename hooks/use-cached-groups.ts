@@ -16,6 +16,8 @@ export function useCachedGroups() {
   const institutionId = institution?.id
 
   useEffect(() => {
+    console.log("useCachedGroups hook running with institutionId:", institutionId)
+
     if (!institutionId) {
       setIsLoading(false)
       return
