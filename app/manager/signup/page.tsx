@@ -147,10 +147,10 @@ export default function ManagerSignupPage() {
         id: authData.user!.id,
         institution_id: institution!.id,
         full_name: formData.name,
-        role: "manager",
+        role: "program_manager", // Fixed role name to match expected value
         email: formData.email,
-        degree: formData.degreeId, // Changed from degree_id to degree
-        year: formData.academicYear,
+        degree_id: formData.degreeId,
+        academic_year: formData.academicYear,
       })
 
       if (profileError) throw new Error(profileError.message)

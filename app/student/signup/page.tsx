@@ -155,8 +155,8 @@ export default function StudentSignupPage() {
         full_name: name,
         role: "student",
         email: email,
-        degree: degree, // Changed from degree_id to degree
-        year: year,
+        degree_id: degree,
+        academic_year: year,
         group_id: group,
       })
 
