@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,40 +33,21 @@ export default function InstitutionSignupPage() {
   const [checkingSubdomain, setCheckingSubdomain] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const lastCheckedSubdomain = useRef<string>("")
 
-  // Create Supabase client once
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Check subdomain availability
   useEffect(() => {
-    // Clear any existing timer
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-    }
+    const checkSubdomain = async () => {
+      // Reset status if subdomain is empty or too short
+      if (!subdomain || subdomain.length < 3) {
+        setSubdomainStatus(null)
+        return
+      }
 
-    // Reset status if subdomain is empty or too short
-    if (!subdomain || subdomain.length < 3) {
-      setSubdomainStatus(null)
-      return
-    }
-
-    // Validate subdomain format
-    if (!/^[a-z0-9]+$/.test(subdomain)) {
-      setSubdomainStatus("invalid")
-      return
-    }
-
-    // Skip check if we've already checked this subdomain
-    if (subdomain === lastCheckedSubdomain.current && subdomainStatus !== null && subdomainStatus !== "checking") {
-      return
-    }
-
-    // Set up the check with a delay
-    timerRef.current = setTimeout(async () => {
-      // Skip if subdomain hasn't changed
-      if (subdomain === lastCheckedSubdomain.current && subdomainStatus !== null && subdomainStatus !== "checking") {
+      // Validate subdomain format
+      if (!/^[a-z0-9]+$/.test(subdomain)) {
+        setSubdomainStatus("invalid")
         return
       }
 
@@ -75,32 +56,31 @@ export default function InstitutionSignupPage() {
 
       try {
         // Check if subdomain exists
-        const { data, error } = await supabase.from("institutions").select("id").eq("subdomain", subdomain).single()
+        const response = await fetch(`/api/subdomain/${subdomain}`)
 
-        if (error && error.code === "PGRST116") {
-          // No results found, subdomain is available
+        if (response.status === 404) {
+          // Subdomain is available
           setSubdomainStatus("available")
-        } else {
+        } else if (response.ok) {
           // Subdomain exists
           setSubdomainStatus("unavailable")
+        } else {
+          // Error checking subdomain
+          console.error("Error checking subdomain:", await response.text())
+          setSubdomainStatus(null)
         }
-
-        // Remember this subdomain to avoid rechecking
-        lastCheckedSubdomain.current = subdomain
       } catch (err) {
         console.error("Error checking subdomain:", err)
         setSubdomainStatus(null)
       } finally {
         setCheckingSubdomain(false)
       }
-    }, 500)
-
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-      }
     }
-  }, [subdomain, supabase])
+
+    // Only run the check if the subdomain has changed and is valid
+    const timer = setTimeout(checkSubdomain, 500)
+    return () => clearTimeout(timer)
+  }, [subdomain])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
