@@ -38,14 +38,12 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 
 export default function UsersPage() {
   const { t } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
   const { users, isLoading, error } = useCachedUsers(institution?.id)
-  const { adminProfile } = useCachedAdminProfile(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -211,11 +209,6 @@ export default function UsersPage() {
     }
   }
 
-  // Check if a user is the current admin
-  const isCurrentAdmin = (userId: string) => {
-    return adminProfile?.id === userId
-  }
-
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="flex flex-col gap-6">
@@ -351,31 +344,34 @@ export default function UsersPage() {
                           <TableCell>{user.year}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
-                            {/* Don't show action dropdown for current admin */}
-                            {!isCurrentAdmin(user.id) ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
+                                </DropdownMenuItem>
+                                {user.role === "manager" && (
                                   <DropdownMenuItem>
-                                    <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
+                                    <Link href={`/admin/users/${user.id}/assign`}>
+                                      {t("admin.users.reassignProgram")}
+                                    </Link>
                                   </DropdownMenuItem>
-                                  {user.role === "manager" && (
-                                    <DropdownMenuItem>
-                                      <Link href={`/admin/users/${user.id}/assign`}>
-                                        {t("admin.users.reassignProgram")}
-                                      </Link>
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem
-                                    className={user.status === "active" ? "text-destructive" : "text-green-600"}
-                                    onClick={() => handleStatusChange(user.id, user.status !== "active")}
-                                  >
-                                    {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
-                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  className={user.status === "active" ? "text-destructive" : "text-green-600"}
+                                  onClick={() => handleStatusChange(user.id, user.status !== "active")}
+                                >
+                                  {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
+                                </DropdownMenuItem>
+                                {/* Only show delete option for non-admin users or if current admin is viewing other admin users */}
+                                {(user.role !== "admin" ||
+                                  (user.role === "admin" &&
+                                    user.id !==
+                                      users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => handleDeleteUser(user.id)}
@@ -383,13 +379,9 @@ export default function UsersPage() {
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     {t("admin.users.delete")}
                                   </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            ) : (
-                              <span className="text-muted-foreground text-sm italic">
-                                {t("admin.users.currentUser")}
-                              </span>
-                            )}
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))
@@ -457,23 +449,20 @@ export default function UsersPage() {
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>{t("admin.users.deleteConfirmTitle") || "Confirm Deletion"}</DialogTitle>
-            <DialogDescription>
-              {t("admin.users.deleteConfirmMessage") ||
-                "Are you sure you want to delete this user? This action cannot be undone."}
-            </DialogDescription>
+            <DialogTitle>{t("admin.users.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("admin.users.deleteConfirmMessage")}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">
             <Button type="button" variant="outline" onClick={handleCloseDeleteDialog} disabled={isDeleting}>
-              {t("admin.users.cancel") || "Cancel"}
+              {t("admin.users.cancel")}
             </Button>
             <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
               {isDeleting ? (
                 <>
-                  <span className="mr-2">{t("admin.users.deleting") || "Deleting..."}</span>
+                  <span className="mr-2">{t("admin.users.deleting")}</span>
                 </>
               ) : (
-                t("admin.users.confirmDelete") || "Delete"
+                t("admin.users.confirmDelete")
               )}
             </Button>
           </DialogFooter>
