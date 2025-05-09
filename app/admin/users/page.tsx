@@ -17,7 +17,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, UserPlus, AlertCircle } from "lucide-react"
+import { Search, MoreHorizontal, Filter, UserPlus, AlertCircle, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
@@ -28,6 +28,16 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useCachedUsers } from "@/hooks/use-cached-users"
 import { useDataCache } from "@/lib/data-cache-context"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useDialogState } from "@/hooks/use-dialog-state"
 
 export default function UsersPage() {
   const { t } = useLanguage()
@@ -42,6 +52,10 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
+
+  const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -144,6 +158,54 @@ export default function UsersPage() {
         description: `Failed to update user status: ${error.message}`,
         variant: "destructive",
       })
+    }
+  }
+
+  const handleDeleteUser = (userId: string) => {
+    setUserToDelete(userId)
+    openDeleteDialog()
+  }
+
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+    setTimeout(() => {
+      setUserToDelete(null)
+      cleanupDialogEffects()
+    }, 300)
+  }
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
+
+      if (error) throw error
+
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
+      }
+
+      toast({
+        title: "Success",
+        description: "User has been deleted successfully",
+      })
+
+      // Update the filtered users list
+      setFilteredUsers(filteredUsers.filter((user) => user.id !== userToDelete))
+
+      handleCloseDeleteDialog()
+    } catch (error: any) {
+      console.error("Error deleting user:", error)
+      toast({
+        title: "Error",
+        description: `Failed to delete user: ${error.message}`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -305,6 +367,19 @@ export default function UsersPage() {
                                 >
                                   {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
                                 </DropdownMenuItem>
+                                {/* Only show delete option for non-admin users or if current admin is viewing other admin users */}
+                                {(user.role !== "admin" ||
+                                  (user.role === "admin" &&
+                                    user.id !==
+                                      users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    {t("admin.users.delete") || "Delete"}
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -361,6 +436,41 @@ export default function UsersPage() {
           </CardContent>
         </Card>
       </div>
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("admin.users.deleteConfirmTitle") || "Confirm Deletion"}</DialogTitle>
+            <DialogDescription>
+              {t("admin.users.deleteConfirmMessage") ||
+                "Are you sure you want to delete this user? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={handleCloseDeleteDialog} disabled={isDeleting}>
+              {t("admin.users.cancel") || "Cancel"}
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <span className="mr-2">{t("admin.users.deleting") || "Deleting..."}</span>
+                </>
+              ) : (
+                t("admin.users.confirmDelete") || "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

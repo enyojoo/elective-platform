@@ -8,11 +8,29 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, Users, Filter, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Users,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
 import { supabase } from "@/lib/supabase"
@@ -20,6 +38,8 @@ import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
 import { useInstitution } from "@/lib/institution-context"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 // Create a separate component for the groups table content
 function GroupsTableContent() {
@@ -41,6 +61,14 @@ function GroupsTableContent() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingYears, setIsLoadingYears] = useState(true)
   const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
+
+  // Delete confirmation dialog state
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null)
+  const {
+    isOpen: isDeleteDialogOpen,
+    openDialog: openDeleteDialog,
+    closeDialog: closeDeleteDialog,
+  } = useDialogState(false)
 
   // Ref to track if component is mounted
   const isMounted = useRef(true)
@@ -479,31 +507,56 @@ function GroupsTableContent() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm(t("admin.groups.deleteConfirm"))) {
-      try {
-        const { error } = await supabase.from("groups").delete().eq("id", id)
+  // Handle opening delete confirmation dialog
+  const handleDelete = (id: string) => {
+    setGroupToDelete(id)
+    openDeleteDialog()
+  }
 
-        if (error) throw error
+  // Handle closing delete confirmation dialog
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
 
-        const updatedGroups = groups.filter((group) => group.id !== id)
-        setGroups(updatedGroups)
-
-        // Update cache
-        setCachedData("groups", "all", updatedGroups)
-
-        toast({
-          title: t("admin.groups.success"),
-          description: t("admin.groups.groupDeleted"),
-        })
-      } catch (error: any) {
-        console.error("Error deleting group:", error)
-        toast({
-          title: t("admin.groups.error"),
-          description: error.message || t("admin.groups.errorDeleting"),
-          variant: "destructive",
-        })
+    // Ensure cleanup after dialog closes
+    setTimeout(() => {
+      if (isMounted.current) {
+        setGroupToDelete(null)
+        cleanupDialogEffects()
       }
+    }, 300) // Wait for animation to complete
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!groupToDelete) return
+
+    try {
+      const { error } = await supabase.from("groups").delete().eq("id", groupToDelete)
+
+      if (error) throw error
+
+      const updatedGroups = groups.filter((group) => group.id !== groupToDelete)
+      setGroups(updatedGroups)
+      setFilteredGroups(filteredGroups.filter((group) => group.id !== groupToDelete))
+
+      // Update cache
+      setCachedData("groups", "all", updatedGroups)
+
+      toast({
+        title: t("admin.groups.success"),
+        description: t("admin.groups.groupDeleted"),
+      })
+
+      // Close dialog and clean up
+      handleCloseDeleteDialog()
+    } catch (error: any) {
+      console.error("Error deleting group:", error)
+      toast({
+        title: t("admin.groups.error"),
+        description: error.message || t("admin.groups.errorDeleting"),
+        variant: "destructive",
+      })
+      handleCloseDeleteDialog()
     }
   }
 
@@ -587,6 +640,20 @@ function GroupsTableContent() {
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  // Get the group name for the delete confirmation dialog
+  const getGroupToDeleteName = () => {
+    if (!groupToDelete) return ""
+    const group = groups.find((g) => g.id === groupToDelete)
+    return group ? group.name : ""
+  }
+
+  // Get the student count for the delete confirmation dialog
+  const getGroupToDeleteStudentCount = () => {
+    if (!groupToDelete) return 0
+    const group = groups.find((g) => g.id === groupToDelete)
+    return group ? group.students : 0
   }
 
   return (
@@ -886,6 +953,52 @@ function GroupsTableContent() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation()
+            handleCloseDeleteDialog()
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+            handleCloseDeleteDialog()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t("admin.groups.deleteConfirmTitle")}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {t("admin.groups.deleteConfirmDescription", { group: getGroupToDeleteName() })}
+              {getGroupToDeleteStudentCount() > 0 && (
+                <div className="mt-2 text-destructive font-medium">
+                  {t("admin.groups.deleteConfirmStudents", { count: getGroupToDeleteStudentCount() })}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
+              {t("admin.groups.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {t("admin.groups.confirmDelete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
