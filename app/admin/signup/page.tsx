@@ -39,7 +39,6 @@ export default function InstitutionSignupPage() {
   // Check subdomain availability
   useEffect(() => {
     const checkSubdomain = async () => {
-      // Reset status if subdomain is empty or too short
       if (!subdomain || subdomain.length < 3) {
         setSubdomainStatus(null)
         return
@@ -56,18 +55,14 @@ export default function InstitutionSignupPage() {
 
       try {
         // Check if subdomain exists
-        const response = await fetch(`/api/subdomain/${subdomain}`)
+        const { data, error } = await supabase.from("institutions").select("id").eq("subdomain", subdomain).single()
 
-        if (response.status === 404) {
-          // Subdomain is available
+        if (error && error.code === "PGRST116") {
+          // No results found, subdomain is available
           setSubdomainStatus("available")
-        } else if (response.ok) {
+        } else {
           // Subdomain exists
           setSubdomainStatus("unavailable")
-        } else {
-          // Error checking subdomain
-          console.error("Error checking subdomain:", await response.text())
-          setSubdomainStatus(null)
         }
       } catch (err) {
         console.error("Error checking subdomain:", err)
@@ -77,10 +72,9 @@ export default function InstitutionSignupPage() {
       }
     }
 
-    // Only run the check if the subdomain has changed and is valid
     const timer = setTimeout(checkSubdomain, 500)
     return () => clearTimeout(timer)
-  }, [subdomain])
+  }, [subdomain, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -267,11 +261,6 @@ export default function InstitutionSignupPage() {
                 className="w-full"
                 disabled={
                   isLoading ||
-                  !institutionName ||
-                  !subdomain ||
-                  !adminEmail ||
-                  !adminPassword ||
-                  !fullName ||
                   subdomainStatus === "checking" ||
                   subdomainStatus === "unavailable" ||
                   subdomainStatus === "invalid"

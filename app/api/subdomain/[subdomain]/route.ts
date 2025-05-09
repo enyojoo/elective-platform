@@ -10,20 +10,31 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
 
   try {
     // Query the database for the institution with this subdomain
-    const { data, error } = await supabase.from("institutions").select("id").eq("subdomain", subdomain).single()
+    const { data, error } = await supabase
+      .from("institutions")
+      .select("id, name, subdomain, is_active, logo_url, favicon_url, primary_color")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .single()
 
-    if (error && error.code === "PGRST116") {
-      // No results found, subdomain is available
-      return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
-    } else if (data) {
-      // Subdomain exists
-      return NextResponse.json({ exists: true, message: "Subdomain already in use" })
-    } else {
+    if (error || !data) {
       console.error("API: Error fetching institution by subdomain:", error)
-      return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
+      return NextResponse.json({ exists: false, message: "Institution not found" }, { status: 404 })
     }
+
+    return NextResponse.json({
+      exists: true,
+      institution: {
+        id: data.id,
+        name: data.name,
+        subdomain: data.subdomain,
+        logo_url: data.logo_url,
+        favicon_url: data.favicon_url,
+        primary_color: data.primary_color,
+      },
+    })
   } catch (error) {
     console.error("API: Unexpected error in subdomain check:", error)
-    return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
+    return NextResponse.json({ exists: false, message: "Error checking subdomain" }, { status: 500 })
   }
 }
