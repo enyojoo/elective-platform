@@ -147,7 +147,7 @@ export default function ManagerSignupPage() {
         id: authData.user!.id,
         institution_id: institution!.id,
         full_name: formData.name,
-        role: "program_manager", // Fixed role name to match expected value
+        role: "manager", // Changed from program_manager to manager
         email: formData.email,
         degree_id: formData.degreeId,
         academic_year: formData.academicYear,

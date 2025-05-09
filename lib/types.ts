@@ -1,6 +1,6 @@
 export enum UserRole {
   STUDENT = "student",
-  PROGRAM_MANAGER = "program_manager",
+  PROGRAM_MANAGER = "manager", // Updated to match the database value
   ADMIN = "admin",
   SUPER_ADMIN = "super_admin",
 }
