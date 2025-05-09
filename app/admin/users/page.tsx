@@ -217,6 +217,7 @@ export default function UsersPage() {
             <h1 className="text-3xl font-bold tracking-tight">{t("admin.users.title")}</h1>
             <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
           </div>
+          <div></div>
         </div>
 
         {error && (
