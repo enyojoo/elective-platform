@@ -14,13 +14,18 @@ type SuperAdminAuthContextType = {
 
 const SuperAdminAuthContext = createContext<SuperAdminAuthContextType | undefined>(undefined)
 
+// Create a singleton for the auth client
+let supabaseAuthClient: ReturnType<typeof createClientComponentClient> | null = null
+
 export function SuperAdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [session, setSession] = useState<Session | null>(null)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClientComponentClient()
+
+  // Use singleton pattern for the auth client
+  const supabase = supabaseAuthClient || (supabaseAuthClient = createClientComponentClient())
 
   // Check if user is already logged in on mount
   useEffect(() => {

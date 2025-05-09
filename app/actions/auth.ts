@@ -14,6 +14,8 @@ export async function signIn(formData: FormData) {
     return { error: "Email and password are required" }
   }
 
+  // For server actions, we need to create a new client each time
+  // This is fine because it's server-side and won't cause the GoTrueClient warning
   const supabase = createServerActionClient({ cookies })
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -78,6 +80,7 @@ export async function signUp(formData: FormData) {
     return { error: "All fields are required" }
   }
 
+  // For server actions, we need to create a new client each time
   const supabase = createServerActionClient({ cookies })
 
   try {
