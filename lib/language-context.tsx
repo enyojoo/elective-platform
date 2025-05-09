@@ -658,6 +658,8 @@ const translations: Translations = {
     "admin.users.edit": "Edit",
     "admin.users.reassignProgram": "Reassign Program",
     "admin.users.deactivate": "Deactivate",
+    "admin.users.activate": "Activate User",
+    "admin.users.delete": "Delete User",
     "admin.users.inviteManagerTitle": "Invite Program Manager",
     "admin.users.fullName": "Full Name",
     "admin.users.emailAddress": "Email Address",
@@ -901,6 +903,11 @@ const translations: Translations = {
     "admin.degrees.errorUpdatingStatus": "Failed to update degree status",
     "admin.degrees.errorSaving": "Failed to save degree",
     "admin.degrees.errorDeleting": "Failed to delete degree",
+    "admin.degrees.deleteConfirmTitle": "Удалить степень",
+    "admin.degrees.deleteConfirmMessage": "Вы уверены, что хотите удалить эту степень? Это действие нельзя отменить.",
+    "admin.degrees.deleteConfirmCancel": "Отмена",
+    "admin.degrees.deleteConfirmDelete": "Удалить",
+    "admin.degrees.deleteSuccess": "Степень успешно удалена",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -1534,6 +1541,8 @@ const translations: Translations = {
     "admin.users.edit": "Редактировать",
     "admin.users.reassignProgram": "Переназначить программу",
     "admin.users.deactivate": "Деактивировать",
+    "admin.users.activate": "Активировать пользователя",
+    "admin.users.delete": "Удалить пользователя",
     "admin.users.inviteManagerTitle": "Пригласить менеджера программы",
     "admin.users.fullName": "Полное имя",
     "admin.users.emailAddress": "Адрес электронной почты",
@@ -1827,6 +1836,8 @@ const translations: Translations = {
     "admin.degrees.deleteConfirmCancel": "Отмена",
     "admin.degrees.deleteConfirmDelete": "Удалить",
     "admin.degrees.deleteSuccess": "Степень успешно удалена",
+    "admin.users.activate": "Активировать пользователя",
+    "admin.users.delete": "Удалить пользователя",
   },
 }
 

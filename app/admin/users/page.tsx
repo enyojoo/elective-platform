@@ -137,11 +137,6 @@ export default function UsersPage() {
     }
   }
 
-  // Helper function to check if user is the current admin
-  const isCurrentAdmin = (userId: string) => {
-    return adminProfile?.id === userId
-  }
-
   // Handle user status change
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
@@ -214,6 +209,11 @@ export default function UsersPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  // Check if a user is the current admin
+  const isCurrentAdmin = (userId: string) => {
+    return adminProfile?.id === userId
   }
 
   return (
@@ -351,7 +351,7 @@ export default function UsersPage() {
                           <TableCell>{user.year}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
-                            {/* Hide action dropdown for current admin user */}
+                            {/* Don't show action dropdown for current admin */}
                             {!isCurrentAdmin(user.id) ? (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -381,13 +381,13 @@ export default function UsersPage() {
                                     onClick={() => handleDeleteUser(user.id)}
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />
-                                    {t("admin.users.delete") || "Delete"}
+                                    {t("admin.users.delete")}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             ) : (
                               <span className="text-muted-foreground text-sm italic">
-                                {t("admin.users.currentUser") || "Current user"}
+                                {t("admin.users.currentUser")}
                               </span>
                             )}
                           </TableCell>
