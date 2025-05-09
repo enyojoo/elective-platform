@@ -246,7 +246,7 @@ export function DegreesSettings() {
 
           toast({
             title: t("admin.degrees.success"),
-            description: t("admin.degrees.degreeUpdated"),
+            description: t("admin.settings.degrees.updateSuccess"),
           })
         }
       } else {
@@ -289,7 +289,7 @@ export function DegreesSettings() {
 
           toast({
             title: t("admin.degrees.success"),
-            description: t("admin.degrees.degreeCreated"),
+            description: t("admin.settings.degrees.addSuccess"),
           })
         }
       }
@@ -331,7 +331,7 @@ export function DegreesSettings() {
 
           toast({
             title: t("admin.degrees.success"),
-            description: t("admin.degrees.degreeDeleted"),
+            description: t("admin.settings.degrees.deleteSuccess"),
           })
         }
       } catch (error: any) {

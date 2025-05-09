@@ -885,6 +885,10 @@ const translations: Translations = {
     "admin.signup.error": "Registration failed",
     "admin.groups.error": "Error",
     "admin.groups.noInstitution": "Institution not found",
+    "admin.settings.tabs.degrees": "Degrees",
+    "admin.settings.degrees.addSuccess": "Degree added successfully",
+    "admin.settings.degrees.updateSuccess": "Degree updated successfully",
+    "admin.settings.degrees.deleteSuccess": "Degree deleted successfully",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -1790,6 +1794,10 @@ const translations: Translations = {
     "admin.signup.error": "Ошибка регистрации",
     "admin.groups.error": "Ошибка",
     "admin.groups.noInstitution": "Учреждение не найдено",
+    "admin.settings.tabs.degrees": "Степени",
+    "admin.settings.degrees.addSuccess": "Степень успешно добавлена",
+    "admin.settings.degrees.updateSuccess": "Степень успешно обновлена",
+    "admin.settings.degrees.deleteSuccess": "Степень успешно удалена",
   },
 }
 
