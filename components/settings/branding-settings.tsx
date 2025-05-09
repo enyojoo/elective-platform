@@ -15,6 +15,8 @@ import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useCachedInstitutionSettings } from "@/hooks/use-cached-institution-settings"
 import { useDataCache } from "@/lib/data-cache-context"
+import { Copy, Check } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
@@ -32,6 +34,8 @@ export function BrandingSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [institutionId, setInstitutionId] = useState<string | null>(institution?.id || null)
   const [hasFaviconColumn, setHasFaviconColumn] = useState(false)
+  const [copiedStudent, setCopiedStudent] = useState(false)
+  const [copiedManager, setCopiedManager] = useState(false)
 
   // Use our cached institution settings
   const { settings, isLoading } = useCachedInstitutionSettings(institutionId || undefined)
@@ -336,12 +340,46 @@ export function BrandingSettings() {
     })
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+  const copyToClipboard = async (text: string, type: "student" | "manager") => {
+    try {
+      await navigator.clipboard.writeText(text)
+      if (type === "student") {
+        setCopiedStudent(true)
+        setTimeout(() => setCopiedStudent(false), 2000)
+      } else {
+        setCopiedManager(true)
+        setTimeout(() => setCopiedManager(false), 2000)
+      }
+      toast({
+        title: t("settings.toast.linkCopied"),
+        description: t("settings.toast.linkCopiedDesc"),
+      })
+    } catch (error) {
+      console.error("Failed to copy:", error)
+      toast({
+        title: t("settings.toast.error"),
+        description: t("settings.toast.copyError"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getStudentLoginUrl = () => {
+    const isProduction = process.env.NODE_ENV === "production"
+    if (isProduction) {
+      return `https://${subdomain}.electivepro.net/student/login`
+    } else {
+      return `http://localhost:3000/student/login?subdomain=${subdomain}`
+    }
+  }
+
+  const getManagerLoginUrl = () => {
+    const isProduction = process.env.NODE_ENV === "production"
+    if (isProduction) {
+      return `https://${subdomain}.electivepro.net/manager/login`
+    } else {
+      return `http://localhost:3000/manager/login?subdomain=${subdomain}`
+    }
   }
 
   return (
@@ -356,37 +394,96 @@ export function BrandingSettings() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="institutionName">{t("settings.branding.institutionName")}</Label>
-              <Input
-                id="institutionName"
-                value={institutionName}
-                onChange={(e) => setInstitutionName(e.target.value)}
-                placeholder={t("settings.branding.institutionNamePlaceholder")}
-              />
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <Input
+                  id="institutionName"
+                  value={institutionName}
+                  onChange={(e) => setInstitutionName(e.target.value)}
+                  placeholder={t("settings.branding.institutionNamePlaceholder")}
+                />
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="institutionDomain">{t("settings.branding.domain")}</Label>
-              <Input
-                id="institutionDomain"
-                value={institutionDomain}
-                onChange={(e) => setInstitutionDomain(e.target.value)}
-                placeholder="example.edu"
-              />
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <Input
+                  id="institutionDomain"
+                  value={institutionDomain}
+                  onChange={(e) => setInstitutionDomain(e.target.value)}
+                  placeholder="example.edu"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="subdomain">{t("settings.branding.subdomain")}</Label>
-              <div className="flex items-center">
-                <Input
-                  id="subdomain"
-                  value={subdomain}
-                  onChange={(e) => setSubdomain(e.target.value)}
-                  className="rounded-r-none"
-                  disabled={true} // Subdomain cannot be changed after creation
-                />
-                <div className="bg-muted px-3 py-2 border border-l-0 border-input rounded-r-md text-muted-foreground">
-                  .electivepro.net
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <div className="flex items-center">
+                  <Input
+                    id="subdomain"
+                    value={subdomain}
+                    onChange={(e) => setSubdomain(e.target.value)}
+                    className="rounded-r-none"
+                    disabled={true} // Subdomain cannot be changed after creation
+                  />
+                  <div className="bg-muted px-3 py-2 border border-l-0 border-input rounded-r-md text-muted-foreground">
+                    .electivepro.net
+                  </div>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Login Links */}
+          <div className="mt-4 space-y-3">
+            <h4 className="text-sm font-medium">{t("settings.branding.loginLinks")}</h4>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-muted-foreground">{t("settings.branding.studentLogin")}:</div>
+                {isLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-muted px-3 py-2 text-sm rounded-l-md border border-r-0 border-input flex-1 truncate">
+                      {getStudentLoginUrl()}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 rounded-l-none"
+                      onClick={() => copyToClipboard(getStudentLoginUrl(), "student")}
+                    >
+                      {copiedStudent ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-muted-foreground">{t("settings.branding.managerLogin")}:</div>
+                {isLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-muted px-3 py-2 text-sm rounded-l-md border border-r-0 border-input flex-1 truncate">
+                      {getManagerLoginUrl()}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 rounded-l-none"
+                      onClick={() => copyToClipboard(getManagerLoginUrl(), "manager")}
+                    >
+                      {copiedManager ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -397,20 +494,24 @@ export function BrandingSettings() {
             <div className="space-y-2">
               <Label>{t("settings.branding.logo")}</Label>
               <div className="flex items-center gap-2">
-                <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {logoUrl ? (
-                    <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="h-full w-full object-contain" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Logo</span>
-                  )}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-10 w-16" />
+                ) : (
+                  <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
+                    {logoUrl ? (
+                      <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Logo</span>
+                    )}
+                  </div>
+                )}
                 <label htmlFor="logo-upload" className="cursor-pointer">
                   <Button
                     variant="outline"
                     size="sm"
                     className="h-10"
                     type="button"
-                    disabled={isLogoUploading}
+                    disabled={isLogoUploading || isLoading}
                     onClick={() => document.getElementById("logo-upload")?.click()}
                   >
                     {isLogoUploading ? (
@@ -428,7 +529,7 @@ export function BrandingSettings() {
                     accept="image/png,image/jpeg,image/svg+xml"
                     className="hidden"
                     onChange={handleLogoUpload}
-                    disabled={isLogoUploading}
+                    disabled={isLogoUploading || isLoading}
                   />
                 </label>
               </div>
@@ -438,24 +539,28 @@ export function BrandingSettings() {
             <div className="space-y-2">
               <Label>{t("settings.branding.favicon")}</Label>
               <div className="flex items-center gap-2">
-                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
-                  {faviconUrl ? (
-                    <img
-                      src={faviconUrl || "/placeholder.svg"}
-                      alt="Favicon"
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Icon</span>
-                  )}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-10 w-10" />
+                ) : (
+                  <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
+                    {faviconUrl ? (
+                      <img
+                        src={faviconUrl || "/placeholder.svg"}
+                        alt="Favicon"
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Icon</span>
+                    )}
+                  </div>
+                )}
                 <label htmlFor="favicon-upload" className="cursor-pointer">
                   <Button
                     variant="outline"
                     size="sm"
                     className="h-10"
                     type="button"
-                    disabled={isFaviconUploading}
+                    disabled={isFaviconUploading || isLoading}
                     onClick={() => document.getElementById("favicon-upload")?.click()}
                   >
                     {isFaviconUploading ? (
@@ -473,7 +578,7 @@ export function BrandingSettings() {
                     accept="image/png,image/x-icon,image/svg+xml"
                     className="hidden"
                     onChange={handleFaviconUpload}
-                    disabled={isFaviconUploading}
+                    disabled={isFaviconUploading || isLoading}
                   />
                 </label>
               </div>
@@ -482,44 +587,48 @@ export function BrandingSettings() {
             {/* Primary Color */}
             <div className="space-y-2">
               <Label htmlFor="primaryColor">{t("settings.branding.primaryColor")}</Label>
-              <div className="flex items-center gap-2">
-                <div
-                  className="h-10 w-10 rounded border cursor-pointer"
-                  style={{ backgroundColor: primaryColor }}
-                  onClick={() => document.getElementById("colorPickerInput")?.click()}
-                />
-                <div className="relative flex-1">
-                  <Input
-                    id="primaryColor"
-                    type="text"
-                    value={primaryColor}
-                    onChange={(e) => {
-                      // Validate if it's a valid hex color
-                      const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(e.target.value)
-                      if (isValidHex || e.target.value.startsWith("#")) {
-                        setPrimaryColor(e.target.value)
-                      }
-                    }}
+              {isLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-10 w-10 rounded border cursor-pointer"
+                    style={{ backgroundColor: primaryColor }}
+                    onClick={() => document.getElementById("colorPickerInput")?.click()}
                   />
-                  <input
-                    id="colorPickerInput"
-                    type="color"
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="absolute opacity-0"
-                    style={{ height: 0, width: 0 }}
-                    aria-label="Select color"
-                  />
+                  <div className="relative flex-1">
+                    <Input
+                      id="primaryColor"
+                      type="text"
+                      value={primaryColor}
+                      onChange={(e) => {
+                        // Validate if it's a valid hex color
+                        const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(e.target.value)
+                        if (isValidHex || e.target.value.startsWith("#")) {
+                          setPrimaryColor(e.target.value)
+                        }
+                      }}
+                    />
+                    <input
+                      id="colorPickerInput"
+                      type="color"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="absolute opacity-0"
+                      style={{ height: 0, width: 0 }}
+                      aria-label="Select color"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
           <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={handleResetDefaults}>
+            <Button variant="outline" onClick={handleResetDefaults} disabled={isLoading}>
               {t("settings.branding.reset")}
             </Button>
-            <Button onClick={handleSaveChanges} disabled={isSaving}>
+            <Button onClick={handleSaveChanges} disabled={isSaving || isLoading}>
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

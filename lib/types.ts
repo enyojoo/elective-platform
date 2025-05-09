@@ -42,19 +42,6 @@ export interface DegreeType {
   code: string
 }
 
-export interface ProgramType {
-  id: number
-  name: string
-  code: string
-  degreeId: number
-}
-
-export interface UserProgramAssignment {
-  degreeId: number
-  programId: number
-  enrollmentYear: number
-}
-
 export interface Institution {
   id: number
   name: string

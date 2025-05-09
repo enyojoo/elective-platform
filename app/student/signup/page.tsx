@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -16,6 +16,7 @@ import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function StudentSignupPage() {
   const { t } = useLanguage()
@@ -26,8 +27,8 @@ export default function StudentSignupPage() {
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [degree, setDegree] = useState("")
-  const [program, setProgram] = useState("")
   const [year, setYear] = useState("")
   const [group, setGroup] = useState("")
   const [error, setError] = useState("")
@@ -35,20 +36,16 @@ export default function StudentSignupPage() {
 
   // Data states
   const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
   const [years, setYears] = useState<string[]>([])
   const [groups, setGroups] = useState<any[]>([])
+  const yearsFetchedRef = useRef(false)
 
   // Filtered lists based on selections
-  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // REMOVED: Redirect to main domain if not accessed via subdomain
-  // This was causing the issue
-
-  // Load degrees, programs, and groups data
+  // Load degrees, years, and groups data
   useEffect(() => {
     async function loadData() {
       if (!institution) return
@@ -65,28 +62,29 @@ export default function StudentSignupPage() {
           setDegrees(degreesData)
         }
 
-        // Load programs
-        const { data: programsData } = await supabase
-          .from("programs")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          // Load academic years
+          const { data: yearsData } = await supabase
+            .from("academic_years")
+            .select("year")
+            .eq("institution_id", institution.id)
+            .eq("is_active", true)
+            .order("year", { ascending: false })
 
-        if (programsData) {
-          setPrograms(programsData)
-        }
+          if (yearsData) {
+            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+            setYears(uniqueYears)
+            yearsFetchedRef.current = true
 
-        // Load academic years
-        const { data: yearsData } = await supabase
-          .from("academic_years")
-          .select("year")
-          .eq("institution_id", institution.id)
-          .eq("is_active", true)
-          .order("year", { ascending: false })
-
-        if (yearsData) {
-          const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
-          setYears(uniqueYears)
+            // Set current year as default if available
+            const currentYear = new Date().getFullYear().toString()
+            if (uniqueYears.includes(currentYear)) {
+              setYear(currentYear)
+            } else if (uniqueYears.length > 0) {
+              setYear(uniqueYears[0])
+            }
+          }
         }
 
         // Load groups
@@ -107,20 +105,7 @@ export default function StudentSignupPage() {
     loadData()
   }, [institution, supabase])
 
-  // Filter programs based on selected degree
-  useEffect(() => {
-    if (degree) {
-      const filtered = programs.filter((p) => p.degree_id?.toString() === degree)
-      setFilteredPrograms(filtered)
-      if (filtered.length > 0 && program && !filtered.find((p) => p.id?.toString() === program)) {
-        setProgram("")
-      }
-    } else {
-      setFilteredPrograms([])
-    }
-  }, [degree, program, programs])
-
-  // Filter groups based on selected degree, program, and year
+  // Filter groups based on selected degree and year
   useEffect(() => {
     let filtered = groups
 
@@ -128,19 +113,19 @@ export default function StudentSignupPage() {
       filtered = filtered.filter((g) => g.degree_id?.toString() === degree)
     }
 
-    if (program) {
-      filtered = filtered.filter((g) => g.program_id?.toString() === program)
-    }
-
     if (year) {
-      filtered = filtered.filter((g) => g.year === year)
+      filtered = filtered.filter((g) => g.academic_year === year)
     }
 
     setFilteredGroups(filtered)
     if (filtered.length > 0 && group && !filtered.find((g) => g.id?.toString() === group)) {
       setGroup("")
     }
-  }, [degree, program, year, group, groups])
+  }, [degree, year, group, groups])
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -153,7 +138,7 @@ export default function StudentSignupPage() {
         throw new Error(t("auth.error.invalidEmail"))
       }
 
-      if (!degree || !program || !year || !group) {
+      if (!degree || !year || !group) {
         throw new Error(t("auth.error.incompleteFields"))
       }
 
@@ -178,7 +163,6 @@ export default function StudentSignupPage() {
         role: "student",
         email: email,
         degree_id: degree,
-        program_id: program,
         year: year,
         group_id: group,
       })
@@ -204,9 +188,9 @@ export default function StudentSignupPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
-      <div className="mx-auto max-w-md space-y-6 w-full">
-        <div className="flex justify-center mb-6">
+    <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center space-y-2 text-center">
           {institution?.logo_url ? (
             <Image
               src={institution.logo_url || "/placeholder.svg"}
@@ -225,6 +209,7 @@ export default function StudentSignupPage() {
             />
           )}
         </div>
+
         <Card>
           <CardHeader>
             <CardTitle>{t("auth.signup.title")}</CardTitle>
@@ -236,12 +221,26 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="student@university.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="name">{t("auth.signup.name")}</Label>
-                <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder={t("auth.signup.fullNamePlaceholder")}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
               </div>
 
               <div className="space-y-2">
@@ -254,22 +253,6 @@ export default function StudentSignupPage() {
                     {degrees.map((d) => (
                       <SelectItem key={d.id} value={d.id?.toString() || ""}>
                         {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="program">{t("auth.signup.program")}</Label>
-                <Select value={program} onValueChange={setProgram} required disabled={!degree}>
-                  <SelectTrigger id="program" className="w-full">
-                    <SelectValue placeholder={t("auth.signup.selectProgram")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredPrograms.map((p) => (
-                      <SelectItem key={p.id} value={p.id?.toString() || ""}>
-                        {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -295,7 +278,7 @@ export default function StudentSignupPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="group">{t("auth.signup.group")}</Label>
-                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !program || !year}>
+                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
                     <SelectTrigger id="group" className="w-full">
                       <SelectValue placeholder={t("auth.signup.selectGroup")} />
                     </SelectTrigger>
@@ -312,20 +295,30 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-2">
+            <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t("auth.signup.loading") : t("auth.signup.button")}
               </Button>
-              <div className="mt-4 text-center text-sm">
+              <div className="text-center text-sm">
                 {t("auth.signup.hasAccount")}{" "}
                 <Link href="/student/login" className="text-primary hover:underline">
                   {t("auth.signup.login")}
@@ -334,7 +327,7 @@ export default function StudentSignupPage() {
             </CardFooter>
           </form>
         </Card>
-        <div className="flex justify-center mt-4">
+        <div className="flex justify-center mt-8">
           <AuthLanguageSwitcher />
         </div>
       </div>

@@ -11,7 +11,6 @@ import { useInstitution } from "@/lib/institution-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
-import { Loader2 } from "lucide-react"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
@@ -64,13 +63,7 @@ export default function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="account" className="space-y-6">
-                {isLoadingProfile ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <AccountSettings adminProfile={adminProfile} />
-                )}
+                <AccountSettings adminProfile={adminProfile} isLoading={isLoadingProfile} />
               </TabsContent>
             </Tabs>
           </CardContent>

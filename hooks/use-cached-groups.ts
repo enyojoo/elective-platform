@@ -56,16 +56,7 @@ export function useCachedGroups() {
         }
 
         // Fetch program and degree information separately
-        const programIds = [...new Set(groupsData.map((g) => g.program_id).filter(Boolean))]
         const degreeIds = [...new Set(groupsData.map((g) => g.degree_id).filter(Boolean))]
-
-        // Fetch programs
-        const { data: programsData, error: programsError } = await supabase
-          .from("programs")
-          .select("id, name")
-          .in("id", programIds)
-
-        if (programsError) throw programsError
 
         // Fetch degrees
         const { data: degreesData, error: degreesError } = await supabase
@@ -76,13 +67,6 @@ export function useCachedGroups() {
         if (degreesError) throw degreesError
 
         // Create maps for quick lookups
-        const programMap = new Map()
-        if (programsData) {
-          programsData.forEach((program) => {
-            programMap.set(program.id, program.name)
-          })
-        }
-
         const degreeMap = new Map()
         if (degreesData) {
           degreesData.forEach((degree) => {
@@ -112,8 +96,6 @@ export function useCachedGroups() {
           id: group.id.toString(),
           name: group.name,
           displayName: group.display_name,
-          program: programMap.get(group.program_id) || "Unknown",
-          programId: group.program_id,
           degree: degreeMap.get(group.degree_id) || "Unknown",
           degreeId: group.degree_id,
           year: group.year,

@@ -10,8 +10,9 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 import { useDataCache } from "@/lib/data-cache-context"
+import { Skeleton } from "@/components/ui/skeleton"
 
-export function AccountSettings({ adminProfile }: { adminProfile: any }) {
+export function AccountSettings({ adminProfile, isLoading = false }: { adminProfile: any; isLoading?: boolean }) {
   const { t } = useLanguage()
   const { toast } = useToast()
   const { invalidateCache } = useDataCache()
@@ -131,16 +132,24 @@ export function AccountSettings({ adminProfile }: { adminProfile: any }) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">{t("settings.account.name")}</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            {isLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">{t("settings.account.email")}</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            {isLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            )}
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={handleUpdateInfo} disabled={isUpdating}>
+            <Button onClick={handleUpdateInfo} disabled={isUpdating || isLoading}>
               {isUpdating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -162,26 +171,34 @@ export function AccountSettings({ adminProfile }: { adminProfile: any }) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="newPassword">{t("settings.account.newPassword")}</Label>
-            <Input
-              id="newPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
+            {isLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">{t("settings.account.confirmPassword")}</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+            {isLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            )}
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={handleChangePassword} disabled={isChangingPassword}>
+            <Button onClick={handleChangePassword} disabled={isChangingPassword || isLoading}>
               {isChangingPassword ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

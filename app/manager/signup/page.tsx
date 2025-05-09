@@ -1,5 +1,7 @@
 "use client"
 
+import { useRef } from "react"
+
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -16,6 +18,7 @@ import { useLanguage } from "@/lib/language-context"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerSignupPage() {
   const { t } = useLanguage()
@@ -25,29 +28,24 @@ export default function ManagerSignupPage() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    confirmPassword: "",
     name: "",
     degreeId: "",
-    programId: "",
-    enrollmentYear: new Date().getFullYear().toString(),
+    academicYear: new Date().getFullYear().toString(),
   })
 
   // Data states
   const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
-  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
   const [years, setYears] = useState<string[]>([])
+  const yearsFetchedRef = useRef(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // REMOVED: Redirect to main domain if not accessed via subdomain
-  // This was causing the issue
-
-  // Load degrees, programs, and academic years data
+  // Load degrees and academic years data
   useEffect(() => {
     async function loadData() {
       if (!institution) return
@@ -64,28 +62,35 @@ export default function ManagerSignupPage() {
           setDegrees(degreesData)
         }
 
-        // Load programs
-        const { data: programsData } = await supabase
-          .from("programs")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
+        // Only fetch years if not already fetched
+        if (!yearsFetchedRef.current) {
+          // Load academic years
+          const { data: yearsData } = await supabase
+            .from("academic_years")
+            .select("year")
+            .eq("institution_id", institution.id)
+            .eq("is_active", true)
+            .order("year", { ascending: false })
 
-        if (programsData) {
-          setPrograms(programsData)
-        }
+          if (yearsData) {
+            const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
+            setYears(uniqueYears)
+            yearsFetchedRef.current = true
 
-        // Load academic years
-        const { data: yearsData } = await supabase
-          .from("academic_years")
-          .select("year")
-          .eq("institution_id", institution.id)
-          .eq("is_active", true)
-          .order("year", { ascending: false })
-
-        if (yearsData) {
-          const uniqueYears = [...new Set(yearsData.map((y) => y.year))]
-          setYears(uniqueYears)
+            // Set current year as default if available
+            const currentYear = new Date().getFullYear().toString()
+            if (uniqueYears.includes(currentYear)) {
+              setFormData((prev) => ({
+                ...prev,
+                academicYear: currentYear,
+              }))
+            } else if (uniqueYears.length > 0) {
+              setFormData((prev) => ({
+                ...prev,
+                academicYear: uniqueYears[0],
+              }))
+            }
+          }
         }
       } catch (error) {
         console.error("Error loading data:", error)
@@ -94,24 +99,6 @@ export default function ManagerSignupPage() {
 
     loadData()
   }, [institution, supabase])
-
-  // Filter programs based on selected degree
-  useEffect(() => {
-    if (formData.degreeId) {
-      const filtered = programs.filter((p) => p.degree_id.toString() === formData.degreeId)
-      setFilteredPrograms(filtered)
-
-      // Reset program selection if the current selection is not valid for the new degree
-      if (!filtered.some((p) => p.id.toString() === formData.programId)) {
-        setFormData((prev) => ({
-          ...prev,
-          programId: "",
-        }))
-      }
-    } else {
-      setFilteredPrograms([])
-    }
-  }, [formData.degreeId, programs, formData.programId])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -128,17 +115,17 @@ export default function ManagerSignupPage() {
     })
   }
 
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
     try {
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error(t("auth.error.passwordsDoNotMatch"))
-      }
-
-      if (!formData.degreeId || !formData.programId) {
+      if (!formData.degreeId) {
         throw new Error(t("auth.error.incompleteFields"))
       }
 
@@ -163,8 +150,7 @@ export default function ManagerSignupPage() {
         role: "manager",
         email: formData.email,
         degree_id: formData.degreeId,
-        program_id: formData.programId,
-        year: formData.enrollmentYear,
+        year: formData.academicYear,
       })
 
       if (profileError) throw new Error(profileError.message)
@@ -187,10 +173,9 @@ export default function ManagerSignupPage() {
     return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
-  // Generate enrollment years (from 2021 to current year + 10)
-  const currentYear = new Date().getFullYear()
+  // Generate enrollment years if no years are available from the database
   const enrollmentYears =
-    years.length > 0 ? years : Array.from({ length: currentYear + 10 - 2021 + 1 }, (_, i) => (2021 + i).toString())
+    years.length > 0 ? years : Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString())
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
@@ -252,31 +237,27 @@ export default function ManagerSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">{t("auth.signup.confirmPassword")}</Label>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              {/* Program Assignment */}
+              {/* Degree Assignment */}
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("admin.users.degree")}</Label>
                 <Select
@@ -298,35 +279,10 @@ export default function ManagerSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="program">{t("admin.users.program")}</Label>
+                <Label htmlFor="academicYear">{t("admin.users.academicYear")}</Label>
                 <Select
-                  value={formData.programId}
-                  onValueChange={(value) => handleSelectChange("programId", value)}
-                  disabled={!formData.degreeId}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        formData.degreeId ? t("admin.users.selectProgram") : t("admin.users.selectDegreeFirst")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredPrograms.map((program) => (
-                      <SelectItem key={program.id} value={program.id.toString()}>
-                        {program.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="enrollmentYear">{t("admin.users.enrollmentYear")}</Label>
-                <Select
-                  value={formData.enrollmentYear}
-                  onValueChange={(value) => handleSelectChange("enrollmentYear", value)}
+                  value={formData.academicYear}
+                  onValueChange={(value) => handleSelectChange("academicYear", value)}
                   required
                 >
                   <SelectTrigger>
