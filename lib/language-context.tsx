@@ -78,12 +78,15 @@ const translations: Translations = {
     "auth.signup.selectGroup": "Select group",
     "auth.error.invalidEmail": "Please enter a valid email address",
     "auth.error.incompleteFields": "Please complete all required fields",
+    "auth.signup.success": "Registration successful",
+    "auth.signup.successMessage": "Your account has been created successfully. You can now log in.",
+    "auth.signup.error": "Registration failed",
+    "auth.signup.loading": "Signing up...",
+    "auth.signup.creating": "Creating account...",
     dashboard: "Dashboard",
     courseSelection: "Course Selection",
     exchangeSelection: "Exchange Selection",
     logout: "Logout",
-
-    // Student Dashboard
     "student.dashboard.title": "Dashboard",
     "student.dashboard.requiredElectives": "Required Electives",
     "student.dashboard.selectedElectives": "Selected Electives",
@@ -101,8 +104,6 @@ const translations: Translations = {
     "student.dashboard.upcomingDeadlines": "Upcoming Deadlines",
     "student.dashboard.importantDates": "Important dates for elective selections",
     "student.dashboard.daysLeft": "days left",
-
-    // Student Courses
     "student.courses.title": "Course Selection",
     "student.courses.subtitle": "Browse and select elective courses available in the semester for your program",
     "student.courses.deadline": "Deadline",
@@ -150,8 +151,6 @@ const translations: Translations = {
     "student.courses.removeSelection": "Remove Selection",
     "student.courses.selectCourse": "Select Course",
     "student.courses.of": "of",
-
-    // Student Exchange
     "student.exchange.title": "Exchange Program Selection",
     "student.exchange.subtitle": "Browse and select exchange universities available for your program",
     "student.exchange.deadline": "Deadline",
@@ -201,8 +200,6 @@ const translations: Translations = {
     "student.exchange.comingSoonDesc":
       "Exchange selection is not open yet. You can preview the available universities, but selection will be available starting",
     "student.exchange.of": "of",
-
-    // Manager Dashboard
     "manager.dashboard.title": "Dashboard",
     "manager.dashboard.courseElectives": "Elective Packs",
     "manager.dashboard.totalCourseElectives": "Total course elective selections",
@@ -220,8 +217,6 @@ const translations: Translations = {
     "manager.dashboard.upcomingDeadlines": "Upcoming Deadlines",
     "manager.dashboard.importantDates": "Important dates for electives",
     "manager.dashboard.daysLeft": "days left",
-
-    // Manager Electives
     "manager.electives.title": "Elective Packs",
     "manager.electives.subtitle": "Manage course and exchange elective selections",
     "manager.electives.courseElectives": "Course Electives",
@@ -263,8 +258,6 @@ const translations: Translations = {
     statement: "Statement",
     statementFile: "Statement File",
     downloadStatement: "Download Statement",
-
-    // Manager Exchange Details
     "manager.exchangeDetails.backToElectives": "Back to Electives",
     "manager.exchangeDetails.edit": "Edit",
     "manager.exchangeDetails.programDetails": "Program Details",
@@ -516,8 +509,6 @@ const translations: Translations = {
     "toast.selection.updated": "Selection updated successfully",
     "toast.selection.updated.course.description": "The course selection for {0} has been updated.",
     "toast.selection.updated.exchange.description": "The university selection for {0} has been updated.",
-
-    // Authorization related toast notifications
     "toast.authorization.success": "Authorization successful",
     "toast.authorization.success.description": "Digital authorization for {0} has been recorded.",
     "toast.authorization.invalid": "Invalid authorization",
@@ -530,8 +521,6 @@ const translations: Translations = {
     "toast.statement.download.error.description": "There was an error downloading the statement file.",
     "toast.statement.notAvailable": "Statement not available",
     "toast.statement.notAvailable.description": "{0} has not uploaded a statement yet.",
-
-    // Digital Authorization section
     "student.authorization.title": "Digital Authorization",
     "student.authorization.authorizedBy": "Digitally authorized by:",
     "student.authorization.fullName": "Your Full Name",
@@ -728,8 +717,6 @@ const translations: Translations = {
     "admin.forgotPassword.backToLogin": "Back to Login",
     "admin.forgotPassword.checkEmail": "Check your email",
     "admin.forgotPassword.emailSent": "We've sent a password reset link to your email",
-
-    // Settings page translations
     "admin.settings.title": "Settings",
     "admin.settings.subtitle": "Manage your institution settings and account preferences",
     "admin.settings.tabs.branding": "Branding",
@@ -850,7 +837,6 @@ const translations: Translations = {
     "admin.newUniversity.cityPlaceholder": "Cambridge",
     "admin.newUniversity.websitePlaceholder": "https://www.harvard.edu",
     "admin.newUniversity.descriptionPlaceholder": "Brief description of the university and partnership details...",
-    // Admin Dashboard
     "admin.dashboard.title": "Dashboard",
     "admin.dashboard.universities": "Universities",
     "admin.dashboard.totalUniversities": "Partner universities in the system",
@@ -888,8 +874,6 @@ const translations: Translations = {
     "settings.toast.linkCopiedDesc": "Login link has been copied to clipboard",
     "settings.toast.copyError": "Failed to copy to clipboard",
     "admin.dashboard.manage": "Manage",
-
-    // Subdomain availability checker translations
     "admin.signup.checking": "Checking...",
     "admin.signup.available": "Available",
     "admin.signup.unavailable": "Unavailable",
@@ -903,9 +887,7 @@ const translations: Translations = {
     "admin.groups.noInstitution": "Institution not found",
   },
   ru: {
-    // Existing translations...
     "home.title": "ElectivePRO",
-    // ... other existing translations
     "home.subtitle": "Выберите степень, программу, год и группу",
     "language.switch": "Сменить язык",
     "room.label": "Аудитория",
@@ -952,12 +934,15 @@ const translations: Translations = {
     "auth.signup.selectGroup": "Выберите группу",
     "auth.error.invalidEmail": "Пожалуйста, введите действительный адрес электронной почты",
     "auth.error.incompleteFields": "Пожалуйста, заполните все обязательные поля",
+    "auth.signup.success": "Регистрация успешна",
+    "auth.signup.successMessage": "Ваш аккаунт успешно создан. Теперь вы можете войти в систему.",
+    "auth.signup.error": "Ошибка регистрации",
+    "auth.signup.loading": "Регистрация...",
+    "auth.signup.creating": "Создание аккаунта...",
     dashboard: "Панель управления",
     courseSelection: "Выбор курсов",
     exchangeSelection: "Выбор обмена",
     logout: "Выйти",
-
-    // Student Dashboard
     "student.dashboard.title": "Панель управления",
     "student.dashboard.requiredElectives": "Требуемые электвы",
     "student.dashboard.selectedElectives": "Выбранные элективы",
@@ -975,8 +960,6 @@ const translations: Translations = {
     "student.dashboard.upcomingDeadlines": "Предстоящие сроки",
     "student.dashboard.importantDates": "Важные даты для выбора элективов",
     "student.dashboard.daysLeft": "дней осталось",
-
-    // Student Courses
     "student.courses.title": "Выбор курсов",
     "student.courses.subtitle": "Просмотр и выбор элективных курсов, доступных в семестре для вашей программы",
     "student.courses.deadline": "Срок",
@@ -1024,8 +1007,6 @@ const translations: Translations = {
     "student.courses.removeSelection": "Удалить выбор",
     "student.courses.selectCourse": "Выбрать курс",
     "student.courses.of": "из",
-
-    // Student Exchange
     "student.exchange.title": "Выбор программ обмена",
     "student.exchange.subtitle": "Просмотр и выбор университетов для обмена, доступных для вашей программы",
     "student.exchange.deadline": "Срок",
@@ -1075,8 +1056,6 @@ const translations: Translations = {
     "student.exchange.comingSoonDesc":
       "Выбор обмена еще не открыт. Вы можете просмотреть доступные университеты, но выбор будет доступен начиная с",
     "student.exchange.of": "из",
-
-    // Manager Dashboard
     "manager.dashboard.title": "Панель управления",
     "manager.dashboard.courseElectives": "Пакеты элективов",
     "manager.dashboard.totalCourseElectives": "Всего выборов элективных курсов",
@@ -1094,8 +1073,6 @@ const translations: Translations = {
     "manager.dashboard.upcomingDeadlines": "Предстоящие сроки",
     "manager.dashboard.importantDates": "Важные даты для элективов",
     "manager.dashboard.daysLeft": "дней осталось",
-
-    // Manager Electives
     "manager.electives.title": "Пакеты элективов",
     "manager.electives.subtitle": "Управление выбором курсов и программ обмена",
     "manager.electives.courseElectives": "Элективные курсы",
@@ -1136,8 +1113,7 @@ const translations: Translations = {
     "student.statement.fileUploaded": "Файл загружен:",
     statement: "Заявление",
     statementFile: "Файл заявления",
-
-    // Manager Exchange Details
+    downloadStatement: "Скачать заявление",
     "manager.exchangeDetails.backToElectives": "Вернуться к элективам",
     "manager.exchangeDetails.edit": "Редактировать",
     "manager.exchangeDetails.programDetails": "Детали программы",
@@ -1393,8 +1369,6 @@ const translations: Translations = {
     "toast.selection.updated": "Выбор успешно обновлен",
     "toast.selection.updated.course.description": "Выбор курса для {0} был обновлен.",
     "toast.selection.updated.exchange.description": "Выбор университета для {0} был обновлен.",
-
-    // Authorization related toast notifications
     "toast.authorization.success": "Авторизация успешна",
     "toast.authorization.success.description": "Цифровая авторизация для {0} была записана.",
     "toast.authorization.invalid": "Недействительная авторизация",
@@ -1407,8 +1381,6 @@ const translations: Translations = {
     "toast.statement.download.error.description": "Произошла ошибка при скачивании файла заявления.",
     "toast.statement.notAvailable": "Заявление недоступно",
     "toast.statement.notAvailable.description": "{0} еще не загрузил заявление.",
-
-    // Digital Authorization section
     "student.authorization.title": "Цифровая авторизация",
     "student.authorization.authorizedBy": "Цифровой авторизовано:",
     "student.authorization.fullName": "Ваше полное имя",
@@ -1607,8 +1579,6 @@ const translations: Translations = {
     "admin.forgotPassword.backToLogin": "Вернуться к входу",
     "admin.forgotPassword.checkEmail": "Проверьте свою электронную почту",
     "admin.forgotPassword.emailSent": "Мы отправили ссылку для сброса пароля на вашу электронную почту",
-
-    // Settings page translations
     "admin.settings.title": "Настройки",
     "admin.settings.subtitle": "Управление настройками учреждения и предпочтениями аккаунта",
     "admin.settings.tabs.branding": "Брендинг",
@@ -1691,7 +1661,6 @@ const translations: Translations = {
     "admin.universities.action": "Действие",
     "admin.universities.view": "Просмотр деталей",
     "admin.universities.edit": "Редактировать",
-    // Admin Dashboard
     "admin.dashboard.title": "Панель управления",
     "admin.dashboard.universities": "Университеты",
     "admin.dashboard.totalUniversities": "Партнерские университеты в системе",
@@ -1728,8 +1697,6 @@ const translations: Translations = {
     "admin.dashboard.totalUsers": "Всего пользователей в системе",
     "admin.dashboard.manageUsers": "Управление пользователями",
     "admin.dashboard.manage": "Управление",
-
-    // Toast notifications for branding settings
     "settings.toast.changesSaved": "Изменения сохранены",
     "settings.toast.changesSavedDesc": "Настройки брендинга успешно обновлены.",
     "settings.toast.error": "Ошибка",
@@ -1812,8 +1779,6 @@ const translations: Translations = {
     "admin.dashboard.totalUsers": "Всего пользователей в системе",
     "admin.dashboard.manageUsers": "Управление пользователями",
     "admin.dashboard.manage": "Управление",
-
-    // Subdomain availability checker translations
     "admin.signup.checking": "Проверка...",
     "admin.signup.available": "Доступен",
     "admin.signup.unavailable": "Недоступен",

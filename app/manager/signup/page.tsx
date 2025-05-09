@@ -142,14 +142,14 @@ export default function ManagerSignupPage() {
 
       if (authError) throw new Error(authError.message)
 
-      // Create manager profile
+      // Create manager profile - using the correct column names
       const { error: profileError } = await supabase.from("profiles").insert({
         id: authData.user!.id,
         institution_id: institution!.id,
         full_name: formData.name,
         role: "manager",
         email: formData.email,
-        degree_id: formData.degreeId,
+        degree: formData.degreeId, // Changed from degree_id to degree
         year: formData.academicYear,
       })
 
@@ -275,14 +275,14 @@ export default function ManagerSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="academicYear">{t("admin.users.academicYear")}</Label>
+                <Label htmlFor="academicYear">{t("year.enrollment")}</Label>
                 <Select
                   value={formData.academicYear}
                   onValueChange={(value) => handleSelectChange("academicYear", value)}
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={t("admin.users.selectYear")} />
+                    <SelectValue placeholder={t("auth.signup.selectYear")} />
                   </SelectTrigger>
                   <SelectContent>
                     {enrollmentYears.map((year) => (

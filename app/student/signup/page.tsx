@@ -148,14 +148,14 @@ export default function StudentSignupPage() {
 
       if (authError) throw new Error(authError.message)
 
-      // Create student profile
+      // Create student profile - using the correct column names
       const { error: profileError } = await supabase.from("profiles").insert({
         id: authData.user!.id,
         institution_id: institution!.id,
         full_name: name,
         role: "student",
         email: email,
-        degree_id: degree,
+        degree: degree, // Changed from degree_id to degree
         year: year,
         group_id: group,
       })
