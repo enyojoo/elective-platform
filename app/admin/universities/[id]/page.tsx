@@ -396,21 +396,6 @@ export default function UniversityDetailsPage() {
             )}
 
             <Separator />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("admin.universities.createdAt", "Created At")}
-                </h3>
-                <p>{new Date(university.created_at).toLocaleString()}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("admin.universities.updatedAt", "Last Updated")}
-                </h3>
-                <p>{new Date(university.updated_at).toLocaleString()}</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
