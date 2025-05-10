@@ -26,7 +26,7 @@ export default function StudentLoginPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -94,6 +94,8 @@ export default function StudentLoginPage() {
       setIsLoading(false)
     }
   }
+
+  // Remove loading indicator - render the page immediately
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">

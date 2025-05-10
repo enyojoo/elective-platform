@@ -851,7 +851,6 @@ const translations: Translations = {
     "admin.newUniversity.namePlaceholder": "Harvard University",
     "admin.newUniversity.cityPlaceholder": "Cambridge",
     "admin.newUniversity.websitePlaceholder": "https://www.harvard.edu",
-    "admin.newUniversity.descriptionPlaceholder": "Brief description of the university and partnership details...",
     "admin.dashboard.title": "Dashboard",
     "admin.dashboard.universities": "Universities",
     "admin.dashboard.totalUniversities": "Partner universities in the system",
@@ -1643,8 +1642,7 @@ const translations: Translations = {
     "admin.users.selectDegree": "Выберите степень",
     "admin.users.selectProgram": "Выберите программу",
     "admin.users.selectYear": "Выберите год",
-    "admin.users.sendEmailInvitation": "Отправить приглашение по электронной почте менеджеру программы",
-    "admin.users.emailInvitationInfo":
+    "admin.users.sendEmailInvitation":
       "На адрес {0} будет отправлено электронное письмо с инструкциями по настройке учетной записи.",
     "admin.users.cancel": "Отмена",
     "admin.users.sending": "Отправка приглашения...",

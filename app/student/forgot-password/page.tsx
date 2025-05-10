@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("")
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution } = useInstitution()
+  const { institution, isLoading: institutionLoading } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -113,6 +113,8 @@ export default function ForgotPasswordPage() {
       </div>
     )
   }
+
+  // Remove loading indicator - render the page immediately
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">

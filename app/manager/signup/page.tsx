@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerSignupPage() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -100,13 +100,6 @@ export default function ManagerSignupPage() {
     loadAllData()
   }, [institution, supabase])
 
-  // Add this effect to force re-render when language changes
-  useEffect(() => {
-    // Force re-render when language changes to update degree names in the UI
-    const updatedDegrees = [...degrees]
-    setDegrees(updatedDegrees)
-  }, [language, degrees])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData({
@@ -176,11 +169,6 @@ export default function ManagerSignupPage() {
     }
   }
 
-  // Helper function to get the degree name in the current language
-  const getDegreeName = (degree: any) => {
-    return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
-  }
-
   // Generate enrollment years if no years are available from the database
   const enrollmentYears =
     years.length > 0 ? years : Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - 2 + i).toString())
@@ -217,19 +205,7 @@ export default function ManagerSignupPage() {
             <CardContent className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
 
-              {/* Basic Information */}
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.users.fullName")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder={t("auth.signup.fullNamePlaceholder")}
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
+              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
                 <Input
@@ -243,6 +219,62 @@ export default function ManagerSignupPage() {
                 />
               </div>
 
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name">{t("admin.users.fullName")}</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder={t("auth.signup.fullNamePlaceholder")}
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+
+              {/* Degree Assignment */}
+              <div className="space-y-2">
+                <Label htmlFor="degree">{t("admin.users.degree")}</Label>
+                <Select
+                  value={formData.degreeId}
+                  onValueChange={(value) => handleSelectChange("degreeId", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("admin.users.selectDegree")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {degrees.map((degree) => (
+                      <SelectItem key={degree.id} value={degree.id.toString()}>
+                        {degree.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Year */}
+              <div className="space-y-2">
+                <Label htmlFor="academicYear">{t("year.enrollment")}</Label>
+                <Select
+                  value={formData.academicYear}
+                  onValueChange={(value) => handleSelectChange("academicYear", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("auth.signup.selectYear")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enrollmentYears.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
                 <div className="relative">
@@ -263,47 +295,6 @@ export default function ManagerSignupPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-              </div>
-
-              {/* Degree Assignment */}
-              <div className="space-y-2">
-                <Label htmlFor="degree">{t("admin.users.degree")}</Label>
-                <Select
-                  value={formData.degreeId}
-                  onValueChange={(value) => handleSelectChange("degreeId", value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("admin.users.selectDegree")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {degrees.map((degree) => (
-                      <SelectItem key={degree.id} value={degree.id.toString()}>
-                        {getDegreeName(degree)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="academicYear">{t("year.enrollment")}</Label>
-                <Select
-                  value={formData.academicYear}
-                  onValueChange={(value) => handleSelectChange("academicYear", value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("auth.signup.selectYear")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enrollmentYears.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">

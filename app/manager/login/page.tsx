@@ -21,7 +21,7 @@ export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -95,6 +95,8 @@ export default function ManagerLoginPage() {
       setIsLoading(false)
     }
   }
+
+  // Remove loading indicator - render the page immediately
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
