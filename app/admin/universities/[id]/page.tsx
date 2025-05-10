@@ -46,7 +46,6 @@ export default function UniversityDetailsPage() {
   const { toast } = useToast()
   const [university, setUniversity] = useState<University | null>(null)
   const [countries, setCountries] = useState<Country[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
@@ -74,10 +73,8 @@ export default function UniversityDetailsPage() {
 
   useEffect(() => {
     const fetchUniversity = async () => {
-      setIsLoading(true)
       try {
         if (!institution?.id) {
-          setIsLoading(false)
           return
         }
 
@@ -103,8 +100,6 @@ export default function UniversityDetailsPage() {
           variant: "destructive",
         })
         router.push("/admin/universities")
-      } finally {
-        setIsLoading(false)
       }
     }
 
@@ -149,19 +144,19 @@ export default function UniversityDetailsPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("admin.universities.status.active")}
+            {t("admin.universities.status.active", "Active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("admin.universities.status.inactive")}
+            {t("admin.universities.status.inactive", "Inactive")}
           </Badge>
         )
       case "draft":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("admin.universities.status.draft")}
+            {t("admin.universities.status.draft", "Draft")}
           </Badge>
         )
       default:
@@ -205,54 +200,6 @@ export default function UniversityDetailsPage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-2">
-            <Link href="/admin/universities">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight">{t("admin.universities.loading", "Loading...")}</h1>
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="h-40 flex items-center justify-center">
-                <p>{t("admin.universities.loading", "Loading university details...")}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
-  if (!university) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-2">
-            <Link href="/admin/universities">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight">{t("admin.universities.notFound", "Not Found")}</h1>
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="h-40 flex items-center justify-center">
-                <p>{t("admin.universities.universityNotFound", "University not found")}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -263,141 +210,159 @@ export default function UniversityDetailsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight">{getLocalizedName(university)}</h1>
-            <div className="ml-2">{getStatusBadge(university.status)}</div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {university
+                ? getLocalizedName(university)
+                : t("admin.universities.universityDetails", "University Details")}
+            </h1>
+            {university && <div className="ml-2">{getStatusBadge(university.status)}</div>}
           </div>
-          <div className="flex gap-2">
-            <Link href={`/admin/universities/${university.id}/edit`}>
-              <Button variant="outline">
-                <Edit className="mr-2 h-4 w-4" />
-                {t("admin.universities.edit", "Edit")}
+          {university && (
+            <div className="flex gap-2">
+              <Link href={`/admin/universities/${university.id}/edit`}>
+                <Button variant="outline">
+                  <Edit className="mr-2 h-4 w-4" />
+                  {t("admin.universities.edit", "Edit")}
+                </Button>
+              </Link>
+              <Button variant="destructive" onClick={handleDeleteUniversity} disabled={isDeleting}>
+                <Trash className="mr-2 h-4 w-4" />
+                {isDeleting
+                  ? t("admin.universities.deleting", "Deleting...")
+                  : t("admin.universities.delete", "Delete")}
               </Button>
-            </Link>
-            <Button variant="destructive" onClick={handleDeleteUniversity} disabled={isDeleting}>
-              <Trash className="mr-2 h-4 w-4" />
-              {isDeleting ? t("admin.universities.deleting", "Deleting...") : t("admin.universities.delete", "Delete")}
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("admin.universities.details", "University Details")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("admin.universities.nameEn", "Name (English)")}
-                </h3>
-                <p className="text-lg">{university.name}</p>
-              </div>
-              {university.name_ru && (
+        {university ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("admin.universities.details", "University Details")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.nameRu", "Name (Russian)")}
+                    {t("admin.universities.nameEn", "Name (English)")}
                   </h3>
-                  <p className="text-lg">{university.name_ru}</p>
+                  <p className="text-lg">{university.name}</p>
                 </div>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("admin.universities.country", "Country")}
-                </h3>
-                <p>{getLocalizedCountry(university.country)}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("admin.universities.cityEn", "City (English)")}
-                </h3>
-                <p>{university.city}</p>
-              </div>
-              {university.city_ru && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.cityRu", "City (Russian)")}
-                  </h3>
-                  <p>{university.city_ru}</p>
-                </div>
-              )}
-            </div>
-
-            {university.website && (
-              <>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.website", "Website")}
-                  </h3>
-                  <a
-                    href={university.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary flex items-center hover:underline"
-                  >
-                    {university.website}
-                    <ExternalLink className="ml-1 h-3 w-3" />
-                  </a>
-                </div>
-              </>
-            )}
-
-            {university.description || university.description_ru ? (
-              <>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.description", "Description")}
-                  </h3>
-                  <p className="whitespace-pre-line">{getLocalizedDescription(university)}</p>
-                </div>
-              </>
-            ) : null}
-
-            {university.university_languages && university.university_languages.length > 0 && (
-              <>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.languages", "Languages of Instruction")}
-                  </h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {university.university_languages.map((language) => (
-                      <Badge key={language} variant="secondary">
-                        {language}
-                      </Badge>
-                    ))}
+                {university.name_ru && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.nameRu", "Name (Russian)")}
+                    </h3>
+                    <p className="text-lg">{university.name_ru}</p>
                   </div>
-                </div>
-              </>
-            )}
+                )}
+              </div>
 
-            {university.university_programs && university.university_programs.length > 0 && (
-              <>
-                <Separator />
+              <Separator />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.programs", "Available Programs")}
+                    {t("admin.universities.country", "Country")}
                   </h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {university.university_programs.map((program) => (
-                      <Badge key={program} variant="secondary">
-                        {program}
-                      </Badge>
-                    ))}
-                  </div>
+                  <p>{getLocalizedCountry(university.country)}</p>
                 </div>
-              </>
-            )}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("admin.universities.cityEn", "City (English)")}
+                  </h3>
+                  <p>{university.city}</p>
+                </div>
+                {university.city_ru && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.cityRu", "City (Russian)")}
+                    </h3>
+                    <p>{university.city_ru}</p>
+                  </div>
+                )}
+              </div>
 
-            <Separator />
-          </CardContent>
-        </Card>
+              {university.website && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.website", "Website")}
+                    </h3>
+                    <a
+                      href={university.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary flex items-center hover:underline"
+                    >
+                      {university.website}
+                      <ExternalLink className="ml-1 h-3 w-3" />
+                    </a>
+                  </div>
+                </>
+              )}
+
+              {university.description || university.description_ru ? (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.description", "Description")}
+                    </h3>
+                    <p className="whitespace-pre-line">{getLocalizedDescription(university)}</p>
+                  </div>
+                </>
+              ) : null}
+
+              {university.university_languages && university.university_languages.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.languages", "Languages of Instruction")}
+                    </h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {university.university_languages.map((language) => (
+                        <Badge key={language} variant="secondary">
+                          {language}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {university.university_programs && university.university_programs.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      {t("admin.universities.programs", "Available Programs")}
+                    </h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {university.university_programs.map((program) => (
+                        <Badge key={program} variant="secondary">
+                          {program}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Separator />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex justify-center items-center h-20">
+                <p>{t("admin.universities.fetchingDetails", "Fetching university details...")}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   )

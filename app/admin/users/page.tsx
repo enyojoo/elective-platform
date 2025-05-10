@@ -24,7 +24,6 @@ import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useCachedUsers } from "@/hooks/use-cached-users"
 import { useDataCache } from "@/lib/data-cache-context"
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export default function UsersPage() {
   const { t, language } = useLanguage()
@@ -141,6 +141,30 @@ export default function UsersPage() {
       const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
 
       if (error) throw error
+
+      // Update local state
+      const updatedUsers = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            status: newStatus ? "active" : "inactive",
+          }
+        }
+        return user
+      })
+
+      // Update filtered users
+      setFilteredUsers((prevFiltered) =>
+        prevFiltered.map((user) => {
+          if (user.id === userId) {
+            return {
+              ...user,
+              status: newStatus ? "active" : "inactive",
+            }
+          }
+          return user
+        }),
+      )
 
       // Invalidate the users cache
       if (institution?.id) {
@@ -287,35 +311,8 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      // Skeleton loading state
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[180px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[100px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[60px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      // Improved skeleton loading - only in table rows
+                      <TableSkeleton columns={8} rows={5} />
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">

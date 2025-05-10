@@ -250,19 +250,19 @@ export default function UniversitiesPage() {
       case "active":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("admin.universities.status.active")}
+            {t("admin.universities.status.active", "Active")}
           </Badge>
         )
       case "inactive":
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("admin.universities.status.inactive")}
+            {t("admin.universities.status.inactive", "Inactive")}
           </Badge>
         )
       case "draft":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("admin.universities.status.draft")}
+            {t("admin.universities.status.draft", "Draft")}
           </Badge>
         )
       default:
@@ -391,9 +391,9 @@ export default function UniversitiesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.universities.allStatus", "All Status")}</SelectItem>
-                      <SelectItem value="active">{t("admin.universities.active", "Active")}</SelectItem>
-                      <SelectItem value="inactive">{t("admin.universities.inactive", "Inactive")}</SelectItem>
-                      <SelectItem value="draft">{t("admin.universities.draft", "Draft")}</SelectItem>
+                      <SelectItem value="active">{t("admin.universities.status.active", "Active")}</SelectItem>
+                      <SelectItem value="inactive">{t("admin.universities.status.inactive", "Inactive")}</SelectItem>
+                      <SelectItem value="draft">{t("admin.universities.status.draft", "Draft")}</SelectItem>
                     </SelectContent>
                   </Select>
 
