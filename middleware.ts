@@ -90,6 +90,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", req.url))
   }
 
+  // Redirect base role paths to their login pages
+  if (path === "/admin" || path === "/admin/") {
+    return NextResponse.redirect(new URL("/admin/login", req.url))
+  }
+
+  if (path === "/student" || path === "/student/") {
+    return NextResponse.redirect(new URL("/student/login", req.url))
+  }
+
+  if (path === "/manager" || path === "/manager/") {
+    return NextResponse.redirect(new URL("/manager/login", req.url))
+  }
+
+  if (path === "/super-admin" || path === "/super-admin/") {
+    return NextResponse.redirect(new URL("/super-admin/login", req.url))
+  }
+
   return NextResponse.next()
 }
 

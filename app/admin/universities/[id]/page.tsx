@@ -12,6 +12,7 @@ import { ArrowLeft, ExternalLink, Edit, Trash } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { useInstitution } from "@/lib/institution-context"
 
 interface University {
   id: string
@@ -48,6 +49,7 @@ export default function UniversityDetailsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitution()
 
   // Fetch countries
   useEffect(() => {
@@ -74,7 +76,17 @@ export default function UniversityDetailsPage() {
     const fetchUniversity = async () => {
       setIsLoading(true)
       try {
-        const { data, error } = await supabase.from("universities").select("*").eq("id", params.id).single()
+        if (!institution?.id) {
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from("universities")
+          .select("*")
+          .eq("id", params.id)
+          .eq("institution_id", institution.id)
+          .single()
 
         if (error) {
           throw error
@@ -90,6 +102,7 @@ export default function UniversityDetailsPage() {
           description: t("admin.universities.errorFetching", "Failed to fetch university details"),
           variant: "destructive",
         })
+        router.push("/admin/universities")
       } finally {
         setIsLoading(false)
       }
@@ -98,7 +111,7 @@ export default function UniversityDetailsPage() {
     if (params.id) {
       fetchUniversity()
     }
-  }, [params.id, supabase, toast, t])
+  }, [params.id, supabase, toast, t, institution?.id, router])
 
   const getLocalizedName = (university: University) => {
     if (language === "ru" && university.name_ru) {

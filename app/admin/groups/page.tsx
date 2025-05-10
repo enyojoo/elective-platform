@@ -117,7 +117,7 @@ function GroupsTableContent() {
         setIsLoading(true)
 
         // Try to get data from cache first
-        const cachedGroups = getCachedData<any[]>("groups", "all")
+        const cachedGroups = getCachedData<any[]>("groups", institution.id)
 
         if (cachedGroups && cachedGroups.length > 0) {
           console.log("Using cached groups data")
@@ -194,7 +194,7 @@ function GroupsTableContent() {
         }))
 
         // Save to cache
-        setCachedData("groups", "all", formattedGroups)
+        setCachedData("groups", institution.id, formattedGroups)
 
         if (isMounted.current) {
           setGroups(formattedGroups)

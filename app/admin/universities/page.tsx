@@ -22,6 +22,7 @@ import { Search, MoreHorizontal, Filter, Plus, Globe } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { useInstitution } from "@/lib/institution-context"
 
 // Define the University type
 interface University {
@@ -61,6 +62,7 @@ export default function UniversitiesPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitution() // Moved hook call outside useEffect
 
   // Fetch countries from Supabase
   useEffect(() => {
@@ -93,7 +95,16 @@ export default function UniversitiesPage() {
     const fetchUniversities = async () => {
       setIsLoading(true)
       try {
-        const { data, error } = await supabase.from("universities").select("*").order("name", { ascending: true })
+        if (!institution?.id) {
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from("universities")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .order("name", { ascending: true })
 
         if (error) {
           throw error
@@ -116,7 +127,7 @@ export default function UniversitiesPage() {
     }
 
     fetchUniversities()
-  }, [supabase, toast, t])
+  }, [supabase, toast, t, institution?.id])
 
   // Filter universities based on search term and filters
   useEffect(() => {
