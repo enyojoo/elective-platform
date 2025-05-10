@@ -20,56 +20,39 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/types/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
 
-// Mock courses data for initial rendering
-const mockCourses = [
-  {
-    id: 1,
-    name: "Strategic Management",
-    instructor: "Prof. John Smith",
-    degree: "Master in Management",
-    degreeCode: "MiM",
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "Financial Accounting",
-    instructor: "Dr. Jane Doe",
-    degree: "Master in Finance",
-    degreeCode: "MiF",
-    status: "active",
-  },
-  {
-    id: 3,
-    name: "Marketing Analytics",
-    instructor: "Prof. Robert Johnson",
-    degree: "Master in Business Analytics",
-    degreeCode: "MBA",
-    status: "inactive",
-  },
-  {
-    id: 4,
-    name: "Organizational Behavior",
-    instructor: "Dr. Emily Chen",
-    degree: "Bachelor in Management",
-    degreeCode: "BiM",
-    status: "draft",
-  },
-]
+interface Course {
+  id: string
+  name_en: string
+  name_ru: string
+  instructor_en: string
+  instructor_ru: string
+  code: string
+  status: string
+  degree_id: string
+  degree: {
+    id: string
+    name: string
+    name_ru: string
+    code: string
+  } | null
+}
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState(mockCourses)
+  const [courses, setCourses] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [degreeFilter, setDegreeFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [degrees, setDegrees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [totalCourses, setTotalCourses] = useState(0)
   const itemsPerPage = 10
-  const { t } = useLanguage()
-  const supabase = createClientComponentClient<Database>()
+  const { t, currentLanguage } = useLanguage()
+  const supabase = getSupabaseBrowserClient()
+  const { toast } = useToast()
 
   // Fetch degrees from Supabase
   useEffect(() => {
@@ -83,7 +66,11 @@ export default function CoursesPage() {
         } = await supabase.auth.getSession()
 
         if (!session) {
-          console.error("No session found")
+          toast({
+            title: "Error",
+            description: "No session found. Please log in again.",
+            variant: "destructive",
+          })
           return
         }
 
@@ -95,7 +82,11 @@ export default function CoursesPage() {
           .single()
 
         if (profileError || !profileData) {
-          console.error("Error fetching profile:", profileError)
+          toast({
+            title: "Error",
+            description: "Error fetching profile: " + profileError?.message,
+            variant: "destructive",
+          })
           return
         }
 
@@ -106,44 +97,108 @@ export default function CoursesPage() {
           .eq("institution_id", profileData.institution_id)
 
         if (error) {
-          console.error("Error fetching degrees:", error)
+          toast({
+            title: "Error",
+            description: "Error fetching degrees: " + error.message,
+            variant: "destructive",
+          })
           return
         }
 
         setDegrees(data || [])
-      } catch (error) {
-        console.error("Error:", error)
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred: " + error.message,
+          variant: "destructive",
+        })
       } finally {
         setLoading(false)
       }
     }
 
     fetchDegrees()
-  }, [supabase])
+  }, [supabase, toast])
 
-  // Filter courses based on search term and filters
+  // Fetch courses from Supabase
   useEffect(() => {
-    let filteredCourses = mockCourses
+    async function fetchCourses() {
+      try {
+        setLoading(true)
 
-    if (searchTerm) {
-      filteredCourses = filteredCourses.filter(
-        (course) =>
-          course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          course.instructor.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
+        // Get current user's session
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          return
+        }
+
+        // Get user's profile to get institution_id
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError || !profileData) {
+          return
+        }
+
+        // Build query
+        let query = supabase
+          .from("courses")
+          .select("*, degree:degree_id(*)", { count: "exact" })
+          .eq("institution_id", profileData.institution_id)
+
+        // Apply filters
+        if (searchTerm) {
+          query = query.or(
+            `name_en.ilike.%${searchTerm}%,name_ru.ilike.%${searchTerm}%,instructor_en.ilike.%${searchTerm}%,instructor_ru.ilike.%${searchTerm}%`,
+          )
+        }
+
+        if (statusFilter !== "all") {
+          query = query.eq("status", statusFilter)
+        }
+
+        if (degreeFilter !== "all") {
+          query = query.eq("degree_id", degreeFilter)
+        }
+
+        // Apply pagination
+        const from = (currentPage - 1) * itemsPerPage
+        const to = from + itemsPerPage - 1
+        query = query.range(from, to)
+
+        // Execute query
+        const { data, error, count } = await query
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: "Error fetching courses: " + error.message,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setCourses(data || [])
+        setTotalCourses(count || 0)
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred: " + error.message,
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
 
-    if (statusFilter !== "all") {
-      filteredCourses = filteredCourses.filter((course) => course.status === statusFilter)
-    }
-
-    if (degreeFilter !== "all") {
-      filteredCourses = filteredCourses.filter((course) => course.degree === degreeFilter)
-    }
-
-    setCourses(filteredCourses)
-    setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, statusFilter, degreeFilter])
+    fetchCourses()
+  }, [supabase, searchTerm, statusFilter, degreeFilter, currentPage, toast])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -171,11 +226,77 @@ export default function CoursesPage() {
     }
   }
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = courses.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(courses.length / itemsPerPage)
+  // Handle course status toggle
+  const handleStatusToggle = async (courseId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === "active" ? "inactive" : "active"
+
+      const { error } = await supabase
+        .from("courses")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", courseId)
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update course status: " + error.message,
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Update local state
+      setCourses(courses.map((course) => (course.id === courseId ? { ...course, status: newStatus } : course)))
+
+      toast({
+        title: "Success",
+        description: `Course ${newStatus === "active" ? "activated" : "deactivated"} successfully`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred: " + error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle course deletion
+  const handleDeleteCourse = async (courseId: string) => {
+    if (!confirm(t("admin.courses.confirmDelete"))) {
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("courses").delete().eq("id", courseId)
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete course: " + error.message,
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Update local state
+      setCourses(courses.filter((course) => course.id !== courseId))
+
+      toast({
+        title: "Success",
+        description: "Course deleted successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred: " + error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Calculate total pages
+  const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
   return (
     <DashboardLayout>
@@ -204,11 +325,20 @@ export default function CoursesPage() {
                     placeholder={t("admin.courses.search")}
                     className="pl-8"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(1) // Reset to first page when search changes
+                    }}
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      setStatusFilter(value)
+                      setCurrentPage(1) // Reset to first page when filter changes
+                    }}
+                  >
                     <SelectTrigger className="w-[130px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.courses.status")} />
@@ -221,7 +351,13 @@ export default function CoursesPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={degreeFilter} onValueChange={setDegreeFilter}>
+                  <Select
+                    value={degreeFilter}
+                    onValueChange={(value) => {
+                      setDegreeFilter(value)
+                      setCurrentPage(1) // Reset to first page when filter changes
+                    }}
+                  >
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.courses.degree")} />
@@ -229,8 +365,8 @@ export default function CoursesPage() {
                     <SelectContent>
                       <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
                       {degrees.map((degree) => (
-                        <SelectItem key={degree.id} value={degree.name_en}>
-                          {degree.name_en}
+                        <SelectItem key={degree.id} value={degree.id}>
+                          {currentLanguage === "ru" && degree.name_ru ? degree.name_ru : degree.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -250,13 +386,25 @@ export default function CoursesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length > 0 ? (
-                      currentItems.map((course) => (
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                          {t("admin.courses.loading")}
+                        </TableCell>
+                      </TableRow>
+                    ) : courses.length > 0 ? (
+                      courses.map((course) => (
                         <TableRow key={course.id}>
-                          <TableCell className="font-medium">{course.name}</TableCell>
-                          <TableCell>{course.instructor}</TableCell>
+                          <TableCell className="font-medium">
+                            {currentLanguage === "ru" && course.name_ru ? course.name_ru : course.name_en}
+                          </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{course.degreeCode}</Badge>
+                            {currentLanguage === "ru" && course.instructor_ru
+                              ? course.instructor_ru
+                              : course.instructor_en}
+                          </TableCell>
+                          <TableCell>
+                            {course.degree && <Badge variant="outline">{course.degree.code}</Badge>}
                           </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
@@ -273,12 +421,15 @@ export default function CoursesPage() {
                                     {t("admin.courses.edit")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleStatusToggle(course.id, course.status)}>
                                   {course.status === "active"
                                     ? t("admin.courses.deactivate")
                                     : t("admin.courses.activate")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteCourse(course.id)}
+                                >
                                   {t("admin.courses.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -289,7 +440,7 @@ export default function CoursesPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center">
-                          {loading ? "Loading..." : t("admin.courses.noCoursesFound")}
+                          {t("admin.courses.noCoursesFound")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -297,7 +448,7 @@ export default function CoursesPage() {
                 </Table>
               </div>
 
-              {courses.length > itemsPerPage && (
+              {totalPages > 1 && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -314,21 +465,33 @@ export default function CoursesPage() {
                       </PaginationPrevious>
                     </PaginationItem>
 
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === page}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setCurrentPage(page)
-                          }}
-                          aria-label={`${t("pagination.page")} ${page}`}
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      // Show pages around current page
+                      let pageNum = i + 1
+                      if (totalPages > 5) {
+                        if (currentPage > 3) {
+                          pageNum = currentPage - 3 + i
+                        }
+                        if (pageNum > totalPages - 4) {
+                          pageNum = totalPages - 4 + i
+                        }
+                      }
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === pageNum}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setCurrentPage(pageNum)
+                            }}
+                            aria-label={`${t("pagination.page")} ${pageNum}`}
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    })}
 
                     <PaginationItem>
                       <PaginationNext

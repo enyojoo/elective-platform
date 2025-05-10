@@ -6,50 +6,43 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
-import { useLanguage } from "@/lib/language-context"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/types/supabase"
 import { useToast } from "@/hooks/use-toast"
-
-// Course status options
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "draft", label: "Draft" },
-]
+import { useLanguage } from "@/lib/language-context"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 export default function NewCoursePage() {
+  const [loading, setLoading] = useState(false)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [loadingDegrees, setLoadingDegrees] = useState(true)
   const router = useRouter()
   const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const { t } = useLanguage()
-  const supabase = createClientComponentClient<Database>()
+  const supabase = getSupabaseBrowserClient()
 
-  const [course, setCourse] = useState({
-    nameEn: "",
-    nameRu: "",
-    degreeId: "",
-    instructorEn: "",
-    instructorRu: "",
-    descriptionEn: "",
-    descriptionRu: "",
-    status: "active", // Default status
+  // Form state
+  const [formData, setFormData] = useState({
+    name_en: "",
+    name_ru: "",
+    code: "",
+    instructor_en: "",
+    instructor_ru: "",
+    description_en: "",
+    description_ru: "",
+    degree_id: "",
+    credits: 3,
+    status: "active",
   })
 
   // Fetch degrees from Supabase
   useEffect(() => {
     async function fetchDegrees() {
       try {
-        setLoading(true)
+        setLoadingDegrees(true)
 
         // Get current user's session
         const {
@@ -57,7 +50,11 @@ export default function NewCoursePage() {
         } = await supabase.auth.getSession()
 
         if (!session) {
-          console.error("No session found")
+          toast({
+            title: "Error",
+            description: "No session found. Please log in again.",
+            variant: "destructive",
+          })
           return
         }
 
@@ -69,7 +66,11 @@ export default function NewCoursePage() {
           .single()
 
         if (profileError || !profileData) {
-          console.error("Error fetching profile:", profileError)
+          toast({
+            title: "Error",
+            description: "Error fetching profile: " + profileError?.message,
+            variant: "destructive",
+          })
           return
         }
 
@@ -80,39 +81,57 @@ export default function NewCoursePage() {
           .eq("institution_id", profileData.institution_id)
 
         if (error) {
-          console.error("Error fetching degrees:", error)
+          toast({
+            title: "Error",
+            description: "Error fetching degrees: " + error.message,
+            variant: "destructive",
+          })
           return
         }
 
         setDegrees(data || [])
-      } catch (error) {
-        console.error("Error:", error)
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred: " + error.message,
+          variant: "destructive",
+        })
       } finally {
-        setLoading(false)
+        setLoadingDegrees(false)
       }
     }
 
     fetchDegrees()
-  }, [supabase])
+  }, [supabase, toast])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setCourse((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleDegreeChange = (value: string) => {
-    setCourse((prev) => ({ ...prev, degreeId: value }))
+  // Handle select changes
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleStatusChange = (value: string) => {
-    setCourse((prev) => ({ ...prev, status: value }))
-  }
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
 
     try {
+      setLoading(true)
+
+      // Validate required fields
+      if (!formData.name_en || !formData.code || !formData.degree_id) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
+
       // Get current user's session
       const {
         data: { session },
@@ -121,7 +140,7 @@ export default function NewCoursePage() {
       if (!session) {
         toast({
           title: "Error",
-          description: "You must be logged in to create a course",
+          description: "No session found. Please log in again.",
           variant: "destructive",
         })
         return
@@ -137,29 +156,25 @@ export default function NewCoursePage() {
       if (profileError || !profileData) {
         toast({
           title: "Error",
-          description: "Could not fetch your profile information",
+          description: "Error fetching profile: " + profileError?.message,
           variant: "destructive",
         })
         return
       }
 
-      // Create the course in Supabase
-      const { error } = await supabase.from("courses").insert({
-        name_en: course.nameEn,
-        name_ru: course.nameRu,
-        degree_id: Number.parseInt(course.degreeId),
-        instructor_en: course.instructorEn,
-        instructor_ru: course.instructorRu,
-        description_en: course.descriptionEn,
-        description_ru: course.descriptionRu,
-        status: course.status,
-        institution_id: profileData.institution_id,
-      })
+      // Create course
+      const { data, error } = await supabase
+        .from("courses")
+        .insert({
+          ...formData,
+          institution_id: profileData.institution_id,
+        })
+        .select()
 
       if (error) {
         toast({
-          title: "Error creating course",
-          description: error.message,
+          title: "Error",
+          description: "Error creating course: " + error.message,
           variant: "destructive",
         })
         return
@@ -167,159 +182,156 @@ export default function NewCoursePage() {
 
       toast({
         title: "Success",
-        description: "Course created successfully",
+        description: "Course created successfully!",
       })
 
-      // Redirect to courses page after successful submission
+      // Redirect to courses page
       router.push("/admin/courses")
-    } catch (error) {
-      console.error("Error creating course:", error)
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred: " + error.message,
         variant: "destructive",
       })
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-2">
-          <Link href="/admin/courses">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold tracking-tight">{t("admin.newCourse.title")}</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.courses.newCourse")}</h1>
+          <p className="text-muted-foreground mt-2">{t("admin.courses.newCourseSubtitle")}</p>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit}>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("admin.courses.courseDetails")}</CardTitle>
+              <CardDescription>{t("admin.courses.courseDetailsDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="nameEn">{t("admin.newCourse.nameEn")}</Label>
+                  <Label htmlFor="name_en">{t("admin.courses.nameEn")} *</Label>
+                  <Input id="name_en" name="name_en" value={formData.name_en} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name_ru">{t("admin.courses.nameRu")}</Label>
+                  <Input id="name_ru" name="name_ru" value={formData.name_ru} onChange={handleInputChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="code">{t("admin.courses.code")} *</Label>
+                  <Input id="code" name="code" value={formData.code} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="credits">{t("admin.courses.credits")}</Label>
                   <Input
-                    id="nameEn"
-                    name="nameEn"
-                    placeholder="Strategic Management"
-                    value={course.nameEn}
-                    onChange={handleChange}
-                    required
+                    id="credits"
+                    name="credits"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={formData.credits}
+                    onChange={handleInputChange}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nameRu">{t("admin.newCourse.nameRu")}</Label>
+                  <Label htmlFor="instructor_en">{t("admin.courses.instructorEn")}</Label>
                   <Input
-                    id="nameRu"
-                    name="nameRu"
-                    placeholder="Стратегический менеджмент"
-                    value={course.nameRu}
-                    onChange={handleChange}
-                    required
+                    id="instructor_en"
+                    name="instructor_en"
+                    value={formData.instructor_en}
+                    onChange={handleInputChange}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="degreeId">{t("admin.newCourse.degree")}</Label>
-                  <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
+                  <Label htmlFor="instructor_ru">{t("admin.courses.instructorRu")}</Label>
+                  <Input
+                    id="instructor_ru"
+                    name="instructor_ru"
+                    value={formData.instructor_ru}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="degree_id">{t("admin.courses.degree")} *</Label>
+                  <Select
+                    value={formData.degree_id}
+                    onValueChange={(value) => handleSelectChange("degree_id", value)}
+                    disabled={loadingDegrees}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder={loading ? "Loading degrees..." : t("admin.newCourse.selectDegree")} />
+                      <SelectValue
+                        placeholder={
+                          loadingDegrees ? t("admin.courses.loadingDegrees") : t("admin.courses.selectDegree")
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {degrees.map((degree) => (
-                        <SelectItem key={degree.id} value={degree.id.toString()}>
-                          {degree.name_en}
+                        <SelectItem key={degree.id} value={degree.id}>
+                          {degree.name} ({degree.code})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="status">{t("admin.newCourse.status")}</Label>
-                  <Select value={course.status} onValueChange={handleStatusChange} required>
+                  <Label htmlFor="status">{t("admin.courses.status")}</Label>
+                  <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
                     <SelectTrigger>
-                      <SelectValue placeholder={t("admin.newCourse.selectStatus")} />
+                      <SelectValue placeholder={t("admin.courses.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {statusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {t(`admin.courses.${option.value}`)}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="active">{t("admin.courses.active")}</SelectItem>
+                      <SelectItem value="inactive">{t("admin.courses.inactive")}</SelectItem>
+                      <SelectItem value="draft">{t("admin.courses.draft")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="instructorEn">{t("admin.newCourse.instructorEn")}</Label>
-                  <Input
-                    id="instructorEn"
-                    name="instructorEn"
-                    placeholder="Prof. John Smith"
-                    value={course.instructorEn}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="instructorRu">{t("admin.newCourse.instructorRu")}</Label>
-                  <Input
-                    id="instructorRu"
-                    name="instructorRu"
-                    placeholder="Проф. Иван Смирнов"
-                    value={course.instructorRu}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="description_en">{t("admin.courses.descriptionEn")}</Label>
+                <Textarea
+                  id="description_en"
+                  name="description_en"
+                  value={formData.description_en}
+                  onChange={handleInputChange}
+                  rows={4}
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="descriptionEn">{t("admin.newCourse.descriptionEn")}</Label>
-                  <Textarea
-                    id="descriptionEn"
-                    name="descriptionEn"
-                    placeholder={t("admin.newCourse.courseDescEn")}
-                    value={course.descriptionEn}
-                    onChange={handleChange}
-                    rows={4}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="descriptionRu">{t("admin.newCourse.descriptionRu")}</Label>
-                  <Textarea
-                    id="descriptionRu"
-                    name="descriptionRu"
-                    placeholder={t("admin.newCourse.courseDescRu")}
-                    value={course.descriptionRu}
-                    onChange={handleChange}
-                    rows={4}
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="description_ru">{t("admin.courses.descriptionRu")}</Label>
+                <Textarea
+                  id="description_ru"
+                  name="description_ru"
+                  value={formData.description_ru}
+                  onChange={handleInputChange}
+                  rows={4}
+                />
               </div>
 
-              <div className="flex justify-end gap-4">
-                <Button variant="outline" type="button" onClick={() => router.push("/admin/courses")}>
-                  {t("admin.newCourse.cancel")}
+              <div className="flex justify-end space-x-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/admin/courses")}
+                  disabled={loading}
+                >
+                  {t("admin.courses.cancel")}
                 </Button>
-                <Button type="submit" disabled={isSubmitting || loading}>
-                  {isSubmitting ? t("admin.newCourse.creating") : t("admin.newCourse.create")}
+                <Button type="submit" disabled={loading}>
+                  {loading ? t("admin.courses.creating") : t("admin.courses.createCourse")}
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </form>
       </div>
     </DashboardLayout>
   )
