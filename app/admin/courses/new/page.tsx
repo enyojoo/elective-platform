@@ -205,7 +205,7 @@ export default function NewCoursePage() {
                   <Input
                     id="nameEn"
                     name="nameEn"
-                    placeholder="Strategic Management"
+                    placeholder={t("admin.newCourse.nameEnPlaceholder")}
                     value={course.nameEn}
                     onChange={handleChange}
                     required
@@ -216,7 +216,7 @@ export default function NewCoursePage() {
                   <Input
                     id="nameRu"
                     name="nameRu"
-                    placeholder="Стратегический менеджмент"
+                    placeholder={t("admin.newCourse.nameRuPlaceholder")}
                     value={course.nameRu}
                     onChange={handleChange}
                     required
@@ -263,7 +263,7 @@ export default function NewCoursePage() {
                   <Input
                     id="instructorEn"
                     name="instructorEn"
-                    placeholder="Prof. John Smith"
+                    placeholder={t("admin.newCourse.instructorEnPlaceholder")}
                     value={course.instructorEn}
                     onChange={handleChange}
                     required
@@ -274,7 +274,7 @@ export default function NewCoursePage() {
                   <Input
                     id="instructorRu"
                     name="instructorRu"
-                    placeholder="Проф. Иван Смирнов"
+                    placeholder={t("admin.newCourse.instructorRuPlaceholder")}
                     value={course.instructorRu}
                     onChange={handleChange}
                     required
@@ -288,7 +288,7 @@ export default function NewCoursePage() {
                   <Textarea
                     id="descriptionEn"
                     name="descriptionEn"
-                    placeholder={t("admin.newCourse.courseDescEn")}
+                    placeholder={t("admin.newCourse.descriptionEnPlaceholder")}
                     value={course.descriptionEn}
                     onChange={handleChange}
                     rows={4}
@@ -300,7 +300,7 @@ export default function NewCoursePage() {
                   <Textarea
                     id="descriptionRu"
                     name="descriptionRu"
-                    placeholder={t("admin.newCourse.courseDescRu")}
+                    placeholder={t("admin.newCourse.descriptionRuPlaceholder")}
                     value={course.descriptionRu}
                     onChange={handleChange}
                     rows={4}
