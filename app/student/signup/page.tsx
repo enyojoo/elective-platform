@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function StudentSignupPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -115,6 +115,16 @@ export default function StudentSignupPage() {
       setGroup(filtered[0].id?.toString() || "")
     }
   }, [degree, year, groups, group])
+
+  // Helper function to get localized degree name
+  const getDegreeName = (degreeItem: any) => {
+    return language === "ru" && degreeItem.name_ru ? degreeItem.name_ru : degreeItem.name
+  }
+
+  // Helper function to get localized group name
+  const getGroupName = (groupItem: any) => {
+    return language === "ru" && groupItem.name_ru ? groupItem.name_ru : groupItem.name
+  }
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
@@ -241,7 +251,7 @@ export default function StudentSignupPage() {
                   <SelectContent>
                     {degrees.map((d) => (
                       <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                        {d.name}
+                        {getDegreeName(d)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -274,7 +284,7 @@ export default function StudentSignupPage() {
                     <SelectContent>
                       {filteredGroups.map((g) => (
                         <SelectItem key={g.id} value={g.id?.toString() || ""}>
-                          {g.name}
+                          {getGroupName(g)}
                         </SelectItem>
                       ))}
                     </SelectContent>

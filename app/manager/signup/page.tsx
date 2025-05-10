@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerSignupPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -99,6 +99,11 @@ export default function ManagerSignupPage() {
 
     loadAllData()
   }, [institution, supabase])
+
+  // Helper function to get localized degree name
+  const getDegreeName = (degreeItem: any) => {
+    return language === "ru" && degreeItem.name_ru ? degreeItem.name_ru : degreeItem.name
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -246,7 +251,7 @@ export default function ManagerSignupPage() {
                   <SelectContent>
                     {degrees.map((degree) => (
                       <SelectItem key={degree.id} value={degree.id.toString()}>
-                        {degree.name}
+                        {getDegreeName(degree)}
                       </SelectItem>
                     ))}
                   </SelectContent>
