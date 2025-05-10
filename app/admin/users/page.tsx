@@ -38,16 +38,16 @@ import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 
 // Cache expiry time in milliseconds (1 hour)
-const CACHE_EXPIRY = 60 * 60 * 1000
+const CACHE_EXPIRY_TIME = 60 * 60 * 1000
 
 interface User {
   id: string
   name: string
   email: string
   role: string
-  degreeName: string
-  groupName: string
-  year: string
+  degreeName: string | null
+  groupName: string | null
+  year: number | null
   status: string
 }
 
@@ -73,77 +73,99 @@ export default function UsersPage() {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Function to fetch users from Supabase
-  const fetchUsers = useCallback(async () => {
-    if (!institution?.id) return
+  const fetchUsers = useCallback(
+    async (institutionId: string) => {
+      try {
+        setIsLoading(true)
 
-    try {
-      setIsLoading(true)
+        // Check if we have cached data
+        const cachedData = localStorage.getItem(`users_${institutionId}`)
+        const cachedTimestamp = localStorage.getItem(`users_${institutionId}_timestamp`)
 
-      // Check if we have cached data
-      const cachedData = localStorage.getItem(`users_${institution.id}`)
-      if (cachedData) {
-        const { data, timestamp } = JSON.parse(cachedData)
+        if (cachedData && cachedTimestamp) {
+          const timestamp = Number.parseInt(cachedTimestamp)
+          const now = Date.now()
 
-        // If cache is still valid (less than 1 hour old)
-        if (Date.now() - timestamp < CACHE_EXPIRY) {
-          setUsers(data)
-          setIsLoading(false)
-          return
+          // If cache is still valid, use it
+          if (now - timestamp < CACHE_EXPIRY_TIME) {
+            const parsedData = JSON.parse(cachedData)
+            setUsers(parsedData)
+            setIsLoading(false)
+            return parsedData
+          }
         }
+
+        // Fetch profiles with role information
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, name, email, role, degree_id, group_id, year, is_active")
+          .eq("institution_id", institutionId)
+
+        if (profilesError) throw profilesError
+
+        // Get all unique degree_ids and group_ids
+        const degreeIds = [...new Set(profiles.filter((p) => p.degree_id).map((p) => p.degree_id))]
+        const groupIds = [...new Set(profiles.filter((p) => p.group_id).map((p) => p.group_id))]
+
+        // Fetch degrees
+        const { data: degrees, error: degreesError } =
+          degreeIds.length > 0
+            ? await supabase.from("degrees").select("id, name").in("id", degreeIds)
+            : { data: [], error: null }
+
+        if (degreesError) throw degreesError
+
+        // Fetch groups
+        const { data: groups, error: groupsError } =
+          groupIds.length > 0
+            ? await supabase.from("groups").select("id, name").in("id", groupIds)
+            : { data: [], error: null }
+
+        if (groupsError) throw groupsError
+
+        // Create a map for quick lookups
+        const degreeMap = new Map(degrees?.map((d) => [d.id, d.name]) || [])
+        const groupMap = new Map(groups?.map((g) => [g.id, g.name]) || [])
+
+        // Transform the data
+        const transformedUsers = profiles.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role,
+          degreeName: profile.degree_id ? degreeMap.get(profile.degree_id) || null : null,
+          groupName: profile.group_id ? groupMap.get(profile.group_id) || null : null,
+          year: profile.year,
+          status: profile.is_active ? "active" : "inactive",
+        }))
+
+        // Cache the data
+        localStorage.setItem(`users_${institutionId}`, JSON.stringify(transformedUsers))
+        localStorage.setItem(`users_${institutionId}_timestamp`, Date.now().toString())
+
+        setUsers(transformedUsers)
+        return transformedUsers
+      } catch (err: any) {
+        console.error("Error fetching users:", err)
+        setError(err.message || "Failed to fetch users")
+        return []
+      } finally {
+        setIsLoading(false)
       }
+    },
+    [supabase],
+  )
 
-      // Fetch profiles with their related data
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select(`
-          id, 
-          name, 
-          email, 
-          role, 
-          is_active, 
-          year,
-          degrees (id, name),
-          groups (id, name)
-        `)
-        .eq("institution_id", institution.id)
+  // Invalidate cache
+  const invalidateCache = useCallback((institutionId: string) => {
+    localStorage.removeItem(`users_${institutionId}`)
+    localStorage.removeItem(`users_${institutionId}_timestamp`)
+  }, [])
 
-      if (profilesError) throw profilesError
-
-      // Transform the data
-      const transformedUsers = profiles.map((profile: any) => ({
-        id: profile.id,
-        name: profile.name || "",
-        email: profile.email || "",
-        role: profile.role || "",
-        degreeName: profile.degrees?.name || "",
-        groupName: profile.groups?.name || "",
-        year: profile.year || "",
-        status: profile.is_active ? "active" : "inactive",
-      }))
-
-      // Cache the data
-      localStorage.setItem(
-        `users_${institution.id}`,
-        JSON.stringify({
-          data: transformedUsers,
-          timestamp: Date.now(),
-        }),
-      )
-
-      setUsers(transformedUsers)
-      setError(null)
-    } catch (err: any) {
-      console.error("Error fetching users:", err)
-      setError(err.message || "Failed to load users")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [institution?.id, supabase])
-
-  // Fetch users on component mount
+  // Initial data fetch
   useEffect(() => {
     if (institution?.id) {
-      fetchUsers()
+      fetchUsers(institution.id)
     }
   }, [institution?.id, fetchUsers])
 
@@ -235,21 +257,9 @@ export default function UsersPage() {
         prevUsers.map((user) => (user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user)),
       )
 
-      // Update cache
+      // Invalidate the cache
       if (institution?.id) {
-        const cachedData = localStorage.getItem(`users_${institution.id}`)
-        if (cachedData) {
-          const { timestamp } = JSON.parse(cachedData)
-          localStorage.setItem(
-            `users_${institution.id}`,
-            JSON.stringify({
-              data: users.map((user) =>
-                user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user,
-              ),
-              timestamp,
-            }),
-          )
-        }
+        invalidateCache(institution.id)
       }
 
       toast({
@@ -292,19 +302,9 @@ export default function UsersPage() {
       setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete))
       setFilteredUsers((prevFilteredUsers) => prevFilteredUsers.filter((user) => user.id !== userToDelete))
 
-      // Update cache
+      // Invalidate the cache
       if (institution?.id) {
-        const cachedData = localStorage.getItem(`users_${institution.id}`)
-        if (cachedData) {
-          const { timestamp } = JSON.parse(cachedData)
-          localStorage.setItem(
-            `users_${institution.id}`,
-            JSON.stringify({
-              data: users.filter((user) => user.id !== userToDelete),
-              timestamp,
-            }),
-          )
-        }
+        invalidateCache(institution.id)
       }
 
       toast({
@@ -324,16 +324,6 @@ export default function UsersPage() {
       setIsDeleting(false)
     }
   }
-
-  // Invalidate cache when component unmounts
-  useEffect(() => {
-    return () => {
-      // This will ensure fresh data on next visit
-      if (institution?.id) {
-        localStorage.removeItem(`users_${institution.id}`)
-      }
-    }
-  }, [institution?.id])
 
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
@@ -426,9 +416,9 @@ export default function UsersPage() {
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
-                          <TableCell>{user.degreeName}</TableCell>
-                          <TableCell>{user.groupName}</TableCell>
-                          <TableCell>{user.year}</TableCell>
+                          <TableCell>{user.degreeName || "-"}</TableCell>
+                          <TableCell>{user.groupName || "-"}</TableCell>
+                          <TableCell>{user.year || "-"}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
