@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function StudentSignupPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -93,6 +93,13 @@ export default function StudentSignupPage() {
 
     loadAllData()
   }, [institution, supabase])
+
+  // Add this effect to force re-render when language changes
+  useEffect(() => {
+    // Force re-render when language changes to update degree names in the UI
+    const updatedDegrees = [...degrees]
+    setDegrees(updatedDegrees)
+  }, [language, degrees])
 
   // Filter groups when degree or year changes
   useEffect(() => {
@@ -176,6 +183,11 @@ export default function StudentSignupPage() {
     }
   }
 
+  // Helper function to get the degree name in the current language
+  const getDegreeName = (degree: any) => {
+    return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
@@ -241,7 +253,7 @@ export default function StudentSignupPage() {
                   <SelectContent>
                     {degrees.map((d) => (
                       <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                        {d.name}
+                        {getDegreeName(d)}
                       </SelectItem>
                     ))}
                   </SelectContent>

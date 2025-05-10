@@ -33,16 +33,16 @@ export default function NotFoundPage() {
           </ul>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 mt-8">
+        <div className="flex flex-col gap-4 mt-8 w-full max-w-xs mx-auto">
           {isSubdomainAccess ? (
             <>
-              <Button asChild className="flex-1">
+              <Button asChild className="w-full">
                 <Link href="/student/dashboard">
                   <Home className="mr-2 h-4 w-4" />
                   {t("notFound.backToStudentApp")}
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="flex-1">
+              <Button asChild variant="outline" className="w-full">
                 <Link href="/manager/dashboard">
                   <Home className="mr-2 h-4 w-4" />
                   {t("notFound.backToManagerApp")}
@@ -50,7 +50,7 @@ export default function NotFoundPage() {
               </Button>
             </>
           ) : (
-            <Button asChild className="flex-1">
+            <Button asChild className="w-full">
               <Link href="/admin/dashboard">
                 <Home className="mr-2 h-4 w-4" />
                 {t("notFound.backToDashboard")}

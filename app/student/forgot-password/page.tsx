@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("")
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { institution } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -112,10 +112,6 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     )
-  }
-
-  if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
   return (

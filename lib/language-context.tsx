@@ -993,6 +993,8 @@ const translations: Translations = {
     "notFound.backToDashboard": "Back to Dashboard",
     "notFound.backToStudentApp": "Back to Student App",
     "notFound.backToManagerApp": "Back to Manager App",
+    "admin.signup.institutionNamePlaceholder": "University of Example",
+    "admin.signup.fullNamePlaceholder": "John Doe",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -2003,8 +2005,10 @@ const translations: Translations = {
     "notFound.goHome": "На главную страницу",
     "notFound.goBack": "Вернуться назад",
     "notFound.backToDashboard": "Вернуться в панель управления",
-    "notFound.backToStudentApp": "Вернуться в приложение для студентов",
-    "notFound.backToManagerApp": "Вернуться в приложение для менеджеров",
+    "notFound.backToStudentApp": "Студенческий портал",
+    "notFound.backToManagerApp": "Портал менеджера",
+    "admin.signup.institutionNamePlaceholder": "Университет Пример",
+    "admin.signup.fullNamePlaceholder": "Иванов Иван",
   },
 }
 

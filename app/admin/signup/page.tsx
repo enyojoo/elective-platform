@@ -198,7 +198,7 @@ export default function InstitutionSignupPage() {
                   id="institutionName"
                   value={institutionName}
                   onChange={(e) => setInstitutionName(e.target.value)}
-                  placeholder="University of Example"
+                  placeholder={t("admin.signup.institutionNamePlaceholder")}
                   required
                 />
               </div>
@@ -225,7 +225,7 @@ export default function InstitutionSignupPage() {
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder={t("admin.signup.fullNamePlaceholder")}
                   required
                 />
               </div>

@@ -21,7 +21,7 @@ export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isSubdomainAccess } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -94,10 +94,6 @@ export default function ManagerLoginPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
   return (

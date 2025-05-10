@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerSignupPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -100,6 +100,13 @@ export default function ManagerSignupPage() {
     loadAllData()
   }, [institution, supabase])
 
+  // Add this effect to force re-render when language changes
+  useEffect(() => {
+    // Force re-render when language changes to update degree names in the UI
+    const updatedDegrees = [...degrees]
+    setDegrees(updatedDegrees)
+  }, [language, degrees])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData({
@@ -167,6 +174,11 @@ export default function ManagerSignupPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Helper function to get the degree name in the current language
+  const getDegreeName = (degree: any) => {
+    return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
   }
 
   // Generate enrollment years if no years are available from the database
@@ -267,7 +279,7 @@ export default function ManagerSignupPage() {
                   <SelectContent>
                     {degrees.map((degree) => (
                       <SelectItem key={degree.id} value={degree.id.toString()}>
-                        {degree.name}
+                        {getDegreeName(degree)}
                       </SelectItem>
                     ))}
                   </SelectContent>

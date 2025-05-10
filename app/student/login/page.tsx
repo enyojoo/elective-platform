@@ -26,7 +26,7 @@ export default function StudentLoginPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isSubdomainAccess } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -93,10 +93,6 @@ export default function StudentLoginPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (institutionLoading) {
-    return <div className="min-h-screen grid place-items-center">Loading...</div>
   }
 
   return (
