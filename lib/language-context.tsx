@@ -923,6 +923,21 @@ const translations: Translations = {
     "admin.users.deleting": "Deleting...",
     "admin.users.activate": "Activate",
     "admin.users.deactivate": "Deactivate",
+    "admin.groups.deleteConfirmTitle": "Delete Group",
+    "admin.groups.deleteConfirmDescription":
+      "You are sure you want to delete this group? This action cannot be undone.",
+    "admin.groups.deleteConfirmStudents": "This group has {count} students. Deleting it will affect their assignments.",
+    "admin.groups.confirmDelete": "Delete",
+    "admin.groups.success": "Success",
+    "admin.groups.groupCreated": "Group has been created successfully",
+    "admin.groups.groupUpdated": "Group has been updated successfully",
+    "admin.groups.groupDeleted": "Group has been deleted successfully",
+    "admin.groups.statusUpdated": "Group status has been updated",
+    "admin.groups.errorFetchingReferenceData": "Failed to fetch reference data",
+    "admin.groups.errorSaving": "Failed to save group",
+    "admin.groups.errorDeleting": "Failed to delete group",
+    "admin.groups.errorUpdatingStatus": "Failed to update group status",
+    "admin.users.program_manager": "Program Manager",
     // University-related translations
     "admin.universities.languagesOffered": "Languages Offered",
     "admin.universities.programsOffered": "Programs Offered",
@@ -954,6 +969,30 @@ const translations: Translations = {
     "admin.newUniversity.programsDescription": "Add academic programs available at this university",
     "admin.newUniversity.success": "University created successfully",
     "admin.newUniversity.error": "Error creating university",
+    // Institution Required Page
+    "institution.required.title": "Institution Access Required",
+    "institution.required.subtitle":
+      "Student and manager access is only available through your institution's subdomain",
+    "institution.required.accessInfo": "Access Information",
+    "institution.required.accessDescription":
+      "To access student or manager features, please use your institution's specific subdomain URL. For example: ",
+    "institution.required.howToAccess": "How to access your institution:",
+    "institution.required.step1": "Contact your institution administrator for your specific subdomain",
+    "institution.required.step2": "Visit your institution's subdomain directly (e.g., yourschool.electivepro.net)",
+    "institution.required.step3": "Log in with your student or manager credentials",
+    "institution.required.goToMainPlatform": "Go to Main Platform",
+    "institution.required.adminQuestion": "Are you an administrator?",
+    "institution.required.loginHere": "Log in here",
+
+    // 404 Page
+    "notFound.title": "Page Not Found",
+    "notFound.subtitle": "Oops! Looks like you've wandered into uncharted territory.",
+    "notFound.suggestions": "What might have happened?",
+    "notFound.suggestion1": "The page might have been moved or deleted",
+    "notFound.suggestion2": "You might have typed the address incorrectly",
+    "notFound.suggestion3": "You might have clicked on an outdated link",
+    "notFound.goHome": "Go to Homepage",
+    "notFound.goBack": "Go Back",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -1942,6 +1981,30 @@ const translations: Translations = {
     "admin.newUniversity.programsDescription": "Добавьте академические программы, доступные в этом университете",
     "admin.newUniversity.success": "Университет успешно создан",
     "admin.newUniversity.error": "Ошибка при создании университета",
+    // Institution Required Page
+    "institution.required.title": "Требуется доступ к учреждению",
+    "institution.required.subtitle":
+      "Доступ для студентов и менеджеров возможен только через поддомен вашего учреждения",
+    "institution.required.accessInfo": "Информация о доступе",
+    "institution.required.accessDescription":
+      "Для доступа к функциям студента или менеджера, пожалуйста, используйте URL-адрес поддомена вашего учреждения. Например: ",
+    "institution.required.howToAccess": "Как получить доступ к вашему учреждению:",
+    "institution.required.step1": "Свяжитесь с администратором вашего учреждения для получения конкретного поддомена",
+    "institution.required.step2": "Посетите поддомен вашего учреждения напрямую (например, yourschool.electivepro.net)",
+    "institution.required.step3": "Войдите с учетными данными студента или менеджера",
+    "institution.required.goToMainPlatform": "Перейти на основную платформу",
+    "institution.required.adminQuestion": "Вы администратор?",
+    "institution.required.loginHere": "Войдите здесь",
+
+    // 404 Page
+    "notFound.title": "Страница не найдена",
+    "notFound.subtitle": "Упс! Похоже, вы забрели на неизведанную территорию.",
+    "notFound.suggestions": "Что могло произойти?",
+    "notFound.suggestion1": "Страница могла быть перемещена или удалена",
+    "notFound.suggestion2": "Возможно, вы неправильно ввели адрес",
+    "notFound.suggestion3": "Возможно, вы перешли по устаревшей ссылке",
+    "notFound.goHome": "На главную страницу",
+    "notFound.goBack": "Вернуться назад",
   },
 }
 
