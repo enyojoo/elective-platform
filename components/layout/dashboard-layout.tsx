@@ -40,9 +40,9 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
-      <div className="flex flex-1 flex-col h-full">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} className="h-screen flex-shrink-0 fixed md:relative z-20" />
+      <div className="flex flex-col flex-1 h-screen w-full md:w-[calc(100%-16rem)]">
+        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} className="sticky top-0 z-10" />
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">{children}</main>
       </div>
       <Toaster />
