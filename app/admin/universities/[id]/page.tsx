@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -13,6 +13,9 @@ import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
+import { useCachedUniversity } from "@/hooks/use-cached-university"
+import { useCachedCountries } from "@/hooks/use-cached-countries"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface University {
   id: string
@@ -31,82 +34,19 @@ interface University {
   description_ru?: string | null
 }
 
-interface Country {
-  id: string
-  code: string
-  name: string
-  name_ru: string | null
-  created_at: string
-}
-
 export default function UniversityDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const [university, setUniversity] = useState<University | null>(null)
-  const [countries, setCountries] = useState<Country[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+  const { invalidateCache } = useDataCache()
 
-  // Fetch countries
-  useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        const { data, error } = await supabase.from("countries").select("*")
-
-        if (error) {
-          throw error
-        }
-
-        if (data) {
-          setCountries(data)
-        }
-      } catch (error) {
-        console.error("Error fetching countries:", error)
-      }
-    }
-
-    fetchCountries()
-  }, [supabase])
-
-  useEffect(() => {
-    const fetchUniversity = async () => {
-      try {
-        if (!institution?.id) {
-          return
-        }
-
-        const { data, error } = await supabase
-          .from("universities")
-          .select("*")
-          .eq("id", params.id)
-          .eq("institution_id", institution.id)
-          .single()
-
-        if (error) {
-          throw error
-        }
-
-        if (data) {
-          setUniversity(data)
-        }
-      } catch (error) {
-        console.error("Error fetching university:", error)
-        toast({
-          title: t("admin.universities.error", "Error"),
-          description: t("admin.universities.errorFetching", "Failed to fetch university details"),
-          variant: "destructive",
-        })
-        router.push("/admin/universities")
-      }
-    }
-
-    if (params.id) {
-      fetchUniversity()
-    }
-  }, [params.id, supabase, toast, t, institution?.id, router])
+  // Use our custom hooks for cached data
+  const { university } = useCachedUniversity(params.id as string, institution?.id)
+  const { countries } = useCachedCountries()
 
   const getLocalizedName = (university: University) => {
     if (language === "ru" && university.name_ru) {
@@ -181,6 +121,9 @@ export default function UniversityDetailsPage() {
           throw error
         }
 
+        // Invalidate the cache for this university
+        invalidateCache(`university-${params.id}`, institution?.id)
+
         toast({
           title: t("admin.universities.deleteSuccess", "University deleted"),
           description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
@@ -200,6 +143,28 @@ export default function UniversityDetailsPage() {
     }
   }
 
+  // If we don't have university data yet, return minimal UI
+  if (!university) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link href="/admin/universities">
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {t("admin.universities.details", "University Details")}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -210,159 +175,141 @@ export default function UniversityDetailsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {university
-                ? getLocalizedName(university)
-                : t("admin.universities.universityDetails", "University Details")}
-            </h1>
-            {university && <div className="ml-2">{getStatusBadge(university.status)}</div>}
+            <h1 className="text-3xl font-bold tracking-tight">{getLocalizedName(university)}</h1>
+            <div className="ml-2">{getStatusBadge(university.status)}</div>
           </div>
-          {university && (
-            <div className="flex gap-2">
-              <Link href={`/admin/universities/${university.id}/edit`}>
-                <Button variant="outline">
-                  <Edit className="mr-2 h-4 w-4" />
-                  {t("admin.universities.edit", "Edit")}
-                </Button>
-              </Link>
-              <Button variant="destructive" onClick={handleDeleteUniversity} disabled={isDeleting}>
-                <Trash className="mr-2 h-4 w-4" />
-                {isDeleting
-                  ? t("admin.universities.deleting", "Deleting...")
-                  : t("admin.universities.delete", "Delete")}
+          <div className="flex gap-2">
+            <Link href={`/admin/universities/${university.id}/edit`}>
+              <Button variant="outline">
+                <Edit className="mr-2 h-4 w-4" />
+                {t("admin.universities.edit", "Edit")}
               </Button>
-            </div>
-          )}
+            </Link>
+            <Button variant="destructive" onClick={handleDeleteUniversity} disabled={isDeleting}>
+              <Trash className="mr-2 h-4 w-4" />
+              {isDeleting ? t("admin.universities.deleting", "Deleting...") : t("admin.universities.delete", "Delete")}
+            </Button>
+          </div>
         </div>
 
-        {university ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("admin.universities.details", "University Details")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("admin.universities.details", "University Details")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  {t("admin.universities.nameEn", "Name (English)")}
+                </h3>
+                <p className="text-lg">{university.name}</p>
+              </div>
+              {university.name_ru && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.nameEn", "Name (English)")}
+                    {t("admin.universities.nameRu", "Name (Russian)")}
                   </h3>
-                  <p className="text-lg">{university.name}</p>
+                  <p className="text-lg">{university.name_ru}</p>
                 </div>
-                {university.name_ru && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.nameRu", "Name (Russian)")}
-                    </h3>
-                    <p className="text-lg">{university.name_ru}</p>
-                  </div>
-                )}
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  {t("admin.universities.country", "Country")}
+                </h3>
+                <p>{getLocalizedCountry(university.country)}</p>
               </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  {t("admin.universities.cityEn", "City (English)")}
+                </h3>
+                <p>{university.city}</p>
+              </div>
+              {university.city_ru && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.country", "Country")}
+                    {t("admin.universities.cityRu", "City (Russian)")}
                   </h3>
-                  <p>{getLocalizedCountry(university.country)}</p>
+                  <p>{university.city_ru}</p>
                 </div>
+              )}
+            </div>
+
+            {university.website && (
+              <>
+                <Separator />
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("admin.universities.cityEn", "City (English)")}
+                    {t("admin.universities.website", "Website")}
                   </h3>
-                  <p>{university.city}</p>
+                  <a
+                    href={university.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary flex items-center hover:underline"
+                  >
+                    {university.website}
+                    <ExternalLink className="ml-1 h-3 w-3" />
+                  </a>
                 </div>
-                {university.city_ru && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.cityRu", "City (Russian)")}
-                    </h3>
-                    <p>{university.city_ru}</p>
-                  </div>
-                )}
-              </div>
+              </>
+            )}
 
-              {university.website && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.website", "Website")}
-                    </h3>
-                    <a
-                      href={university.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary flex items-center hover:underline"
-                    >
-                      {university.website}
-                      <ExternalLink className="ml-1 h-3 w-3" />
-                    </a>
-                  </div>
-                </>
-              )}
+            {university.description || university.description_ru ? (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("admin.universities.description", "Description")}
+                  </h3>
+                  <p className="whitespace-pre-line">{getLocalizedDescription(university)}</p>
+                </div>
+              </>
+            ) : null}
 
-              {university.description || university.description_ru ? (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.description", "Description")}
-                    </h3>
-                    <p className="whitespace-pre-line">{getLocalizedDescription(university)}</p>
+            {university.university_languages && university.university_languages.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("admin.universities.languages", "Languages of Instruction")}
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {university.university_languages.map((language) => (
+                      <Badge key={language} variant="secondary">
+                        {language}
+                      </Badge>
+                    ))}
                   </div>
-                </>
-              ) : null}
+                </div>
+              </>
+            )}
 
-              {university.university_languages && university.university_languages.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.languages", "Languages of Instruction")}
-                    </h3>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {university.university_languages.map((language) => (
-                        <Badge key={language} variant="secondary">
-                          {language}
-                        </Badge>
-                      ))}
-                    </div>
+            {university.university_programs && university.university_programs.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("admin.universities.programs", "Available Programs")}
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {university.university_programs.map((program) => (
+                      <Badge key={program} variant="secondary">
+                        {program}
+                      </Badge>
+                    ))}
                   </div>
-                </>
-              )}
+                </div>
+              </>
+            )}
 
-              {university.university_programs && university.university_programs.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      {t("admin.universities.programs", "Available Programs")}
-                    </h3>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {university.university_programs.map((program) => (
-                        <Badge key={program} variant="secondary">
-                          {program}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <Separator />
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex justify-center items-center h-20">
-                <p>{t("admin.universities.fetchingDetails", "Fetching university details...")}</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            <Separator />
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   )

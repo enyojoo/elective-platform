@@ -490,7 +490,7 @@ export default function EditUniversityPage() {
                   <SelectContent>
                     {statusOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {t(`admin.universities.${option.value}`, option.label)}
+                        {t(`admin.universities.status.${option.value}`, option.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
