@@ -23,6 +23,7 @@ import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 // Define the University type
 interface University {
@@ -49,11 +50,19 @@ interface Country {
   created_at: string
 }
 
+// Cache keys
+const UNIVERSITIES_CACHE_KEY = "admin_universities_cache"
+const COUNTRIES_CACHE_KEY = "admin_countries_cache"
+
+// Cache expiry time (1 hour)
+const CACHE_EXPIRY = 60 * 60 * 1000
+
 export default function UniversitiesPage() {
   const [universities, setUniversities] = useState<University[]>([])
   const [filteredUniversities, setFilteredUniversities] = useState<University[]>([])
   const [countries, setCountries] = useState<Country[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingUniversities, setIsLoadingUniversities] = useState(true)
+  const [isLoadingCountries, setIsLoadingCountries] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [countryFilter, setCountryFilter] = useState("all")
@@ -62,11 +71,49 @@ export default function UniversitiesPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
-  const { institution } = useInstitution() // Moved hook call outside useEffect
+  const { institution } = useInstitution()
+
+  // Load cached data on initial render
+  useEffect(() => {
+    const loadCachedData = () => {
+      try {
+        // Load cached countries
+        const cachedCountries = localStorage.getItem(COUNTRIES_CACHE_KEY)
+        if (cachedCountries) {
+          const { data, timestamp } = JSON.parse(cachedCountries)
+          // Check if cache is valid
+          if (Date.now() - timestamp < CACHE_EXPIRY) {
+            setCountries(data)
+            setIsLoadingCountries(false)
+          }
+        }
+
+        // Load cached universities
+        const cachedUniversities = localStorage.getItem(UNIVERSITIES_CACHE_KEY)
+        if (cachedUniversities) {
+          const { data, timestamp, institutionId } = JSON.parse(cachedUniversities)
+          // Check if cache is valid and for the current institution
+          if (Date.now() - timestamp < CACHE_EXPIRY && institutionId === institution?.id) {
+            setUniversities(data)
+            setIsLoadingUniversities(false)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading cached data:", error)
+        // If there's an error, we'll just fetch fresh data
+      }
+    }
+
+    loadCachedData()
+  }, [institution?.id])
 
   // Fetch countries from Supabase
   useEffect(() => {
     const fetchCountries = async () => {
+      if (!isLoadingCountries) {
+        return
+      }
+
       try {
         const { data, error } = await supabase.from("countries").select("*").order("name", { ascending: true })
 
@@ -74,32 +121,40 @@ export default function UniversitiesPage() {
           throw error
         }
 
-        if (data) {
-          setCountries(data)
-        }
-      } catch (error) {
+        setCountries(data || [])
+
+        // Cache the countries data
+        localStorage.setItem(
+          COUNTRIES_CACHE_KEY,
+          JSON.stringify({
+            data,
+            timestamp: Date.now(),
+          }),
+        )
+      } catch (error: any) {
         console.error("Error fetching countries:", error)
         toast({
           title: t("admin.universities.error", "Error"),
-          description: t("admin.universities.errorFetchingCountries", "Failed to fetch countries"),
+          description:
+            t("admin.universities.errorFetchingCountries", "Failed to fetch countries") + ": " + error.message,
           variant: "destructive",
         })
+      } finally {
+        setIsLoadingCountries(false)
       }
     }
 
     fetchCountries()
-  }, [supabase, toast, t])
+  }, [supabase, toast, t, isLoadingCountries])
 
   // Fetch universities from Supabase
   useEffect(() => {
     const fetchUniversities = async () => {
-      setIsLoading(true)
-      try {
-        if (!institution?.id) {
-          setIsLoading(false)
-          return
-        }
+      if (!institution?.id || !isLoadingUniversities) {
+        return
+      }
 
+      try {
         const { data, error } = await supabase
           .from("universities")
           .select("*")
@@ -110,24 +165,31 @@ export default function UniversitiesPage() {
           throw error
         }
 
-        if (data) {
-          setUniversities(data)
-          setFilteredUniversities(data)
-        }
-      } catch (error) {
+        setUniversities(data || [])
+
+        // Cache the universities data
+        localStorage.setItem(
+          UNIVERSITIES_CACHE_KEY,
+          JSON.stringify({
+            data,
+            timestamp: Date.now(),
+            institutionId: institution.id,
+          }),
+        )
+      } catch (error: any) {
         console.error("Error fetching universities:", error)
         toast({
           title: t("admin.universities.error", "Error"),
-          description: t("admin.universities.errorFetching", "Failed to fetch universities"),
+          description: t("admin.universities.errorFetching", "Failed to fetch universities") + ": " + error.message,
           variant: "destructive",
         })
       } finally {
-        setIsLoading(false)
+        setIsLoadingUniversities(false)
       }
     }
 
     fetchUniversities()
-  }, [supabase, toast, t, institution?.id])
+  }, [supabase, toast, t, institution?.id, isLoadingUniversities])
 
   // Filter universities based on search term and filters
   useEffect(() => {
@@ -153,7 +215,6 @@ export default function UniversitiesPage() {
     }
 
     setFilteredUniversities(result)
-    setCurrentPage(1) // Reset to first page when filters change
   }, [searchTerm, statusFilter, countryFilter, universities])
 
   // Get localized name based on current language
@@ -212,7 +273,10 @@ export default function UniversitiesPage() {
   // Handle status change
   const handleStatusChange = async (universityId: string, newStatus: string) => {
     try {
-      const { error } = await supabase.from("universities").update({ status: newStatus }).eq("id", universityId)
+      const { error } = await supabase
+        .from("universities")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", universityId)
 
       if (error) {
         throw error
@@ -223,15 +287,18 @@ export default function UniversitiesPage() {
         prev.map((university) => (university.id === universityId ? { ...university, status: newStatus } : university)),
       )
 
+      // Invalidate cache
+      localStorage.removeItem(UNIVERSITIES_CACHE_KEY)
+
       toast({
         title: t("admin.universities.statusUpdated", "Status updated"),
         description: t("admin.universities.statusUpdatedDesc", "University status has been updated"),
       })
-    } catch (error) {
-      console.error("Error updating university status:", error)
+    } catch (error: any) {
       toast({
         title: t("admin.universities.error", "Error"),
-        description: t("admin.universities.errorUpdatingStatus", "Failed to update university status"),
+        description:
+          t("admin.universities.errorUpdatingStatus", "Failed to update university status") + ": " + error.message,
         variant: "destructive",
       })
     }
@@ -240,35 +307,39 @@ export default function UniversitiesPage() {
   // Handle university deletion
   const handleDeleteUniversity = async (universityId: string) => {
     if (
-      window.confirm(
+      !confirm(
         t(
           "admin.universities.deleteConfirmMessage",
           "Are you sure you want to delete this university? This action cannot be undone.",
         ),
       )
     ) {
-      try {
-        const { error } = await supabase.from("universities").delete().eq("id", universityId)
+      return
+    }
 
-        if (error) {
-          throw error
-        }
+    try {
+      const { error } = await supabase.from("universities").delete().eq("id", universityId)
 
-        // Update local state
-        setUniversities((prev) => prev.filter((university) => university.id !== universityId))
-
-        toast({
-          title: t("admin.universities.deleteSuccess", "University deleted"),
-          description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
-        })
-      } catch (error) {
-        console.error("Error deleting university:", error)
-        toast({
-          title: t("admin.universities.error", "Error"),
-          description: t("admin.universities.errorDeleting", "Failed to delete university"),
-          variant: "destructive",
-        })
+      if (error) {
+        throw error
       }
+
+      // Update local state
+      setUniversities((prev) => prev.filter((university) => university.id !== universityId))
+
+      // Invalidate cache
+      localStorage.removeItem(UNIVERSITIES_CACHE_KEY)
+
+      toast({
+        title: t("admin.universities.deleteSuccess", "University deleted"),
+        description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
+      })
+    } catch (error: any) {
+      toast({
+        title: t("admin.universities.error", "Error"),
+        description: t("admin.universities.errorDeleting", "Failed to delete university") + ": " + error.message,
+        variant: "destructive",
+      })
     }
   }
 
@@ -326,7 +397,7 @@ export default function UniversitiesPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={countryFilter} onValueChange={setCountryFilter}>
+                  <Select value={countryFilter} onValueChange={setCountryFilter} disabled={isLoadingCountries}>
                     <SelectTrigger className="w-[180px]">
                       <Globe className="mr-2 h-4 w-4" />
                       <SelectValue placeholder={t("admin.universities.country", "Country")} />
@@ -355,12 +426,8 @@ export default function UniversitiesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          {t("admin.universities.loading", "Loading universities...")}
-                        </TableCell>
-                      </TableRow>
+                    {isLoadingUniversities || isLoadingCountries ? (
+                      <TableSkeleton columns={5} rows={itemsPerPage} />
                     ) : currentItems.length > 0 ? (
                       currentItems.map((university) => (
                         <TableRow key={university.id}>
@@ -433,21 +500,33 @@ export default function UniversitiesPage() {
                       />
                     </PaginationItem>
 
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === page}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setCurrentPage(page)
-                          }}
-                          aria-label={`${t("pagination.page", "Page")} ${page}`}
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      // Show pages around current page
+                      let pageNum = i + 1
+                      if (totalPages > 5) {
+                        if (currentPage > 3) {
+                          pageNum = currentPage - 3 + i
+                        }
+                        if (pageNum > totalPages - 4) {
+                          pageNum = totalPages - 4 + i
+                        }
+                      }
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === pageNum}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setCurrentPage(pageNum)
+                            }}
+                            aria-label={`${t("pagination.page", "Page")} ${pageNum}`}
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    })}
 
                     <PaginationItem>
                       <PaginationNext

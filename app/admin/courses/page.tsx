@@ -22,6 +22,8 @@ import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { useInstitution } from "@/lib/institution-context"
 
 interface Course {
   id: string
@@ -40,117 +42,137 @@ interface Course {
   } | null
 }
 
+interface Degree {
+  id: string
+  name: string
+  name_ru: string
+  code: string
+  status: string
+}
+
+// Cache keys
+const COURSES_CACHE_KEY = "admin_courses_cache"
+const DEGREES_CACHE_KEY = "admin_degrees_cache"
+
+// Cache expiry time (1 hour)
+const CACHE_EXPIRY = 60 * 60 * 1000
+
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [degreeFilter, setDegreeFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [degrees, setDegrees] = useState<Degree[]>([])
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true)
+  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
   const [totalCourses, setTotalCourses] = useState(0)
   const itemsPerPage = 10
   const { t, currentLanguage } = useLanguage()
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
+  const { institution } = useInstitution()
+
+  // Load cached data on initial render
+  useEffect(() => {
+    const loadCachedData = () => {
+      try {
+        // Load cached degrees
+        const cachedDegrees = localStorage.getItem(DEGREES_CACHE_KEY)
+        if (cachedDegrees) {
+          const { data, timestamp, institutionId } = JSON.parse(cachedDegrees)
+          // Check if cache is valid and for the current institution
+          if (Date.now() - timestamp < CACHE_EXPIRY && institutionId === institution?.id) {
+            setDegrees(data)
+            setIsLoadingDegrees(false)
+          }
+        }
+
+        // Load cached courses
+        const cachedCourses = localStorage.getItem(COURSES_CACHE_KEY)
+        if (cachedCourses) {
+          const { data, timestamp, institutionId, filters } = JSON.parse(cachedCourses)
+          // Check if cache is valid, for the current institution, and filters match
+          if (
+            Date.now() - timestamp < CACHE_EXPIRY &&
+            institutionId === institution?.id &&
+            filters.searchTerm === searchTerm &&
+            filters.statusFilter === statusFilter &&
+            filters.degreeFilter === degreeFilter &&
+            filters.currentPage === currentPage
+          ) {
+            setCourses(data.courses)
+            setTotalCourses(data.totalCourses)
+            setIsLoadingCourses(false)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading cached data:", error)
+        // If there's an error, we'll just fetch fresh data
+      }
+    }
+
+    loadCachedData()
+  }, [institution?.id, searchTerm, statusFilter, degreeFilter, currentPage])
 
   // Fetch degrees from Supabase
   useEffect(() => {
     async function fetchDegrees() {
+      if (!institution?.id || !isLoadingDegrees) {
+        return
+      }
+
       try {
-        setLoading(true)
-
-        // Get current user's session
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session) {
-          toast({
-            title: "Error",
-            description: "No session found. Please log in again.",
-            variant: "destructive",
-          })
-          return
-        }
-
-        // Get user's profile to get institution_id
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("institution_id")
-          .eq("id", session.user.id)
-          .single()
-
-        if (profileError || !profileData) {
-          toast({
-            title: "Error",
-            description: "Error fetching profile: " + profileError?.message,
-            variant: "destructive",
-          })
-          return
-        }
-
-        // Fetch degrees for this institution
         const { data, error } = await supabase
           .from("degrees")
           .select("*")
-          .eq("institution_id", profileData.institution_id)
+          .eq("institution_id", institution.id)
+          .order("name", { ascending: true })
 
         if (error) {
-          toast({
-            title: "Error",
-            description: "Error fetching degrees: " + error.message,
-            variant: "destructive",
-          })
-          return
+          throw error
         }
 
         setDegrees(data || [])
+
+        // Cache the degrees data
+        localStorage.setItem(
+          DEGREES_CACHE_KEY,
+          JSON.stringify({
+            data,
+            timestamp: Date.now(),
+            institutionId: institution.id,
+          }),
+        )
       } catch (error: any) {
+        console.error("Error fetching degrees:", error)
         toast({
           title: "Error",
-          description: "An unexpected error occurred: " + error.message,
+          description: "Failed to load degrees: " + error.message,
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        setIsLoadingDegrees(false)
       }
     }
 
     fetchDegrees()
-  }, [supabase, toast])
+  }, [supabase, institution?.id, isLoadingDegrees, toast])
 
   // Fetch courses from Supabase
   useEffect(() => {
     async function fetchCourses() {
+      if (!institution?.id) {
+        setIsLoadingCourses(false)
+        return
+      }
+
       try {
-        setLoading(true)
-
-        // Get current user's session
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session) {
-          return
-        }
-
-        // Get user's profile to get institution_id
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("institution_id")
-          .eq("id", session.user.id)
-          .single()
-
-        if (profileError || !profileData) {
-          return
-        }
-
         // Build query
         let query = supabase
           .from("courses")
           .select("*, degree:degree_id(*)", { count: "exact" })
-          .eq("institution_id", profileData.institution_id)
+          .eq("institution_id", institution.id)
 
         // Apply filters
         if (searchTerm) {
@@ -176,29 +198,44 @@ export default function CoursesPage() {
         const { data, error, count } = await query
 
         if (error) {
-          toast({
-            title: "Error",
-            description: "Error fetching courses: " + error.message,
-            variant: "destructive",
-          })
-          return
+          throw error
         }
 
         setCourses(data || [])
         setTotalCourses(count || 0)
+
+        // Cache the courses data
+        localStorage.setItem(
+          COURSES_CACHE_KEY,
+          JSON.stringify({
+            data: {
+              courses: data,
+              totalCourses: count,
+            },
+            timestamp: Date.now(),
+            institutionId: institution.id,
+            filters: {
+              searchTerm,
+              statusFilter,
+              degreeFilter,
+              currentPage,
+            },
+          }),
+        )
       } catch (error: any) {
+        console.error("Error fetching courses:", error)
         toast({
           title: "Error",
-          description: "An unexpected error occurred: " + error.message,
+          description: "Failed to load courses: " + error.message,
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        setIsLoadingCourses(false)
       }
     }
 
     fetchCourses()
-  }, [supabase, searchTerm, statusFilter, degreeFilter, currentPage, toast])
+  }, [supabase, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage, toast])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -237,16 +274,14 @@ export default function CoursesPage() {
         .eq("id", courseId)
 
       if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update course status: " + error.message,
-          variant: "destructive",
-        })
-        return
+        throw error
       }
 
       // Update local state
       setCourses(courses.map((course) => (course.id === courseId ? { ...course, status: newStatus } : course)))
+
+      // Invalidate cache
+      localStorage.removeItem(COURSES_CACHE_KEY)
 
       toast({
         title: "Success",
@@ -255,7 +290,7 @@ export default function CoursesPage() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred: " + error.message,
+        description: "Failed to update course status: " + error.message,
         variant: "destructive",
       })
     }
@@ -271,16 +306,15 @@ export default function CoursesPage() {
       const { error } = await supabase.from("courses").delete().eq("id", courseId)
 
       if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete course: " + error.message,
-          variant: "destructive",
-        })
-        return
+        throw error
       }
 
       // Update local state
       setCourses(courses.filter((course) => course.id !== courseId))
+      setTotalCourses(totalCourses - 1)
+
+      // Invalidate cache
+      localStorage.removeItem(COURSES_CACHE_KEY)
 
       toast({
         title: "Success",
@@ -289,7 +323,7 @@ export default function CoursesPage() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred: " + error.message,
+        description: "Failed to delete course: " + error.message,
         variant: "destructive",
       })
     }
@@ -328,6 +362,7 @@ export default function CoursesPage() {
                     onChange={(e) => {
                       setSearchTerm(e.target.value)
                       setCurrentPage(1) // Reset to first page when search changes
+                      setIsLoadingCourses(true) // Trigger a new fetch
                     }}
                   />
                 </div>
@@ -337,6 +372,7 @@ export default function CoursesPage() {
                     onValueChange={(value) => {
                       setStatusFilter(value)
                       setCurrentPage(1) // Reset to first page when filter changes
+                      setIsLoadingCourses(true) // Trigger a new fetch
                     }}
                   >
                     <SelectTrigger className="w-[130px]">
@@ -356,7 +392,9 @@ export default function CoursesPage() {
                     onValueChange={(value) => {
                       setDegreeFilter(value)
                       setCurrentPage(1) // Reset to first page when filter changes
+                      setIsLoadingCourses(true) // Trigger a new fetch
                     }}
+                    disabled={isLoadingDegrees}
                   >
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
@@ -386,12 +424,8 @@ export default function CoursesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          {t("admin.courses.loading")}
-                        </TableCell>
-                      </TableRow>
+                    {isLoadingCourses ? (
+                      <TableSkeleton columns={5} rows={itemsPerPage} />
                     ) : courses.length > 0 ? (
                       courses.map((course) => (
                         <TableRow key={course.id}>
@@ -456,7 +490,10 @@ export default function CoursesPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault()
-                          if (currentPage > 1) setCurrentPage(currentPage - 1)
+                          if (currentPage > 1) {
+                            setCurrentPage(currentPage - 1)
+                            setIsLoadingCourses(true) // Trigger a new fetch
+                          }
                         }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                         aria-label={t("pagination.previous")}
@@ -484,6 +521,7 @@ export default function CoursesPage() {
                             onClick={(e) => {
                               e.preventDefault()
                               setCurrentPage(pageNum)
+                              setIsLoadingCourses(true) // Trigger a new fetch
                             }}
                             aria-label={`${t("pagination.page")} ${pageNum}`}
                           >
@@ -498,7 +536,10 @@ export default function CoursesPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault()
-                          if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+                          if (currentPage < totalPages) {
+                            setCurrentPage(currentPage + 1)
+                            setIsLoadingCourses(true) // Trigger a new fetch
+                          }
                         }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
                         aria-label={t("pagination.next")}

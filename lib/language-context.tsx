@@ -1173,7 +1173,7 @@ const translations: Translations = {
     "manager.dashboard.program": "Программа",
     "manager.dashboard.degree": "Степень",
     "manager.dashboard.year": "Год",
-    "manager.dashboard.email": "Электронная почта",
+    "manager.dashboard.email": "��лектронная почта",
     "manager.dashboard.upcomingDeadlines": "Предстоящие сроки",
     "manager.dashboard.importantDates": "Важные даты для элективов",
     "manager.dashboard.daysLeft": "дней осталось",
