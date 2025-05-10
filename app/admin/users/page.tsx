@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,8 +24,10 @@ import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { useCachedUsers } from "@/hooks/use-cached-users"
+import { useDataCache } from "@/lib/data-cache-context"
 import {
   Dialog,
   DialogContent,
@@ -37,28 +39,13 @@ import {
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 
-// Cache expiry time in milliseconds (1 hour)
-const CACHE_EXPIRY_TIME = 60 * 60 * 1000
-
-interface User {
-  id: string
-  name: string
-  email: string
-  role: string
-  degreeName: string | null
-  groupName: string | null
-  year: number | null
-  status: string
-}
-
 export default function UsersPage() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const [users, setUsers] = useState<User[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+  const { users, isLoading, error } = useCachedUsers(institution?.id)
+  const { invalidateCache } = useDataCache()
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -71,103 +58,6 @@ export default function UsersPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-  // Function to fetch users from Supabase
-  const fetchUsers = useCallback(
-    async (institutionId: string) => {
-      try {
-        setIsLoading(true)
-
-        // Check if we have cached data
-        const cachedData = localStorage.getItem(`users_${institutionId}`)
-        const cachedTimestamp = localStorage.getItem(`users_${institutionId}_timestamp`)
-
-        if (cachedData && cachedTimestamp) {
-          const timestamp = Number.parseInt(cachedTimestamp)
-          const now = Date.now()
-
-          // If cache is still valid, use it
-          if (now - timestamp < CACHE_EXPIRY_TIME) {
-            const parsedData = JSON.parse(cachedData)
-            setUsers(parsedData)
-            setIsLoading(false)
-            return parsedData
-          }
-        }
-
-        // Fetch profiles with role information
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, name, email, role, degree_id, group_id, year, is_active")
-          .eq("institution_id", institutionId)
-
-        if (profilesError) throw profilesError
-
-        // Get all unique degree_ids and group_ids
-        const degreeIds = [...new Set(profiles.filter((p) => p.degree_id).map((p) => p.degree_id))]
-        const groupIds = [...new Set(profiles.filter((p) => p.group_id).map((p) => p.group_id))]
-
-        // Fetch degrees
-        const { data: degrees, error: degreesError } =
-          degreeIds.length > 0
-            ? await supabase.from("degrees").select("id, name").in("id", degreeIds)
-            : { data: [], error: null }
-
-        if (degreesError) throw degreesError
-
-        // Fetch groups
-        const { data: groups, error: groupsError } =
-          groupIds.length > 0
-            ? await supabase.from("groups").select("id, name").in("id", groupIds)
-            : { data: [], error: null }
-
-        if (groupsError) throw groupsError
-
-        // Create a map for quick lookups
-        const degreeMap = new Map(degrees?.map((d) => [d.id, d.name]) || [])
-        const groupMap = new Map(groups?.map((g) => [g.id, g.name]) || [])
-
-        // Transform the data
-        const transformedUsers = profiles.map((profile) => ({
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: profile.role,
-          degreeName: profile.degree_id ? degreeMap.get(profile.degree_id) || null : null,
-          groupName: profile.group_id ? groupMap.get(profile.group_id) || null : null,
-          year: profile.year,
-          status: profile.is_active ? "active" : "inactive",
-        }))
-
-        // Cache the data
-        localStorage.setItem(`users_${institutionId}`, JSON.stringify(transformedUsers))
-        localStorage.setItem(`users_${institutionId}_timestamp`, Date.now().toString())
-
-        setUsers(transformedUsers)
-        return transformedUsers
-      } catch (err: any) {
-        console.error("Error fetching users:", err)
-        setError(err.message || "Failed to fetch users")
-        return []
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [supabase],
-  )
-
-  // Invalidate cache
-  const invalidateCache = useCallback((institutionId: string) => {
-    localStorage.removeItem(`users_${institutionId}`)
-    localStorage.removeItem(`users_${institutionId}_timestamp`)
-  }, [])
-
-  // Initial data fetch
-  useEffect(() => {
-    if (institution?.id) {
-      fetchUsers(institution.id)
-    }
-  }, [institution?.id, fetchUsers])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -252,14 +142,9 @@ export default function UsersPage() {
 
       if (error) throw error
 
-      // Update local state
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => (user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user)),
-      )
-
-      // Invalidate the cache
+      // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache(institution.id)
+        invalidateCache("users", institution.id)
       }
 
       toast({
@@ -298,19 +183,18 @@ export default function UsersPage() {
 
       if (error) throw error
 
-      // Update local state
-      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete))
-      setFilteredUsers((prevFilteredUsers) => prevFilteredUsers.filter((user) => user.id !== userToDelete))
-
-      // Invalidate the cache
+      // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache(institution.id)
+        invalidateCache("users", institution.id)
       }
 
       toast({
         title: "Success",
         description: "User has been deleted successfully",
       })
+
+      // Update the filtered users list
+      setFilteredUsers(filteredUsers.filter((user) => user.id !== userToDelete))
 
       handleCloseDeleteDialog()
     } catch (error: any) {
@@ -403,7 +287,35 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableSkeleton columns={8} rows={5} />
+                      // Skeleton loading state
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[180px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[100px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[120px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[60px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-[80px]" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
@@ -416,9 +328,9 @@ export default function UsersPage() {
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
-                          <TableCell>{user.degreeName || "-"}</TableCell>
-                          <TableCell>{user.groupName || "-"}</TableCell>
-                          <TableCell>{user.year || "-"}</TableCell>
+                          <TableCell>{user.degreeName}</TableCell>
+                          <TableCell>{user.groupName}</TableCell>
+                          <TableCell>{user.year}</TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
