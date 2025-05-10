@@ -73,6 +73,16 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL("/student/login", req.url))
       }
 
+      // Redirect /student to /student/login on subdomains
+      if (path === "/student") {
+        return NextResponse.redirect(new URL("/student/login", req.url))
+      }
+
+      // Redirect /manager to /manager/login on subdomains
+      if (path === "/manager") {
+        return NextResponse.redirect(new URL("/manager/login", req.url))
+      }
+
       // IMPORTANT: Return next response with the updated headers
       return NextResponse.next({
         request: {

@@ -11,20 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// Add the GraduationCap icon to the imports from lucide-react
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-
-// First, import the useLanguage hook at the top of the file with the other imports
 import { useLanguage } from "@/lib/language-context"
-
-// Mock programs data
-const mockPrograms = [
-  { id: 1, name: "Master in Management", code: "MiM" },
-  { id: 2, name: "Master in Business Analytics", code: "MiBA" },
-  { id: 3, name: "Master in Corporate Finance", code: "MiCF" },
-  { id: 4, name: "Bachelor in Management", code: "BM" },
-]
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/types/supabase"
+import { useToast } from "@/hooks/use-toast"
 
 // Course status options
 const statusOptions = [
@@ -33,16 +25,19 @@ const statusOptions = [
   { value: "draft", label: "Draft" },
 ]
 
-// Then, inside the NewCoursePage component, add the useLanguage hook after the useState declarations
 export default function NewCoursePage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [programs, setPrograms] = useState(mockPrograms)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const { t } = useLanguage()
+  const supabase = createClientComponentClient<Database>()
+
   const [course, setCourse] = useState({
     nameEn: "",
     nameRu: "",
-    programId: "",
+    degreeId: "",
     instructorEn: "",
     instructorRu: "",
     descriptionEn: "",
@@ -50,19 +45,63 @@ export default function NewCoursePage() {
     status: "active", // Default status
   })
 
-  // Fetch programs (simulated)
+  // Fetch degrees from Supabase
   useEffect(() => {
-    // In a real app, this would be an API call
-    setPrograms(mockPrograms)
-  }, [])
+    async function fetchDegrees() {
+      try {
+        setLoading(true)
+
+        // Get current user's session
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          console.error("No session found")
+          return
+        }
+
+        // Get user's profile to get institution_id
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError || !profileData) {
+          console.error("Error fetching profile:", profileError)
+          return
+        }
+
+        // Fetch degrees for this institution
+        const { data, error } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", profileData.institution_id)
+
+        if (error) {
+          console.error("Error fetching degrees:", error)
+          return
+        }
+
+        setDegrees(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDegrees()
+  }, [supabase])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setCourse((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleProgramChange = (value: string) => {
-    setCourse((prev) => ({ ...prev, programId: value }))
+  const handleDegreeChange = (value: string) => {
+    setCourse((prev) => ({ ...prev, degreeId: value }))
   }
 
   const handleStatusChange = (value: string) => {
@@ -74,19 +113,77 @@ export default function NewCoursePage() {
     setIsSubmitting(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get current user's session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to create a course",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Get user's profile to get institution_id
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("institution_id")
+        .eq("id", session.user.id)
+        .single()
+
+      if (profileError || !profileData) {
+        toast({
+          title: "Error",
+          description: "Could not fetch your profile information",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Create the course in Supabase
+      const { error } = await supabase.from("courses").insert({
+        name_en: course.nameEn,
+        name_ru: course.nameRu,
+        degree_id: Number.parseInt(course.degreeId),
+        instructor_en: course.instructorEn,
+        instructor_ru: course.instructorRu,
+        description_en: course.descriptionEn,
+        description_ru: course.descriptionRu,
+        status: course.status,
+        institution_id: profileData.institution_id,
+      })
+
+      if (error) {
+        toast({
+          title: "Error creating course",
+          description: error.message,
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: "Course created successfully",
+      })
 
       // Redirect to courses page after successful submission
       router.push("/admin/courses")
     } catch (error) {
       console.error("Error creating course:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -129,15 +226,15 @@ export default function NewCoursePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="programId">{t("admin.newCourse.program")}</Label>
-                  <Select value={course.programId} onValueChange={handleProgramChange} required>
+                  <Label htmlFor="degreeId">{t("admin.newCourse.degree")}</Label>
+                  <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
                     <SelectTrigger>
-                      <SelectValue placeholder={t("admin.newCourse.selectProgram")} />
+                      <SelectValue placeholder={loading ? "Loading degrees..." : t("admin.newCourse.selectDegree")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {programs.map((program) => (
-                        <SelectItem key={program.id} value={program.id.toString()}>
-                          {program.name}
+                      {degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.id.toString()}>
+                          {degree.name_en}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -216,7 +313,7 @@ export default function NewCoursePage() {
                 <Button variant="outline" type="button" onClick={() => router.push("/admin/courses")}>
                   {t("admin.newCourse.cancel")}
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || loading}>
                   {isSubmitting ? t("admin.newCourse.creating") : t("admin.newCourse.create")}
                 </Button>
               </div>

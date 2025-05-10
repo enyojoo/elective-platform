@@ -19,96 +19,107 @@ import {
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
-
-// First, import the useLanguage hook at the top of the file with the other imports
 import { useLanguage } from "@/lib/language-context"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/types/supabase"
 
-// Mock courses data
+// Mock courses data for initial rendering
 const mockCourses = [
   {
     id: 1,
     name: "Strategic Management",
     instructor: "Prof. John Smith",
-    program: "Master in Management",
-    programCode: "MiM",
+    degree: "Master in Management",
+    degreeCode: "MiM",
     status: "active",
   },
   {
     id: 2,
     name: "Financial Accounting",
     instructor: "Dr. Jane Doe",
-    program: "Master in Finance",
-    programCode: "MiF",
+    degree: "Master in Finance",
+    degreeCode: "MiF",
     status: "active",
   },
   {
     id: 3,
     name: "Marketing Analytics",
     instructor: "Prof. Robert Johnson",
-    program: "Master in Business Analytics",
-    programCode: "MBA",
+    degree: "Master in Business Analytics",
+    degreeCode: "MBA",
     status: "inactive",
   },
   {
     id: 4,
     name: "Organizational Behavior",
     instructor: "Dr. Emily Chen",
-    program: "Bachelor in Management",
-    programCode: "BiM",
-    status: "draft",
-  },
-  {
-    id: 5,
-    name: "Business Ethics",
-    instructor: "Prof. Michael Brown",
-    program: "Master in Management",
-    programCode: "MiM",
-    status: "active",
-  },
-  {
-    id: 6,
-    name: "International Economics",
-    instructor: "Dr. Sarah Wilson",
-    program: "Master in International Business",
-    programCode: "MIB",
-    status: "active",
-  },
-  {
-    id: 7,
-    name: "Corporate Finance",
-    instructor: "Prof. David Lee",
-    program: "Master in Finance",
-    programCode: "MiF",
-    status: "inactive",
-  },
-  {
-    id: 8,
-    name: "Supply Chain Management",
-    instructor: "Dr. Thomas Anderson",
-    program: "Master in Management",
-    programCode: "MiM",
+    degree: "Bachelor in Management",
+    degreeCode: "BiM",
     status: "draft",
   },
 ]
 
-// Mock programs data
-const mockPrograms = [
-  { id: 1, name: "Master in Management", code: "MiM" },
-  { id: 2, name: "Master in Finance", code: "MiF" },
-  { id: 3, name: "Master in Business Analytics", code: "MBA" },
-  { id: 4, name: "Master in International Business", code: "MIB" },
-  { id: 5, name: "Bachelor in Management", code: "BiM" },
-]
-
-// Then, inside the CoursesPage component, add the useLanguage hook after the useState declarations
 export default function CoursesPage() {
   const [courses, setCourses] = useState(mockCourses)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [programFilter, setProgramFilter] = useState("all")
+  const [degreeFilter, setDegreeFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [degrees, setDegrees] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const itemsPerPage = 10
   const { t } = useLanguage()
+  const supabase = createClientComponentClient<Database>()
+
+  // Fetch degrees from Supabase
+  useEffect(() => {
+    async function fetchDegrees() {
+      try {
+        setLoading(true)
+
+        // Get current user's session
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          console.error("No session found")
+          return
+        }
+
+        // Get user's profile to get institution_id
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError || !profileData) {
+          console.error("Error fetching profile:", profileError)
+          return
+        }
+
+        // Fetch degrees for this institution
+        const { data, error } = await supabase
+          .from("degrees")
+          .select("*")
+          .eq("institution_id", profileData.institution_id)
+
+        if (error) {
+          console.error("Error fetching degrees:", error)
+          return
+        }
+
+        setDegrees(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDegrees()
+  }, [supabase])
 
   // Filter courses based on search term and filters
   useEffect(() => {
@@ -126,13 +137,13 @@ export default function CoursesPage() {
       filteredCourses = filteredCourses.filter((course) => course.status === statusFilter)
     }
 
-    if (programFilter !== "all") {
-      filteredCourses = filteredCourses.filter((course) => course.program === programFilter)
+    if (degreeFilter !== "all") {
+      filteredCourses = filteredCourses.filter((course) => course.degree === degreeFilter)
     }
 
     setCourses(filteredCourses)
     setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, statusFilter, programFilter])
+  }, [searchTerm, statusFilter, degreeFilter])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -166,7 +177,6 @@ export default function CoursesPage() {
   const currentItems = courses.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(courses.length / itemsPerPage)
 
-  // Update the JSX to use the translation keys
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -211,16 +221,16 @@ export default function CoursesPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={programFilter} onValueChange={setProgramFilter}>
+                  <Select value={degreeFilter} onValueChange={setDegreeFilter}>
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder={t("admin.courses.program")} />
+                      <SelectValue placeholder={t("admin.courses.degree")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">{t("admin.courses.allPrograms")}</SelectItem>
-                      {mockPrograms.map((program) => (
-                        <SelectItem key={program.id} value={program.name}>
-                          {program.name}
+                      <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
+                      {degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.name_en}>
+                          {degree.name_en}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -234,7 +244,7 @@ export default function CoursesPage() {
                     <TableRow>
                       <TableHead>{t("admin.courses.name")}</TableHead>
                       <TableHead>{t("admin.courses.instructor")}</TableHead>
-                      <TableHead>{t("admin.courses.program")}</TableHead>
+                      <TableHead>{t("admin.courses.degree")}</TableHead>
                       <TableHead>{t("admin.courses.status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.courses.action")}</TableHead>
                     </TableRow>
@@ -246,7 +256,7 @@ export default function CoursesPage() {
                           <TableCell className="font-medium">{course.name}</TableCell>
                           <TableCell>{course.instructor}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{course.programCode}</Badge>
+                            <Badge variant="outline">{course.degreeCode}</Badge>
                           </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
@@ -279,7 +289,7 @@ export default function CoursesPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center">
-                          {t("admin.courses.noCoursesFound")}
+                          {loading ? "Loading..." : t("admin.courses.noCoursesFound")}
                         </TableCell>
                       </TableRow>
                     )}
