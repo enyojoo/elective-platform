@@ -2,45 +2,23 @@
 
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
-import { ArrowLeft, Compass, Home, Search } from "lucide-react"
+import { Compass, GraduationCap, Home, Search, UserCog } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
-import { useEffect, useState } from "react"
 import { useInstitution } from "@/lib/institution-context"
 
 export default function NotFoundPage() {
-  const { t } = useLanguage()
+  const { t, language, setLanguage } = useLanguage()
   const { isSubdomainAccess } = useInstitution()
-  const [dashboardUrl, setDashboardUrl] = useState("/admin/dashboard")
 
-  useEffect(() => {
-    // Determine the appropriate dashboard URL based on subdomain access
-    if (isSubdomainAccess) {
-      // Check if user is a student or manager (simplified logic)
-      // In a real app, you might want to check the user's role from auth context
-      const isStudent = localStorage.getItem("userRole") === "student"
-      setDashboardUrl(isStudent ? "/student/dashboard" : "/manager/dashboard")
-    } else {
-      setDashboardUrl("/admin/dashboard")
-    }
-  }, [isSubdomainAccess])
+  const toggleLanguage = () => {
+    setLanguage(language === "en" ? "ru" : "en")
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-gradient-to-b from-background to-muted">
       <div className="max-w-md w-full space-y-8 text-center">
-        <div className="relative h-40 w-full mb-8">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-9xl font-bold text-primary/10">404</div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Image
-                src="/confused-student.png"
-                alt="Lost student"
-                width={160}
-                height={160}
-                className="rounded-full border-4 border-background"
-              />
-            </div>
-          </div>
+        <div className="mb-8">
+          <div className="text-9xl font-bold text-primary/10">404</div>
         </div>
 
         <h1 className="text-4xl font-bold tracking-tight">{t("notFound.title")}</h1>
@@ -60,19 +38,41 @@ export default function NotFoundPage() {
           </ul>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 mt-8">
-          <Button asChild className="flex-1">
-            <Link href={dashboardUrl}>
-              <Home className="mr-2 h-4 w-4" />
-              {t("notFound.backToDashboard")}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="flex-1">
-            <Link href="javascript:history.back()">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {t("notFound.goBack")}
-            </Link>
-          </Button>
+        <div className="mt-8 space-y-4">
+          {isSubdomainAccess ? (
+            <>
+              <Button asChild className="w-full">
+                <Link href="/student/dashboard">
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  {t("notFound.backToStudentApp")}
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/manager/dashboard">
+                  <UserCog className="mr-2 h-4 w-4" />
+                  {t("notFound.backToManagerApp")}
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <Button asChild className="w-full">
+              <Link href="/admin/dashboard">
+                <Home className="mr-2 h-4 w-4" />
+                {t("notFound.backToDashboard")}
+              </Link>
+            </Button>
+          )}
+        </div>
+
+        {/* Language Switcher - styled like the one on admin login */}
+        <div className="mt-8 pt-4 border-t border-border">
+          <button
+            onClick={toggleLanguage}
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            type="button"
+          >
+            {language === "en" ? "Русский" : "English"}
+          </button>
         </div>
       </div>
     </div>

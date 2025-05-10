@@ -42,10 +42,7 @@ export default function InstitutionRequiredPage() {
                     {t("institution.required.accessInfo")}
                   </h3>
                   <div className="mt-2 text-sm text-blue-700 dark:text-blue-200">
-                    <p>
-                      {t("institution.required.accessDescription")}
-                      <span className="font-mono font-bold">yourschool.electivepro.net</span>
-                    </p>
+                    <p>{t("institution.required.contactAdmin")}</p>
                   </div>
                 </div>
               </div>
@@ -65,6 +62,11 @@ export default function InstitutionRequiredPage() {
             <Button asChild className="w-full">
               <Link href="/admin/login">{t("institution.required.loginHere")}</Link>
             </Button>
+            <div className="text-center">
+              <Link href="/admin/signup" className="text-sm text-primary hover:underline">
+                {t("institution.required.createAccount")}
+              </Link>
+            </div>
           </CardFooter>
         </Card>
         <div className="flex justify-center mt-6">
