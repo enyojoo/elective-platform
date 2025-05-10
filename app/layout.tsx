@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   description:
     "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg",
+    shortcut: "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg",
+    apple: "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg",
   },
     generator: 'v0.dev'
 }

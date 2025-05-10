@@ -104,12 +104,13 @@ export default function StudentLoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center space-y-2 text-center">
           {institution?.logo_url ? (
-            <Image
-              src={institution.logo_url || "/placeholder.svg"}
-              alt={`${institution.name} Logo`}
-              width={160}
-              height={45}
-              className="h-10 w-auto"
+            <img
+              src={
+                institution?.logo_url ||
+                "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+              }
+              alt={institution?.name || "ElectivePRO"}
+              className="h-12 w-auto"
             />
           ) : (
             <Image

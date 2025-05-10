@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
-import Image from "next/image"
 import { useInstitution } from "@/lib/institution-context"
 import { useToast } from "@/hooks/use-toast"
 
@@ -64,12 +63,10 @@ export default function SuperAdminLoginPage() {
     <div className="min-h-screen grid place-items-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-8">
-          <Image
-            src="/images/elective-pro-logo.svg"
+          <img
+            src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
             alt="ElectivePRO"
-            width={140}
-            height={45}
-            className="h-10 w-auto"
+            className="h-12 w-auto"
           />
         </div>
         <Card>

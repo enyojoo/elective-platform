@@ -30,8 +30,13 @@ export function BrandingSettings() {
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
   const [institutionDomain, setInstitutionDomain] = useState(institution?.domain || "")
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
-  const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(
+    institution?.favicon_url ||
+      "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg",
+  )
+  const [logoUrl, setLogoUrl] = useState<string | null>(
+    institution?.logo_url || "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg",
+  )
   const [institutionId, setInstitutionId] = useState<string | null>(institution?.id || null)
   const [hasFaviconColumn, setHasFaviconColumn] = useState(false)
   const [copiedStudent, setCopiedStudent] = useState(false)

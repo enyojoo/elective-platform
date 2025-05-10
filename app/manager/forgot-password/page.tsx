@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
               />
             ) : (
               <Image
-                src="/images/elective-pro-logo.svg"
+                src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
                 alt="ElectivePRO Logo"
                 width={160}
                 height={45}
@@ -132,7 +132,7 @@ export default function ForgotPasswordPage() {
             />
           ) : (
             <Image
-              src="/images/elective-pro-logo.svg"
+              src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
               alt="ElectivePRO Logo"
               width={160}
               height={45}
