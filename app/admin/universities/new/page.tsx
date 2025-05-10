@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -15,25 +15,8 @@ import { ArrowLeft, X, Plus } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { Badge } from "@/components/ui/badge"
-
-// Mock countries data
-const countries = [
-  "United States",
-  "United Kingdom",
-  "Switzerland",
-  "Singapore",
-  "Japan",
-  "France",
-  "China",
-  "Australia",
-  "Germany",
-  "Canada",
-  "Spain",
-  "Italy",
-  "Netherlands",
-  "Sweden",
-  "South Korea",
-]
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
 
 // University status options
 const statusOptions = [
@@ -42,17 +25,28 @@ const statusOptions = [
   { value: "draft", label: "Draft" },
 ]
 
+interface Country {
+  id: string
+  code: string
+  name: string
+  name_ru: string | null
+  created_at: string
+}
+
 export default function NewUniversityPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+  const [countries, setCountries] = useState<Country[]>([])
   const [university, setUniversity] = useState({
-    nameEn: "",
-    nameRu: "",
-    descriptionEn: "",
-    descriptionRu: "",
-    cityEn: "",
-    cityRu: "",
+    name: "",
+    name_ru: "",
+    description: "",
+    description_ru: "",
+    city: "",
+    city_ru: "",
     country: "",
     website: "",
     status: "active", // Default status
@@ -63,6 +57,32 @@ export default function NewUniversityPage() {
   const [programs, setPrograms] = useState<string[]>([])
   const [customLanguage, setCustomLanguage] = useState("")
   const [customProgram, setCustomProgram] = useState("")
+
+  // Fetch countries from Supabase
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const { data, error } = await supabase.from("countries").select("*").order("name", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        if (data) {
+          setCountries(data)
+        }
+      } catch (error) {
+        console.error("Error fetching countries:", error)
+        toast({
+          title: t("admin.newUniversity.error", "Error"),
+          description: t("admin.newUniversity.errorFetchingCountries", "Failed to fetch countries"),
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchCountries()
+  }, [supabase, toast, t])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -110,6 +130,7 @@ export default function NewUniversityPage() {
     }
   }
 
+  // Update the handleSubmit function to properly format the data for Supabase
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -118,18 +139,29 @@ export default function NewUniversityPage() {
       // Prepare data with languages and programs
       const universityData = {
         ...university,
-        languages,
-        programs,
+        university_languages: languages,
+        university_programs: programs,
       }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      console.log("University data to submit:", universityData)
+      // Make the API call to Supabase
+      const { error } = await supabase.from("universities").insert([universityData])
+
+      if (error) throw error
+
+      toast({
+        title: t("admin.newUniversity.success", "Success"),
+        description: t("admin.newUniversity.successMessage", "University created successfully"),
+      })
 
       // Redirect to universities page after successful submission
       router.push("/admin/universities")
     } catch (error) {
       console.error("Error creating university:", error)
+      toast({
+        title: t("admin.newUniversity.error", "Error"),
+        description: t("admin.newUniversity.errorMessage", "Failed to create university"),
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -153,23 +185,23 @@ export default function NewUniversityPage() {
               {/* Name - English and Russian */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="nameEn">{t("admin.newUniversity.nameEn", "University Name (English)")}</Label>
+                  <Label htmlFor="name">{t("admin.newUniversity.nameEn", "University Name (English)")}</Label>
                   <Input
-                    id="nameEn"
-                    name="nameEn"
+                    id="name"
+                    name="name"
                     placeholder={t("admin.newUniversity.namePlaceholder", "Harvard University")}
-                    value={university.nameEn}
+                    value={university.name}
                     onChange={handleChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nameRu">{t("admin.newUniversity.nameRu", "University Name (Russian)")}</Label>
+                  <Label htmlFor="name_ru">{t("admin.newUniversity.nameRu", "University Name (Russian)")}</Label>
                   <Input
-                    id="nameRu"
-                    name="nameRu"
+                    id="name_ru"
+                    name="name_ru"
                     placeholder={t("admin.newUniversity.namePlaceholder", "Гарвардский университет")}
-                    value={university.nameRu}
+                    value={university.name_ru}
                     onChange={handleChange}
                     required
                   />
@@ -179,34 +211,32 @@ export default function NewUniversityPage() {
               {/* Description - English and Russian */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="descriptionEn">
-                    {t("admin.newUniversity.descriptionEn", "Description (English)")}
-                  </Label>
+                  <Label htmlFor="description">{t("admin.newUniversity.descriptionEn", "Description (English)")}</Label>
                   <Textarea
-                    id="descriptionEn"
-                    name="descriptionEn"
+                    id="description"
+                    name="description"
                     placeholder={t(
                       "admin.newUniversity.descriptionPlaceholder",
                       "Brief description of the university and partnership details...",
                     )}
-                    value={university.descriptionEn}
+                    value={university.description}
                     onChange={handleChange}
                     rows={4}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="descriptionRu">
+                  <Label htmlFor="description_ru">
                     {t("admin.newUniversity.descriptionRu", "Description (Russian)")}
                   </Label>
                   <Textarea
-                    id="descriptionRu"
-                    name="descriptionRu"
+                    id="description_ru"
+                    name="description_ru"
                     placeholder={t(
                       "admin.newUniversity.descriptionPlaceholder",
                       "Краткое описание университета и деталей партнерства...",
                     )}
-                    value={university.descriptionRu}
+                    value={university.description_ru}
                     onChange={handleChange}
                     rows={4}
                     required
@@ -298,23 +328,23 @@ export default function NewUniversityPage() {
               {/* City - English and Russian */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="cityEn">{t("admin.newUniversity.cityEn", "City (English)")}</Label>
+                  <Label htmlFor="city">{t("admin.newUniversity.cityEn", "City (English)")}</Label>
                   <Input
-                    id="cityEn"
-                    name="cityEn"
+                    id="city"
+                    name="city"
                     placeholder={t("admin.newUniversity.cityPlaceholder", "Cambridge")}
-                    value={university.cityEn}
+                    value={university.city}
                     onChange={handleChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cityRu">{t("admin.newUniversity.cityRu", "City (Russian)")}</Label>
+                  <Label htmlFor="city_ru">{t("admin.newUniversity.cityRu", "City (Russian)")}</Label>
                   <Input
-                    id="cityRu"
-                    name="cityRu"
+                    id="city_ru"
+                    name="city_ru"
                     placeholder={t("admin.newUniversity.cityPlaceholder", "Кембридж")}
-                    value={university.cityRu}
+                    value={university.city_ru}
                     onChange={handleChange}
                     required
                   />
@@ -331,8 +361,8 @@ export default function NewUniversityPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {countries.map((country) => (
-                        <SelectItem key={country} value={country}>
-                          {country}
+                        <SelectItem key={country.id} value={country.code}>
+                          {language === "ru" && country.name_ru ? country.name_ru : country.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

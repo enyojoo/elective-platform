@@ -20,127 +20,157 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus, Globe } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
 
-// Mock universities data
-const mockUniversities = [
-  {
-    id: 1,
-    name: "Harvard University",
-    country: "United States",
-    city: "Cambridge",
-    website: "https://www.harvard.edu",
-    exchangePrograms: 5,
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "University of Oxford",
-    country: "United Kingdom",
-    city: "Oxford",
-    website: "https://www.ox.ac.uk",
-    exchangePrograms: 3,
-    status: "active",
-  },
-  {
-    id: 3,
-    name: "ETH Zurich",
-    country: "Switzerland",
-    city: "Zurich",
-    website: "https://ethz.ch",
-    exchangePrograms: 2,
-    status: "inactive",
-  },
-  {
-    id: 4,
-    name: "National University of Singapore",
-    country: "Singapore",
-    city: "Singapore",
-    website: "https://www.nus.edu.sg",
-    exchangePrograms: 4,
-    status: "active",
-  },
-  {
-    id: 5,
-    name: "University of Tokyo",
-    country: "Japan",
-    city: "Tokyo",
-    website: "https://www.u-tokyo.ac.jp",
-    exchangePrograms: 1,
-    status: "draft",
-  },
-  {
-    id: 6,
-    name: "Sorbonne University",
-    country: "France",
-    city: "Paris",
-    website: "https://www.sorbonne-universite.fr",
-    exchangePrograms: 3,
-    status: "active",
-  },
-  {
-    id: 7,
-    name: "Tsinghua University",
-    country: "China",
-    city: "Beijing",
-    website: "https://www.tsinghua.edu.cn",
-    exchangePrograms: 2,
-    status: "inactive",
-  },
-  {
-    id: 8,
-    name: "University of Melbourne",
-    country: "Australia",
-    city: "Melbourne",
-    website: "https://www.unimelb.edu.au",
-    exchangePrograms: 3,
-    status: "active",
-  },
-]
+// Define the University type
+interface University {
+  id: string
+  name: string
+  name_ru: string | null
+  country: string
+  city: string
+  city_ru: string | null
+  website: string | null
+  status: string
+  created_at: string
+  updated_at: string
+  university_languages: string[] | null
+  university_programs: string[] | null
+}
 
-// Mock countries for filtering
-const countries = [
-  "United States",
-  "United Kingdom",
-  "Switzerland",
-  "Singapore",
-  "Japan",
-  "France",
-  "China",
-  "Australia",
-]
+// Define the Country type
+interface Country {
+  id: string
+  code: string
+  name: string
+  name_ru: string | null
+  created_at: string
+}
 
 export default function UniversitiesPage() {
-  const [universities, setUniversities] = useState(mockUniversities)
+  const [universities, setUniversities] = useState<University[]>([])
+  const [filteredUniversities, setFilteredUniversities] = useState<University[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [countryFilter, setCountryFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+
+  // Fetch countries from Supabase
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const { data, error } = await supabase.from("countries").select("*").order("name", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        if (data) {
+          setCountries(data)
+        }
+      } catch (error) {
+        console.error("Error fetching countries:", error)
+        toast({
+          title: t("admin.universities.error", "Error"),
+          description: t("admin.universities.errorFetchingCountries", "Failed to fetch countries"),
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchCountries()
+  }, [supabase, toast, t])
+
+  // Fetch universities from Supabase
+  useEffect(() => {
+    const fetchUniversities = async () => {
+      setIsLoading(true)
+      try {
+        const { data, error } = await supabase.from("universities").select("*").order("name", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        if (data) {
+          setUniversities(data)
+          setFilteredUniversities(data)
+        }
+      } catch (error) {
+        console.error("Error fetching universities:", error)
+        toast({
+          title: t("admin.universities.error", "Error"),
+          description: t("admin.universities.errorFetching", "Failed to fetch universities"),
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUniversities()
+  }, [supabase, toast, t])
 
   // Filter universities based on search term and filters
   useEffect(() => {
-    let filteredUniversities = mockUniversities
+    let result = [...universities]
 
     if (searchTerm) {
-      filteredUniversities = filteredUniversities.filter(
+      const term = searchTerm.toLowerCase()
+      result = result.filter(
         (university) =>
-          university.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          university.city.toLowerCase().includes(searchTerm.toLowerCase()),
+          (university.name && university.name.toLowerCase().includes(term)) ||
+          (university.name_ru && university.name_ru.toLowerCase().includes(term)) ||
+          (university.city && university.city.toLowerCase().includes(term)) ||
+          (university.city_ru && university.city_ru.toLowerCase().includes(term)),
       )
     }
 
     if (statusFilter !== "all") {
-      filteredUniversities = filteredUniversities.filter((university) => university.status === statusFilter)
+      result = result.filter((university) => university.status === statusFilter)
     }
 
     if (countryFilter !== "all") {
-      filteredUniversities = filteredUniversities.filter((university) => university.country === countryFilter)
+      result = result.filter((university) => university.country === countryFilter)
     }
 
-    setUniversities(filteredUniversities)
+    setFilteredUniversities(result)
     setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, statusFilter, countryFilter])
+  }, [searchTerm, statusFilter, countryFilter, universities])
+
+  // Get localized name based on current language
+  const getLocalizedName = (university: University) => {
+    if (language === "ru" && university.name_ru) {
+      return university.name_ru
+    }
+    return university.name
+  }
+
+  // Get localized city based on current language
+  const getLocalizedCity = (university: University) => {
+    if (language === "ru" && university.city_ru) {
+      return university.city_ru
+    }
+    return university.city
+  }
+
+  // Get localized country name based on current language
+  const getLocalizedCountry = (countryCode: string) => {
+    const country = countries.find((c) => c.code === countryCode)
+    if (!country) return countryCode
+
+    if (language === "ru" && country.name_ru) {
+      return country.name_ru
+    }
+    return country.name
+  }
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -168,11 +198,74 @@ export default function UniversitiesPage() {
     }
   }
 
+  // Handle status change
+  const handleStatusChange = async (universityId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase.from("universities").update({ status: newStatus }).eq("id", universityId)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setUniversities((prev) =>
+        prev.map((university) => (university.id === universityId ? { ...university, status: newStatus } : university)),
+      )
+
+      toast({
+        title: t("admin.universities.statusUpdated", "Status updated"),
+        description: t("admin.universities.statusUpdatedDesc", "University status has been updated"),
+      })
+    } catch (error) {
+      console.error("Error updating university status:", error)
+      toast({
+        title: t("admin.universities.error", "Error"),
+        description: t("admin.universities.errorUpdatingStatus", "Failed to update university status"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle university deletion
+  const handleDeleteUniversity = async (universityId: string) => {
+    if (
+      window.confirm(
+        t(
+          "admin.universities.deleteConfirmMessage",
+          "Are you sure you want to delete this university? This action cannot be undone.",
+        ),
+      )
+    ) {
+      try {
+        const { error } = await supabase.from("universities").delete().eq("id", universityId)
+
+        if (error) {
+          throw error
+        }
+
+        // Update local state
+        setUniversities((prev) => prev.filter((university) => university.id !== universityId))
+
+        toast({
+          title: t("admin.universities.deleteSuccess", "University deleted"),
+          description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
+        })
+      } catch (error) {
+        console.error("Error deleting university:", error)
+        toast({
+          title: t("admin.universities.error", "Error"),
+          description: t("admin.universities.errorDeleting", "Failed to delete university"),
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage
   const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = universities.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(universities.length / itemsPerPage)
+  const currentItems = filteredUniversities.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(filteredUniversities.length / itemsPerPage)
 
   return (
     <DashboardLayout>
@@ -230,8 +323,8 @@ export default function UniversitiesPage() {
                     <SelectContent>
                       <SelectItem value="all">{t("admin.universities.allCountries", "All Countries")}</SelectItem>
                       {countries.map((country) => (
-                        <SelectItem key={country} value={country}>
-                          {country}
+                        <SelectItem key={country.id} value={country.code}>
+                          {language === "ru" && country.name_ru ? country.name_ru : country.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -246,19 +339,23 @@ export default function UniversitiesPage() {
                       <TableHead className="w-[30%]">{t("admin.universities.name", "Name")}</TableHead>
                       <TableHead>{t("admin.universities.country", "Country")}</TableHead>
                       <TableHead>{t("admin.universities.city", "City")}</TableHead>
-                      <TableHead>{t("admin.universities.exchangePrograms", "Exchange Programs")}</TableHead>
                       <TableHead>{t("admin.universities.status.label", "Status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.universities.action", "Action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentItems.length > 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                          {t("admin.universities.loading", "Loading universities...")}
+                        </TableCell>
+                      </TableRow>
+                    ) : currentItems.length > 0 ? (
                       currentItems.map((university) => (
                         <TableRow key={university.id}>
-                          <TableCell className="font-medium">{university.name}</TableCell>
-                          <TableCell>{university.country}</TableCell>
-                          <TableCell>{university.city}</TableCell>
-                          <TableCell>{university.exchangePrograms}</TableCell>
+                          <TableCell className="font-medium">{getLocalizedName(university)}</TableCell>
+                          <TableCell>{getLocalizedCountry(university.country)}</TableCell>
+                          <TableCell>{getLocalizedCity(university)}</TableCell>
                           <TableCell>{getStatusBadge(university.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -279,12 +376,19 @@ export default function UniversitiesPage() {
                                     {t("admin.universities.edit", "Edit")}
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  {university.status === "active"
-                                    ? t("admin.universities.deactivate", "Deactivate")
-                                    : t("admin.universities.activate", "Activate")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">
+                                {university.status === "active" ? (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(university.id, "inactive")}>
+                                    {t("admin.universities.deactivate", "Deactivate")}
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(university.id, "active")}>
+                                    {t("admin.universities.activate", "Activate")}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteUniversity(university.id)}
+                                >
                                   {t("admin.universities.delete", "Delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -294,7 +398,7 @@ export default function UniversitiesPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
+                        <TableCell colSpan={5} className="h-24 text-center">
                           {t("admin.universities.noUniversitiesFound", "No universities found matching your criteria")}
                         </TableCell>
                       </TableRow>
@@ -303,7 +407,7 @@ export default function UniversitiesPage() {
                 </Table>
               </div>
 
-              {universities.length > itemsPerPage && (
+              {filteredUniversities.length > itemsPerPage && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
