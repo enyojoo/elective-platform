@@ -2,9 +2,10 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Building, ExternalLink, Info } from "lucide-react"
+import { Building, Info } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import Image from "next/image"
 
 export default function InstitutionRequiredPage() {
@@ -60,19 +61,15 @@ export default function InstitutionRequiredPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
+            <p className="text-sm text-center text-muted-foreground">{t("institution.required.adminQuestion")}</p>
             <Button asChild className="w-full">
-              <Link href="https://app.electivepro.net">
-                {t("institution.required.goToMainPlatform")} <ExternalLink className="ml-2 h-4 w-4" />
-              </Link>
+              <Link href="/admin/login">{t("institution.required.loginHere")}</Link>
             </Button>
-            <p className="text-sm text-center text-muted-foreground">
-              {t("institution.required.adminQuestion")}{" "}
-              <Link href="/admin/login" className="text-primary hover:underline">
-                {t("institution.required.loginHere")}
-              </Link>
-            </p>
           </CardFooter>
         </Card>
+        <div className="flex justify-center mt-6">
+          <LanguageSwitcher />
+        </div>
       </div>
     </div>
   )

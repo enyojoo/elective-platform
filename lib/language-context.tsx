@@ -993,6 +993,7 @@ const translations: Translations = {
     "notFound.suggestion3": "You might have clicked on an outdated link",
     "notFound.goHome": "Go to Homepage",
     "notFound.goBack": "Go Back",
+    "notFound.backToDashboard": "Back to Dashboard",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -2005,6 +2006,7 @@ const translations: Translations = {
     "notFound.suggestion3": "Возможно, вы перешли по устаревшей ссылке",
     "notFound.goHome": "На главную страницу",
     "notFound.goBack": "Вернуться назад",
+    "notFound.backToDashboard": "Вернуться в панель управления",
   },
 }
 
