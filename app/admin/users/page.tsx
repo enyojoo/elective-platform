@@ -17,7 +17,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, UserPlus, AlertCircle, Trash2 } from "lucide-react"
+import { Search, MoreHorizontal, Filter, AlertCircle, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
@@ -218,18 +218,7 @@ export default function UsersPage() {
             <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/users/invite">
-              <Button variant="outline">
-                <UserPlus className="mr-2 h-4 w-4" />
-                {t("admin.users.inviteManager")}
-              </Button>
-            </Link>
-            <Link href="/admin/users/invite-student">
-              <Button variant="outline">
-                <UserPlus className="mr-2 h-4 w-4" />
-                {t("admin.users.inviteStudent")}
-              </Button>
-            </Link>
+            <div></div>
           </div>
         </div>
 
