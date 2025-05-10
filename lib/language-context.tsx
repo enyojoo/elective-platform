@@ -46,7 +46,7 @@ const translations: Translations = {
     "programs.corporateFinance": "Corporate Finance",
     "degree.bachelor": "Bachelor's",
     "degree.master": "Master's",
-    "year.enrollment": "Year", // Changed from "Year of Enrollment" to "Year"
+    "year.enrollment": "Year of Enrollment",
     "auth.login.title": "Login to your account",
     "auth.login.description": "Enter your credentials to access your account",
     "auth.login.email": "Email",
@@ -98,7 +98,7 @@ const translations: Translations = {
     "student.dashboard.name": "Name",
     "student.dashboard.degree": "Degree",
     "student.dashboard.program": "Program",
-    "student.dashboard.yearEnrollment": "Year", // Changed from "Year of Enrollment" to "Year"
+    "student.dashboard.yearEnrollment": "Year of Enrollment",
     "student.dashboard.group": "Group",
     "student.dashboard.email": "Email",
     "student.dashboard.upcomingDeadlines": "Upcoming Deadlines",
@@ -660,7 +660,7 @@ const translations: Translations = {
     "admin.users.email": "Email",
     "admin.users.degree": "Degree",
     "admin.users.program": "Program",
-    "admin.users.enrollmentYear": "Year",
+    "admin.users.enrollmentYear": "Enrollment Year",
     "admin.users.group": "Group",
     "admin.users.year": "Year",
     "admin.users.action": "Action",
@@ -1012,7 +1012,7 @@ const translations: Translations = {
     "programs.corporateFinance": "Корпоративные финансы",
     "degree.bachelor": "Бакалавриат",
     "degree.master": "Магистратура",
-    "year.enrollment": "Год", // Changed from "Год поступления" to "Год"
+    "year.enrollment": "Год поступления",
     "auth.login.title": "Войти в аккаунт",
     "auth.login.description": "Введите ваши данные для входа в аккаунт",
     "auth.login.email": "Электронная почта",
@@ -1064,7 +1064,7 @@ const translations: Translations = {
     "student.dashboard.name": "Имя",
     "student.dashboard.degree": "Степень",
     "student.dashboard.program": "Программа",
-    "student.dashboard.yearEnrollment": "Год", // Changed from "Год поступления" to "Год"
+    "student.dashboard.yearEnrollment": "Год поступления",
     "student.dashboard.group": "Группа",
     "student.dashboard.email": "Электронная почта",
     "student.dashboard.upcomingDeadlines": "Предстоящие сроки",
