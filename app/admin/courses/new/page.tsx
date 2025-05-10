@@ -153,6 +153,7 @@ export default function NewCoursePage() {
         description_ru: course.descriptionRu,
         status: course.status,
         institution_id: profileData.institution_id,
+        code: `C${Math.floor(Math.random() * 10000)}`, // Generate a random code
       })
 
       if (error) {

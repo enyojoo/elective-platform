@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 interface Course {
@@ -29,6 +29,7 @@ interface Course {
   name_ru: string
   instructor_en: string
   instructor_ru: string
+  code: string
   status: string
   degree_id: string
   degree: {
@@ -50,7 +51,7 @@ export default function CoursesPage() {
   const [totalCourses, setTotalCourses] = useState(0)
   const itemsPerPage = 10
   const { t, currentLanguage } = useLanguage()
-  const supabase = createClientComponentClient()
+  const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
 
   // Fetch degrees from Supabase
@@ -230,7 +231,10 @@ export default function CoursesPage() {
     try {
       const newStatus = currentStatus === "active" ? "inactive" : "active"
 
-      const { error } = await supabase.from("courses").update({ status: newStatus }).eq("id", courseId)
+      const { error } = await supabase
+        .from("courses")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", courseId)
 
       if (error) {
         toast({
@@ -400,14 +404,7 @@ export default function CoursesPage() {
                               : course.instructor_en}
                           </TableCell>
                           <TableCell>
-                            {course.degree && (
-                              <Badge variant="outline">
-                                {course.degree.code ||
-                                  (currentLanguage === "ru" && course.degree.name_ru
-                                    ? course.degree.name_ru
-                                    : course.degree.name)}
-                              </Badge>
-                            )}
+                            {course.degree && <Badge variant="outline">{course.degree.code}</Badge>}
                           </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
