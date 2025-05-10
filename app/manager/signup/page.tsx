@@ -43,7 +43,17 @@ export default function ManagerSignupPage() {
   // Ref to prevent multiple fetches
   const dataFetchedRef = useRef(false)
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  // Create Supabase client only when needed
+  const getSupabaseClient = () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase credentials are not available")
+    }
+
+    return createClient(supabaseUrl, supabaseAnonKey)
+  }
 
   // Load all data once when the component mounts
   useEffect(() => {
@@ -52,6 +62,7 @@ export default function ManagerSignupPage() {
     async function loadAllData() {
       try {
         dataFetchedRef.current = true
+        const supabase = getSupabaseClient()
 
         // Fetch all data in parallel
         const [degreesResponse, groupsResponse] = await Promise.all([
@@ -66,6 +77,8 @@ export default function ManagerSignupPage() {
             ...prev,
             degreeId: degreesResponse.data[0].id.toString(),
           }))
+        } else {
+          console.log("No degrees found or empty response", degreesResponse)
         }
 
         // Process years from groups
@@ -91,20 +104,32 @@ export default function ManagerSignupPage() {
               }))
             }
           }
+        } else {
+          // If no years found, set some default years
+          const currentYear = new Date().getFullYear()
+          const defaultYears = Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())
+          setYears(defaultYears)
+          setFormData((prev) => ({
+            ...prev,
+            academicYear: currentYear.toString(),
+          }))
         }
       } catch (error) {
         console.error("Error loading data:", error)
+        setError(error instanceof Error ? error.message : "Failed to load data")
       }
     }
 
     loadAllData()
-  }, [institution, supabase])
+  }, [institution])
 
   // Add this effect to force re-render when language changes
   useEffect(() => {
     // Force re-render when language changes to update degree names in the UI
-    const updatedDegrees = [...degrees]
-    setDegrees(updatedDegrees)
+    if (degrees.length > 0) {
+      const updatedDegrees = [...degrees]
+      setDegrees(updatedDegrees)
+    }
   }, [language, degrees])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,6 +161,12 @@ export default function ManagerSignupPage() {
         throw new Error(t("auth.error.incompleteFields"))
       }
 
+      if (!institution) {
+        throw new Error("Institution not found")
+      }
+
+      const supabase = getSupabaseClient()
+
       // Create the user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -148,11 +179,12 @@ export default function ManagerSignupPage() {
       })
 
       if (authError) throw new Error(authError.message)
+      if (!authData.user) throw new Error("Failed to create user")
 
       // Create manager profile - using the correct column names
       const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user!.id,
-        institution_id: institution!.id,
+        id: authData.user.id,
+        institution_id: institution.id,
         full_name: formData.name,
         role: "program_manager", // Fixed role name to match expected value
         email: formData.email,
@@ -178,6 +210,7 @@ export default function ManagerSignupPage() {
 
   // Helper function to get the degree name in the current language
   const getDegreeName = (degree: any) => {
+    if (!degree) return ""
     return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
   }
 
@@ -211,7 +244,7 @@ export default function ManagerSignupPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t("auth.signup.createAccount")}</CardTitle>
-            <CardDescription>Create a new manager account for your institution</CardDescription>
+            <CardDescription>{t("auth.signup.managerDescription")}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
@@ -252,15 +285,21 @@ export default function ManagerSignupPage() {
                   onValueChange={(value) => handleSelectChange("degreeId", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="degree">
                     <SelectValue placeholder={t("admin.users.selectDegree")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {degrees.map((degree) => (
-                      <SelectItem key={degree.id} value={degree.id.toString()}>
-                        {getDegreeName(degree)}
+                    {degrees.length > 0 ? (
+                      degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.id?.toString() || ""}>
+                          {getDegreeName(degree)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>
+                        Loading degrees...
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -273,7 +312,7 @@ export default function ManagerSignupPage() {
                   onValueChange={(value) => handleSelectChange("academicYear", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="academicYear">
                     <SelectValue placeholder={t("auth.signup.selectYear")} />
                   </SelectTrigger>
                   <SelectContent>

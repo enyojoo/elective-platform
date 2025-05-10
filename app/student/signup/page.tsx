@@ -43,7 +43,17 @@ export default function StudentSignupPage() {
   // Refs to prevent multiple fetches
   const dataFetchedRef = useRef(false)
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  // Create Supabase client only when needed
+  const getSupabaseClient = () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase credentials are not available")
+    }
+
+    return createClient(supabaseUrl, supabaseAnonKey)
+  }
 
   // Load all data once when the component mounts
   useEffect(() => {
@@ -52,6 +62,7 @@ export default function StudentSignupPage() {
     async function loadAllData() {
       try {
         dataFetchedRef.current = true
+        const supabase = getSupabaseClient()
 
         // Fetch all data in parallel
         const [degreesResponse, groupsResponse] = await Promise.all([
@@ -62,7 +73,9 @@ export default function StudentSignupPage() {
         // Process degrees
         if (degreesResponse.data && degreesResponse.data.length > 0) {
           setDegrees(degreesResponse.data)
-          setDegree(degreesResponse.data[0].id.toString())
+          setDegree(degreesResponse.data[0].id?.toString() || "")
+        } else {
+          console.log("No degrees found or empty response", degreesResponse)
         }
 
         // Process groups
@@ -85,20 +98,29 @@ export default function StudentSignupPage() {
               setYear(uniqueYears[0])
             }
           }
+        } else {
+          // If no groups found, set some default years
+          const currentYear = new Date().getFullYear()
+          const defaultYears = Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())
+          setYears(defaultYears)
+          setYear(currentYear.toString())
         }
       } catch (error) {
         console.error("Error loading data:", error)
+        setError(error instanceof Error ? error.message : "Failed to load data")
       }
     }
 
     loadAllData()
-  }, [institution, supabase])
+  }, [institution])
 
   // Add this effect to force re-render when language changes
   useEffect(() => {
     // Force re-render when language changes to update degree names in the UI
-    const updatedDegrees = [...degrees]
-    setDegrees(updatedDegrees)
+    if (degrees.length > 0) {
+      const updatedDegrees = [...degrees]
+      setDegrees(updatedDegrees)
+    }
   }, [language, degrees])
 
   // Filter groups when degree or year changes
@@ -142,6 +164,12 @@ export default function StudentSignupPage() {
         throw new Error(t("auth.error.incompleteFields"))
       }
 
+      if (!institution) {
+        throw new Error("Institution not found")
+      }
+
+      const supabase = getSupabaseClient()
+
       // Create the user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -154,11 +182,12 @@ export default function StudentSignupPage() {
       })
 
       if (authError) throw new Error(authError.message)
+      if (!authData.user) throw new Error("Failed to create user")
 
       // Create student profile - using the correct column names
       const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user!.id,
-        institution_id: institution!.id,
+        id: authData.user.id,
+        institution_id: institution.id,
         full_name: name,
         role: "student",
         email: email,
@@ -185,6 +214,7 @@ export default function StudentSignupPage() {
 
   // Helper function to get the degree name in the current language
   const getDegreeName = (degree: any) => {
+    if (!degree) return ""
     return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
   }
 
@@ -220,6 +250,7 @@ export default function StudentSignupPage() {
             <CardContent className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
 
+              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
                 <Input
@@ -232,6 +263,7 @@ export default function StudentSignupPage() {
                 />
               </div>
 
+              {/* Full Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">{t("auth.signup.name")}</Label>
                 <Input
@@ -244,6 +276,7 @@ export default function StudentSignupPage() {
                 />
               </div>
 
+              {/* Degree */}
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
                 <Select value={degree} onValueChange={setDegree} required>
@@ -251,15 +284,22 @@ export default function StudentSignupPage() {
                     <SelectValue placeholder={t("auth.signup.selectDegree")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {degrees.map((d) => (
-                      <SelectItem key={d.id} value={d.id?.toString() || ""}>
-                        {getDegreeName(d)}
+                    {degrees.length > 0 ? (
+                      degrees.map((d) => (
+                        <SelectItem key={d.id} value={d.id?.toString() || ""}>
+                          {getDegreeName(d)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>
+                        Loading degrees...
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Year and Group */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("auth.signup.year")}</Label>
@@ -284,16 +324,23 @@ export default function StudentSignupPage() {
                       <SelectValue placeholder={t("auth.signup.selectGroup")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id?.toString() || ""}>
-                          {g.name}
+                      {filteredGroups.length > 0 ? (
+                        filteredGroups.map((g) => (
+                          <SelectItem key={g.id} value={g.id?.toString() || ""}>
+                            {g.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-groups" disabled>
+                          No groups available
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
+              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
                 <div className="relative">
