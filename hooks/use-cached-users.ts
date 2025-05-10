@@ -33,7 +33,7 @@ const transformUserData = (data: any[], currentLanguage: string) => {
 
 export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false) // Start with false
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
@@ -48,7 +48,6 @@ export function useCachedUsers(institutionId: string | undefined) {
   useEffect(() => {
     // Return early if we don't have an institution
     if (!institutionId) {
-      setIsLoading(false)
       return
     }
 
@@ -57,13 +56,12 @@ export function useCachedUsers(institutionId: string | undefined) {
       const cacheKey = `users-${institutionId}`
       const cachedData = getCachedData(cacheKey)
 
-      // If we have cached data, use it
-      if (cachedData) {
+      // If we have cached data, use it without showing loading state
+      if (cachedData && cachedData.length > 0) {
         console.log("Using cached users data")
         rawDataRef.current = cachedData
         const transformedUsers = transformUserData(rawDataRef.current, language)
         setUsers(transformedUsers)
-        setIsLoading(false)
         dataFetchedRef.current = true
         return
       }
@@ -73,25 +71,20 @@ export function useCachedUsers(institutionId: string | undefined) {
         console.log("Using existing raw data with new language:", language)
         const transformedUsers = transformUserData(rawDataRef.current, language)
         setUsers(transformedUsers)
-        setIsLoading(false)
         return
       }
 
-      // If we don't have cached data and haven't fetched yet, fetch from API
-      if (!dataFetchedRef.current) {
-        setIsLoading(true)
+      // Only set loading to true if we need to fetch from API
+      setIsLoading(true)
 
-        try {
-          console.log("Fetching users data from API")
-          const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          )
+      try {
+        console.log("Fetching users data from API")
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-          // Fetch profiles with degree, group, and year information
-          const { data: profilesData, error: profilesError } = await supabase
-            .from("profiles")
-            .select(`
+        // Fetch profiles with degree, group, and year information
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select(`
           id, 
           full_name, 
           email, 
@@ -103,33 +96,32 @@ export function useCachedUsers(institutionId: string | undefined) {
           degrees(id, name, name_ru),
           groups(id, name)
         `)
-            .eq("institution_id", institutionId)
+          .eq("institution_id", institutionId)
 
-          if (profilesError) throw profilesError
+        if (profilesError) throw profilesError
 
-          // Store the raw data for future language switches
-          rawDataRef.current = profilesData
+        // Store the raw data for future language switches
+        rawDataRef.current = profilesData
 
-          // Cache the data
-          setCachedData(cacheKey, profilesData)
+        // Cache the data
+        setCachedData(cacheKey, profilesData)
 
-          // Transform the data based on current language
-          const transformedUsers = transformUserData(profilesData, language)
+        // Transform the data based on current language
+        const transformedUsers = transformUserData(profilesData, language)
 
-          // Update state
-          setUsers(transformedUsers)
-          dataFetchedRef.current = true
-        } catch (error: any) {
-          console.error("Error fetching users:", error)
-          setError(error.message)
-          toast({
-            title: "Error",
-            description: "Failed to load users data",
-            variant: "destructive",
-          })
-        } finally {
-          setIsLoading(false)
-        }
+        // Update state
+        setUsers(transformedUsers)
+        dataFetchedRef.current = true
+      } catch (error: any) {
+        console.error("Error fetching users:", error)
+        setError(error.message)
+        toast({
+          title: "Error",
+          description: "Failed to load users data",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
       }
     }
 

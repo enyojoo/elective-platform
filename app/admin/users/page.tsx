@@ -233,6 +233,10 @@ export default function UsersPage() {
     }
   }
 
+  // Determine if we should show the skeleton
+  // Only show skeleton if we're loading AND we don't have any users data yet
+  const showSkeleton = isLoading && users.length === 0
+
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
       <div className="flex flex-col gap-6">
@@ -310,8 +314,8 @@ export default function UsersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      // Improved skeleton loading - only in table rows
+                    {showSkeleton ? (
+                      // Only show skeleton if we're loading AND we don't have any users data yet
                       <TableSkeleton columns={8} rows={5} />
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
