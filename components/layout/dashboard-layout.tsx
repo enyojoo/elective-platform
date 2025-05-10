@@ -39,7 +39,7 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
   }, [])
 
   return (
-    <div className="flex min-h-screen h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
       <div className="flex flex-1 flex-col h-full">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
