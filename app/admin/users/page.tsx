@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,10 +24,7 @@ import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useCachedUsers } from "@/hooks/use-cached-users"
-import { useDataCache } from "@/lib/data-cache-context"
 import {
   Dialog,
   DialogContent,
@@ -38,14 +35,30 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
+
+// Cache expiry time in milliseconds (1 hour)
+const CACHE_EXPIRY = 60 * 60 * 1000
+
+interface UserData {
+  id: string
+  name: string
+  email: string
+  role: string
+  degreeName: string
+  groupName: string
+  year: string
+  status: string
+}
 
 export default function UsersPage() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error } = useCachedUsers(institution?.id)
-  const { invalidateCache } = useDataCache()
-  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<UserData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filteredUsers, setFilteredUsers] = useState<UserData[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -58,6 +71,131 @@ export default function UsersPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Function to fetch users from Supabase
+  const fetchUsers = useCallback(async () => {
+    if (!institution?.id) return
+
+    try {
+      setIsLoading(true)
+
+      // Check if we have cached data
+      const cachedData = localStorage.getItem(`users_${institution.id}`)
+      const cachedTimestamp = localStorage.getItem(`users_${institution.id}_timestamp`)
+
+      if (cachedData && cachedTimestamp) {
+        const timestamp = Number.parseInt(cachedTimestamp)
+        const now = Date.now()
+
+        // If cache is still valid, use it
+        if (now - timestamp < CACHE_EXPIRY) {
+          const parsedData = JSON.parse(cachedData)
+          setUsers(parsedData)
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Fetch profiles for this institution
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          is_active,
+          year,
+          degree_id,
+          group_id
+        `)
+        .eq("institution_id", institution.id)
+
+      if (profilesError) throw profilesError
+
+      // Fetch degrees
+      const { data: degrees, error: degreesError } = await supabase
+        .from("degrees")
+        .select("id, name")
+        .eq("institution_id", institution.id)
+
+      if (degreesError) throw degreesError
+
+      // Fetch groups
+      const { data: groups, error: groupsError } = await supabase
+        .from("groups")
+        .select("id, name")
+        .eq("institution_id", institution.id)
+
+      if (groupsError) throw groupsError
+
+      // Map degrees and groups to lookup objects
+      const degreesMap = degrees.reduce((acc: Record<string, string>, degree: any) => {
+        acc[degree.id] = degree.name
+        return acc
+      }, {})
+
+      const groupsMap = groups.reduce((acc: Record<string, string>, group: any) => {
+        acc[group.id] = group.name
+        return acc
+      }, {})
+
+      // Transform profiles data
+      const transformedUsers = profiles.map((profile: any) => ({
+        id: profile.id,
+        name: profile.name || "",
+        email: profile.email || "",
+        role: profile.role || "",
+        degreeName: profile.degree_id ? degreesMap[profile.degree_id] || "" : "",
+        groupName: profile.group_id ? groupsMap[profile.group_id] || "" : "",
+        year: profile.year || "",
+        status: profile.is_active ? "active" : "inactive",
+      }))
+
+      // Cache the data
+      localStorage.setItem(`users_${institution.id}`, JSON.stringify(transformedUsers))
+      localStorage.setItem(`users_${institution.id}_timestamp`, Date.now().toString())
+
+      setUsers(transformedUsers)
+      setError(null)
+    } catch (err: any) {
+      console.error("Error fetching users:", err)
+      setError(err.message || "Failed to load users")
+
+      // Try to load from cache even if expired as a fallback
+      try {
+        const cachedData = localStorage.getItem(`users_${institution.id}`)
+        if (cachedData) {
+          setUsers(JSON.parse(cachedData))
+          toast({
+            title: "Using cached data",
+            description: "Showing cached user data due to a connection error",
+            variant: "default",
+          })
+        }
+      } catch (cacheErr) {
+        console.error("Error loading from cache:", cacheErr)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [institution?.id, supabase, toast])
+
+  // Invalidate cache and refetch data
+  const invalidateCache = useCallback(() => {
+    if (institution?.id) {
+      localStorage.removeItem(`users_${institution.id}`)
+      localStorage.removeItem(`users_${institution.id}_timestamp`)
+      fetchUsers()
+    }
+  }, [institution?.id, fetchUsers])
+
+  // Fetch users when institution changes
+  useEffect(() => {
+    if (institution?.id) {
+      fetchUsers()
+    }
+  }, [institution?.id, fetchUsers])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -142,10 +280,14 @@ export default function UsersPage() {
 
       if (error) throw error
 
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
+      // Update local state
+      setUsers((prevUsers) =>
+        prevUsers.map((user) => (user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user)),
+      )
+
+      // Update cache
+      localStorage.setItem(`users_${institution?.id}`, JSON.stringify(users))
+      localStorage.setItem(`users_${institution?.id}_timestamp`, Date.now().toString())
 
       toast({
         title: "Success",
@@ -183,18 +325,18 @@ export default function UsersPage() {
 
       if (error) throw error
 
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
+      // Update local state
+      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete))
+      setFilteredUsers((prevFilteredUsers) => prevFilteredUsers.filter((user) => user.id !== userToDelete))
+
+      // Update cache
+      localStorage.setItem(`users_${institution?.id}`, JSON.stringify(users.filter((user) => user.id !== userToDelete)))
+      localStorage.setItem(`users_${institution?.id}_timestamp`, Date.now().toString())
 
       toast({
         title: "Success",
         description: "User has been deleted successfully",
       })
-
-      // Update the filtered users list
-      setFilteredUsers(filteredUsers.filter((user) => user.id !== userToDelete))
 
       handleCloseDeleteDialog()
     } catch (error: any) {
@@ -287,35 +429,7 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      // Skeleton loading state
-                      Array.from({ length: 5 }).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[180px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[100px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[120px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[60px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-[80px]" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      <TableSkeleton columns={8} rows={5} />
                     ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">

@@ -1164,7 +1164,7 @@ const translations: Translations = {
     "manager.dashboard.courseElectives": "Пакеты элективов",
     "manager.dashboard.totalCourseElectives": "Всего выборов элективных курсов",
     "manager.dashboard.manageCourseElectives": "Управление элективными курсами",
-    "manager.dashboard.exchangePrograms": "Программы обмена",
+    "manager.dashboard.exchangePrograms": "Программы о��мена",
     "manager.dashboard.totalExchangePrograms": "Всего доступных программ обмена",
     "manager.dashboard.manageExchangePrograms": "Управление программами обмена",
     "manager.dashboard.yourInformation": "Ваша информация",
