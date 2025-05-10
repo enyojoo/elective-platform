@@ -2,24 +2,19 @@
 
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
-import { Compass, GraduationCap, Home, Search, UserCog } from "lucide-react"
+import { Compass, Home, Search } from "lucide-react"
 import Link from "next/link"
 import { useInstitution } from "@/lib/institution-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 export default function NotFoundPage() {
-  const { t, language, setLanguage } = useLanguage()
+  const { t } = useLanguage()
   const { isSubdomainAccess } = useInstitution()
-
-  const toggleLanguage = () => {
-    setLanguage(language === "en" ? "ru" : "en")
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-gradient-to-b from-background to-muted">
       <div className="max-w-md w-full space-y-8 text-center">
-        <div className="mb-8">
-          <div className="text-9xl font-bold text-primary/10">404</div>
-        </div>
+        <div className="text-9xl font-bold text-primary/10 mb-4">404</div>
 
         <h1 className="text-4xl font-bold tracking-tight">{t("notFound.title")}</h1>
         <p className="text-xl text-muted-foreground mt-2">{t("notFound.subtitle")}</p>
@@ -38,24 +33,24 @@ export default function NotFoundPage() {
           </ul>
         </div>
 
-        <div className="mt-8 space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 mt-8">
           {isSubdomainAccess ? (
             <>
-              <Button asChild className="w-full">
+              <Button asChild className="flex-1">
                 <Link href="/student/dashboard">
-                  <GraduationCap className="mr-2 h-4 w-4" />
+                  <Home className="mr-2 h-4 w-4" />
                   {t("notFound.backToStudentApp")}
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="w-full">
+              <Button asChild variant="outline" className="flex-1">
                 <Link href="/manager/dashboard">
-                  <UserCog className="mr-2 h-4 w-4" />
+                  <Home className="mr-2 h-4 w-4" />
                   {t("notFound.backToManagerApp")}
                 </Link>
               </Button>
             </>
           ) : (
-            <Button asChild className="w-full">
+            <Button asChild className="flex-1">
               <Link href="/admin/dashboard">
                 <Home className="mr-2 h-4 w-4" />
                 {t("notFound.backToDashboard")}
@@ -64,15 +59,8 @@ export default function NotFoundPage() {
           )}
         </div>
 
-        {/* Language Switcher - styled like the one on admin login */}
-        <div className="mt-8 pt-4 border-t border-border">
-          <button
-            onClick={toggleLanguage}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            type="button"
-          >
-            {language === "en" ? "Русский" : "English"}
-          </button>
+        <div className="flex justify-center mt-6">
+          <LanguageSwitcher />
         </div>
       </div>
     </div>

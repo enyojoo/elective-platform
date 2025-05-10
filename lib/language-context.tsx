@@ -146,11 +146,6 @@ const translations: Translations = {
     "student.courses.enterFullName": "Enter your full name",
     "student.courses.submitting": "Submitting...",
     "student.courses.submitSelection": "Submit Selection",
-    "student.courses.courseDescription": "Course Description",
-    "student.courses.close": "Close",
-    "student.courses.removeSelection": "Remove Selection",
-    "student.courses.selectCourse": "Select Course",
-    "student.courses.of": "of",
     "student.exchange.title": "Exchange Program Selection",
     "student.exchange.subtitle": "Browse and select exchange universities available for your program",
     "student.exchange.deadline": "Deadline",
@@ -983,6 +978,8 @@ const translations: Translations = {
     "institution.required.goToMainPlatform": "Go to Main Platform",
     "institution.required.adminQuestion": "Are you an administrator?",
     "institution.required.loginHere": "Log in here",
+    "institution.required.noAccount": "Don't have an account?",
+    "institution.required.createAccount": "Create new account",
 
     // 404 Page
     "notFound.title": "Page Not Found",
@@ -1113,11 +1110,6 @@ const translations: Translations = {
     "student.courses.enterFullName": "Введите ваше полное имя",
     "student.courses.submitting": "Отправка...",
     "student.courses.submitSelection": "Отправить выбор",
-    "student.courses.courseDescription": "Описание курса",
-    "student.courses.close": "Закрыть",
-    "student.courses.removeSelection": "Удалить выбор",
-    "student.courses.selectCourse": "Выбрать курс",
-    "student.courses.of": "из",
     "student.exchange.title": "Выбор программ обмена",
     "student.exchange.subtitle": "Просмотр и выбор университетов для обмена, доступных для вашей программы",
     "student.exchange.deadline": "Срок",
@@ -1998,6 +1990,8 @@ const translations: Translations = {
     "institution.required.goToMainPlatform": "Перейти на основную платформу",
     "institution.required.adminQuestion": "Вы администратор?",
     "institution.required.loginHere": "Войдите здесь",
+    "institution.required.noAccount": "Нет аккаунта?",
+    "institution.required.createAccount": "Создать новый аккаунт",
 
     // 404 Page
     "notFound.title": "Страница не найдена",

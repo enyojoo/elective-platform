@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building, Info } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
@@ -29,7 +29,6 @@ export default function InstitutionRequiredPage() {
               <Building className="h-12 w-12 text-primary" />
             </div>
             <CardTitle className="text-2xl">{t("institution.required.title")}</CardTitle>
-            <CardDescription>{t("institution.required.subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-md bg-blue-50 p-4 dark:bg-blue-900/20">
@@ -42,7 +41,10 @@ export default function InstitutionRequiredPage() {
                     {t("institution.required.accessInfo")}
                   </h3>
                   <div className="mt-2 text-sm text-blue-700 dark:text-blue-200">
-                    <p>{t("institution.required.contactAdmin")}</p>
+                    <p>
+                      {t("institution.required.accessDescription")}
+                      <span className="font-mono font-bold">yourschool.electivepro.net</span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -63,9 +65,12 @@ export default function InstitutionRequiredPage() {
               <Link href="/admin/login">{t("institution.required.loginHere")}</Link>
             </Button>
             <div className="text-center">
-              <Link href="/admin/signup" className="text-sm text-primary hover:underline">
-                {t("institution.required.createAccount")}
-              </Link>
+              <p className="text-sm text-muted-foreground mt-2">
+                {t("institution.required.noAccount")}{" "}
+                <Link href="/admin/signup" className="text-primary hover:underline">
+                  {t("institution.required.createAccount")}
+                </Link>
+              </p>
             </div>
           </CardFooter>
         </Card>
