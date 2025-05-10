@@ -229,7 +229,9 @@ export default function NewCoursePage() {
                   <Label htmlFor="degreeId">{t("admin.newCourse.degree")}</Label>
                   <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
                     <SelectTrigger>
-                      <SelectValue placeholder={loading ? "Loading degrees..." : t("admin.newCourse.selectDegree")} />
+                      <SelectValue
+                        placeholder={loading ? t("admin.courses.loading") : t("admin.newCourse.selectDegree")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {degrees.map((degree) => (

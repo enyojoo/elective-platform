@@ -996,6 +996,7 @@ const translations: Translations = {
     "admin.newCourse.instructorRuPlaceholder": "Prof. Ivan Smirnov",
     "admin.newCourse.descriptionEnPlaceholder": "Course description in English",
     "admin.newCourse.descriptionRuPlaceholder": "Course description in Russian",
+    "admin.courses.loading": "Loading...",
     // Institution Required Page
     "institution.required.title": "Institution Access Required",
     "institution.required.subtitle":
@@ -2057,9 +2058,10 @@ const translations: Translations = {
     "admin.newCourse.nameEnPlaceholder": "Strategic Management",
     "admin.newCourse.nameRuPlaceholder": "Стратегический менеджмент",
     "admin.newCourse.instructorEnPlaceholder": "Prof. John Smith",
-    "admin.newCourse.instructorRuPlaceholder": "Prof. Ivan Smirnov",
+    "admin.newCourse.instructorRuPlaceholder": "Проф. Иван Смирнов",
     "admin.newCourse.descriptionEnPlaceholder": "Course description in English",
-    "admin.newCourse.descriptionRuPlaceholder": "Course description in Russian",
+    "admin.newCourse.descriptionRuPlaceholder": "Описание курса на русском языке",
+    "admin.courses.loading": "Загрузка...",
     // Institution Required Page
     "institution.required.title": "Требуется доступ к учреждению",
     "institution.required.subtitle":
@@ -2109,12 +2111,13 @@ const translations: Translations = {
     "admin.universities.description": "Описание",
     "admin.universities.deleteSuccessDesc": "Университет был успешно удален",
     "admin.universities.errorDeleting": "Не удалось удалить университет",
-    "admin.newCourse.nameEnPlaceholder": "Strategic Management",
+    "admin.newCourse.nameEnPlaceholder": "Стратегический менеджмент",
     "admin.newCourse.nameRuPlaceholder": "Стратегический менеджмент",
     "admin.newCourse.instructorEnPlaceholder": "Prof. John Smith",
     "admin.newCourse.instructorRuPlaceholder": "Проф. Иван Смирнов",
     "admin.newCourse.descriptionEnPlaceholder": "Описание курса на английском языке",
     "admin.newCourse.descriptionRuPlaceholder": "Описание курса на русском языке",
+    "admin.courses.loading": "Загрузка...",
   },
 }
 
