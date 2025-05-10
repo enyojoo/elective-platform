@@ -59,13 +59,6 @@ export default function UsersPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Force refresh when language changes
-  useEffect(() => {
-    if (institution?.id) {
-      invalidateCache("users", institution.id)
-    }
-  }, [language, institution?.id, invalidateCache])
-
   // Filter users based on search term and filters
   useEffect(() => {
     let result = users || []

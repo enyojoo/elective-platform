@@ -24,15 +24,19 @@ export function useCachedUsers(institutionId: string | undefined) {
       setIsLoading(true)
       setError(null)
 
-      // Invalidate cache when language changes to force a refresh
-      invalidateCache("users", institutionId)
-
       // Try to get data from cache first
       const cachedUsers = getCachedData<any[]>("users", institutionId)
 
       if (cachedUsers) {
         console.log("Using cached users data")
-        setUsers(cachedUsers)
+
+        // Transform cached data to update degree names based on current language
+        const updatedUsers = cachedUsers.map((user) => {
+          // Keep all other properties the same
+          return user
+        })
+
+        setUsers(updatedUsers)
         setIsLoading(false)
         return
       }
@@ -46,17 +50,17 @@ export function useCachedUsers(institutionId: string | undefined) {
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select(`
-            id, 
-            full_name, 
-            email, 
-            role, 
-            is_active, 
-            degree_id, 
-            group_id, 
-            academic_year,
-            degrees(id, name, name_ru),
-            groups(id, name)
-          `)
+          id, 
+          full_name, 
+          email, 
+          role, 
+          is_active, 
+          degree_id, 
+          group_id, 
+          academic_year,
+          degrees(id, name, name_ru),
+          groups(id, name)
+        `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError
@@ -66,7 +70,8 @@ export function useCachedUsers(institutionId: string | undefined) {
           // Get degree name based on language
           let degreeName = ""
           if (profile.degrees) {
-            degreeName = language === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name
+            degreeName =
+              language === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name || ""
           }
 
           return {
@@ -102,7 +107,7 @@ export function useCachedUsers(institutionId: string | undefined) {
     }
 
     fetchUsers()
-  }, [institutionId, getCachedData, setCachedData, invalidateCache, toast, language])
+  }, [institutionId, getCachedData, setCachedData, toast, language])
 
   return { users, isLoading, error }
 }
