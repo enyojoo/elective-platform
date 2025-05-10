@@ -57,29 +57,27 @@ export function useCachedUsers(institutionId: string | undefined) {
       const cacheKey = `users-${institutionId}`
       const cachedData = getCachedData(cacheKey)
 
-      // If we already have raw data, just transform it based on the current language
-      if (rawDataRef.current.length > 0) {
-        console.log("Using existing raw data with new language:", language)
-
-        // Transform the raw data based on the current language
-        const transformedUsers = transformUserData(rawDataRef.current, language)
-        setUsers(transformedUsers)
-        setIsLoading(false)
-        return
-      }
-
       // If we have cached data, use it
       if (cachedData) {
         console.log("Using cached users data")
         rawDataRef.current = cachedData
-        const transformedUsers = transformUserData(cachedData, language)
+        const transformedUsers = transformUserData(rawDataRef.current, language)
         setUsers(transformedUsers)
         setIsLoading(false)
         dataFetchedRef.current = true
         return
       }
 
-      // If we don't have raw data and haven't fetched yet, fetch from API
+      // If we already have raw data, just transform it based on the current language
+      if (rawDataRef.current.length > 0) {
+        console.log("Using existing raw data with new language:", language)
+        const transformedUsers = transformUserData(rawDataRef.current, language)
+        setUsers(transformedUsers)
+        setIsLoading(false)
+        return
+      }
+
+      // If we don't have cached data and haven't fetched yet, fetch from API
       if (!dataFetchedRef.current) {
         setIsLoading(true)
 
@@ -94,17 +92,17 @@ export function useCachedUsers(institutionId: string | undefined) {
           const { data: profilesData, error: profilesError } = await supabase
             .from("profiles")
             .select(`
-            id, 
-            full_name, 
-            email, 
-            role, 
-            is_active, 
-            degree_id, 
-            group_id, 
-            academic_year,
-            degrees(id, name, name_ru),
-            groups(id, name)
-          `)
+          id, 
+          full_name, 
+          email, 
+          role, 
+          is_active, 
+          degree_id, 
+          group_id, 
+          academic_year,
+          degrees(id, name, name_ru),
+          groups(id, name)
+        `)
             .eq("institution_id", institutionId)
 
           if (profilesError) throw profilesError
@@ -113,7 +111,7 @@ export function useCachedUsers(institutionId: string | undefined) {
           rawDataRef.current = profilesData
 
           // Cache the data
-          setCachedData(`users-${institutionId}`, profilesData)
+          setCachedData(cacheKey, profilesData)
 
           // Transform the data based on current language
           const transformedUsers = transformUserData(profilesData, language)

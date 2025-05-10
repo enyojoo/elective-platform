@@ -168,7 +168,7 @@ export default function UsersPage() {
 
       // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache("users", institution.id)
+        invalidateCache(`users-${institution.id}`)
       }
 
       toast({
@@ -209,7 +209,7 @@ export default function UsersPage() {
 
       // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache("users", institution.id)
+        invalidateCache(`users-${institution.id}`)
       }
 
       toast({
