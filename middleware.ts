@@ -49,8 +49,9 @@ export async function middleware(req: NextRequest) {
       const data = await response.json()
 
       if (!response.ok || !data.exists) {
-        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main app`)
-        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to institution-required page`)
+        // Redirect to the institution-required page instead of the main app
+        return NextResponse.redirect(new URL("/institution-required", req.url))
       }
 
       // Valid subdomain - allow access and add institution info to headers
@@ -81,7 +82,8 @@ export async function middleware(req: NextRequest) {
       })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
-      return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      // Redirect to the institution-required page instead of the main app
+      return NextResponse.redirect(new URL("/institution-required", req.url))
     }
   }
 
