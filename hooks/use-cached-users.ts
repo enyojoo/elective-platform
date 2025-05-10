@@ -10,7 +10,7 @@ export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { getCachedData, setCachedData } = useDataCache()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
 
@@ -23,6 +23,9 @@ export function useCachedUsers(institutionId: string | undefined) {
     const fetchUsers = async () => {
       setIsLoading(true)
       setError(null)
+
+      // Invalidate cache when language changes to force a refresh
+      invalidateCache("users", institutionId)
 
       // Try to get data from cache first
       const cachedUsers = getCachedData<any[]>("users", institutionId)
@@ -61,11 +64,10 @@ export function useCachedUsers(institutionId: string | undefined) {
         // Transform the data
         const transformedUsers = profilesData.map((profile) => {
           // Get degree name based on language
-          const degreeName = profile.degrees
-            ? language === "ru" && profile.degrees.name_ru
-              ? profile.degrees.name_ru
-              : profile.degrees.name
-            : ""
+          let degreeName = ""
+          if (profile.degrees) {
+            degreeName = language === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name
+          }
 
           return {
             id: profile.id,
@@ -100,7 +102,7 @@ export function useCachedUsers(institutionId: string | undefined) {
     }
 
     fetchUsers()
-  }, [institutionId, getCachedData, setCachedData, toast, language])
+  }, [institutionId, getCachedData, setCachedData, invalidateCache, toast, language])
 
   return { users, isLoading, error }
 }

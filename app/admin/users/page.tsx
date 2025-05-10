@@ -40,7 +40,7 @@ import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 
 export default function UsersPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
   const { users, isLoading, error } = useCachedUsers(institution?.id)
@@ -58,6 +58,13 @@ export default function UsersPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Force refresh when language changes
+  useEffect(() => {
+    if (institution?.id) {
+      invalidateCache("users", institution.id)
+    }
+  }, [language, institution?.id, invalidateCache])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -263,7 +270,7 @@ export default function UsersPage() {
                     <SelectContent>
                       <SelectItem value="all">{t("admin.users.allRoles")}</SelectItem>
                       <SelectItem value="admin">{t("admin.users.admin")}</SelectItem>
-                      <SelectItem value="manager">{t("admin.users.manager")}</SelectItem>
+                      <SelectItem value="program_manager">{t("admin.users.program_manager")}</SelectItem>
                       <SelectItem value="student">{t("admin.users.student")}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -354,7 +361,7 @@ export default function UsersPage() {
                                 <DropdownMenuItem>
                                   <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
                                 </DropdownMenuItem>
-                                {user.role === "manager" && (
+                                {user.role === "program_manager" && (
                                   <DropdownMenuItem>
                                     <Link href={`/admin/users/${user.id}/assign`}>
                                       {t("admin.users.reassignProgram")}
