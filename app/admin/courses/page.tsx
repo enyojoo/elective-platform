@@ -45,7 +45,7 @@ interface Course {
 interface Degree {
   id: string
   name: string
-  name_ru: string
+  name_ru: string // Make sure this field is defined
   code: string
   status: string
 }
@@ -125,7 +125,7 @@ export default function CoursesPage() {
       try {
         const { data, error } = await supabase
           .from("degrees")
-          .select("*")
+          .select("*") // Make sure this includes name_ru
           .eq("institution_id", institution.id)
           .order("name", { ascending: true })
 
@@ -404,7 +404,9 @@ export default function CoursesPage() {
                       <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
                       {degrees.map((degree) => (
                         <SelectItem key={degree.id} value={degree.id}>
-                          {currentLanguage === "ru" && degree.name_ru ? degree.name_ru : degree.name}
+                          {currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== ""
+                            ? degree.name_ru
+                            : degree.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
