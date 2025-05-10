@@ -136,11 +136,32 @@ export default function NewUniversityPage() {
     setIsSubmitting(true)
 
     try {
-      // Prepare data with languages and programs
+      // Get the current user's profile to get the institution_id
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        throw new Error("Not authenticated")
+      }
+
+      // Get the user's profile to get the institution_id
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("institution_id")
+        .eq("id", session.user.id)
+        .single()
+
+      if (profileError || !profile?.institution_id) {
+        throw new Error("Failed to get institution ID")
+      }
+
+      // Prepare data with languages, programs, and institution_id
       const universityData = {
         ...university,
         university_languages: languages,
         university_programs: programs,
+        institution_id: profile.institution_id,
       }
 
       // Make the API call to Supabase
