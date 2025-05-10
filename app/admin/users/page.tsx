@@ -22,7 +22,7 @@ import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -45,10 +45,12 @@ interface UserData {
   name: string
   email: string
   role: string
+  status: string
+  degreeId: string
   degreeName: string
+  groupId: string
   groupName: string
   year: string
-  status: string
 }
 
 export default function UsersPage() {
@@ -69,133 +71,172 @@ export default function UsersPage() {
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
   const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [rawData, setRawData] = useState<any[]>([])
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const supabase = createClient()
 
-  // Function to fetch users from Supabase
-  const fetchUsers = useCallback(async () => {
-    if (!institution?.id) return
+  // Function to get cache key
+  const getCacheKey = useCallback(() => {
+    return `users_cache_${institution?.id || "unknown"}`
+  }, [institution?.id])
 
+  // Function to save data to cache
+  const saveToCache = useCallback(
+    (data: any[], rawData: any[]) => {
+      if (!institution?.id) return
+
+      const cacheData = {
+        data,
+        rawData,
+        timestamp: Date.now(),
+        language,
+      }
+      localStorage.setItem(getCacheKey(), JSON.stringify(cacheData))
+    },
+    [getCacheKey, institution?.id, language],
+  )
+
+  // Function to get data from cache
+  const getFromCache = useCallback(() => {
     try {
-      setIsLoading(true)
+      const cacheData = localStorage.getItem(getCacheKey())
+      if (!cacheData) return null
 
-      // Check if we have cached data
-      const cachedData = localStorage.getItem(`users_${institution.id}`)
-      const cachedTimestamp = localStorage.getItem(`users_${institution.id}_timestamp`)
+      const { data, rawData, timestamp, language: cachedLanguage } = JSON.parse(cacheData)
 
-      if (cachedData && cachedTimestamp) {
-        const timestamp = Number.parseInt(cachedTimestamp)
-        const now = Date.now()
+      // Check if cache is expired
+      if (Date.now() - timestamp > CACHE_EXPIRY) {
+        localStorage.removeItem(getCacheKey())
+        return null
+      }
 
-        // If cache is still valid, use it
-        if (now - timestamp < CACHE_EXPIRY) {
-          const parsedData = JSON.parse(cachedData)
-          setUsers(parsedData)
+      // If language has changed, we need to transform the data
+      if (cachedLanguage !== language && rawData.length > 0) {
+        const transformedData = transformRawData(rawData, language)
+        saveToCache(transformedData, rawData)
+        return { data: transformedData, rawData }
+      }
+
+      return { data, rawData }
+    } catch (error) {
+      console.error("Error reading from cache:", error)
+      return null
+    }
+  }, [getCacheKey, language, saveToCache])
+
+  // Function to transform raw data based on language
+  const transformRawData = (rawData: any[], lang: string) => {
+    return rawData.map((profile) => {
+      // Get degree name based on language
+      let degreeName = ""
+      if (profile.degrees) {
+        degreeName = lang === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name || ""
+      }
+
+      return {
+        id: profile.id,
+        name: profile.full_name || "",
+        email: profile.email || "",
+        role: profile.role || "",
+        status: profile.is_active ? "active" : "inactive",
+        degreeId: profile.degree_id || "",
+        degreeName: degreeName,
+        groupId: profile.group_id || "",
+        groupName: profile.groups ? profile.groups.name : "",
+        year: profile.academic_year || "",
+      }
+    })
+  }
+
+  // Function to invalidate cache
+  const invalidateCache = useCallback(() => {
+    localStorage.removeItem(getCacheKey())
+  }, [getCacheKey])
+
+  // Fetch users data
+  const fetchUsers = useCallback(
+    async (forceRefresh = false) => {
+      if (!institution?.id) {
+        setIsLoading(false)
+        return
+      }
+
+      // Try to get data from cache first if not forcing refresh
+      if (!forceRefresh) {
+        const cachedData = getFromCache()
+        if (cachedData) {
+          console.log("Using cached users data")
+          setUsers(cachedData.data)
+          setRawData(cachedData.rawData)
           setIsLoading(false)
           return
         }
       }
 
-      // Fetch profiles for this institution
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select(`
-          id,
-          name,
-          email,
-          role,
-          is_active,
-          year,
-          degree_id,
-          group_id
-        `)
-        .eq("institution_id", institution.id)
+      // If no cached data or forcing refresh, fetch from API
+      setIsLoading(true)
 
-      if (profilesError) throw profilesError
-
-      // Fetch degrees
-      const { data: degrees, error: degreesError } = await supabase
-        .from("degrees")
-        .select("id, name")
-        .eq("institution_id", institution.id)
-
-      if (degreesError) throw degreesError
-
-      // Fetch groups
-      const { data: groups, error: groupsError } = await supabase
-        .from("groups")
-        .select("id, name")
-        .eq("institution_id", institution.id)
-
-      if (groupsError) throw groupsError
-
-      // Map degrees and groups to lookup objects
-      const degreesMap = degrees.reduce((acc: Record<string, string>, degree: any) => {
-        acc[degree.id] = degree.name
-        return acc
-      }, {})
-
-      const groupsMap = groups.reduce((acc: Record<string, string>, group: any) => {
-        acc[group.id] = group.name
-        return acc
-      }, {})
-
-      // Transform profiles data
-      const transformedUsers = profiles.map((profile: any) => ({
-        id: profile.id,
-        name: profile.name || "",
-        email: profile.email || "",
-        role: profile.role || "",
-        degreeName: profile.degree_id ? degreesMap[profile.degree_id] || "" : "",
-        groupName: profile.group_id ? groupsMap[profile.group_id] || "" : "",
-        year: profile.year || "",
-        status: profile.is_active ? "active" : "inactive",
-      }))
-
-      // Cache the data
-      localStorage.setItem(`users_${institution.id}`, JSON.stringify(transformedUsers))
-      localStorage.setItem(`users_${institution.id}_timestamp`, Date.now().toString())
-
-      setUsers(transformedUsers)
-      setError(null)
-    } catch (err: any) {
-      console.error("Error fetching users:", err)
-      setError(err.message || "Failed to load users")
-
-      // Try to load from cache even if expired as a fallback
       try {
-        const cachedData = localStorage.getItem(`users_${institution.id}`)
-        if (cachedData) {
-          setUsers(JSON.parse(cachedData))
-          toast({
-            title: "Using cached data",
-            description: "Showing cached user data due to a connection error",
-            variant: "default",
-          })
-        }
-      } catch (cacheErr) {
-        console.error("Error loading from cache:", cacheErr)
+        console.log("Fetching users data from API")
+
+        // Fetch profiles with degree, group, and year information
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select(`
+          id, 
+          full_name, 
+          email, 
+          role, 
+          is_active, 
+          degree_id, 
+          group_id, 
+          academic_year,
+          degrees(id, name, name_ru),
+          groups(id, name)
+        `)
+          .eq("institution_id", institution.id)
+
+        if (profilesError) throw profilesError
+
+        // Store the raw data for future language switches
+        setRawData(profilesData)
+
+        // Transform the data based on current language
+        const transformedUsers = transformRawData(profilesData, language)
+
+        // Update state
+        setUsers(transformedUsers)
+
+        // Save to cache
+        saveToCache(transformedUsers, profilesData)
+      } catch (error: any) {
+        console.error("Error fetching users:", error)
+        setError(error.message)
+        toast({
+          title: "Error",
+          description: "Failed to load users data",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
       }
-    } finally {
-      setIsLoading(false)
-    }
-  }, [institution?.id, supabase, toast])
+    },
+    [institution, language, getFromCache, saveToCache, supabase, toast],
+  )
 
-  // Invalidate cache and refetch data
-  const invalidateCache = useCallback(() => {
-    if (institution?.id) {
-      localStorage.removeItem(`users_${institution.id}`)
-      localStorage.removeItem(`users_${institution.id}_timestamp`)
-      fetchUsers()
-    }
-  }, [institution?.id, fetchUsers])
-
-  // Fetch users when institution changes
+  // Initial data fetch
   useEffect(() => {
-    if (institution?.id) {
-      fetchUsers()
+    fetchUsers()
+  }, [fetchUsers])
+
+  // Effect for language changes
+  useEffect(() => {
+    if (rawData.length > 0) {
+      const transformedUsers = transformRawData(rawData, language)
+      setUsers(transformedUsers)
+      saveToCache(transformedUsers, rawData)
     }
-  }, [institution?.id, fetchUsers])
+  }, [language, rawData, saveToCache])
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -285,9 +326,13 @@ export default function UsersPage() {
         prevUsers.map((user) => (user.id === userId ? { ...user, status: newStatus ? "active" : "inactive" } : user)),
       )
 
-      // Update cache
-      localStorage.setItem(`users_${institution?.id}`, JSON.stringify(users))
-      localStorage.setItem(`users_${institution?.id}_timestamp`, Date.now().toString())
+      // Update raw data
+      setRawData((prevRawData) =>
+        prevRawData.map((profile) => (profile.id === userId ? { ...profile, is_active: newStatus } : profile)),
+      )
+
+      // Invalidate cache to force refresh on next load
+      invalidateCache()
 
       toast({
         title: "Success",
@@ -327,11 +372,13 @@ export default function UsersPage() {
 
       // Update local state
       setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete))
-      setFilteredUsers((prevFilteredUsers) => prevFilteredUsers.filter((user) => user.id !== userToDelete))
+      setRawData((prevRawData) => prevRawData.filter((profile) => profile.id !== userToDelete))
 
-      // Update cache
-      localStorage.setItem(`users_${institution?.id}`, JSON.stringify(users.filter((user) => user.id !== userToDelete)))
-      localStorage.setItem(`users_${institution?.id}_timestamp`, Date.now().toString())
+      // Update filtered users
+      setFilteredUsers((prevFiltered) => prevFiltered.filter((user) => user.id !== userToDelete))
+
+      // Invalidate cache
+      invalidateCache()
 
       toast({
         title: "Success",
@@ -360,7 +407,9 @@ export default function UsersPage() {
             <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
           </div>
           <div className="flex gap-2">
-            <div></div>
+            <Button variant="outline" onClick={() => fetchUsers(true)}>
+              {t("admin.users.refresh")}
+            </Button>
           </div>
         </div>
 
