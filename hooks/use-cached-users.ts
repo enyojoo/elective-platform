@@ -85,17 +85,17 @@ export function useCachedUsers(institutionId: string | undefined) {
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select(`
-          id, 
-          full_name, 
-          email, 
-          role, 
-          is_active, 
-          degree_id, 
-          group_id, 
-          academic_year,
-          degrees(id, name, name_ru),
-          groups(id, name)
-        `)
+        id, 
+        full_name, 
+        email, 
+        role, 
+        is_active, 
+        degree_id, 
+        group_id, 
+        academic_year,
+        degrees(id, name, name_ru),
+        groups(id, name)
+      `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError

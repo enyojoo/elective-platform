@@ -45,7 +45,7 @@ interface Course {
 interface Degree {
   id: string
   name: string
-  name_ru: string // Make sure this field is defined
+  name_ru: string
   code: string
   status: string
 }
@@ -125,7 +125,7 @@ export default function CoursesPage() {
       try {
         const { data, error } = await supabase
           .from("degrees")
-          .select("*") // Make sure this includes name_ru
+          .select("*")
           .eq("institution_id", institution.id)
           .order("name", { ascending: true })
 
@@ -332,6 +332,14 @@ export default function CoursesPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
+  // Helper function to get localized degree name
+  const getLocalizedDegreeName = (degree: Degree) => {
+    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
+      return degree.name_ru
+    }
+    return degree.name
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -404,9 +412,7 @@ export default function CoursesPage() {
                       <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
                       {degrees.map((degree) => (
                         <SelectItem key={degree.id} value={degree.id}>
-                          {currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== ""
-                            ? degree.name_ru
-                            : degree.name}
+                          {getLocalizedDegreeName(degree)}
                         </SelectItem>
                       ))}
                     </SelectContent>
