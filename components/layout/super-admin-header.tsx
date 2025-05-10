@@ -24,11 +24,6 @@ export function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperAdminHead
           <Menu className="h-5 w-5" />
           <span className="sr-only">Toggle sidebar</span>
         </Button>
-        <img
-          src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
-          alt="ElectivePRO"
-          className="h-8 w-auto"
-        />
       </div>
       <div className="ml-auto flex items-center gap-4">{/* Right side content if needed */}</div>
     </header>

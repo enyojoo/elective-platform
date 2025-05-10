@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
@@ -114,10 +115,12 @@ export default function InstitutionLoginPage() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-background">
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
-          <img
-            src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
-            alt="ElectivePRO"
-            className="h-12 w-auto"
+          <Image
+            src="/images/elective-pro-logo.svg"
+            alt="ElectivePRO Logo"
+            width={160}
+            height={45}
+            className="h-10 w-auto"
           />
         </div>
         <Card>

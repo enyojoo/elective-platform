@@ -1314,7 +1314,7 @@ const translations: Translations = {
     "manager.exchangeBuilder.universities": "Университеты:",
     "manager.exchangeBuilder.selectedUniversities": "Выбранные университеты",
     "manager.exchangeBuilder.noUniversitiesSelected": "Университеты не выбраны",
-    "manager.exchangeBuilder.goBackToAdd": "Вернитесь, чтобы доб��вить университеты в эту программу обмена.",
+    "manager.exchangeBuilder.goBackToAdd": "Вернитесь, чтобы добавить университеты в эту программу обмена.",
     "manager.exchangeBuilder.missingInfo": "Отсутствует информация",
     "manager.exchangeBuilder.semesterRequired": "Семестр обязателен",
     "manager.exchangeBuilder.yearRequired": "Год обязателен",

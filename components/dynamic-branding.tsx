@@ -22,43 +22,31 @@ export function DynamicBranding() {
         }
       }
 
-      // Set the favicon
-      const faviconUrl =
-        institution?.favicon_url ||
-        "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+      // Update favicon if available
+      if (institution.favicon_url) {
+        const existingFavicon = document.querySelector("link[rel='icon']")
+        if (existingFavicon) {
+          existingFavicon.setAttribute("href", institution.favicon_url)
+        } else {
+          const favicon = document.createElement("link")
+          favicon.rel = "icon"
+          favicon.href = institution.favicon_url
+          document.head.appendChild(favicon)
+        }
 
-      if (faviconUrl) {
-        const links = document.querySelectorAll('link[rel*="icon"]')
-        links.forEach((link) => {
-          link.setAttribute("href", faviconUrl)
-        })
+        // Also update apple-touch-icon
+        const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+        if (existingAppleIcon) {
+          existingAppleIcon.setAttribute("href", institution.favicon_url)
+        } else {
+          const appleIcon = document.createElement("link")
+          appleIcon.rel = "apple-touch-icon"
+          appleIcon.href = institution.favicon_url
+          document.head.appendChild(appleIcon)
+        }
       }
-
-      // Also update apple-touch-icon - this is now handled by the favicon update above
-      // if (institution.favicon_url) {
-      //   const existingFavicon = document.querySelector("link[rel='icon']")
-      //   if (existingFavicon) {
-      //     existingFavicon.setAttribute("href", institution.favicon_url)
-      //   } else {
-      //     const favicon = document.createElement("link")
-      //     favicon.rel = "icon"
-      //     favicon.href = institution.favicon_url
-      //     document.head.appendChild(favicon)
-      //   }
-
-      //   // Also update apple-touch-icon
-      //   const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-      //   if (existingAppleIcon) {
-      //     existingAppleIcon.setAttribute("href", institution.favicon_url)
-      //   } else {
-      //     const appleIcon = document.createElement("link")
-      //     appleIcon.rel = "apple-touch-icon"
-      //     appleIcon.href = institution.favicon_url
-      //     document.head.appendChild(appleIcon)
-      //   }
-      // }
     }
-  }, [institution?.favicon_url, institution])
+  }, [institution])
 
   // Helper function to convert hex color to RGB
   function hexToRgb(hex: string) {

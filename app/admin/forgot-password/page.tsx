@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
         <div className="mx-auto max-w-md space-y-6 w-full">
           <div className="flex justify-center mb-6">
             <Image
-              src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+              src="/images/elective-pro-logo.svg"
               alt="ElectivePRO Logo"
               width={160}
               height={45}
@@ -104,7 +104,7 @@ export default function ForgotPasswordPage() {
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
           <Image
-            src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+            src="/images/elective-pro-logo.svg"
             alt="ElectivePRO Logo"
             width={160}
             height={45}

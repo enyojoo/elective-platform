@@ -187,7 +187,7 @@ export default function ManagerSignupPage() {
             />
           ) : (
             <Image
-              src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+              src="/images/elective-pro-logo.svg"
               alt="Elective Pro Logo"
               width={160}
               height={45}
