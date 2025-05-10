@@ -12,9 +12,10 @@ import { useLanguage } from "@/lib/language-context"
 interface SidebarProps {
   open: boolean
   setOpen: (open: boolean) => void
+  className?: string
 }
 
-export function Sidebar({ open, setOpen }: SidebarProps) {
+export function Sidebar({ open, setOpen, className }: SidebarProps) {
   const pathname = usePathname()
   const { t, language } = useLanguage()
 
@@ -45,11 +46,12 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:z-0 h-screen flex flex-col",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out md:translate-x-0 md:relative md:z-0 flex flex-col",
           open ? "translate-x-0" : "-translate-x-full",
+          className,
         )}
       >
-        <div className="flex h-16 items-center justify-center border-b px-4">
+        <div className="flex h-16 items-center justify-center border-b px-4 flex-shrink-0">
           <Link
             href={isAdmin ? "/admin/dashboard" : isManager ? "/manager/dashboard" : "/student/dashboard"}
             className="flex items-center gap-2"
@@ -178,7 +180,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
         </div>
 
         {/* Logout link at bottom with role-specific route */}
-        <div className="mt-auto p-4 border-t">
+        <div className="mt-auto p-4 border-t flex-shrink-0">
           <Link
             href={logoutRoute}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"

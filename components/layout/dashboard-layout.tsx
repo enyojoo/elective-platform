@@ -32,17 +32,22 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
       }
     }, 5000) // Check every 5 seconds
 
+    // Prevent body scrolling when this component mounts
+    document.body.style.overflow = "hidden"
+
     return () => {
       clearInterval(checkInterval)
       cleanupDialogEffects()
+      // Restore body scrolling when component unmounts
+      document.body.style.overflow = ""
     }
   }, [])
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} className="h-screen flex-shrink-0 fixed md:relative z-20" />
-      <div className="flex flex-col flex-1 h-screen w-full md:w-[calc(100%-16rem)]">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} className="sticky top-0 z-10" />
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      <div className="flex flex-col flex-1 h-full w-full md:w-[calc(100%-16rem)]">
+        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">{children}</main>
       </div>
       <Toaster />
