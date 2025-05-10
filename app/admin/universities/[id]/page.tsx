@@ -155,9 +155,6 @@ export default function UniversityDetailsPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {t("admin.universities.details", "University Details")}
-              </h1>
             </div>
           </div>
         </div>
