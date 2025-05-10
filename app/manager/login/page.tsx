@@ -111,7 +111,7 @@ export default function ManagerLoginPage() {
                 "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
               }
               alt={institution?.name || "ElectivePRO"}
-              className="h-12 w-auto"
+              className="h-10 w-auto"
             />
           ) : (
             <Image
