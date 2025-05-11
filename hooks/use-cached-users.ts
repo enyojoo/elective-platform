@@ -33,17 +33,17 @@ const transformUserData = (data: any[], currentLanguage: string) => {
 
 export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false) // Start with false
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
   const { language } = useLanguage()
 
-  // Use a ref to track if data has been fetched
-  const dataFetchedRef = useRef(false)
-
   // Raw data ref to store the original data with all language versions
   const rawDataRef = useRef<any[]>([])
+
+  // Flag to track if initial data has been loaded
+  const initialDataLoadedRef = useRef(false)
 
   useEffect(() => {
     // Return early if we don't have an institution
@@ -53,16 +53,14 @@ export function useCachedUsers(institutionId: string | undefined) {
 
     const fetchUsers = async () => {
       // Check if we have cached data first
-      const cacheKey = `users-${institutionId}`
-      const cachedData = getCachedData(cacheKey)
+      const cachedData = getCachedData<any[]>("users", institutionId)
 
-      // If we have cached data, use it without showing loading state
       if (cachedData && cachedData.length > 0) {
         console.log("Using cached users data")
         rawDataRef.current = cachedData
-        const transformedUsers = transformUserData(rawDataRef.current, language)
+        const transformedUsers = transformUserData(cachedData, language)
         setUsers(transformedUsers)
-        dataFetchedRef.current = true
+        initialDataLoadedRef.current = true
         return
       }
 
@@ -101,17 +99,17 @@ export function useCachedUsers(institutionId: string | undefined) {
         if (profilesError) throw profilesError
 
         // Store the raw data for future language switches
-        rawDataRef.current = profilesData
+        rawDataRef.current = profilesData || []
 
         // Cache the data
-        setCachedData(cacheKey, profilesData)
+        setCachedData("users", institutionId, profilesData)
 
         // Transform the data based on current language
-        const transformedUsers = transformUserData(profilesData, language)
+        const transformedUsers = transformUserData(profilesData || [], language)
 
         // Update state
         setUsers(transformedUsers)
-        dataFetchedRef.current = true
+        initialDataLoadedRef.current = true
       } catch (error: any) {
         console.error("Error fetching users:", error)
         setError(error.message)
@@ -128,5 +126,10 @@ export function useCachedUsers(institutionId: string | undefined) {
     fetchUsers()
   }, [institutionId, language, toast, getCachedData, setCachedData])
 
-  return { users, isLoading, error }
+  return {
+    users,
+    isLoading,
+    error,
+    isInitialDataLoaded: initialDataLoadedRef.current,
+  }
 }

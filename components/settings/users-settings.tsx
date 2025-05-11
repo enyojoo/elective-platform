@@ -34,12 +34,13 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export function UsersSettings() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, error } = useCachedUsers(institution?.id)
+  const { users, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -55,9 +56,19 @@ export function UsersSettings() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
+  // Initialize filteredUsers with users data when it becomes available
+  useEffect(() => {
+    if (users && users.length > 0) {
+      setFilteredUsers(users)
+      setTotalPages(Math.ceil(users.length / itemsPerPage))
+    }
+  }, [users, itemsPerPage])
+
   // Filter users based on search term and filters
   useEffect(() => {
-    let result = users || []
+    if (!users || users.length === 0) return
+
+    let result = [...users]
 
     if (searchTerm) {
       result = result.filter(
@@ -164,7 +175,7 @@ export function UsersSettings() {
 
       // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache(`users-${institution.id}`)
+        invalidateCache("users", institution.id)
       }
 
       toast({
@@ -205,7 +216,7 @@ export function UsersSettings() {
 
       // Invalidate the users cache
       if (institution?.id) {
-        invalidateCache(`users-${institution.id}`)
+        invalidateCache("users", institution.id)
       }
 
       toast({
@@ -228,6 +239,9 @@ export function UsersSettings() {
       setIsDeleting(false)
     }
   }
+
+  // Show skeleton only for initial data load
+  const showSkeleton = isLoading && !isInitialDataLoaded && (!users || users.length === 0)
 
   return (
     <div className="space-y-6">
@@ -293,7 +307,9 @@ export function UsersSettings() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {getCurrentPageItems().length === 0 ? (
+              {showSkeleton ? (
+                <TableSkeleton columns={8} rows={5} />
+              ) : getCurrentPageItems().length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {t("admin.users.noUsersFound") || "No users found"}
