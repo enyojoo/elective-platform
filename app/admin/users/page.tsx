@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,7 +17,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, AlertCircle, Trash2, RefreshCw } from "lucide-react"
+import { Search, MoreHorizontal, Filter, AlertCircle, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
@@ -43,15 +43,15 @@ export default function UsersPage() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error, refreshUsers } = useCachedUsers(institution?.id)
+  const { users, isLoading, error } = useCachedUsers(institution?.id)
   const { invalidateCache } = useDataCache()
-
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
   const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
@@ -59,8 +59,8 @@ export default function UsersPage() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Use useMemo for filtered users to avoid unnecessary recalculations
-  const filteredUsers = useMemo(() => {
+  // Filter users based on search term and filters
+  useEffect(() => {
     let result = users || []
 
     if (searchTerm) {
@@ -79,30 +79,17 @@ export default function UsersPage() {
       result = result.filter((user) => user.status === statusFilter)
     }
 
-    return result
-  }, [users, searchTerm, roleFilter, statusFilter])
-
-  // Calculate total pages based on filtered users
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage))
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, roleFilter, statusFilter])
-
-  // Ensure current page is valid
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [totalPages, currentPage])
+    setFilteredUsers(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, roleFilter, statusFilter, users])
 
   // Get current page items
-  const currentPageItems = useMemo(() => {
+  const getCurrentPageItems = () => {
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return filteredUsers.slice(startIndex, endIndex)
-  }, [filteredUsers, currentPage, itemsPerPage])
+  }
 
   // Helper function to get role badge
   const getRoleBadge = (role: string) => {
@@ -148,24 +135,6 @@ export default function UsersPage() {
     }
   }
 
-  // Handle manual refresh
-  const handleRefresh = async () => {
-    if (isRefreshing) return
-
-    setIsRefreshing(true)
-    try {
-      await refreshUsers()
-      toast({
-        title: "Success",
-        description: "User data refreshed successfully",
-      })
-    } catch (error) {
-      console.error("Error refreshing data:", error)
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
-
   // Handle user status change
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
@@ -173,13 +142,34 @@ export default function UsersPage() {
 
       if (error) throw error
 
+      // Update local state
+      const updatedUsers = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            status: newStatus ? "active" : "inactive",
+          }
+        }
+        return user
+      })
+
+      // Update filtered users
+      setFilteredUsers((prevFiltered) =>
+        prevFiltered.map((user) => {
+          if (user.id === userId) {
+            return {
+              ...user,
+              status: newStatus ? "active" : "inactive",
+            }
+          }
+          return user
+        }),
+      )
+
       // Invalidate the users cache
       if (institution?.id) {
         invalidateCache(`users-${institution.id}`)
       }
-
-      // Refresh the data
-      await refreshUsers()
 
       toast({
         title: "Success",
@@ -222,13 +212,13 @@ export default function UsersPage() {
         invalidateCache(`users-${institution.id}`)
       }
 
-      // Refresh the data
-      await refreshUsers()
-
       toast({
         title: "Success",
         description: "User has been deleted successfully",
       })
+
+      // Update the filtered users list
+      setFilteredUsers(filteredUsers.filter((user) => user.id !== userToDelete))
 
       handleCloseDeleteDialog()
     } catch (error: any) {
@@ -244,6 +234,7 @@ export default function UsersPage() {
   }
 
   // Determine if we should show the skeleton
+  // Only show skeleton if we're loading AND we don't have any users data yet
   const showSkeleton = isLoading && users.length === 0
 
   return (
@@ -255,16 +246,7 @@ export default function UsersPage() {
             <p className="text-muted-foreground mt-2">{t("admin.users.subtitle")}</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center gap-1"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              {t("admin.users.refresh")}
-            </Button>
+            <div></div>
           </div>
         </div>
 
@@ -333,15 +315,16 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {showSkeleton ? (
+                      // Only show skeleton if we're loading AND we don't have any users data yet
                       <TableSkeleton columns={8} rows={5} />
-                    ) : currentPageItems.length === 0 ? (
+                    ) : getCurrentPageItems().length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {t("admin.users.noUsersFound") || "No users found"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      currentPageItems.map((user) => (
+                      getCurrentPageItems().map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
@@ -411,39 +394,20 @@ export default function UsersPage() {
                       />
                     </PaginationItem>
 
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      // Show pages around the current page
-                      let pageToShow = currentPage
-                      if (currentPage <= 3) {
-                        // At the beginning, show first 5 pages
-                        pageToShow = i + 1
-                      } else if (currentPage >= totalPages - 2) {
-                        // At the end, show last 5 pages
-                        pageToShow = totalPages - 4 + i
-                      } else {
-                        // In the middle, show 2 before and 2 after current page
-                        pageToShow = currentPage - 2 + i
-                      }
-
-                      // Ensure page is within valid range
-                      if (pageToShow > 0 && pageToShow <= totalPages) {
-                        return (
-                          <PaginationItem key={pageToShow}>
-                            <PaginationLink
-                              href="#"
-                              isActive={pageToShow === currentPage}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                setCurrentPage(pageToShow)
-                              }}
-                            >
-                              {pageToShow}
-                            </PaginationLink>
-                          </PaginationItem>
-                        )
-                      }
-                      return null
-                    })}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setCurrentPage(page)
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
 
                     <PaginationItem>
                       <PaginationNext

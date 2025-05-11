@@ -115,9 +115,12 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
                 {t("admin.sidebar.groups")}
               </NavItem>
               <NavItem
-                href="/admin/users"
+                href="/admin/settings?tab=users"
                 icon={<Users className="h-4 w-4" />}
-                active={pathname.startsWith("/admin/users")}
+                active={
+                  pathname.startsWith("/admin/users") ||
+                  (pathname.startsWith("/admin/settings") && pathname.includes("tab=users"))
+                }
               >
                 {t("admin.sidebar.users")}
               </NavItem>

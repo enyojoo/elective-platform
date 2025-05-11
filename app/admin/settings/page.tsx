@@ -12,6 +12,7 @@ import { useInstitution } from "@/lib/institution-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
+import { UsersSettings } from "@/components/settings/users-settings"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
@@ -36,6 +37,13 @@ export default function SettingsPage() {
     }
 
     getCurrentUserId()
+
+    // Check for tab parameter in URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const tabParam = urlParams.get("tab")
+    if (tabParam && ["branding", "account", "degrees", "users"].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
   }, [])
 
   // Use the cached admin profile
@@ -54,10 +62,11 @@ export default function SettingsPage() {
         <Card>
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-3 md:w-auto">
+              <TabsList className="grid w-full grid-cols-4 md:w-auto">
                 <TabsTrigger value="branding">{t("admin.settings.tabs.branding")}</TabsTrigger>
                 <TabsTrigger value="account">{t("admin.settings.tabs.account")}</TabsTrigger>
                 <TabsTrigger value="degrees">{t("admin.settings.tabs.degrees")}</TabsTrigger>
+                <TabsTrigger value="users">{t("admin.settings.tabs.users")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="branding" className="space-y-6">
@@ -70,6 +79,10 @@ export default function SettingsPage() {
 
               <TabsContent value="degrees" className="space-y-6">
                 <DegreesSettings />
+              </TabsContent>
+
+              <TabsContent value="users" className="space-y-6">
+                <UsersSettings />
               </TabsContent>
             </Tabs>
           </CardContent>
