@@ -14,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { useCachedDegrees } from "@/hooks/use-cached-degrees"
+import { useInstitution } from "@/lib/institution-context"
 
 // Course status options
 const statusOptions = [
@@ -28,10 +30,11 @@ export default function NewCoursePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const { t } = useLanguage()
-  const supabase = createClientComponentClient()
+  const { t, language } = useLanguage()
+  const { institution } = useInstitution()
+
+  // Use the cached degrees hook instead of fetching directly
+  const { degrees, isLoading: isLoadingDegrees } = useCachedDegrees(institution?.id?.toString())
 
   const [course, setCourse] = useState({
     nameEn: "",
@@ -44,55 +47,15 @@ export default function NewCoursePage() {
     status: "active", // Default status
   })
 
-  // Fetch degrees from Supabase
+  // Set default degree when degrees are loaded
   useEffect(() => {
-    async function fetchDegrees() {
-      try {
-        setLoading(true)
-
-        // Get current user's session
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session) {
-          console.error("No session found")
-          return
-        }
-
-        // Get user's profile to get institution_id
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("institution_id")
-          .eq("id", session.user.id)
-          .single()
-
-        if (profileError || !profileData) {
-          console.error("Error fetching profile:", profileError)
-          return
-        }
-
-        // Fetch degrees for this institution
-        const { data, error } = await supabase
-          .from("degrees")
-          .select("*")
-          .eq("institution_id", profileData.institution_id)
-
-        if (error) {
-          console.error("Error fetching degrees:", error)
-          return
-        }
-
-        setDegrees(data || [])
-      } catch (error) {
-        console.error("Error:", error)
-      } finally {
-        setLoading(false)
-      }
+    if (degrees.length > 0 && !course.degreeId) {
+      setCourse((prev) => ({
+        ...prev,
+        degreeId: degrees[0].id.toString(),
+      }))
     }
-
-    fetchDegrees()
-  }, [supabase])
+  }, [degrees, course.degreeId])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -112,31 +75,10 @@ export default function NewCoursePage() {
     setIsSubmitting(true)
 
     try {
-      // Get current user's session
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
+      if (!institution?.id) {
         toast({
           title: "Error",
-          description: "You must be logged in to create a course",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Get user's profile to get institution_id
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("institution_id")
-        .eq("id", session.user.id)
-        .single()
-
-      if (profileError || !profileData) {
-        toast({
-          title: "Error",
-          description: "Could not fetch your profile information",
+          description: "Institution information not available",
           variant: "destructive",
         })
         return
@@ -152,7 +94,7 @@ export default function NewCoursePage() {
         description_en: course.descriptionEn,
         description_ru: course.descriptionRu,
         status: course.status,
-        institution_id: profileData.institution_id,
+        institution_id: institution.id,
         code: `C${Math.floor(Math.random() * 10000)}`, // Generate a random code
       })
 
@@ -172,7 +114,7 @@ export default function NewCoursePage() {
 
       // Redirect to courses page after successful submission
       router.push("/admin/courses")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating course:", error)
       toast({
         title: "Error",
@@ -182,6 +124,14 @@ export default function NewCoursePage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Helper function to get localized degree name
+  const getLocalizedDegreeName = (degree: any) => {
+    if (language === "ru" && degree.name_ru) {
+      return degree.name_ru
+    }
+    return degree.name
   }
 
   return (
@@ -230,15 +180,21 @@ export default function NewCoursePage() {
                   <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
                     <SelectTrigger>
                       <SelectValue
-                        placeholder={loading ? t("admin.courses.loading") : t("admin.newCourse.selectDegree")}
+                        placeholder={isLoadingDegrees ? t("admin.courses.loading") : t("admin.newCourse.selectDegree")}
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {degrees.map((degree) => (
-                        <SelectItem key={degree.id} value={degree.id}>
-                          {degree.name || degree.name_en}
+                      {degrees.length === 0 ? (
+                        <SelectItem value="no-degrees" disabled>
+                          {t("admin.newCourse.noDegrees")}
                         </SelectItem>
-                      ))}
+                      ) : (
+                        degrees.map((degree) => (
+                          <SelectItem key={degree.id} value={degree.id.toString()}>
+                            {getLocalizedDegreeName(degree)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export function useCachedDegrees(institutionId: string | undefined) {
@@ -25,7 +25,7 @@ export function useCachedDegrees(institutionId: string | undefined) {
       // Try to get data from cache first
       const cachedDegrees = getCachedData<any[]>("degrees", institutionId)
 
-      if (cachedDegrees) {
+      if (cachedDegrees && cachedDegrees.length > 0) {
         console.log("Using cached degrees data")
         setDegrees(cachedDegrees)
         setIsLoading(false)
@@ -35,17 +35,15 @@ export function useCachedDegrees(institutionId: string | undefined) {
       // If not in cache, fetch from API
       console.log("Fetching degrees data from API")
       try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
         const { data, error } = await supabase.from("degrees").select("*").eq("institution_id", institutionId)
 
         if (error) throw error
 
         // Save to cache
-        setCachedData("degrees", institutionId, data)
+        setCachedData("degrees", institutionId, data || [])
 
         // Update state
-        setDegrees(data)
+        setDegrees(data || [])
       } catch (error: any) {
         console.error("Error fetching degrees:", error)
         setError(error.message)
