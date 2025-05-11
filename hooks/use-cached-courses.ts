@@ -39,7 +39,7 @@ export function useCachedCourses(institutionId: string | undefined) {
 
         const { data, error } = await supabase
           .from("courses")
-          .select("*, programs(name, code)")
+          .select("*, degree:degree_id(id, name, name_ru)")
           .eq("institution_id", institutionId)
 
         if (error) throw error
