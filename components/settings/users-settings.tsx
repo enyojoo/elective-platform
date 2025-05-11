@@ -34,13 +34,12 @@ import {
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export function UsersSettings() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error } = useCachedUsers(institution?.id)
+  const { users, error } = useCachedUsers(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -230,10 +229,6 @@ export function UsersSettings() {
     }
   }
 
-  // Determine if we should show the skeleton
-  // Only show skeleton if we're loading AND we don't have any users data yet
-  const showSkeleton = isLoading && users.length === 0
-
   return (
     <div className="space-y-6">
       {error && (
@@ -298,9 +293,7 @@ export function UsersSettings() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {showSkeleton ? (
-                <TableSkeleton columns={8} rows={5} />
-              ) : getCurrentPageItems().length === 0 ? (
+              {getCurrentPageItems().length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {t("admin.users.noUsersFound") || "No users found"}

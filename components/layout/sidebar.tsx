@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import { BookOpen, Home, Users, BookMarked, X, Globe, Group, CheckSquare, Settings } from "lucide-react"
+import { BookOpen, Home, BookMarked, X, Globe, Group, CheckSquare, Settings } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 
 interface SidebarProps {
@@ -113,16 +113,6 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
                 active={pathname.startsWith("/admin/groups")}
               >
                 {t("admin.sidebar.groups")}
-              </NavItem>
-              <NavItem
-                href="/admin/settings?tab=users"
-                icon={<Users className="h-4 w-4" />}
-                active={
-                  pathname.startsWith("/admin/users") ||
-                  (pathname.startsWith("/admin/settings") && pathname.includes("tab=users"))
-                }
-              >
-                {t("admin.sidebar.users")}
               </NavItem>
               <NavItem
                 href="/admin/settings"
