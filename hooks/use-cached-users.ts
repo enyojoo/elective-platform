@@ -32,10 +32,12 @@ const transformUserData = (data: any[], currentLanguage: string) => {
 }
 
 export function useCachedUsers(institutionId: string | undefined) {
-  const [users, setUsers] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false) // Start with false
-  const [error, setError] = useState<string | null>(null)
+  const cacheKey = institutionId ? `users-${institutionId}` : ""
   const { getCachedData, setCachedData } = useDataCache()
+  const cachedData = institutionId ? getCachedData(cacheKey) : null
+  const [isLoading, setIsLoading] = useState(!(cachedData && cachedData.length > 0))
+  const [users, setUsers] = useState<any[]>([])
+  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const { language } = useLanguage()
 
@@ -62,6 +64,7 @@ export function useCachedUsers(institutionId: string | undefined) {
         rawDataRef.current = cachedData
         const transformedUsers = transformUserData(rawDataRef.current, language)
         setUsers(transformedUsers)
+        setIsLoading(false) // Ensure loading is false
         dataFetchedRef.current = true
         return
       }
@@ -71,6 +74,7 @@ export function useCachedUsers(institutionId: string | undefined) {
         console.log("Using existing raw data with new language:", language)
         const transformedUsers = transformUserData(rawDataRef.current, language)
         setUsers(transformedUsers)
+        setIsLoading(false) // Ensure loading is false
         return
       }
 
@@ -85,17 +89,17 @@ export function useCachedUsers(institutionId: string | undefined) {
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select(`
-        id, 
-        full_name, 
-        email, 
-        role, 
-        is_active, 
-        degree_id, 
-        group_id, 
-        academic_year,
-        degrees(id, name, name_ru),
-        groups(id, name)
-      `)
+          id, 
+          full_name, 
+          email, 
+          role, 
+          is_active, 
+          degree_id, 
+          group_id, 
+          academic_year,
+          degrees(id, name, name_ru),
+          groups(id, name)
+        `)
           .eq("institution_id", institutionId)
 
         if (profilesError) throw profilesError

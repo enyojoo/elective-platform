@@ -84,6 +84,14 @@ export default function UsersPage() {
     setCurrentPage(1) // Reset to first page when filters change
   }, [searchTerm, roleFilter, statusFilter, users])
 
+  // Add this effect right after the existing useEffect for filtering
+  // This ensures filteredUsers is set as soon as users are available
+  useEffect(() => {
+    if (users.length > 0 && filteredUsers.length === 0) {
+      setFilteredUsers(users)
+    }
+  }, [users, filteredUsers.length])
+
   // Get current page items
   const getCurrentPageItems = () => {
     const startIndex = (currentPage - 1) * itemsPerPage
@@ -235,7 +243,7 @@ export default function UsersPage() {
 
   // Determine if we should show the skeleton
   // Only show skeleton if we're loading AND we don't have any users data yet
-  const showSkeleton = isLoading && users.length === 0
+  const showSkeleton = isLoading && users.length === 0 && filteredUsers.length === 0
 
   return (
     <DashboardLayout userRole={UserRole.ADMIN}>
