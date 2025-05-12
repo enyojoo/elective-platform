@@ -615,7 +615,7 @@ export default function UniversitiesPage() {
             <DialogDescription className="pt-2">
               {t(
                 "admin.universities.deleteConfirmMessage",
-                "You are sure you want to delete this university? This action cannot be undone.",
+                "Are you sure you want to delete this university? This action cannot be undone.",
               )}
               <div className="mt-2 font-medium">{getUniversityToDeleteName()}</div>
             </DialogDescription>
