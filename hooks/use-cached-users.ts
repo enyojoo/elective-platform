@@ -33,6 +33,7 @@ const transformUserData = (data: any[], currentLanguage: string) => {
 
 export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
+  const [groups, setGroups] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
@@ -79,7 +80,7 @@ export function useCachedUsers(institutionId: string | undefined) {
         console.log("Fetching users data from API")
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profiles with degree, group, and year information
+        // Fetch profiles with all necessary data in a single query
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select(`
@@ -87,9 +88,9 @@ export function useCachedUsers(institutionId: string | undefined) {
           full_name, 
           email, 
           role, 
-          is_active, 
-          degree_id, 
-          group_id, 
+          is_active,
+          degree_id,
+          group_id,
           academic_year,
           degrees(id, name, name_ru),
           groups(id, name)
@@ -98,11 +99,24 @@ export function useCachedUsers(institutionId: string | undefined) {
 
         if (profilesError) throw profilesError
 
+        // Fetch groups for reference
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("id, name, degree_id")
+          .eq("institution_id", institutionId)
+
+        if (groupsError) throw groupsError
+
+        setGroups(groupsData || [])
+
         // Store the raw data for future language switches
         rawDataRef.current = profilesData || []
 
         // Cache the data
         setCachedData("users", institutionId, profilesData)
+
+        // Cache the groups
+        setCachedData("groups", institutionId, groupsData || [])
 
         // Transform the data based on current language
         const transformedUsers = transformUserData(profilesData || [], language)
@@ -128,8 +142,11 @@ export function useCachedUsers(institutionId: string | undefined) {
 
   return {
     users,
+    groups,
     isLoading,
     error,
     isInitialDataLoaded: initialDataLoadedRef.current,
+    getCachedData,
+    setCachedData,
   }
 }

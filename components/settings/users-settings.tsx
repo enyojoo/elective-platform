@@ -43,7 +43,7 @@ export function UsersSettings() {
   const { institution } = useInstitution()
   const { toast } = useToast()
   const { users, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
-  const { invalidateCache } = useDataCache()
+  const { invalidateCache, getCachedData } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
@@ -121,27 +121,44 @@ export function UsersSettings() {
       setIsLoadingReferenceData(true)
 
       try {
-        // Fetch degrees
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name")
-          .eq("institution_id", institution.id)
+        // Try to get degrees from cache first
+        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
+        if (cachedDegrees && cachedDegrees.length > 0) {
+          setDegrees(cachedDegrees)
+        } else {
+          // Fetch degrees
+          const { data: degreesData, error: degreesError } = await supabase
+            .from("degrees")
+            .select("id, name")
+            .eq("institution_id", institution.id)
 
-        if (degreesError) throw degreesError
-        setDegrees(degreesData || [])
+          if (degreesError) throw degreesError
+          setDegrees(degreesData || [])
+        }
 
-        // Fetch groups
-        const { data: groupsData, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name, degree_id")
-          .eq("institution_id", institution.id)
+        // Try to get groups from cache first
+        const cachedGroups = getCachedData<any[]>("groups", institution.id)
+        if (cachedGroups && cachedGroups.length > 0) {
+          setGroups(cachedGroups)
 
-        if (groupsError) throw groupsError
-        setGroups(groupsData || [])
+          // If we have a degree ID, filter groups
+          if (editFormData.degreeId) {
+            setFilteredGroups(cachedGroups.filter((g) => g.degree_id === editFormData.degreeId) || [])
+          }
+        } else {
+          // Fetch groups
+          const { data: groupsData, error: groupsError } = await supabase
+            .from("groups")
+            .select("id, name, degree_id")
+            .eq("institution_id", institution.id)
 
-        // If we have a degree ID, filter groups
-        if (editFormData.degreeId) {
-          setFilteredGroups(groupsData?.filter((g) => g.degree_id === editFormData.degreeId) || [])
+          if (groupsError) throw groupsError
+          setGroups(groupsData || [])
+
+          // If we have a degree ID, filter groups
+          if (editFormData.degreeId) {
+            setFilteredGroups(groupsData?.filter((g) => g.degree_id === editFormData.degreeId) || [])
+          }
         }
       } catch (error: any) {
         console.error("Error fetching reference data:", error)
@@ -156,7 +173,7 @@ export function UsersSettings() {
     }
 
     fetchReferenceData()
-  }, [institution?.id, isEditDialogOpen, supabase, toast])
+  }, [institution?.id, isEditDialogOpen, supabase, toast, getCachedData, editFormData.degreeId])
 
   // Filter groups when degree changes
   useEffect(() => {
@@ -325,81 +342,24 @@ export function UsersSettings() {
 
   // Handle opening the edit dialog
   const handleEditUser = (user: any) => {
-    // Fetch additional data for the user if needed
-    const fetchUserDetails = async (userId: string) => {
-      try {
-        // Get student profile data if it exists
-        if (user.role === "student") {
-          const { data: studentProfile, error: studentError } = await supabase
-            .from("student_profiles")
-            .select("degree_id, group_id, year")
-            .eq("profile_id", userId)
-            .maybeSingle()
+    console.log("Editing user:", user)
 
-          if (studentError) throw studentError
+    // Set the user to edit with all the data
+    setUserToEdit(user)
 
-          if (studentProfile) {
-            user.degreeId = studentProfile.degree_id
-            user.groupId = studentProfile.group_id
-            user.year = studentProfile.year
-          }
-        }
+    // Set form data from the cached user data
+    setEditFormData({
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "",
+      status: user.status || "active",
+      degreeId: user.degreeId || "",
+      groupId: user.groupId || "",
+      year: user.year || "",
+    })
 
-        // Get manager profile data if it exists
-        if (user.role === "program_manager") {
-          const { data: managerProfile, error: managerError } = await supabase
-            .from("manager_profiles")
-            .select("degree_id, year")
-            .eq("profile_id", userId)
-            .maybeSingle()
-
-          if (managerError) throw managerError
-
-          if (managerProfile) {
-            user.degreeId = managerProfile.degree_id
-            user.year = managerProfile.year
-          }
-        }
-
-        // Now set the user to edit with all the data
-        setUserToEdit(user)
-        setEditFormData({
-          name: user.name || "",
-          email: user.email || "",
-          role: user.role || "",
-          status: user.status || "active",
-          degreeId: user.degreeId || "",
-          groupId: user.groupId || "",
-          year: user.year || "",
-        })
-
-        // Open the dialog after data is loaded
-        openEditDialog()
-      } catch (error: any) {
-        console.error("Error fetching user details:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load user details: " + error.message,
-          variant: "destructive",
-        })
-
-        // Still open the dialog with basic info
-        setUserToEdit(user)
-        setEditFormData({
-          name: user.name || "",
-          email: user.email || "",
-          role: user.role || "",
-          status: user.status || "active",
-          degreeId: "",
-          groupId: "",
-          year: "",
-        })
-        openEditDialog()
-      }
-    }
-
-    // Start fetching user details
-    fetchUserDetails(user.id)
+    // Open the dialog
+    openEditDialog()
   }
 
   // Handle closing the edit dialog
@@ -432,7 +392,7 @@ export function UsersSettings() {
 
     setIsUpdating(true)
     try {
-      // Update user profile
+      // Update user profile with all fields in one go
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
@@ -440,87 +400,14 @@ export function UsersSettings() {
           email: editFormData.email,
           role: editFormData.role,
           is_active: editFormData.status === "active",
+          degree_id: editFormData.degreeId || null,
+          group_id: editFormData.groupId || null,
+          academic_year: editFormData.year || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", userToEdit.id)
 
       if (updateError) throw updateError
-
-      // Handle student-specific data
-      if (editFormData.role === "student") {
-        // Check if student profile exists
-        const { data: existingProfile, error: checkError } = await supabase
-          .from("student_profiles")
-          .select("profile_id")
-          .eq("profile_id", userToEdit.id)
-          .maybeSingle()
-
-        if (checkError) throw checkError
-
-        if (existingProfile) {
-          // Update existing profile
-          const { error: updateError } = await supabase
-            .from("student_profiles")
-            .update({
-              group_id: editFormData.groupId,
-              year: editFormData.year,
-              degree_id: editFormData.degreeId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("profile_id", userToEdit.id)
-
-          if (updateError) throw updateError
-        } else if (editFormData.groupId && editFormData.year && editFormData.degreeId) {
-          // Create new profile
-          const { error: insertError } = await supabase.from("student_profiles").insert({
-            profile_id: userToEdit.id,
-            group_id: editFormData.groupId,
-            year: editFormData.year,
-            degree_id: editFormData.degreeId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (insertError) throw insertError
-        }
-      }
-
-      // Handle manager-specific data
-      if (editFormData.role === "program_manager") {
-        // Check if manager profile exists
-        const { data: existingProfile, error: checkError } = await supabase
-          .from("manager_profiles")
-          .select("profile_id")
-          .eq("profile_id", userToEdit.id)
-          .maybeSingle()
-
-        if (checkError) throw checkError
-
-        if (existingProfile) {
-          // Update existing profile
-          const { error: updateError } = await supabase
-            .from("manager_profiles")
-            .update({
-              degree_id: editFormData.degreeId,
-              year: editFormData.year,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("profile_id", userToEdit.id)
-
-          if (updateError) throw updateError
-        } else if (editFormData.degreeId && editFormData.year) {
-          // Create new profile
-          const { error: insertError } = await supabase.from("manager_profiles").insert({
-            profile_id: userToEdit.id,
-            degree_id: editFormData.degreeId,
-            year: editFormData.year,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (insertError) throw insertError
-        }
-      }
 
       // Invalidate the users cache
       if (institution?.id) {
