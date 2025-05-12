@@ -46,19 +46,17 @@ export function useCachedManagerProfile(userId: string | undefined) {
 
         if (profileError) throw profileError
 
-        // Fetch manager-specific data
-        const { data: managerData, error: managerError } = await supabase
-          .from("manager_profiles")
-          .select("*, programs(*)")
-          .eq("profile_id", userId)
-          .single()
-
-        if (managerError) throw managerError
+        // Manager data is now directly in the profiles table
+        const managerDetails = {
+          degree_id: profileData.degree_id || null,
+          group_id: profileData.group_id || null,
+          academic_year: profileData.academic_year || null,
+        }
 
         // Combine the data
         const combinedProfile = {
           ...profileData,
-          managerDetails: managerData,
+          managerDetails: managerDetails,
         }
 
         // Save to cache

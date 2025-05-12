@@ -114,35 +114,39 @@ export async function signUp(formData: FormData) {
         return { error: "Error creating user profile" }
       }
 
-      // For students, create student profile
+      // For students, update the profile with student-specific data
       if (role === "student") {
         const groupId = formData.get("groupId") as string
         const enrollmentYear = formData.get("enrollmentYear") as string
 
-        const { error: studentError } = await supabaseAdmin.from("student_profiles").insert({
-          profile_id: authData.user.id,
-          group_id: groupId,
-          enrollment_year: enrollmentYear,
-        })
+        const { error: profileUpdateError } = await supabaseAdmin
+          .from("profiles")
+          .update({
+            group_id: groupId,
+            academic_year: enrollmentYear,
+          })
+          .eq("id", authData.user.id)
 
-        if (studentError) {
-          console.error("Student profile creation error:", studentError)
-          return { error: "Error creating student profile" }
+        if (profileUpdateError) {
+          console.error("Student profile update error:", profileUpdateError)
+          return { error: "Error updating student profile data" }
         }
       }
 
-      // For program managers, create manager profile
+      // For program managers, update the profile with manager-specific data
       if (role === "program_manager") {
         const programId = formData.get("programId") as string
 
-        const { error: managerError } = await supabaseAdmin.from("manager_profiles").insert({
-          profile_id: authData.user.id,
-          program_id: programId,
-        })
+        const { error: profileUpdateError } = await supabaseAdmin
+          .from("profiles")
+          .update({
+            program_id: programId,
+          })
+          .eq("id", authData.user.id)
 
-        if (managerError) {
-          console.error("Manager profile creation error:", managerError)
-          return { error: "Error creating manager profile" }
+        if (profileUpdateError) {
+          console.error("Manager profile update error:", profileUpdateError)
+          return { error: "Error updating manager profile data" }
         }
       }
     }
