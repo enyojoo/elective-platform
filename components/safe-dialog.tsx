@@ -1,41 +1,82 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useRef } from "react"
-import { Dialog, type DialogProps } from "@/components/ui/dialog"
-import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useEffect } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { useDialogState } from "@/hooks/use-dialog-state"
 
-interface SafeDialogProps extends DialogProps {
+interface SafeDialogProps {
+  trigger?: React.ReactNode
+  title?: React.ReactNode
+  description?: React.ReactNode
   children: React.ReactNode
+  footer?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  className?: string
 }
 
-export function SafeDialog({ children, open, onOpenChange, ...props }: SafeDialogProps) {
-  const isMounted = useRef(true)
+export function SafeDialog({
+  trigger,
+  title,
+  description,
+  children,
+  footer,
+  open: controlledOpen,
+  onOpenChange,
+  className,
+}: SafeDialogProps) {
+  // Use internal state if not controlled externally
+  const { isOpen, setIsOpen } = useDialogState(false)
 
-  // Set up cleanup when component unmounts
+  // Determine if we're using controlled or uncontrolled state
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : isOpen
+
+  // Handle external open state changes
+  useEffect(() => {
+    if (isControlled && controlledOpen !== undefined) {
+      setIsOpen(controlledOpen)
+    }
+  }, [controlledOpen, isControlled, setIsOpen])
+
+  // Handle open state changes
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!isControlled) {
+      setIsOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }
+
+  // Ensure dialog is closed when component unmounts
   useEffect(() => {
     return () => {
-      isMounted.current = false
-      cleanupDialogEffects()
+      if (!isControlled) {
+        setIsOpen(false)
+      }
     }
-  }, [])
-
-  // Ensure cleanup when dialog closes
-  useEffect(() => {
-    if (!open) {
-      const timeout = setTimeout(() => {
-        if (isMounted.current) {
-          cleanupDialogEffects()
-        }
-      }, 300) // Wait for animation to complete
-
-      return () => clearTimeout(timeout)
-    }
-  }, [open])
+  }, [isControlled, setIsOpen])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} {...props}>
-      {children}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {trigger}
+      <DialogContent className={className}>
+        {(title || description) && (
+          <DialogHeader>
+            {title && <DialogTitle>{title}</DialogTitle>}
+            {description && <DialogDescription>{description}</DialogDescription>}
+          </DialogHeader>
+        )}
+        {children}
+        {footer && <DialogFooter>{footer}</DialogFooter>}
+      </DialogContent>
     </Dialog>
   )
 }
