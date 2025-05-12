@@ -10,6 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -18,12 +26,14 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, Plus } from "lucide-react"
+import { Search, MoreHorizontal, Filter, Plus, AlertTriangle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { useInstitution } from "@/lib/institution-context"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 interface Course {
   id: string
@@ -72,6 +82,14 @@ export default function CoursesPage() {
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
   const { institution } = useInstitution()
+
+  // Delete confirmation dialog state
+  const [courseToDelete, setCourseToDelete] = useState<string | null>(null)
+  const {
+    isOpen: isDeleteDialogOpen,
+    openDialog: openDeleteDialog,
+    closeDialog: closeDeleteDialog,
+  } = useDialogState(false)
 
   // Load cached data on initial render
   useEffect(() => {
@@ -147,8 +165,8 @@ export default function CoursesPage() {
       } catch (error: any) {
         console.error("Error fetching degrees:", error)
         toast({
-          title: "Error",
-          description: "Failed to load degrees: " + error.message,
+          title: t("admin.courses.error", "Error"),
+          description: t("admin.courses.errorFetching", "Failed to fetch degrees") + ": " + error.message,
           variant: "destructive",
         })
       } finally {
@@ -157,7 +175,7 @@ export default function CoursesPage() {
     }
 
     fetchDegrees()
-  }, [supabase, institution?.id, isLoadingDegrees, toast])
+  }, [supabase, institution?.id, isLoadingDegrees, toast, t])
 
   // Fetch courses from Supabase
   useEffect(() => {
@@ -225,8 +243,8 @@ export default function CoursesPage() {
       } catch (error: any) {
         console.error("Error fetching courses:", error)
         toast({
-          title: "Error",
-          description: "Failed to load courses: " + error.message,
+          title: t("admin.courses.error", "Error"),
+          description: t("admin.courses.errorFetching", "Failed to load courses") + ": " + error.message,
           variant: "destructive",
         })
       } finally {
@@ -235,7 +253,7 @@ export default function CoursesPage() {
     }
 
     fetchCourses()
-  }, [supabase, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage, toast])
+  }, [supabase, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage, toast, t])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -284,53 +302,77 @@ export default function CoursesPage() {
       localStorage.removeItem(COURSES_CACHE_KEY)
 
       toast({
-        title: "Success",
-        description: `Course ${newStatus === "active" ? "activated" : "deactivated"} successfully`,
+        title: t("admin.courses.statusUpdated", "Course status updated"),
+        description: t("admin.courses.statusUpdateSuccess", "Course status has been updated successfully"),
       })
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: "Failed to update course status: " + error.message,
+        title: t("admin.courses.error", "Error"),
+        description: t("admin.courses.errorUpdatingStatus", "Failed to update course status") + ": " + error.message,
         variant: "destructive",
       })
     }
   }
 
-  // Handle course deletion
-  const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm(t("admin.courses.confirmDelete"))) {
-      return
-    }
+  // Handle opening delete confirmation dialog
+  const handleDelete = (courseId: string) => {
+    setCourseToDelete(courseId)
+    openDeleteDialog()
+  }
+
+  // Handle closing delete confirmation dialog
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+
+    // Ensure cleanup after dialog closes
+    setTimeout(() => {
+      setCourseToDelete(null)
+      cleanupDialogEffects()
+    }, 300) // Wait for animation to complete
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!courseToDelete) return
 
     try {
-      const { error } = await supabase.from("courses").delete().eq("id", courseId)
+      const { error } = await supabase.from("courses").delete().eq("id", courseToDelete)
 
       if (error) {
         throw error
       }
 
       // Update local state
-      setCourses(courses.filter((course) => course.id !== courseId))
+      setCourses((prev) => prev.filter((course) => course.id !== courseToDelete))
       setTotalCourses(totalCourses - 1)
 
       // Invalidate cache
       localStorage.removeItem(COURSES_CACHE_KEY)
 
       toast({
-        title: "Success",
-        description: "Course deleted successfully",
+        title: t("admin.courses.deleteSuccess", "Course deleted"),
+        description: t("admin.courses.deleteSuccessDesc", "Course has been deleted successfully"),
       })
+
+      // Close dialog and clean up
+      handleCloseDeleteDialog()
     } catch (error: any) {
+      console.error("Error deleting course:", error)
       toast({
-        title: "Error",
-        description: "Failed to delete course: " + error.message,
+        title: t("admin.courses.error", "Error"),
+        description: t("admin.courses.errorDeleting", "Failed to delete course") + ": " + error.message,
         variant: "destructive",
       })
+      handleCloseDeleteDialog()
     }
   }
 
-  // Calculate total pages
-  const totalPages = Math.ceil(totalCourses / itemsPerPage)
+  // Get the course name for the delete confirmation dialog
+  const getCourseToDeleteName = () => {
+    if (!courseToDelete) return ""
+    const course = courses.find((c) => c.id === courseToDelete)
+    return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name_en) : ""
+  }
 
   // Helper function to get localized degree name
   const getLocalizedDegreeName = (degree: any) => {
@@ -339,6 +381,9 @@ export default function CoursesPage() {
     }
     return degree.name
   }
+
+  // Calculate total pages
+  const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
   return (
     <DashboardLayout>
@@ -472,10 +517,7 @@ export default function CoursesPage() {
                                     ? t("admin.courses.deactivate")
                                     : t("admin.courses.activate")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => handleDeleteCourse(course.id)}
-                                >
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(course.id)}>
                                   {t("admin.courses.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -566,6 +608,48 @@ export default function CoursesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation()
+            handleCloseDeleteDialog()
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+            handleCloseDeleteDialog()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t("admin.courses.confirmDeleteTitle", "Delete Course")}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {t("admin.courses.confirmDeleteMessage", "This action cannot be undone.")}
+              <div className="mt-2 font-medium">{getCourseToDeleteName()}</div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
+              {t("admin.courses.cancelDelete", "Cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {t("admin.courses.delete", "Delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

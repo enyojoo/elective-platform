@@ -10,6 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -18,12 +26,14 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { Search, MoreHorizontal, Filter, Plus, Globe } from "lucide-react"
+import { Search, MoreHorizontal, Filter, Plus, Globe, AlertTriangle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 // Define the University type
 interface University {
@@ -72,6 +82,14 @@ export default function UniversitiesPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+
+  // Delete confirmation dialog state
+  const [universityToDelete, setUniversityToDelete] = useState<string | null>(null)
+  const {
+    isOpen: isDeleteDialogOpen,
+    openDialog: openDeleteDialog,
+    closeDialog: closeDeleteDialog,
+  } = useDialogState(false)
 
   // Load cached data on initial render
   useEffect(() => {
@@ -291,8 +309,8 @@ export default function UniversitiesPage() {
       localStorage.removeItem(UNIVERSITIES_CACHE_KEY)
 
       toast({
-        title: t("admin.universities.statusUpdated", "Status updated"),
-        description: t("admin.universities.statusUpdatedDesc", "University status has been updated"),
+        title: t("admin.universities.statusUpdated", "University status updated"),
+        description: t("admin.universities.statusUpdatedDesc", "University status has been updated successfully"),
       })
     } catch (error: any) {
       toast({
@@ -304,28 +322,37 @@ export default function UniversitiesPage() {
     }
   }
 
-  // Handle university deletion
-  const handleDeleteUniversity = async (universityId: string) => {
-    if (
-      !confirm(
-        t(
-          "admin.universities.deleteConfirmMessage",
-          "Are you sure you want to delete this university? This action cannot be undone.",
-        ),
-      )
-    ) {
-      return
-    }
+  // Handle opening delete confirmation dialog
+  const handleDelete = (universityId: string) => {
+    setUniversityToDelete(universityId)
+    openDeleteDialog()
+  }
+
+  // Handle closing delete confirmation dialog
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+
+    // Ensure cleanup after dialog closes
+    setTimeout(() => {
+      setUniversityToDelete(null)
+      cleanupDialogEffects()
+    }, 300) // Wait for animation to complete
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!universityToDelete) return
 
     try {
-      const { error } = await supabase.from("universities").delete().eq("id", universityId)
+      const { error } = await supabase.from("universities").delete().eq("id", universityToDelete)
 
       if (error) {
         throw error
       }
 
       // Update local state
-      setUniversities((prev) => prev.filter((university) => university.id !== universityId))
+      setUniversities((prev) => prev.filter((university) => university.id !== universityToDelete))
+      setFilteredUniversities((prev) => prev.filter((university) => university.id !== universityToDelete))
 
       // Invalidate cache
       localStorage.removeItem(UNIVERSITIES_CACHE_KEY)
@@ -334,13 +361,25 @@ export default function UniversitiesPage() {
         title: t("admin.universities.deleteSuccess", "University deleted"),
         description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
       })
+
+      // Close dialog and clean up
+      handleCloseDeleteDialog()
     } catch (error: any) {
+      console.error("Error deleting university:", error)
       toast({
         title: t("admin.universities.error", "Error"),
         description: t("admin.universities.errorDeleting", "Failed to delete university") + ": " + error.message,
         variant: "destructive",
       })
+      handleCloseDeleteDialog()
     }
+  }
+
+  // Get the university name for the delete confirmation dialog
+  const getUniversityToDeleteName = () => {
+    if (!universityToDelete) return ""
+    const university = universities.find((u) => u.id === universityToDelete)
+    return university ? getLocalizedName(university) : ""
   }
 
   // Pagination logic
@@ -464,8 +503,8 @@ export default function UniversitiesPage() {
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => handleDeleteUniversity(university.id)}
+                                  className="text-destructive"
+                                  onClick={() => handleDelete(university.id)}
                                 >
                                   {t("admin.universities.delete", "Delete")}
                                 </DropdownMenuItem>
@@ -546,6 +585,51 @@ export default function UniversitiesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation()
+            handleCloseDeleteDialog()
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+            handleCloseDeleteDialog()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t("admin.universities.deleteConfirmTitle", "Delete University")}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {t(
+                "admin.universities.deleteConfirmMessage",
+                "Are you sure you want to delete this university? This action cannot be undone.",
+              )}
+              <div className="mt-2 font-medium">{getUniversityToDeleteName()}</div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
+              {t("admin.universities.cancelDelete", "Cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {t("admin.universities.confirmDelete", "Delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
