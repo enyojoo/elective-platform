@@ -169,7 +169,7 @@ export function UsersSettings() {
 
       if (error) throw error
 
-      // Update both users and filteredUsers state immediately
+      // Update local state
       const updatedUsers = users.map((user) => {
         if (user.id === userId) {
           return {
@@ -181,18 +181,17 @@ export function UsersSettings() {
       })
 
       // Update filtered users
-      const updatedFilteredUsers = filteredUsers.map((user) => {
-        if (user.id === userId) {
-          return {
-            ...user,
-            status: newStatus ? "active" : "inactive",
+      setFilteredUsers((prevFiltered) =>
+        prevFiltered.map((user) => {
+          if (user.id === userId) {
+            return {
+              ...user,
+              status: newStatus ? "active" : "inactive",
+            }
           }
-        }
-        return user
-      })
-
-      // Set both states to ensure UI updates
-      setFilteredUsers(updatedFilteredUsers)
+          return user
+        }),
+      )
 
       // Invalidate the users cache
       if (institution?.id) {
