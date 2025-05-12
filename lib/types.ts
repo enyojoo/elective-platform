@@ -1,8 +1,7 @@
 export enum UserRole {
-  STUDENT = "student",
-  PROGRAM_MANAGER = "program_manager",
   ADMIN = "admin",
-  SUPER_ADMIN = "super_admin",
+  PROGRAM_MANAGER = "program_manager",
+  STUDENT = "student",
 }
 
 export enum Degree {

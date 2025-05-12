@@ -37,16 +37,12 @@ import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { Label } from "@/components/ui/label"
-import { UserRole } from "@/lib/types"
-import { SafeDialog } from "@/components/safe-dialog"
 
 export function UsersSettings() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error, isInitialDataLoaded, groups, getCachedData, setCachedData } = useCachedUsers(
-    institution?.id,
-  )
+  const { users, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
   const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -60,7 +56,8 @@ export function UsersSettings() {
   const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  // Edit user dialog state
+  const { isOpen: isEditDialogOpen, openDialog: openEditDialog, closeDialog: closeEditDialog } = useDialogState()
   const [userToEdit, setUserToEdit] = useState<any>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [editFormData, setEditFormData] = useState({
@@ -72,9 +69,12 @@ export function UsersSettings() {
     groupId: "",
     year: "",
   })
+
+  // State for reference data
   const [degrees, setDegrees] = useState<any[]>([])
+  const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(false)
+  const [isLoadingReferenceData, setIsLoadingReferenceData] = useState(false)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -113,51 +113,56 @@ export function UsersSettings() {
     setCurrentPage(1) // Reset to first page when filters change
   }, [searchTerm, roleFilter, statusFilter, users])
 
-  // Fetch degrees when needed
+  // Fetch reference data when edit dialog opens
   useEffect(() => {
-    const fetchDegrees = async () => {
+    const fetchReferenceData = async () => {
       if (!institution?.id || !isEditDialogOpen) return
 
+      setIsLoadingReferenceData(true)
+
       try {
-        setIsLoadingDegrees(true)
-
-        // Try to get data from cache first
-        const cachedDegrees = getCachedData<any[]>("degrees", institution.id)
-
-        if (cachedDegrees && cachedDegrees.length > 0) {
-          setDegrees(cachedDegrees)
-          setIsLoadingDegrees(false)
-          return
-        }
-
-        const { data, error } = await supabase
+        // Fetch degrees
+        const { data: degreesData, error: degreesError } = await supabase
           .from("degrees")
           .select("id, name")
           .eq("institution_id", institution.id)
           .eq("status", "active")
 
-        if (error) throw error
+        if (degreesError) throw degreesError
+        setDegrees(degreesData || [])
 
-        setDegrees(data || [])
-        setCachedData("degrees", institution.id, data)
-      } catch (error) {
-        console.error("Error fetching degrees:", error)
+        // Fetch groups
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("id, name, degree_id")
+          .eq("institution_id", institution.id)
+          .eq("status", "active")
+
+        if (groupsError) throw groupsError
+        setGroups(groupsData || [])
+
+        // If we have a degree ID, filter groups
+        if (editFormData.degreeId) {
+          setFilteredGroups(groupsData?.filter((g) => g.degree_id === editFormData.degreeId) || [])
+        }
+      } catch (error: any) {
+        console.error("Error fetching reference data:", error)
         toast({
           title: "Error",
-          description: "Failed to load degrees",
+          description: "Failed to load reference data: " + error.message,
           variant: "destructive",
         })
       } finally {
-        setIsLoadingDegrees(false)
+        setIsLoadingReferenceData(false)
       }
     }
 
-    fetchDegrees()
-  }, [institution?.id, isEditDialogOpen, getCachedData, setCachedData, supabase, toast])
+    fetchReferenceData()
+  }, [institution?.id, isEditDialogOpen, supabase, toast, editFormData.degreeId])
 
-  // Filter groups based on selected degree
+  // Filter groups when degree changes
   useEffect(() => {
-    if (!editFormData.degreeId) {
+    if (!editFormData.degreeId || groups.length === 0) {
       setFilteredGroups([])
       return
     }
@@ -166,7 +171,7 @@ export function UsersSettings() {
     setFilteredGroups(filtered)
 
     // Reset group selection if current selection is not valid for new degree
-    if (!filtered.find((g) => g.id === editFormData.groupId)) {
+    if (editFormData.groupId && !filtered.find((g) => g.id === editFormData.groupId)) {
       setEditFormData((prev) => ({ ...prev, groupId: "" }))
     }
   }, [editFormData.degreeId, groups, editFormData.groupId])
@@ -320,6 +325,7 @@ export function UsersSettings() {
     }
   }
 
+  // Handle opening the edit dialog
   const handleEditUser = (user: any) => {
     setUserToEdit(user)
     setEditFormData({
@@ -331,11 +337,12 @@ export function UsersSettings() {
       groupId: user.groupId || "",
       year: user.year || "",
     })
-    setIsEditDialogOpen(true)
+    openEditDialog()
   }
 
+  // Handle closing the edit dialog
   const handleCloseEditDialog = () => {
-    setIsEditDialogOpen(false)
+    closeEditDialog()
     setTimeout(() => {
       setUserToEdit(null)
       setEditFormData({
@@ -351,10 +358,12 @@ export function UsersSettings() {
     }, 300)
   }
 
+  // Handle form field changes
   const handleEditFormChange = (field: string, value: string) => {
     setEditFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  // Handle form submission
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userToEdit) return
@@ -376,7 +385,7 @@ export function UsersSettings() {
       if (updateError) throw updateError
 
       // Handle student-specific data
-      if (editFormData.role === UserRole.STUDENT) {
+      if (editFormData.role === "student") {
         // Check if student profile exists
         const { data: existingProfile, error: checkError } = await supabase
           .from("student_profiles")
@@ -415,7 +424,7 @@ export function UsersSettings() {
       }
 
       // Handle manager-specific data
-      if (editFormData.role === UserRole.PROGRAM_MANAGER) {
+      if (editFormData.role === "program_manager") {
         // Check if manager profile exists
         const { data: existingProfile, error: checkError } = await supabase
           .from("manager_profiles")
@@ -430,18 +439,16 @@ export function UsersSettings() {
           const { error: updateError } = await supabase
             .from("manager_profiles")
             .update({
-              group_id: editFormData.groupId,
               degree_id: editFormData.degreeId,
               updated_at: new Date().toISOString(),
             })
             .eq("profile_id", userToEdit.id)
 
           if (updateError) throw updateError
-        } else if (editFormData.groupId && editFormData.degreeId) {
+        } else if (editFormData.degreeId) {
           // Create new profile
           const { error: insertError } = await supabase.from("manager_profiles").insert({
             profile_id: userToEdit.id,
-            group_id: editFormData.groupId,
             degree_id: editFormData.degreeId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -455,42 +462,6 @@ export function UsersSettings() {
       if (institution?.id) {
         invalidateCache("users", institution.id)
       }
-
-      // Update local state
-      const updatedUsers = users.map((user) => {
-        if (user.id === userToEdit.id) {
-          return {
-            ...user,
-            name: editFormData.name,
-            email: editFormData.email,
-            role: editFormData.role,
-            status: editFormData.status,
-            degreeId: editFormData.degreeId,
-            groupId: editFormData.groupId,
-            year: editFormData.year,
-          }
-        }
-        return user
-      })
-
-      // Update filtered users
-      setFilteredUsers(
-        filteredUsers.map((user) => {
-          if (user.id === userToEdit.id) {
-            return {
-              ...user,
-              name: editFormData.name,
-              email: editFormData.email,
-              role: editFormData.role,
-              status: editFormData.status,
-              degreeId: editFormData.degreeId,
-              groupId: editFormData.groupId,
-              year: editFormData.year,
-            }
-          }
-          return user
-        }),
-      )
 
       toast({
         title: "Success",
@@ -709,13 +680,17 @@ export function UsersSettings() {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <SafeDialog
+      <Dialog
         open={isEditDialogOpen}
         onOpenChange={(open) => {
           if (!open) handleCloseEditDialog()
         }}
       >
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent
+          className="sm:max-w-[500px]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>{t("admin.users.editUser")}</DialogTitle>
             <DialogDescription>{t("admin.users.editUserDescription")}</DialogDescription>
@@ -751,9 +726,9 @@ export function UsersSettings() {
                     <SelectValue placeholder={t("admin.users.selectRole")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
-                    <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("admin.users.program_manager")}</SelectItem>
-                    <SelectItem value={UserRole.ADMIN}>{t("admin.users.admin")}</SelectItem>
+                    <SelectItem value="student">{t("admin.users.student")}</SelectItem>
+                    <SelectItem value="program_manager">{t("admin.users.program_manager")}</SelectItem>
+                    <SelectItem value="admin">{t("admin.users.admin")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -771,7 +746,7 @@ export function UsersSettings() {
               </div>
             </div>
 
-            {editFormData.role === UserRole.STUDENT && (
+            {editFormData.role === "student" && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -779,6 +754,7 @@ export function UsersSettings() {
                     <Select
                       value={editFormData.degreeId}
                       onValueChange={(value) => handleEditFormChange("degreeId", value)}
+                      disabled={isLoadingReferenceData}
                     >
                       <SelectTrigger id="edit-degree">
                         <SelectValue placeholder={t("admin.users.selectDegree")} />
@@ -797,7 +773,7 @@ export function UsersSettings() {
                     <Select
                       value={editFormData.groupId}
                       onValueChange={(value) => handleEditFormChange("groupId", value)}
-                      disabled={!editFormData.degreeId || filteredGroups.length === 0}
+                      disabled={!editFormData.degreeId || filteredGroups.length === 0 || isLoadingReferenceData}
                     >
                       <SelectTrigger id="edit-group">
                         <SelectValue placeholder={t("admin.users.selectGroup")} />
@@ -830,45 +806,25 @@ export function UsersSettings() {
               </>
             )}
 
-            {editFormData.role === UserRole.PROGRAM_MANAGER && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-manager-degree">{t("admin.users.degree")}</Label>
-                  <Select
-                    value={editFormData.degreeId}
-                    onValueChange={(value) => handleEditFormChange("degreeId", value)}
-                  >
-                    <SelectTrigger id="edit-manager-degree">
-                      <SelectValue placeholder={t("admin.users.selectDegree")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {degrees.map((degree) => (
-                        <SelectItem key={degree.id} value={degree.id}>
-                          {degree.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-manager-group">{t("admin.users.group")}</Label>
-                  <Select
-                    value={editFormData.groupId}
-                    onValueChange={(value) => handleEditFormChange("groupId", value)}
-                    disabled={!editFormData.degreeId || filteredGroups.length === 0}
-                  >
-                    <SelectTrigger id="edit-manager-group">
-                      <SelectValue placeholder={t("admin.users.selectGroup")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            {editFormData.role === "program_manager" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-manager-degree">{t("admin.users.degree")}</Label>
+                <Select
+                  value={editFormData.degreeId}
+                  onValueChange={(value) => handleEditFormChange("degreeId", value)}
+                  disabled={isLoadingReferenceData}
+                >
+                  <SelectTrigger id="edit-manager-degree">
+                    <SelectValue placeholder={t("admin.users.selectDegree")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {degrees.map((degree) => (
+                      <SelectItem key={degree.id} value={degree.id}>
+                        {degree.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -882,7 +838,7 @@ export function UsersSettings() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </SafeDialog>
+      </Dialog>
     </div>
   )
 }
