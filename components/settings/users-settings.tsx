@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +16,7 @@ import {
 } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, AlertCircle, Trash2 } from "lucide-react"
+import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
@@ -36,8 +35,6 @@ import {
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { Label } from "@/components/ui/label"
-import { UserRole } from "@/lib/types"
 
 export function UsersSettings() {
   const { t, language } = useLanguage()
@@ -56,23 +53,6 @@ export function UsersSettings() {
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
   const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
   const [isDeleting, setIsDeleting] = useState(false)
-
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<any>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [editFormData, setEditFormData] = useState({
-    name: "",
-    email: "",
-    role: "",
-    status: "",
-    degreeId: "",
-    groupId: "",
-    year: "",
-  })
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
-  const [groups, setGroups] = useState<any[]>([])
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -263,182 +243,6 @@ export function UsersSettings() {
   // Show skeleton only for initial data load
   const showSkeleton = isLoading && !isInitialDataLoaded && (!users || users.length === 0)
 
-  useEffect(() => {
-    const fetchReferenceData = async () => {
-      if (!institution?.id) return
-
-      try {
-        // Fetch degrees
-        const { data: degreesData, error: degreesError } = await supabase
-          .from("degrees")
-          .select("id, name")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
-
-        if (degreesError) throw degreesError
-
-        // Fetch groups
-        const { data: groupsData, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name, degree_id, program_id, academic_year_id")
-          .eq("institution_id", institution.id)
-          .eq("status", "active")
-
-        if (groupsError) throw groupsError
-
-        setDegrees(degreesData || [])
-        setGroups(groupsData || [])
-      } catch (error) {
-        console.error("Error fetching reference data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load reference data",
-          variant: "destructive",
-        })
-      }
-    }
-
-    fetchReferenceData()
-  }, [institution?.id, supabase, toast])
-
-  // Add this useEffect to filter groups based on selected degree
-  useEffect(() => {
-    if (editFormData.degreeId) {
-      const filtered = groups.filter((group) => group.degree_id === editFormData.degreeId)
-      setFilteredGroups(filtered)
-      // Reset group selection if current selection is not valid for new degree
-      if (!filtered.find((g) => g.id === editFormData.groupId)) {
-        setEditFormData((prev) => ({ ...prev, groupId: "" }))
-      }
-    } else {
-      setFilteredGroups([])
-      setEditFormData((prev) => ({ ...prev, groupId: "" }))
-    }
-  }, [editFormData.degreeId, groups, editFormData.groupId])
-
-  // Add this function to handle opening the edit dialog
-  const handleEditUser = async (userId: string) => {
-    // Find the user in the filtered users
-    const userToEdit = filteredUsers.find((user) => user.id === userId)
-
-    if (!userToEdit) {
-      toast({
-        title: "Error",
-        description: "User not found",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setEditingUser(userToEdit)
-
-    // Fetch the complete user data from Supabase
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-
-      if (profileError) throw profileError
-
-      // Set the form data
-      setEditFormData({
-        name: profileData.full_name || "",
-        email: profileData.email || "",
-        role: profileData.role || "",
-        status: profileData.is_active ? "active" : "inactive",
-        degreeId: profileData.degree_id || "",
-        groupId: profileData.group_id || "",
-        year: profileData.academic_year || "",
-      })
-
-      setIsEditDialogOpen(true)
-    } catch (error: any) {
-      console.error("Error fetching user data:", error)
-      toast({
-        title: "Error",
-        description: `Failed to load user data: ${error.message}`,
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Add this function to handle form input changes
-  const handleFormInputChange = (field: string, value: string) => {
-    setEditFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  // Add this function to handle form submission
-  const handleSaveUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingUser) return
-
-    setIsSaving(true)
-
-    try {
-      // Update the user profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: editFormData.name,
-          email: editFormData.email,
-          role: editFormData.role,
-          is_active: editFormData.status === "active",
-          degree_id: editFormData.degreeId || null,
-          group_id: editFormData.groupId || null,
-          academic_year: editFormData.year || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", editingUser.id)
-
-      if (updateError) throw updateError
-
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
-
-      // Update the filtered users list
-      setFilteredUsers(
-        filteredUsers.map((user) => {
-          if (user.id === editingUser.id) {
-            return {
-              ...user,
-              name: editFormData.name,
-              email: editFormData.email,
-              role: editFormData.role,
-              status: editFormData.status,
-              degreeId: editFormData.degreeId,
-              degreeName: degrees.find((d) => d.id === editFormData.degreeId)?.name || "",
-              groupId: editFormData.groupId,
-              groupName: groups.find((g) => g.id === editFormData.groupId)?.name || "",
-              year: editFormData.year,
-            }
-          }
-          return user
-        }),
-      )
-
-      toast({
-        title: "Success",
-        description: "User updated successfully",
-      })
-
-      // Close the dialog
-      setIsEditDialogOpen(false)
-    } catch (error: any) {
-      console.error("Error updating user:", error)
-      toast({
-        title: "Error",
-        description: `Failed to update user: ${error.message}`,
-        variant: "destructive",
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return (
     <div className="space-y-6">
       {error && (
@@ -529,8 +333,8 @@ export function UsersSettings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
-                            {t("admin.users.edit")}
+                          <DropdownMenuItem>
+                            <Link href={`/admin/users/${user.id}`}>{t("admin.users.edit")}</Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className={user.status === "active" ? "text-destructive" : "text-green-600"}
@@ -631,186 +435,6 @@ export function UsersSettings() {
               )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit User Dialog */}
-      <Dialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) setIsEditDialogOpen(false)
-        }}
-      >
-        <DialogContent className="sm:max-w-md md:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("admin.users.editUser")}</DialogTitle>
-            <DialogDescription>{t("admin.users.editUserDescription")}</DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSaveUser}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t("admin.users.fullName")}</Label>
-                  <Input
-                    id="name"
-                    value={editFormData.name}
-                    onChange={(e) => handleFormInputChange("name", e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t("admin.users.emailAddress")}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => handleFormInputChange("email", e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="role">{t("admin.users.userRole")}</Label>
-                  <Select value={editFormData.role} onValueChange={(value) => handleFormInputChange("role", value)}>
-                    <SelectTrigger id="role">
-                      <SelectValue placeholder={t("admin.users.selectRole")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
-                      <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("admin.users.program_manager")}</SelectItem>
-                      <SelectItem value={UserRole.ADMIN}>{t("admin.users.admin")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="status">{t("admin.users.status")}</Label>
-                  <Select value={editFormData.status} onValueChange={(value) => handleFormInputChange("status", value)}>
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder={t("admin.users.selectStatus")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">{t("admin.users.active")}</SelectItem>
-                      <SelectItem value="inactive">{t("admin.users.inactive")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Student-specific fields */}
-              {editFormData.role === UserRole.STUDENT && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="degreeId">{t("admin.users.degree")}</Label>
-                    <Select
-                      value={editFormData.degreeId}
-                      onValueChange={(value) => handleFormInputChange("degreeId", value)}
-                    >
-                      <SelectTrigger id="degreeId">
-                        <SelectValue placeholder={t("admin.users.selectDegree")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {degrees.map((degree) => (
-                          <SelectItem key={degree.id} value={degree.id.toString()}>
-                            {degree.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="groupId">{t("admin.users.group")}</Label>
-                    <Select
-                      value={editFormData.groupId}
-                      onValueChange={(value) => handleFormInputChange("groupId", value)}
-                      disabled={!editFormData.degreeId || filteredGroups.length === 0}
-                    >
-                      <SelectTrigger id="groupId">
-                        <SelectValue placeholder={t("admin.users.selectGroup")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="year">{t("admin.users.year")}</Label>
-                    <Select value={editFormData.year} onValueChange={(value) => handleFormInputChange("year", value)}>
-                      <SelectTrigger id="year">
-                        <SelectValue placeholder={t("admin.users.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
-              {/* Program Manager-specific fields */}
-              {editFormData.role === UserRole.PROGRAM_MANAGER && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="managerDegree">{t("admin.users.degree")}</Label>
-                    <Select
-                      value={editFormData.degreeId}
-                      onValueChange={(value) => handleFormInputChange("degreeId", value)}
-                    >
-                      <SelectTrigger id="managerDegree">
-                        <SelectValue placeholder={t("admin.users.selectDegree")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {degrees.map((degree) => (
-                          <SelectItem key={degree.id} value={degree.id.toString()}>
-                            {degree.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="managerYear">{t("admin.users.year")}</Label>
-                    <Select value={editFormData.year} onValueChange={(value) => handleFormInputChange("year", value)}>
-                      <SelectTrigger id="managerYear">
-                        <SelectValue placeholder={t("admin.users.selectYear")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
-                {t("admin.users.cancel")}
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? t("admin.users.saving") : t("admin.users.saveChanges")}
-              </Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
     </div>

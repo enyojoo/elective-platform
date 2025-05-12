@@ -46,17 +46,19 @@ export function useCachedStudentProfile(userId: string | undefined) {
 
         if (profileError) throw profileError
 
-        // Student data is now directly in the profiles table
-        const studentDetails = {
-          group_id: profileData.group_id || null,
-          academic_year: profileData.academic_year || null,
-          degree_id: profileData.degree_id || null,
-        }
+        // Fetch student-specific data
+        const { data: studentData, error: studentError } = await supabase
+          .from("student_profiles")
+          .select("*, groups(*, programs(*, degrees(*)))")
+          .eq("profile_id", userId)
+          .single()
+
+        if (studentError) throw studentError
 
         // Combine the data
         const combinedProfile = {
           ...profileData,
-          studentDetails: studentDetails,
+          studentDetails: studentData,
         }
 
         // Save to cache
