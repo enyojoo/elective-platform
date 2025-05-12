@@ -993,7 +993,14 @@ function GroupsTableContent() {
               <AlertTriangle className="h-5 w-5" />
               {t("admin.groups.deleteConfirmTitle")}
             </DialogTitle>
-            <DialogDescription className="pt-2">{t("admin.groups.deleteConfirmDescription")}</DialogDescription>
+            <DialogDescription className="pt-2">
+              {t("admin.groups.deleteConfirmDescription")}
+              {getGroupToDeleteStudentCount() > 0 && (
+                <div className="mt-2 text-destructive font-medium">
+                  {t("admin.groups.deleteConfirmStudents", { count: getGroupToDeleteStudentCount() })}
+                </div>
+              )}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={handleCloseDeleteDialog}>
