@@ -1,6 +1,4 @@
 "use client"
-
-import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -8,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, ExternalLink, Edit, Trash } from "lucide-react"
+import { ArrowLeft, ExternalLink, Edit } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
@@ -39,7 +37,6 @@ export default function UniversityDetailsPage() {
   const router = useRouter()
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const [isDeleting, setIsDeleting] = useState(false)
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
   const { invalidateCache } = useDataCache()
@@ -104,45 +101,6 @@ export default function UniversityDetailsPage() {
     }
   }
 
-  const handleDeleteUniversity = async () => {
-    if (
-      window.confirm(
-        t(
-          "admin.universities.deleteConfirmMessage",
-          "Are you sure you want to delete this university? This action cannot be undone.",
-        ),
-      )
-    ) {
-      setIsDeleting(true)
-      try {
-        const { error } = await supabase.from("universities").delete().eq("id", params.id)
-
-        if (error) {
-          throw error
-        }
-
-        // Invalidate the cache for this university
-        invalidateCache(`university-${params.id}`, institution?.id)
-
-        toast({
-          title: t("admin.universities.deleteSuccess", "University deleted"),
-          description: t("admin.universities.deleteSuccessDesc", "University has been deleted successfully"),
-        })
-
-        router.push("/admin/universities")
-      } catch (error) {
-        console.error("Error deleting university:", error)
-        toast({
-          title: t("admin.universities.error", "Error"),
-          description: t("admin.universities.errorDeleting", "Failed to delete university"),
-          variant: "destructive",
-        })
-      } finally {
-        setIsDeleting(false)
-      }
-    }
-  }
-
   // If we don't have university data yet, return minimal UI
   if (!university) {
     return (
@@ -175,17 +133,13 @@ export default function UniversityDetailsPage() {
             <h1 className="text-3xl font-bold tracking-tight">{getLocalizedName(university)}</h1>
             <div className="ml-2">{getStatusBadge(university.status)}</div>
           </div>
-          <div className="flex gap-2">
+          <div>
             <Link href={`/admin/universities/${university.id}/edit`}>
               <Button variant="outline">
                 <Edit className="mr-2 h-4 w-4" />
                 {t("admin.universities.edit", "Edit")}
               </Button>
             </Link>
-            <Button variant="destructive" onClick={handleDeleteUniversity} disabled={isDeleting}>
-              <Trash className="mr-2 h-4 w-4" />
-              {isDeleting ? t("admin.universities.deleting", "Deleting...") : t("admin.universities.delete", "Delete")}
-            </Button>
           </div>
         </div>
 
