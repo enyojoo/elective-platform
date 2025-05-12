@@ -295,12 +295,29 @@ export function UsersSettings() {
     setEditingUser((prev: any) => ({ ...prev, [field]: value }))
   }
 
-  // Handle user status change
+  // Simple status change function - just change it immediately
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
+    // Update local state immediately
+    const updatedUsers = users.map((user) => {
+      if (user.id === userId) {
+        return {
+          ...user,
+          status: newStatus ? "active" : "inactive",
+        }
+      }
+      return user
+    })
+    setUsers(updatedUsers)
+
+    // Make the API call in the background
     try {
-      // Update local state immediately for better UX
-      if (isMounted.current) {
-        const updatedUsers = users.map((user) => {
+      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
+
+      if (error) throw error
+
+      // Update the cache directly to avoid reversion
+      if (institution?.id && cachedUsers) {
+        const updatedCachedUsers = cachedUsers.map((user) => {
           if (user.id === userId) {
             return {
               ...user,
@@ -309,39 +326,21 @@ export function UsersSettings() {
           }
           return user
         })
-        setUsers(updatedUsers)
-      }
-
-      // Make the API call
-      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
-
-      if (error) throw error
-
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
-
-      if (isMounted.current) {
-        toast({
-          title: "Success",
-          description: newStatus ? "User has been activated" : "User has been deactivated",
-        })
+        setCachedData("users", institution.id, updatedCachedUsers)
       }
     } catch (error: any) {
       console.error("Error updating user status:", error)
 
-      // Revert the UI changes on error by resetting to cached users
-      if (cachedUsers && isMounted.current) {
-        setUsers([...cachedUsers])
-      }
+      // Only show toast on error
+      toast({
+        title: "Error",
+        description: `Failed to update user status: ${error.message}`,
+        variant: "destructive",
+      })
 
-      if (isMounted.current) {
-        toast({
-          title: "Error",
-          description: `Failed to update user status: ${error.message}`,
-          variant: "destructive",
-        })
+      // Revert the UI changes on error
+      if (cachedUsers) {
+        setUsers([...cachedUsers])
       }
     }
   }
@@ -349,46 +348,43 @@ export function UsersSettings() {
   const confirmDelete = async () => {
     if (!userToDelete) return
 
+    // Update local state immediately
+    const updatedUsers = users.filter((user) => user.id !== userToDelete)
+    setUsers(updatedUsers)
+
+    // Close dialog immediately
+    handleCloseDeleteDialog()
+
+    // Make the API call in the background
     try {
-      // Update local state immediately for better UX
-      if (isMounted.current) {
-        const updatedUsers = users.filter((user) => user.id !== userToDelete)
-        setUsers(updatedUsers)
-      }
-
-      // Close dialog immediately for better UX
-      handleCloseDeleteDialog()
-
-      // Make the API call
       const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
 
       if (error) throw error
 
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
+      // Update the cache directly
+      if (institution?.id && cachedUsers) {
+        const updatedCachedUsers = cachedUsers.filter((user) => user.id !== userToDelete)
+        setCachedData("users", institution.id, updatedCachedUsers)
       }
 
-      if (isMounted.current) {
-        toast({
-          title: "Success",
-          description: "User has been deleted successfully",
-        })
-      }
+      // Only show success toast
+      toast({
+        title: "Success",
+        description: "User has been deleted successfully",
+      })
     } catch (error: any) {
       console.error("Error deleting user:", error)
 
-      // Revert the UI changes on error by resetting to cached users
-      if (cachedUsers && isMounted.current) {
-        setUsers([...cachedUsers])
-      }
+      // Show error toast
+      toast({
+        title: "Error",
+        description: `Failed to delete user: ${error.message}`,
+        variant: "destructive",
+      })
 
-      if (isMounted.current) {
-        toast({
-          title: "Error",
-          description: `Failed to delete user: ${error.message}`,
-          variant: "destructive",
-        })
+      // Revert the UI changes on error
+      if (cachedUsers) {
+        setUsers([...cachedUsers])
       }
     }
   }
@@ -399,6 +395,33 @@ export function UsersSettings() {
     if (!editingUser) return
 
     setIsSaving(true)
+
+    // Update local state immediately
+    const updatedUsers = users.map((user) => {
+      if (user.id === editingUser.id) {
+        const updatedUser = {
+          ...user,
+          name: editingUser.name,
+          email: editingUser.email,
+          role: editingUser.role,
+          status: editingUser.status,
+          degreeId: editingUser.degreeId || "",
+          groupId: editingUser.role === UserRole.STUDENT ? editingUser.groupId || "" : "",
+          year: editingUser.year || "",
+          // Update related display fields
+          degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
+          groupName:
+            editingUser.role === UserRole.STUDENT ? groups.find((g) => g.id === editingUser.groupId)?.name || "" : "",
+        }
+        return updatedUser
+      }
+      return user
+    })
+    setUsers(updatedUsers)
+
+    // Close dialog immediately
+    handleCloseEditDialog()
+
     try {
       // Prepare update data
       const updateData = {
@@ -420,11 +443,16 @@ export function UsersSettings() {
         }
       }
 
-      // Update local state immediately for better UX
-      if (isMounted.current) {
-        const updatedUsers = users.map((user) => {
+      // Make the API call
+      const { error } = await supabase.from("profiles").update(updateData).eq("id", editingUser.id)
+
+      if (error) throw error
+
+      // Update the cache directly
+      if (institution?.id && cachedUsers) {
+        const updatedCachedUsers = cachedUsers.map((user) => {
           if (user.id === editingUser.id) {
-            const updatedUser = {
+            return {
               ...user,
               name: editingUser.name,
               email: editingUser.email,
@@ -433,58 +461,39 @@ export function UsersSettings() {
               degreeId: editingUser.degreeId || "",
               groupId: editingUser.role === UserRole.STUDENT ? editingUser.groupId || "" : "",
               year: editingUser.year || "",
-              // Update related display fields
               degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
               groupName:
                 editingUser.role === UserRole.STUDENT
                   ? groups.find((g) => g.id === editingUser.groupId)?.name || ""
                   : "",
             }
-            return updatedUser
           }
           return user
         })
-        setUsers(updatedUsers)
+        setCachedData("users", institution.id, updatedCachedUsers)
       }
 
-      // Close dialog immediately for better UX
-      handleCloseEditDialog()
-
-      // Make the API call
-      const { error } = await supabase.from("profiles").update(updateData).eq("id", editingUser.id)
-
-      if (error) throw error
-
-      // Invalidate the users cache
-      if (institution?.id) {
-        invalidateCache("users", institution.id)
-      }
-
-      if (isMounted.current) {
-        toast({
-          title: "Success",
-          description: "User updated successfully",
-        })
-      }
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "User updated successfully",
+      })
     } catch (error: any) {
       console.error("Error updating user:", error)
 
-      // Revert the UI changes on error by resetting to cached users
-      if (cachedUsers && isMounted.current) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: `Failed to update user: ${error.message}`,
+        variant: "destructive",
+      })
+
+      // Revert the UI changes on error
+      if (cachedUsers) {
         setUsers([...cachedUsers])
       }
-
-      if (isMounted.current) {
-        toast({
-          title: "Error",
-          description: `Failed to update user: ${error.message}`,
-          variant: "destructive",
-        })
-      }
     } finally {
-      if (isMounted.current) {
-        setIsSaving(false)
-      }
+      setIsSaving(false)
     }
   }
 
