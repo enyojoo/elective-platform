@@ -191,7 +191,7 @@ export default function ElectivePackBuilderPage() {
       ...packDetails,
       courses: selectedCourses,
     })
-    router.push("/manager/electives")
+    router.push("/manager/electives/course")
   }
 
   // Handle publish
@@ -204,7 +204,7 @@ export default function ElectivePackBuilderPage() {
       courses: selectedCourses,
       status: ElectivePackStatus.PUBLISHED,
     })
-    router.push("/manager/electives")
+    router.push("/manager/electives/course")
   }
 
   return (
@@ -213,7 +213,7 @@ export default function ElectivePackBuilderPage() {
         {/* Replace the header section with this updated version (removing the subtitle) */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives">
+            <Link href="/manager/electives/course">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>

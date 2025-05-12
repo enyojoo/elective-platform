@@ -17,7 +17,6 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  Plus,
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { useState } from "react"
@@ -180,58 +179,20 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
               >
                 {t("dashboard")}
               </NavItem>
-
-              {/* Collapsible Electives Menu for Manager */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => setElectivesOpen(!electivesOpen)}
-                  className={cn(
-                    "flex w-full items-center justify-between px-3 py-2 text-sm rounded-md transition-colors",
-                    pathname.startsWith("/manager/electives")
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent hover:text-accent-foreground",
-                  )}
-                >
-                  <div className="flex items-center">
-                    <BookOpen className="h-4 w-4 mr-2" />
-                    <span>{t("manager.dashboard.courseElectives")}</span>
-                  </div>
-                  {electivesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-
-                {electivesOpen && (
-                  <div className="pl-6 space-y-1">
-                    <NavItem
-                      href="/manager/electives/course"
-                      icon={<BookMarked className="h-4 w-4" />}
-                      active={pathname.startsWith("/manager/electives/course") && !pathname.includes("builder")}
-                    >
-                      {t("manager.electives.courseElectives")}
-                    </NavItem>
-                    <NavItem
-                      href="/manager/electives/exchange"
-                      icon={<Globe className="h-4 w-4" />}
-                      active={pathname.startsWith("/manager/electives/exchange") && !pathname.includes("builder")}
-                    >
-                      {t("manager.electives.exchangePrograms")}
-                    </NavItem>
-                    <NavItem
-                      href="/manager/electives/course-builder"
-                      icon={<Plus className="h-4 w-4" />}
-                      active={pathname === "/manager/electives/course-builder"}
-                    >
-                      {t("manager.electives.addCourse")}
-                    </NavItem>
-                    <NavItem
-                      href="/manager/electives/exchange-builder"
-                      icon={<Plus className="h-4 w-4" />}
-                      active={pathname === "/manager/electives/exchange-builder"}
-                    >
-                      {t("manager.electives.addExchange")}
-                    </NavItem>
-                  </div>
-                )}
-              </div>
+              <NavItem
+                href="/manager/electives/course"
+                icon={<BookMarked className="h-4 w-4" />}
+                active={pathname.startsWith("/manager/electives/course")}
+              >
+                {t("manager.electives.courseElectives")}
+              </NavItem>
+              <NavItem
+                href="/manager/electives/exchange"
+                icon={<Globe className="h-4 w-4" />}
+                active={pathname.startsWith("/manager/electives/exchange")}
+              >
+                {t("manager.electives.exchangePrograms")}
+              </NavItem>
             </>
           )}
 

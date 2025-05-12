@@ -192,7 +192,7 @@ export default function ExchangeBuilderPage() {
       ...packDetails,
       universities: selectedUniversities,
     })
-    router.push("/manager/electives")
+    router.push("/manager/electives/exchange")
   }
 
   // Handle publish
@@ -205,7 +205,7 @@ export default function ExchangeBuilderPage() {
       universities: selectedUniversities,
       status: ElectivePackStatus.PUBLISHED,
     })
-    router.push("/manager/electives")
+    router.push("/manager/electives/exchange")
   }
 
   return (
@@ -213,7 +213,7 @@ export default function ExchangeBuilderPage() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives">
+            <Link href="/manager/electives/exchange">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>

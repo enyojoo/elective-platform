@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Users, GraduationCap, BookOpen, Globe, Layers, Building } from "lucide-react"
+import { Users, BookOpen, Globe, Layers, Building } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -197,25 +197,6 @@ export default function AdminDashboard() {
               <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalCourses")}</p>
               <Button asChild className="w-full mt-4" size="sm">
                 <Link href="/admin/courses">{t("admin.dashboard.manage")}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Programs Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("admin.sidebar.programs")}</CardTitle>
-              <GraduationCap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {dashboardStats.programs.isLoading ? (
-                <Skeleton className="h-8 w-16 mb-1" />
-              ) : (
-                <div className="text-2xl font-bold">{dashboardStats.programs.count}</div>
-              )}
-              <p className="text-xs text-muted-foreground">{t("admin.dashboard.totalPrograms")}</p>
-              <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/admin/programs">{t("admin.dashboard.manage")}</Link>
               </Button>
             </CardContent>
           </Card>
