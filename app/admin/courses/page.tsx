@@ -31,6 +31,7 @@ interface Course {
   name_ru: string
   instructor_en: string
   instructor_ru: string
+  code: string
   status: string
   degree_id: string
   degree: {
@@ -71,17 +72,6 @@ export default function CoursesPage() {
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
   const { institution } = useInstitution()
-
-  // Add this at the beginning of the component
-  useEffect(() => {
-    // Clear the cache on initial load to ensure we get fresh data
-    localStorage.removeItem(COURSES_CACHE_KEY)
-    localStorage.removeItem(DEGREES_CACHE_KEY)
-
-    // Set loading states to trigger data fetching
-    setIsLoadingCourses(true)
-    setIsLoadingDegrees(true)
-  }, [])
 
   // Load cached data on initial render
   useEffect(() => {
@@ -181,7 +171,7 @@ export default function CoursesPage() {
         // Build query
         let query = supabase
           .from("courses")
-          .select("*, degree:degree_id(id, name, name_ru, code)", { count: "exact" })
+          .select("*, degree:degree_id(*)", { count: "exact" })
           .eq("institution_id", institution.id)
 
         // Apply filters
@@ -210,9 +200,6 @@ export default function CoursesPage() {
         if (error) {
           throw error
         }
-
-        // Clear the cache to ensure we're using fresh data
-        localStorage.removeItem(COURSES_CACHE_KEY)
 
         setCourses(data || [])
         setTotalCourses(count || 0)
@@ -346,29 +333,11 @@ export default function CoursesPage() {
   const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
   // Helper function to get localized degree name
-  const getLocalizedDegreeName = (degree: Degree | null) => {
-    if (!degree) return ""
-
+  const getLocalizedDegreeName = (degree: any) => {
     if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
       return degree.name_ru
     }
     return degree.name
-  }
-
-  // Helper function to get localized course name
-  const getLocalizedCourseName = (course: Course) => {
-    if (currentLanguage === "ru" && course.name_ru && course.name_ru.trim() !== "") {
-      return course.name_ru
-    }
-    return course.name_en
-  }
-
-  // Helper function to get localized instructor name
-  const getLocalizedInstructorName = (course: Course) => {
-    if (currentLanguage === "ru" && course.instructor_ru && course.instructor_ru.trim() !== "") {
-      return course.instructor_ru
-    }
-    return course.instructor_en
   }
 
   return (

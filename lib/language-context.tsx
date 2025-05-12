@@ -1266,7 +1266,7 @@ const translations: Translations = {
     "student.statement.description": "Скачайте заявление, подпишите его и загрузите заполненную форму",
     "student.statement.download": "Скачать",
     "student.statement.uploading": "Загрузка...",
-    "student.statement.fileUploaded": "Файл загру��ен:",
+    "student.statement.fileUploaded": "Файл загружен:",
     statement: "Заявление",
     statementFile: "Файл заявления",
     downloadStatement: "Скачать заявление",
