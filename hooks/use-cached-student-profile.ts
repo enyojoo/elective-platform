@@ -37,35 +37,21 @@ export function useCachedStudentProfile(userId: string | undefined) {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profile
+        // Fetch profile with related data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*")
+          .select("*, degrees(*), groups(*, programs(*, degrees(*)))")
           .eq("id", userId)
+          .eq("role", "student")
           .single()
 
         if (profileError) throw profileError
 
-        // Fetch student-specific data
-        const { data: studentData, error: studentError } = await supabase
-          .from("student_profiles")
-          .select("*, groups(*, programs(*, degrees(*)))")
-          .eq("profile_id", userId)
-          .single()
-
-        if (studentError) throw studentError
-
-        // Combine the data
-        const combinedProfile = {
-          ...profileData,
-          studentDetails: studentData,
-        }
-
         // Save to cache
-        setCachedData("studentProfile", userId, combinedProfile)
+        setCachedData("studentProfile", userId, profileData)
 
         // Update state
-        setProfile(combinedProfile)
+        setProfile(profileData)
       } catch (error: any) {
         console.error("Error fetching student profile:", error)
         setError(error.message)

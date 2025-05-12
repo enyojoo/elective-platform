@@ -37,35 +37,21 @@ export function useCachedManagerProfile(userId: string | undefined) {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profile
+        // Fetch profile with related data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*")
+          .select("*, degrees(*), groups(*)")
           .eq("id", userId)
+          .eq("role", "program_manager")
           .single()
 
         if (profileError) throw profileError
 
-        // Fetch manager-specific data
-        const { data: managerData, error: managerError } = await supabase
-          .from("manager_profiles")
-          .select("*, programs(*)")
-          .eq("profile_id", userId)
-          .single()
-
-        if (managerError) throw managerError
-
-        // Combine the data
-        const combinedProfile = {
-          ...profileData,
-          managerDetails: managerData,
-        }
-
         // Save to cache
-        setCachedData("managerProfile", userId, combinedProfile)
+        setCachedData("managerProfile", userId, profileData)
 
         // Update state
-        setProfile(combinedProfile)
+        setProfile(profileData)
       } catch (error: any) {
         console.error("Error fetching manager profile:", error)
         setError(error.message)

@@ -36,26 +36,13 @@ export default function UserEditPage() {
     email: "",
     role: UserRole.STUDENT,
     status: "active",
-  })
-
-  const [studentData, setStudentData] = useState({
-    groupId: "",
-    year: "",
-    degreeId: "", // Add degreeId here
-  })
-
-  const [managerData, setManagerData] = useState({
     degreeId: "",
     groupId: "",
+    year: "",
   })
 
   const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
-  const [academicYears, setAcademicYears] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
-
-  const [filteredPrograms, setFilteredPrograms] = useState<any[]>([])
-  const [filteredYears, setFilteredYears] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
@@ -63,7 +50,7 @@ export default function UserEditPage() {
 
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
-  // Fetch reference data (degrees, programs, academic years, groups)
+  // Fetch reference data (degrees, groups)
   useEffect(() => {
     const fetchReferenceData = async () => {
       if (!institution?.id) return
@@ -114,7 +101,7 @@ export default function UserEditPage() {
         // Fetch user profile
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("id, full_name, email, role, is_active")
+          .select("id, full_name, email, role, is_active, degree_id, group_id, academic_year")
           .eq("id", userId)
           .single()
 
@@ -126,44 +113,10 @@ export default function UserEditPage() {
           email: profileData.email || "",
           role: profileData.role,
           status: profileData.is_active ? "active" : "inactive",
+          degreeId: profileData.degree_id || "",
+          groupId: profileData.group_id || "",
+          year: profileData.academic_year || "",
         })
-
-        // If student, fetch student profile
-        if (profileData.role === UserRole.STUDENT) {
-          const { data: studentProfile, error: studentError } = await supabase
-            .from("student_profiles")
-            .select("group_id, year, degree_id")
-            .eq("profile_id", userId)
-            .maybeSingle()
-
-          if (studentError && studentError.code !== "PGRST116") throw studentError
-
-          if (studentProfile) {
-            setStudentData({
-              groupId: studentProfile.group_id || "",
-              year: studentProfile.year || "",
-              degreeId: studentProfile.degree_id || "",
-            })
-          }
-        }
-
-        // If manager, fetch manager profile
-        if (profileData.role === UserRole.PROGRAM_MANAGER) {
-          const { data: managerProfile, error: managerError } = await supabase
-            .from("manager_profiles")
-            .select("group_id, degree_id")
-            .eq("profile_id", userId)
-            .maybeSingle()
-
-          if (managerError && managerError.code !== "PGRST116") throw managerError
-
-          if (managerProfile) {
-            setManagerData({
-              degreeId: managerProfile.degree_id || "",
-              groupId: managerProfile.group_id || "",
-            })
-          }
-        }
       } catch (error) {
         console.error("Error fetching user data:", error)
         toast({
@@ -181,29 +134,21 @@ export default function UserEditPage() {
 
   // Filter groups based on selected degree
   useEffect(() => {
-    if (studentData.degreeId) {
-      const filtered = groups.filter((group) => group.degree_id === studentData.degreeId)
+    if (user.degreeId) {
+      const filtered = groups.filter((group) => group.degree_id === user.degreeId)
       setFilteredGroups(filtered)
       // Reset group selection if current selection is not valid for new degree
-      if (!filtered.find((g) => g.id === studentData.groupId)) {
-        setStudentData((prev) => ({ ...prev, groupId: "" }))
+      if (!filtered.find((g) => g.id === user.groupId)) {
+        setUser((prev) => ({ ...prev, groupId: "" }))
       }
     } else {
       setFilteredGroups([])
-      setStudentData((prev) => ({ ...prev, groupId: "" }))
+      setUser((prev) => ({ ...prev, groupId: "" }))
     }
-  }, [studentData.degreeId, groups, studentData.groupId])
+  }, [user.degreeId, groups, user.groupId])
 
   const handleInputChange = (field: string, value: string | number) => {
     setUser((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const handleStudentDataChange = (field: string, value: string) => {
-    setStudentData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const handleManagerDataChange = (field: string, value: string) => {
-    setManagerData((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -222,95 +167,31 @@ export default function UserEditPage() {
         return
       }
 
-      // Update existing user
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: user.name,
-          email: user.email,
-          role: user.role,
-          is_active: user.status === "active",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
+      // Prepare update data
+      const updateData: any = {
+        full_name: user.name,
+        email: user.email,
+        role: user.role,
+        is_active: user.status === "active",
+        updated_at: new Date().toISOString(),
+      }
+
+      // Add role-specific fields
+      if (user.role === UserRole.STUDENT || user.role === UserRole.PROGRAM_MANAGER) {
+        updateData.degree_id = user.degreeId || null
+        updateData.academic_year = user.year || null
+        updateData.group_id = user.groupId || null
+      } else {
+        // Clear these fields for admin users
+        updateData.degree_id = null
+        updateData.academic_year = null
+        updateData.group_id = null
+      }
+
+      // Update profile
+      const { error: updateError } = await supabase.from("profiles").update(updateData).eq("id", user.id)
 
       if (updateError) throw updateError
-
-      // Handle student-specific data
-      if (user.role === UserRole.STUDENT) {
-        // Check if student profile exists
-        const { data: existingProfile, error: checkError } = await supabase
-          .from("student_profiles")
-          .select("profile_id")
-          .eq("profile_id", user.id)
-          .maybeSingle()
-
-        if (checkError) throw checkError
-
-        if (existingProfile) {
-          // Update existing profile
-          const { error: updateError } = await supabase
-            .from("student_profiles")
-            .update({
-              group_id: studentData.groupId,
-              year: studentData.year,
-              degree_id: studentData.degreeId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("profile_id", user.id)
-
-          if (updateError) throw updateError
-        } else if (studentData.groupId && studentData.year && studentData.degreeId) {
-          // Create new profile
-          const { error: insertError } = await supabase.from("student_profiles").insert({
-            profile_id: user.id,
-            group_id: studentData.groupId,
-            year: studentData.year,
-            degree_id: studentData.degreeId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (insertError) throw insertError
-        }
-      }
-
-      // Handle manager-specific data
-      if (user.role === UserRole.PROGRAM_MANAGER) {
-        // Check if manager profile exists
-        const { data: existingProfile, error: checkError } = await supabase
-          .from("manager_profiles")
-          .select("profile_id")
-          .eq("profile_id", user.id)
-          .maybeSingle()
-
-        if (checkError) throw checkError
-
-        if (existingProfile) {
-          // Update existing profile
-          const { error: updateError } = await supabase
-            .from("manager_profiles")
-            .update({
-              group_id: managerData.groupId,
-              degree_id: managerData.degreeId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("profile_id", user.id)
-
-          if (updateError) throw updateError
-        } else if (managerData.groupId && managerData.degreeId) {
-          // Create new profile
-          const { error: insertError } = await supabase.from("manager_profiles").insert({
-            profile_id: user.id,
-            group_id: managerData.groupId,
-            degree_id: managerData.degreeId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (insertError) throw insertError
-        }
-      }
 
       toast({
         title: "Success",
@@ -427,10 +308,7 @@ export default function UserEditPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="degreeId">{t("admin.users.degree")}</Label>
-                    <Select
-                      value={studentData.degreeId}
-                      onValueChange={(value) => handleStudentDataChange("degreeId", value)}
-                    >
+                    <Select value={user.degreeId} onValueChange={(value) => handleInputChange("degreeId", value)}>
                       <SelectTrigger id="degreeId">
                         <SelectValue placeholder={t("admin.users.selectDegree")} />
                       </SelectTrigger>
@@ -446,9 +324,9 @@ export default function UserEditPage() {
                   <div className="space-y-2">
                     <Label htmlFor="groupId">{t("admin.users.group")}</Label>
                     <Select
-                      value={studentData.groupId}
-                      onValueChange={(value) => handleStudentDataChange("groupId", value)}
-                      disabled={!studentData.degreeId || filteredGroups.length === 0}
+                      value={user.groupId}
+                      onValueChange={(value) => handleInputChange("groupId", value)}
+                      disabled={!user.degreeId || filteredGroups.length === 0}
                     >
                       <SelectTrigger id="groupId">
                         <SelectValue placeholder={t("admin.users.selectGroup")} />
@@ -468,13 +346,13 @@ export default function UserEditPage() {
               {user.role === UserRole.STUDENT && (
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("admin.users.year")}</Label>
-                  <Select value={studentData.year} onValueChange={(value) => handleStudentDataChange("year", value)}>
+                  <Select value={user.year} onValueChange={(value) => handleInputChange("year", value)}>
                     <SelectTrigger id="year">
                       <SelectValue placeholder={t("admin.users.selectYear")} />
                     </SelectTrigger>
                     <SelectContent>
                       {years.map((year) => (
-                        <SelectItem key={year} value={year}>
+                        <SelectItem key={year} value={year.toString()}>
                           {year}
                         </SelectItem>
                       ))}
@@ -484,19 +362,16 @@ export default function UserEditPage() {
               )}
 
               {user.role === UserRole.PROGRAM_MANAGER && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="managerDegree">Degree</Label>
-                    <Select
-                      value={managerData.degreeId}
-                      onValueChange={(value) => handleManagerDataChange("degreeId", value)}
-                    >
+                    <Select value={user.degreeId} onValueChange={(value) => handleInputChange("degreeId", value)}>
                       <SelectTrigger id="managerDegree">
                         <SelectValue placeholder="Select degree" />
                       </SelectTrigger>
                       <SelectContent>
                         {degrees.map((degree) => (
-                          <SelectItem key={degree.id} value={degree.id}>
+                          <SelectItem key={degree.id} value={degree.id.toString()}>
                             {degree.name}
                           </SelectItem>
                         ))}
@@ -505,39 +380,15 @@ export default function UserEditPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="managerProgram">Program</Label>
-                    <Select
-                      value={managerData.groupId}
-                      onValueChange={(value) => handleManagerDataChange("groupId", value)}
-                      disabled={!managerData.degreeId}
-                    >
-                      <SelectTrigger id="managerProgram">
-                        <SelectValue placeholder={managerData.degreeId ? "Select program" : "Select a degree first"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredPrograms.map((program) => (
-                          <SelectItem key={program.id} value={program.id}>
-                            {program.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
                     <Label htmlFor="managerYear">Academic Year</Label>
-                    <Select
-                      value={managerData.academicYearId}
-                      onValueChange={(value) => handleManagerDataChange("academicYearId", value)}
-                      disabled={!managerData.programId}
-                    >
+                    <Select value={user.year} onValueChange={(value) => handleInputChange("year", value)}>
                       <SelectTrigger id="managerYear">
-                        <SelectValue placeholder={managerData.programId ? "Select year" : "Select a program first"} />
+                        <SelectValue placeholder="Select year" />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredYears.map((year) => (
-                          <SelectItem key={year.id} value={year.id}>
-                            {year.year}
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
                           </SelectItem>
                         ))}
                       </SelectContent>
