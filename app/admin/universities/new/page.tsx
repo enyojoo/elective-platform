@@ -170,8 +170,8 @@ export default function NewUniversityPage() {
       if (error) throw error
 
       toast({
-        title: t("admin.newUniversity.success", "Success"),
-        description: t("admin.newUniversity.successMessage", "University created successfully"),
+        title: t("admin.universities.createSuccess", "Success"),
+        description: t("admin.universities.createSuccessDesc", "University has been created successfully"),
       })
 
       // Redirect to universities page after successful submission
@@ -179,8 +179,8 @@ export default function NewUniversityPage() {
     } catch (error) {
       console.error("Error creating university:", error)
       toast({
-        title: t("admin.newUniversity.error", "Error"),
-        description: t("admin.newUniversity.errorMessage", "Failed to create university"),
+        title: t("admin.universities.error", "Error"),
+        description: t("admin.universities.errorCreating", "Failed to create university"),
         variant: "destructive",
       })
     } finally {
