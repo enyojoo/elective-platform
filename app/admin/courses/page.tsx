@@ -68,7 +68,7 @@ export default function CoursesPage() {
   const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
   const [totalCourses, setTotalCourses] = useState(0)
   const itemsPerPage = 10
-  const { t, currentLanguage } = useLanguage()
+  const { t, language } = useLanguage()
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
   const { institution } = useInstitution()
@@ -334,7 +334,7 @@ export default function CoursesPage() {
 
   // Helper function to get localized degree name
   const getLocalizedDegreeName = (degree: any) => {
-    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
+    if (language === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
       return degree.name_ru
     }
     return degree.name
@@ -438,17 +438,15 @@ export default function CoursesPage() {
                       courses.map((course) => (
                         <TableRow key={course.id}>
                           <TableCell className="font-medium">
-                            {currentLanguage === "ru" && course.name_ru ? course.name_ru : course.name_en}
+                            {language === "ru" && course.name_ru ? course.name_ru : course.name_en}
                           </TableCell>
                           <TableCell>
-                            {currentLanguage === "ru" && course.instructor_ru
-                              ? course.instructor_ru
-                              : course.instructor_en}
+                            {language === "ru" && course.instructor_ru ? course.instructor_ru : course.instructor_en}
                           </TableCell>
                           <TableCell>
                             {course.degree && (
                               <Badge variant="outline">
-                                {currentLanguage === "ru" && course.degree.name_ru
+                                {language === "ru" && course.degree.name_ru
                                   ? course.degree.name_ru
                                   : course.degree.name}
                               </Badge>
