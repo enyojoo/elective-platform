@@ -280,7 +280,7 @@ export function UsersSettings() {
         // Fetch groups
         const { data: groupsData, error: groupsError } = await supabase
           .from("groups")
-          .select("id, name, degree_id, display_name, program_id, academic_year_id")
+          .select("id, name, degree_id, program_id, academic_year_id")
           .eq("institution_id", institution.id)
           .eq("status", "active")
 
