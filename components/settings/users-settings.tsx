@@ -126,7 +126,6 @@ export function UsersSettings() {
           .from("degrees")
           .select("id, name")
           .eq("institution_id", institution.id)
-          .eq("status", "active")
 
         if (degreesError) throw degreesError
         setDegrees(degreesData || [])
@@ -136,7 +135,6 @@ export function UsersSettings() {
           .from("groups")
           .select("id, name, degree_id")
           .eq("institution_id", institution.id)
-          .eq("status", "active")
 
         if (groupsError) throw groupsError
         setGroups(groupsData || [])
@@ -158,7 +156,7 @@ export function UsersSettings() {
     }
 
     fetchReferenceData()
-  }, [institution?.id, isEditDialogOpen, supabase, toast, editFormData.degreeId])
+  }, [institution?.id, isEditDialogOpen, supabase, toast])
 
   // Filter groups when degree changes
   useEffect(() => {
@@ -327,17 +325,81 @@ export function UsersSettings() {
 
   // Handle opening the edit dialog
   const handleEditUser = (user: any) => {
-    setUserToEdit(user)
-    setEditFormData({
-      name: user.name || "",
-      email: user.email || "",
-      role: user.role || "",
-      status: user.status || "active",
-      degreeId: user.degreeId || "",
-      groupId: user.groupId || "",
-      year: user.year || "",
-    })
-    openEditDialog()
+    // Fetch additional data for the user if needed
+    const fetchUserDetails = async (userId: string) => {
+      try {
+        // Get student profile data if it exists
+        if (user.role === "student") {
+          const { data: studentProfile, error: studentError } = await supabase
+            .from("student_profiles")
+            .select("degree_id, group_id, year")
+            .eq("profile_id", userId)
+            .maybeSingle()
+
+          if (studentError) throw studentError
+
+          if (studentProfile) {
+            user.degreeId = studentProfile.degree_id
+            user.groupId = studentProfile.group_id
+            user.year = studentProfile.year
+          }
+        }
+
+        // Get manager profile data if it exists
+        if (user.role === "program_manager") {
+          const { data: managerProfile, error: managerError } = await supabase
+            .from("manager_profiles")
+            .select("degree_id, year")
+            .eq("profile_id", userId)
+            .maybeSingle()
+
+          if (managerError) throw managerError
+
+          if (managerProfile) {
+            user.degreeId = managerProfile.degree_id
+            user.year = managerProfile.year
+          }
+        }
+
+        // Now set the user to edit with all the data
+        setUserToEdit(user)
+        setEditFormData({
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "",
+          status: user.status || "active",
+          degreeId: user.degreeId || "",
+          groupId: user.groupId || "",
+          year: user.year || "",
+        })
+
+        // Open the dialog after data is loaded
+        openEditDialog()
+      } catch (error: any) {
+        console.error("Error fetching user details:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load user details: " + error.message,
+          variant: "destructive",
+        })
+
+        // Still open the dialog with basic info
+        setUserToEdit(user)
+        setEditFormData({
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "",
+          status: user.status || "active",
+          degreeId: "",
+          groupId: "",
+          year: "",
+        })
+        openEditDialog()
+      }
+    }
+
+    // Start fetching user details
+    fetchUserDetails(user.id)
   }
 
   // Handle closing the edit dialog
@@ -440,16 +502,18 @@ export function UsersSettings() {
             .from("manager_profiles")
             .update({
               degree_id: editFormData.degreeId,
+              year: editFormData.year,
               updated_at: new Date().toISOString(),
             })
             .eq("profile_id", userToEdit.id)
 
           if (updateError) throw updateError
-        } else if (editFormData.degreeId) {
+        } else if (editFormData.degreeId && editFormData.year) {
           // Create new profile
           const { error: insertError } = await supabase.from("manager_profiles").insert({
             profile_id: userToEdit.id,
             degree_id: editFormData.degreeId,
+            year: editFormData.year,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -754,7 +818,6 @@ export function UsersSettings() {
                     <Select
                       value={editFormData.degreeId}
                       onValueChange={(value) => handleEditFormChange("degreeId", value)}
-                      disabled={isLoadingReferenceData}
                     >
                       <SelectTrigger id="edit-degree">
                         <SelectValue placeholder={t("admin.users.selectDegree")} />
@@ -773,7 +836,7 @@ export function UsersSettings() {
                     <Select
                       value={editFormData.groupId}
                       onValueChange={(value) => handleEditFormChange("groupId", value)}
-                      disabled={!editFormData.degreeId || filteredGroups.length === 0 || isLoadingReferenceData}
+                      disabled={!editFormData.degreeId || filteredGroups.length === 0}
                     >
                       <SelectTrigger id="edit-group">
                         <SelectValue placeholder={t("admin.users.selectGroup")} />
@@ -807,24 +870,40 @@ export function UsersSettings() {
             )}
 
             {editFormData.role === "program_manager" && (
-              <div className="space-y-2">
-                <Label htmlFor="edit-manager-degree">{t("admin.users.degree")}</Label>
-                <Select
-                  value={editFormData.degreeId}
-                  onValueChange={(value) => handleEditFormChange("degreeId", value)}
-                  disabled={isLoadingReferenceData}
-                >
-                  <SelectTrigger id="edit-manager-degree">
-                    <SelectValue placeholder={t("admin.users.selectDegree")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {degrees.map((degree) => (
-                      <SelectItem key={degree.id} value={degree.id}>
-                        {degree.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-manager-degree">{t("admin.users.degree")}</Label>
+                  <Select
+                    value={editFormData.degreeId}
+                    onValueChange={(value) => handleEditFormChange("degreeId", value)}
+                  >
+                    <SelectTrigger id="edit-manager-degree">
+                      <SelectValue placeholder={t("admin.users.selectDegree")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {degrees.map((degree) => (
+                        <SelectItem key={degree.id} value={degree.id}>
+                          {degree.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-manager-year">{t("admin.users.year")}</Label>
+                  <Select value={editFormData.year} onValueChange={(value) => handleEditFormChange("year", value)}>
+                    <SelectTrigger id="edit-manager-year">
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
