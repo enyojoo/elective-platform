@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -43,10 +43,13 @@ export function UsersSettings() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
+  const { users: cachedUsers, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
   const { degrees } = useCachedDegrees(institution?.id)
   const { groups } = useCachedGroups(institution?.id)
   const { invalidateCache } = useDataCache()
+
+  // Create a local copy of users that we can modify directly
+  const [users, setUsers] = useState<any[]>([])
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
@@ -69,16 +72,15 @@ export function UsersSettings() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Initialize filteredUsers with users data when it becomes available
+  // Initialize local users state from cached users
   useEffect(() => {
-    if (users && users.length > 0) {
-      setFilteredUsers(users)
-      setTotalPages(Math.ceil(users.length / itemsPerPage))
+    if (cachedUsers && cachedUsers.length > 0) {
+      setUsers([...cachedUsers])
     }
-  }, [users, itemsPerPage])
+  }, [cachedUsers])
 
-  // Filter users based on search term and filters
-  useEffect(() => {
+  // Apply filters to users whenever users or filter criteria change
+  const applyFilters = useCallback(() => {
     if (!users || users.length === 0) return
 
     let result = [...users]
@@ -101,8 +103,17 @@ export function UsersSettings() {
 
     setFilteredUsers(result)
     setTotalPages(Math.ceil(result.length / itemsPerPage))
-    setCurrentPage(1) // Reset to first page when filters change
-  }, [searchTerm, roleFilter, statusFilter, users])
+
+    // Adjust current page if it's now out of bounds
+    if (currentPage > Math.ceil(result.length / itemsPerPage) && result.length > 0) {
+      setCurrentPage(1)
+    }
+  }, [users, searchTerm, roleFilter, statusFilter, itemsPerPage, currentPage])
+
+  // Apply filters whenever relevant state changes
+  useEffect(() => {
+    applyFilters()
+  }, [users, searchTerm, roleFilter, statusFilter, applyFilters])
 
   // Filter groups based on selected degree
   useEffect(() => {
@@ -184,18 +195,8 @@ export function UsersSettings() {
         return user
       })
 
-      // Update both state variables immediately
-      setFilteredUsers((prevFiltered) =>
-        prevFiltered.map((user) => {
-          if (user.id === userId) {
-            return {
-              ...user,
-              status: newStatus ? "active" : "inactive",
-            }
-          }
-          return user
-        }),
-      )
+      // Update the users state with the new array
+      setUsers(updatedUsers)
 
       // Make the API call
       const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
@@ -219,8 +220,10 @@ export function UsersSettings() {
         variant: "destructive",
       })
 
-      // Revert the UI changes on error
-      setFilteredUsers((prevFiltered) => [...prevFiltered])
+      // Revert the UI changes on error by resetting to cached users
+      if (cachedUsers) {
+        setUsers([...cachedUsers])
+      }
     }
   }
 
@@ -243,8 +246,11 @@ export function UsersSettings() {
     setIsDeleting(true)
     try {
       // Update local state immediately before API call for better UX
-      const updatedFilteredUsers = filteredUsers.filter((user) => user.id !== userToDelete)
-      setFilteredUsers(updatedFilteredUsers)
+      const updatedUsers = users.filter((user) => user.id !== userToDelete)
+      setUsers(updatedUsers)
+
+      // Close dialog immediately for better UX
+      handleCloseDeleteDialog()
 
       // Make the API call
       const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
@@ -260,8 +266,6 @@ export function UsersSettings() {
         title: "Success",
         description: "User has been deleted successfully",
       })
-
-      handleCloseDeleteDialog()
     } catch (error: any) {
       console.error("Error deleting user:", error)
       toast({
@@ -270,27 +274,9 @@ export function UsersSettings() {
         variant: "destructive",
       })
 
-      // Revert the UI changes on error by refreshing the filtered users from the original users
-      if (users && users.length > 0) {
-        let result = [...users]
-
-        if (searchTerm) {
-          result = result.filter(
-            (user) =>
-              user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              user.email.toLowerCase().includes(searchTerm.toLowerCase()),
-          )
-        }
-
-        if (roleFilter !== "all") {
-          result = result.filter((user) => user.role === roleFilter)
-        }
-
-        if (statusFilter !== "all") {
-          result = result.filter((user) => user.status === statusFilter)
-        }
-
-        setFilteredUsers(result)
+      // Revert the UI changes on error by resetting to cached users
+      if (cachedUsers) {
+        setUsers([...cachedUsers])
       }
     } finally {
       setIsDeleting(false)
@@ -311,12 +297,6 @@ export function UsersSettings() {
         groupId: userToEdit.groupId || "",
         year: userToEdit.year || "",
       })
-      console.log("Editing user:", userToEdit)
-      console.log("Available groups:", groups)
-      console.log(
-        "Filtered groups for degree:",
-        groups.filter((g) => g.degreeId === userToEdit.degreeId),
-      )
       openEditDialog()
     }
   }
@@ -351,55 +331,45 @@ export function UsersSettings() {
       if (editingUser.role === UserRole.STUDENT || editingUser.role === UserRole.PROGRAM_MANAGER) {
         updateData.degree_id = editingUser.degreeId || null
         updateData.academic_year = editingUser.year || null
-        updateData.group_id = editingUser.groupId || null
+
+        // Only add group_id for students
+        if (editingUser.role === UserRole.STUDENT) {
+          updateData.group_id = editingUser.groupId || null
+        }
       }
 
-      // Update profile
-      const { error } = await supabase.from("profiles").update(updateData).eq("id", editingUser.id)
-
-      if (error) throw error
-
-      // Update local state immediately
+      // Update local state immediately for better UX
       const updatedUsers = users.map((user) => {
         if (user.id === editingUser.id) {
-          return {
+          const updatedUser = {
             ...user,
             name: editingUser.name,
             email: editingUser.email,
             role: editingUser.role,
             status: editingUser.status,
             degreeId: editingUser.degreeId || "",
-            groupId: editingUser.groupId || "",
+            groupId: editingUser.role === UserRole.STUDENT ? editingUser.groupId || "" : "",
             year: editingUser.year || "",
             // Update related display fields
             degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
-            groupName: groups.find((g) => g.id === editingUser.groupId)?.name || "",
+            groupName:
+              editingUser.role === UserRole.STUDENT ? groups.find((g) => g.id === editingUser.groupId)?.name || "" : "",
           }
+          return updatedUser
         }
         return user
       })
 
-      // Update filtered users
-      setFilteredUsers(
-        filteredUsers.map((user) => {
-          if (user.id === editingUser.id) {
-            return {
-              ...user,
-              name: editingUser.name,
-              email: editingUser.email,
-              role: editingUser.role,
-              status: editingUser.status,
-              degreeId: editingUser.degreeId || "",
-              groupId: editingUser.groupId || "",
-              year: editingUser.year || "",
-              // Update related display fields
-              degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
-              groupName: groups.find((g) => g.id === editingUser.groupId)?.name || "",
-            }
-          }
-          return user
-        }),
-      )
+      // Update the users state with the new array
+      setUsers(updatedUsers)
+
+      // Close dialog immediately for better UX
+      handleCloseEditDialog()
+
+      // Make the API call
+      const { error } = await supabase.from("profiles").update(updateData).eq("id", editingUser.id)
+
+      if (error) throw error
 
       // Invalidate the users cache
       if (institution?.id) {
@@ -410,8 +380,6 @@ export function UsersSettings() {
         title: "Success",
         description: "User updated successfully",
       })
-
-      handleCloseEditDialog()
     } catch (error: any) {
       console.error("Error updating user:", error)
       toast({
@@ -419,6 +387,11 @@ export function UsersSettings() {
         description: `Failed to update user: ${error.message}`,
         variant: "destructive",
       })
+
+      // Revert the UI changes on error by resetting to cached users
+      if (cachedUsers) {
+        setUsers([...cachedUsers])
+      }
     } finally {
       setIsSaving(false)
     }
