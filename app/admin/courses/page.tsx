@@ -66,20 +66,11 @@ export default function CoursesPage() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
   const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
   const [totalCourses, setTotalCourses] = useState(0)
-  const [selectedDegreeName, setSelectedDegreeName] = useState<string | null>(null)
   const itemsPerPage = 10
   const { t, currentLanguage } = useLanguage()
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
   const { institution } = useInstitution()
-
-  // Helper function to get localized degree name
-  const getLocalizedDegreeName = (degree: Degree) => {
-    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
-      return degree.name_ru
-    }
-    return degree.name
-  }
 
   // Load cached data on initial render
   useEffect(() => {
@@ -122,19 +113,6 @@ export default function CoursesPage() {
 
     loadCachedData()
   }, [institution?.id, searchTerm, statusFilter, degreeFilter, currentPage])
-
-  // Update selected degree name when degree filter or degrees change
-  useEffect(() => {
-    if (degreeFilter === "all") {
-      setSelectedDegreeName(t("admin.courses.allDegrees"))
-      return
-    }
-
-    const selectedDegree = degrees.find((d) => d.id === degreeFilter)
-    if (selectedDegree) {
-      setSelectedDegreeName(getLocalizedDegreeName(selectedDegree))
-    }
-  }, [degreeFilter, degrees, currentLanguage, t])
 
   // Fetch degrees from Supabase
   useEffect(() => {
@@ -353,6 +331,16 @@ export default function CoursesPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
+  // Helper function to get localized degree name
+  const getLocalizedDegreeName = (degree: Degree | null) => {
+    if (!degree) return ""
+
+    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
+      return degree.name_ru
+    }
+    return degree.name
+  }
+
   // Helper function to get localized course name
   const getLocalizedCourseName = (course: Course) => {
     if (currentLanguage === "ru" && course.name_ru && course.name_ru.trim() !== "") {
@@ -367,25 +355,6 @@ export default function CoursesPage() {
       return course.instructor_ru
     }
     return course.instructor_en
-  }
-
-  // Helper function to get localized degree code
-  const getLocalizedDegreeDisplay = (course: Course) => {
-    if (!course.degree) return null
-
-    if (currentLanguage === "ru" && course.degree.name_ru && course.degree.name_ru.trim() !== "") {
-      return (
-        <Badge variant="outline" title={course.degree.name_ru}>
-          {course.degree.code}
-        </Badge>
-      )
-    }
-
-    return (
-      <Badge variant="outline" title={course.degree.name}>
-        {course.degree.code}
-      </Badge>
-    )
   }
 
   return (
@@ -454,7 +423,7 @@ export default function CoursesPage() {
                   >
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue>{selectedDegreeName || t("admin.courses.degree")}</SelectValue>
+                      <SelectValue placeholder={t("admin.courses.degree")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
@@ -487,7 +456,9 @@ export default function CoursesPage() {
                         <TableRow key={course.id}>
                           <TableCell className="font-medium">{getLocalizedCourseName(course)}</TableCell>
                           <TableCell>{getLocalizedInstructorName(course)}</TableCell>
-                          <TableCell>{getLocalizedDegreeDisplay(course)}</TableCell>
+                          <TableCell>
+                            {course.degree && <Badge variant="outline">{getLocalizedDegreeName(course.degree)}</Badge>}
+                          </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
