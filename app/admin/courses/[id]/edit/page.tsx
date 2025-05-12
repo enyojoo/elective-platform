@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,11 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { supabase } from "@/lib/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedDegrees } from "@/hooks/use-cached-degrees"
 import { useInstitution } from "@/lib/institution-context"
-import { Skeleton } from "@/components/ui/skeleton"
 
 // Course status options
 const statusOptions = [
@@ -27,20 +26,35 @@ const statusOptions = [
   { value: "draft", label: "Draft" },
 ]
 
+interface Course {
+  id: string
+  name_en: string
+  name_ru: string | null
+  degree_id: string
+  instructor_en: string
+  instructor_ru: string | null
+  description_en: string | null
+  description_ru: string | null
+  status: string
+  created_at: string
+  updated_at: string
+  institution_id: string
+}
+
 export default function EditCoursePage() {
-  const router = useRouter()
   const params = useParams()
-  const courseId = params.id as string
+  const router = useRouter()
+  const { t, language } = useLanguage()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const { t, language } = useLanguage()
+  const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
 
   // Use the cached degrees hook instead of fetching directly
   const { degrees, isLoading: isLoadingDegrees } = useCachedDegrees(institution?.id?.toString())
 
-  const [course, setCourse] = useState({
+  const [course, setCourse] = useState<Course | null>(null)
+  const [formData, setFormData] = useState({
     nameEn: "",
     nameRu: "",
     degreeId: "",
@@ -48,19 +62,21 @@ export default function EditCoursePage() {
     instructorRu: "",
     descriptionEn: "",
     descriptionRu: "",
-    status: "active", // Default status
+    status: "active",
   })
 
   // Fetch course data
   useEffect(() => {
-    async function fetchCourse() {
-      if (!courseId || !institution?.id) return
-
+    const fetchCourse = async () => {
       try {
+        if (!institution?.id) {
+          return
+        }
+
         const { data, error } = await supabase
           .from("courses")
           .select("*")
-          .eq("id", courseId)
+          .eq("id", params.id)
           .eq("institution_id", institution.id)
           .single()
 
@@ -68,52 +84,46 @@ export default function EditCoursePage() {
           throw error
         }
 
-        if (!data) {
-          toast({
-            title: "Error",
-            description: "Course not found",
-            variant: "destructive",
+        if (data) {
+          setCourse(data)
+          setFormData({
+            nameEn: data.name_en || "",
+            nameRu: data.name_ru || "",
+            degreeId: data.degree_id || "",
+            instructorEn: data.instructor_en || "",
+            instructorRu: data.instructor_ru || "",
+            descriptionEn: data.description_en || "",
+            descriptionRu: data.description_ru || "",
+            status: data.status || "active",
           })
-          router.push("/admin/courses")
-          return
         }
-
-        setCourse({
-          nameEn: data.name_en || "",
-          nameRu: data.name_ru || "",
-          degreeId: data.degree_id || "",
-          instructorEn: data.instructor_en || "",
-          instructorRu: data.instructor_ru || "",
-          descriptionEn: data.description_en || "",
-          descriptionRu: data.description_ru || "",
-          status: data.status || "active",
-        })
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error fetching course:", error)
         toast({
-          title: "Error",
-          description: "Failed to load course: " + error.message,
+          title: t("admin.courses.error", "Error"),
+          description: t("admin.courses.errorFetching", "Failed to fetch course details"),
           variant: "destructive",
         })
-      } finally {
-        setIsLoading(false)
+        router.push("/admin/courses")
       }
     }
 
-    fetchCourse()
-  }, [courseId, institution?.id, router, toast])
+    if (params.id) {
+      fetchCourse()
+    }
+  }, [params.id, supabase, toast, t, institution?.id, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setCourse((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleDegreeChange = (value: string) => {
-    setCourse((prev) => ({ ...prev, degreeId: value }))
+    setFormData((prev) => ({ ...prev, degreeId: value }))
   }
 
   const handleStatusChange = (value: string) => {
-    setCourse((prev) => ({ ...prev, status: value }))
+    setFormData((prev) => ({ ...prev, status: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,56 +131,44 @@ export default function EditCoursePage() {
     setIsSubmitting(true)
 
     try {
-      if (!institution?.id) {
-        toast({
-          title: "Error",
-          description: "Institution information not available",
-          variant: "destructive",
-        })
-        return
+      if (!course || !institution?.id) {
+        throw new Error("Course or institution not found")
       }
 
-      // Update the course in Supabase
       const { error } = await supabase
         .from("courses")
         .update({
-          name_en: course.nameEn,
-          name_ru: course.nameRu,
-          degree_id: course.degreeId,
-          instructor_en: course.instructorEn,
-          instructor_ru: course.instructorRu,
-          description_en: course.descriptionEn,
-          description_ru: course.descriptionRu,
-          status: course.status,
+          name_en: formData.nameEn,
+          name_ru: formData.nameRu || null,
+          degree_id: formData.degreeId,
+          instructor_en: formData.instructorEn,
+          instructor_ru: formData.instructorRu || null,
+          description_en: formData.descriptionEn || null,
+          description_ru: formData.descriptionRu || null,
+          status: formData.status,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", courseId)
+        .eq("id", course.id)
         .eq("institution_id", institution.id)
 
       if (error) {
-        toast({
-          title: "Error updating course",
-          description: error.message,
-          variant: "destructive",
-        })
-        return
+        throw error
       }
 
       // Clear cache to ensure fresh data is loaded
       localStorage.removeItem("admin_courses_cache")
 
       toast({
-        title: "Success",
-        description: "Course updated successfully",
+        title: t("admin.courses.updateSuccess", "Course Updated"),
+        description: t("admin.courses.updateSuccessDesc", "Course has been updated successfully"),
       })
 
-      // Redirect to courses page after successful submission
       router.push("/admin/courses")
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating course:", error)
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: t("admin.courses.error", "Error"),
+        description: t("admin.courses.errorUpdating", "Failed to update course"),
         variant: "destructive",
       })
     } finally {
@@ -195,79 +193,32 @@ export default function EditCoursePage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">{t("admin.editCourse.title")}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.editCourse.title", "Edit Course")}</h1>
         </div>
 
         <Card>
           <CardContent className="pt-6">
-            {isLoading ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-32 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-32 w-full" />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-4">
-                  <Skeleton className="h-10 w-24" />
-                  <Skeleton className="h-10 w-24" />
-                </div>
-              </div>
-            ) : (
+            {course && (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="nameEn">{t("admin.editCourse.nameEn")}</Label>
+                    <Label htmlFor="nameEn">{t("admin.editCourse.nameEn", "Course Name (English)")}</Label>
                     <Input
                       id="nameEn"
                       name="nameEn"
-                      placeholder={t("admin.editCourse.nameEnPlaceholder")}
-                      value={course.nameEn}
+                      placeholder={t("admin.editCourse.nameEnPlaceholder", "Strategic Management")}
+                      value={formData.nameEn}
                       onChange={handleChange}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="nameRu">{t("admin.editCourse.nameRu")}</Label>
+                    <Label htmlFor="nameRu">{t("admin.editCourse.nameRu", "Course Name (Russian)")}</Label>
                     <Input
                       id="nameRu"
                       name="nameRu"
-                      placeholder={t("admin.editCourse.nameRuPlaceholder")}
-                      value={course.nameRu}
+                      placeholder={t("admin.editCourse.nameRuPlaceholder", "Стратегический менеджмент")}
+                      value={formData.nameRu}
                       onChange={handleChange}
                       required
                     />
@@ -276,19 +227,15 @@ export default function EditCoursePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="degreeId">{t("admin.editCourse.degree")}</Label>
-                    <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
+                    <Label htmlFor="degreeId">{t("admin.editCourse.degree", "Degree")}</Label>
+                    <Select value={formData.degreeId} onValueChange={handleDegreeChange} required>
                       <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            isLoadingDegrees ? t("admin.courses.loading") : t("admin.editCourse.selectDegree")
-                          }
-                        />
+                        <SelectValue placeholder={t("admin.editCourse.selectDegree", "Select a degree")} />
                       </SelectTrigger>
                       <SelectContent>
                         {degrees.length === 0 ? (
                           <SelectItem value="no-degrees" disabled>
-                            {t("admin.editCourse.noDegrees")}
+                            {t("admin.editCourse.noDegrees", "No degrees available")}
                           </SelectItem>
                         ) : (
                           degrees.map((degree) => (
@@ -301,15 +248,15 @@ export default function EditCoursePage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="status">{t("admin.editCourse.status")}</Label>
-                    <Select value={course.status} onValueChange={handleStatusChange} required>
+                    <Label htmlFor="status">{t("admin.editCourse.status", "Status")}</Label>
+                    <Select value={formData.status} onValueChange={handleStatusChange} required>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("admin.editCourse.selectStatus")} />
+                        <SelectValue placeholder={t("admin.editCourse.selectStatus", "Select status")} />
                       </SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {t(`admin.courses.${option.value}`)}
+                            {t(`admin.courses.status.${option.value}`, option.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -319,23 +266,27 @@ export default function EditCoursePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="instructorEn">{t("admin.editCourse.instructorEn")}</Label>
+                    <Label htmlFor="instructorEn">
+                      {t("admin.editCourse.instructorEn", "Instructor Name (English)")}
+                    </Label>
                     <Input
                       id="instructorEn"
                       name="instructorEn"
-                      placeholder={t("admin.editCourse.instructorEnPlaceholder")}
-                      value={course.instructorEn}
+                      placeholder={t("admin.editCourse.instructorEnPlaceholder", "Prof. John Smith")}
+                      value={formData.instructorEn}
                       onChange={handleChange}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="instructorRu">{t("admin.editCourse.instructorRu")}</Label>
+                    <Label htmlFor="instructorRu">
+                      {t("admin.editCourse.instructorRu", "Instructor Name (Russian)")}
+                    </Label>
                     <Input
                       id="instructorRu"
                       name="instructorRu"
-                      placeholder={t("admin.editCourse.instructorRuPlaceholder")}
-                      value={course.instructorRu}
+                      placeholder={t("admin.editCourse.instructorRuPlaceholder", "Проф. Иван Смирнов")}
+                      value={formData.instructorRu}
                       onChange={handleChange}
                       required
                     />
@@ -344,24 +295,28 @@ export default function EditCoursePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="descriptionEn">{t("admin.editCourse.descriptionEn")}</Label>
+                    <Label htmlFor="descriptionEn">
+                      {t("admin.editCourse.descriptionEn", "Description (English)")}
+                    </Label>
                     <Textarea
                       id="descriptionEn"
                       name="descriptionEn"
-                      placeholder={t("admin.editCourse.descriptionEnPlaceholder")}
-                      value={course.descriptionEn}
+                      placeholder={t("admin.editCourse.descriptionEnPlaceholder", "Course description in English")}
+                      value={formData.descriptionEn}
                       onChange={handleChange}
                       rows={4}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="descriptionRu">{t("admin.editCourse.descriptionRu")}</Label>
+                    <Label htmlFor="descriptionRu">
+                      {t("admin.editCourse.descriptionRu", "Description (Russian)")}
+                    </Label>
                     <Textarea
                       id="descriptionRu"
                       name="descriptionRu"
-                      placeholder={t("admin.editCourse.descriptionRuPlaceholder")}
-                      value={course.descriptionRu}
+                      placeholder={t("admin.editCourse.descriptionRuPlaceholder", "Описание курса на русском языке")}
+                      value={formData.descriptionRu}
                       onChange={handleChange}
                       rows={4}
                       required
@@ -371,10 +326,12 @@ export default function EditCoursePage() {
 
                 <div className="flex justify-end gap-4">
                   <Button variant="outline" type="button" onClick={() => router.push("/admin/courses")}>
-                    {t("admin.editCourse.cancel")}
+                    {t("admin.editCourse.cancel", "Cancel")}
                   </Button>
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? t("admin.editCourse.updating") : t("admin.editCourse.update")}
+                    {isSubmitting
+                      ? t("admin.editCourse.updating", "Updating...")
+                      : t("admin.editCourse.update", "Update Course")}
                   </Button>
                 </div>
               </form>

@@ -463,7 +463,7 @@ export default function CoursesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
-                                  <Link href={`/admin/courses/${course.id}`} className="w-full">
+                                  <Link href={`/admin/courses/${course.id}/edit`} className="w-full">
                                     {t("admin.courses.edit")}
                                   </Link>
                                 </DropdownMenuItem>
