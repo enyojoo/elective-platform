@@ -521,8 +521,9 @@ export default function CoursesPage() {
                                   {t("admin.courses.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
-                            </TableCell>
-                          </TableRow>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
                       ))
                     ) : (
                       <TableRow>
@@ -537,7 +538,8 @@ export default function CoursesPage() {
 
               {totalPages > 1 && (
                 <Pagination>
-                  <PaginationContent> <PaginationItem>
+                  <PaginationContent>
+                    <PaginationItem>
                       <PaginationPrevious
                         href="#"
                         onClick={(e) => {
@@ -634,7 +636,10 @@ export default function CoursesPage() {
               {t("admin.courses.confirmDeleteTitle", "Delete Course")}
             </DialogTitle>
             <DialogDescription className="pt-2">
-              {t("admin.courses.confirmDeleteMessage", "You are sure you want to delete this course? This action cannot be undone.")}
+              {t(
+                "admin.courses.confirmDeleteMessage",
+                "You are sure you want to delete this course? This action cannot be undone.",
+              )}
               <div className="mt-2 font-medium">{getCourseToDeleteName()}</div>
             </DialogDescription>
           </DialogHeader>
