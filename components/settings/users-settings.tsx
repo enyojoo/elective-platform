@@ -106,13 +106,13 @@ export function UsersSettings() {
 
   // Filter groups based on selected degree
   useEffect(() => {
-    if (editingUser?.degreeId) {
-      const filtered = groups.filter((group) => group.degree_id === editingUser.degreeId)
+    if (editingUser?.degreeId && groups && groups.length > 0) {
+      const filtered = groups.filter((group) => group.degreeId === editingUser.degreeId)
       setFilteredGroups(filtered)
 
       // Reset group selection if current selection is not valid for new degree
-      if (!filtered.find((g) => g.id === editingUser.groupId)) {
-        setEditingUser((prev: any) => ({ ...prev, groupId: "" }))
+      if (editingUser.groupId && !filtered.find((g) => g.id === editingUser.groupId)) {
+        setEditingUser((prev) => ({ ...prev, groupId: "" }))
       }
     } else {
       setFilteredGroups([])
@@ -173,11 +173,7 @@ export function UsersSettings() {
   // Handle user status change
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
-      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
-
-      if (error) throw error
-
-      // Update local state immediately
+      // Update local state immediately before API call for better UX
       const updatedUsers = users.map((user) => {
         if (user.id === userId) {
           return {
@@ -188,7 +184,7 @@ export function UsersSettings() {
         return user
       })
 
-      // Update filtered users
+      // Update both state variables immediately
       setFilteredUsers((prevFiltered) =>
         prevFiltered.map((user) => {
           if (user.id === userId) {
@@ -200,6 +196,11 @@ export function UsersSettings() {
           return user
         }),
       )
+
+      // Make the API call
+      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
+
+      if (error) throw error
 
       // Invalidate the users cache
       if (institution?.id) {
@@ -217,6 +218,9 @@ export function UsersSettings() {
         description: `Failed to update user status: ${error.message}`,
         variant: "destructive",
       })
+
+      // Revert the UI changes on error
+      setFilteredUsers((prevFiltered) => [...prevFiltered])
     }
   }
 
@@ -238,13 +242,14 @@ export function UsersSettings() {
 
     setIsDeleting(true)
     try {
+      // Update local state immediately before API call for better UX
+      const updatedFilteredUsers = filteredUsers.filter((user) => user.id !== userToDelete)
+      setFilteredUsers(updatedFilteredUsers)
+
+      // Make the API call
       const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
 
       if (error) throw error
-
-      // Update local state immediately
-      const updatedFilteredUsers = filteredUsers.filter((user) => user.id !== userToDelete)
-      setFilteredUsers(updatedFilteredUsers)
 
       // Invalidate the users cache
       if (institution?.id) {
@@ -264,6 +269,29 @@ export function UsersSettings() {
         description: `Failed to delete user: ${error.message}`,
         variant: "destructive",
       })
+
+      // Revert the UI changes on error by refreshing the filtered users from the original users
+      if (users && users.length > 0) {
+        let result = [...users]
+
+        if (searchTerm) {
+          result = result.filter(
+            (user) =>
+              user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.email.toLowerCase().includes(searchTerm.toLowerCase()),
+          )
+        }
+
+        if (roleFilter !== "all") {
+          result = result.filter((user) => user.role === roleFilter)
+        }
+
+        if (statusFilter !== "all") {
+          result = result.filter((user) => user.status === statusFilter)
+        }
+
+        setFilteredUsers(result)
+      }
     } finally {
       setIsDeleting(false)
     }
@@ -283,6 +311,12 @@ export function UsersSettings() {
         groupId: userToEdit.groupId || "",
         year: userToEdit.year || "",
       })
+      console.log("Editing user:", userToEdit)
+      console.log("Available groups:", groups)
+      console.log(
+        "Filtered groups for degree:",
+        groups.filter((g) => g.degreeId === userToEdit.degreeId),
+      )
       openEditDialog()
     }
   }
@@ -597,8 +631,8 @@ export function UsersSettings() {
       >
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>{t("admin.users.editUser")}</DialogTitle>
-            <DialogDescription>{t("admin.users.editUserDescription")}</DialogDescription>
+            <DialogTitle>{t("admin.users.edit")}</DialogTitle>
+            <DialogDescription>{t("admin.settings.subtitle")}</DialogDescription>
           </DialogHeader>
 
           {editingUser && (
@@ -626,7 +660,7 @@ export function UsersSettings() {
                 <Label htmlFor="edit-role">{t("admin.users.role")}</Label>
                 <Select value={editingUser.role} onValueChange={(value) => handleEditInputChange("role", value)}>
                   <SelectTrigger id="edit-role">
-                    <SelectValue placeholder={t("admin.users.selectRole")} />
+                    <SelectValue placeholder={t("admin.users.role")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
@@ -679,14 +713,20 @@ export function UsersSettings() {
                       disabled={!editingUser.degreeId || filteredGroups.length === 0}
                     >
                       <SelectTrigger id="edit-group">
-                        <SelectValue placeholder={t("admin.users.selectGroup")} />
+                        <SelectValue placeholder={t("admin.users.group")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
+                        {filteredGroups.length > 0 ? (
+                          filteredGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id.toString()}>
+                              {group.name || group.displayName}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>
+                            {t("admin.groups.noGroups")}
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -757,11 +797,11 @@ export function UsersSettings() {
             </Button>
             <Button type="button" onClick={handleSaveUser} disabled={isSaving}>
               {isSaving ? (
-                <span className="mr-2">{t("admin.users.saving")}</span>
+                <span className="mr-2">{t("settings.branding.saving")}</span>
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  {t("admin.users.save")}
+                  {t("settings.branding.save")}
                 </>
               )}
             </Button>
