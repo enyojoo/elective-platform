@@ -101,15 +101,17 @@ export default function AdminElectivesPage() {
           const { data: courseData, error: courseError } = await supabase
             .from("elective_packs")
             .select(`
-              id, 
-              title, 
-              status, 
-              created_at, 
-              deadline,
-              program:program_id(id, name, code),
-              courses:elective_courses(id),
-              selections:student_course_selections(id)
-            `)
+    id, 
+    name,
+    name_ru,
+    description,
+    description_ru,
+    status, 
+    created_at,
+    academic_year_id,
+    academic_year:academic_year_id(id, year),
+    courses:courses(id)
+  `)
             .eq("institution_id", institution.id)
             .eq("type", "course")
             .order("created_at", { ascending: false })
@@ -120,20 +122,20 @@ export default function AdminElectivesPage() {
             // Format the data
             const formattedCourseData = courseData.map((pack) => ({
               id: pack.id,
-              title: pack.title,
-              program: pack.program?.name || "Unknown",
-              programCode: pack.program?.code || "N/A",
+              title: pack.name || "Untitled",
+              program: pack.academic_year?.year || "Unknown",
+              programCode: "N/A",
               status: pack.status,
               courses: pack.courses?.length || 0,
-              selections: pack.selections?.length || 0,
+              selections: 0, // We'll need to update this separately if needed
               createdAt: pack.created_at,
-              deadline: pack.deadline,
+              deadline: null, // Update if there's a deadline field
             }))
 
             setCourseElectivePacks(formattedCourseData)
             setCachedData("courseElectives", institution.id, formattedCourseData)
 
-            // Extract unique semesters
+            // Extract unique semesters/academic years
             const semesterList = [...new Set(formattedCourseData.map((pack) => pack.title))]
             setSemesters(semesterList)
           }
@@ -154,15 +156,16 @@ export default function AdminElectivesPage() {
           const { data: exchangeData, error: exchangeError } = await supabase
             .from("elective_packs")
             .select(`
-              id, 
-              title, 
-              status, 
-              created_at, 
-              deadline,
-              program:program_id(id, name, code),
-              universities:exchange_universities(id),
-              selections:student_exchange_selections(id)
-            `)
+    id, 
+    name,
+    name_ru,
+    description,
+    description_ru,
+    status, 
+    created_at,
+    academic_year_id,
+    academic_year:academic_year_id(id, year)
+  `)
             .eq("institution_id", institution.id)
             .eq("type", "exchange")
             .order("created_at", { ascending: false })
@@ -173,14 +176,14 @@ export default function AdminElectivesPage() {
             // Format the data
             const formattedExchangeData = exchangeData.map((pack) => ({
               id: pack.id,
-              title: pack.title,
-              program: pack.program?.name || "Unknown",
-              programCode: pack.program?.code || "N/A",
+              title: pack.name || "Untitled",
+              program: pack.academic_year?.year || "Unknown",
+              programCode: "N/A",
               status: pack.status,
-              universities: pack.universities?.length || 0,
-              selections: pack.selections?.length || 0,
+              universities: 0, // Update if there's a way to count universities
+              selections: 0, // Update if there's a way to count selections
               createdAt: pack.created_at,
-              deadline: pack.deadline,
+              deadline: null, // Update if there's a deadline field
             }))
 
             setExchangePacks(formattedExchangeData)
