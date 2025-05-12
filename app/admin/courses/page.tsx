@@ -31,7 +31,6 @@ interface Course {
   name_ru: string
   instructor_en: string
   instructor_ru: string
-  code: string
   status: string
   degree_id: string
   degree: {
@@ -67,11 +66,20 @@ export default function CoursesPage() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
   const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
   const [totalCourses, setTotalCourses] = useState(0)
+  const [selectedDegreeName, setSelectedDegreeName] = useState<string | null>(null)
   const itemsPerPage = 10
   const { t, currentLanguage } = useLanguage()
   const supabase = getSupabaseBrowserClient()
   const { toast } = useToast()
   const { institution } = useInstitution()
+
+  // Helper function to get localized degree name
+  const getLocalizedDegreeName = (degree: Degree) => {
+    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
+      return degree.name_ru
+    }
+    return degree.name
+  }
 
   // Load cached data on initial render
   useEffect(() => {
@@ -114,6 +122,19 @@ export default function CoursesPage() {
 
     loadCachedData()
   }, [institution?.id, searchTerm, statusFilter, degreeFilter, currentPage])
+
+  // Update selected degree name when degree filter or degrees change
+  useEffect(() => {
+    if (degreeFilter === "all") {
+      setSelectedDegreeName(t("admin.courses.allDegrees"))
+      return
+    }
+
+    const selectedDegree = degrees.find((d) => d.id === degreeFilter)
+    if (selectedDegree) {
+      setSelectedDegreeName(getLocalizedDegreeName(selectedDegree))
+    }
+  }, [degreeFilter, degrees, currentLanguage, t])
 
   // Fetch degrees from Supabase
   useEffect(() => {
@@ -332,12 +353,39 @@ export default function CoursesPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalCourses / itemsPerPage)
 
-  // Helper function to get localized degree name
-  const getLocalizedDegreeName = (degree: Degree) => {
-    if (currentLanguage === "ru" && degree.name_ru && degree.name_ru.trim() !== "") {
-      return degree.name_ru
+  // Helper function to get localized course name
+  const getLocalizedCourseName = (course: Course) => {
+    if (currentLanguage === "ru" && course.name_ru && course.name_ru.trim() !== "") {
+      return course.name_ru
     }
-    return degree.name
+    return course.name_en
+  }
+
+  // Helper function to get localized instructor name
+  const getLocalizedInstructorName = (course: Course) => {
+    if (currentLanguage === "ru" && course.instructor_ru && course.instructor_ru.trim() !== "") {
+      return course.instructor_ru
+    }
+    return course.instructor_en
+  }
+
+  // Helper function to get localized degree code
+  const getLocalizedDegreeDisplay = (course: Course) => {
+    if (!course.degree) return null
+
+    if (currentLanguage === "ru" && course.degree.name_ru && course.degree.name_ru.trim() !== "") {
+      return (
+        <Badge variant="outline" title={course.degree.name_ru}>
+          {course.degree.code}
+        </Badge>
+      )
+    }
+
+    return (
+      <Badge variant="outline" title={course.degree.name}>
+        {course.degree.code}
+      </Badge>
+    )
   }
 
   return (
@@ -406,7 +454,7 @@ export default function CoursesPage() {
                   >
                     <SelectTrigger className="w-[180px]">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder={t("admin.courses.degree")} />
+                      <SelectValue>{selectedDegreeName || t("admin.courses.degree")}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("admin.courses.allDegrees")}</SelectItem>
@@ -437,17 +485,9 @@ export default function CoursesPage() {
                     ) : courses.length > 0 ? (
                       courses.map((course) => (
                         <TableRow key={course.id}>
-                          <TableCell className="font-medium">
-                            {currentLanguage === "ru" && course.name_ru ? course.name_ru : course.name_en}
-                          </TableCell>
-                          <TableCell>
-                            {currentLanguage === "ru" && course.instructor_ru
-                              ? course.instructor_ru
-                              : course.instructor_en}
-                          </TableCell>
-                          <TableCell>
-                            {course.degree && <Badge variant="outline">{course.degree.code}</Badge>}
-                          </TableCell>
+                          <TableCell className="font-medium">{getLocalizedCourseName(course)}</TableCell>
+                          <TableCell>{getLocalizedInstructorName(course)}</TableCell>
+                          <TableCell>{getLocalizedDegreeDisplay(course)}</TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
