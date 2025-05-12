@@ -640,7 +640,6 @@ export default function CoursesPage() {
                 "admin.courses.confirmDeleteMessage",
                 "You are sure you want to delete this course? This action cannot be undone.",
               )}
-              <div className="mt-2 font-medium">{getCourseToDeleteName()}</div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">

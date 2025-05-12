@@ -376,11 +376,11 @@ export default function UniversitiesPage() {
   }
 
   // Get the university name for the delete confirmation dialog
-  const getUniversityToDeleteName = () => {
-    if (!universityToDelete) return ""
-    const university = universities.find((u) => u.id === universityToDelete)
-    return university ? getLocalizedName(university) : ""
-  }
+  // const getUniversityToDeleteName = () => {
+  //   if (!universityToDelete) return ""
+  //   const university = universities.find((u) => u.id === universityToDelete)
+  //   return university ? getLocalizedName(university) : ""
+  // }
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage
@@ -615,9 +615,8 @@ export default function UniversitiesPage() {
             <DialogDescription className="pt-2">
               {t(
                 "admin.universities.deleteConfirmMessage",
-                "Are you sure you want to delete this university? This action cannot be undone.",
+                "You are sure you want to delete this university? This action cannot be undone.",
               )}
-              <div className="mt-2 font-medium">{getUniversityToDeleteName()}</div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
