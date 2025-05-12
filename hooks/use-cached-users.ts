@@ -1,154 +1,135 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { useState, useEffect, useRef } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
-export function useCachedUsers(institutionId?: string) {
+// Helper function to transform user data based on language
+const transformUserData = (data: any[], currentLanguage: string) => {
+  return data.map((profile) => {
+    // Get degree name based on language
+    let degreeName = ""
+    if (profile.degrees) {
+      degreeName =
+        currentLanguage === "ru" && profile.degrees.name_ru ? profile.degrees.name_ru : profile.degrees.name || ""
+    }
+
+    return {
+      id: profile.id,
+      name: profile.full_name || "",
+      email: profile.email || "",
+      role: profile.role || "",
+      status: profile.is_active ? "active" : "inactive",
+      degreeId: profile.degree_id || "",
+      degreeName: degreeName,
+      groupId: profile.group_id || "",
+      groupName: profile.groups ? profile.groups.name : "",
+      year: profile.academic_year || "",
+    }
+  })
+}
+
+export function useCachedUsers(institutionId: string | undefined) {
   const [users, setUsers] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false)
   const { getCachedData, setCachedData } = useDataCache()
+  const { toast } = useToast()
+  const { language } = useLanguage()
 
-  const fetchUsers = async () => {
+  // Raw data ref to store the original data with all language versions
+  const rawDataRef = useRef<any[]>([])
+
+  // Flag to track if initial data has been loaded
+  const initialDataLoadedRef = useRef(false)
+
+  useEffect(() => {
+    // Return early if we don't have an institution
     if (!institutionId) {
-      setIsLoading(false)
       return
     }
 
-    try {
+    const fetchUsers = async () => {
+      // Check if we have cached data first
+      const cachedData = getCachedData<any[]>("users", institutionId)
+
+      if (cachedData && cachedData.length > 0) {
+        console.log("Using cached users data")
+        rawDataRef.current = cachedData
+        const transformedUsers = transformUserData(cachedData, language)
+        setUsers(transformedUsers)
+        initialDataLoadedRef.current = true
+        return
+      }
+
+      // If we already have raw data, just transform it based on the current language
+      if (rawDataRef.current.length > 0) {
+        console.log("Using existing raw data with new language:", language)
+        const transformedUsers = transformUserData(rawDataRef.current, language)
+        setUsers(transformedUsers)
+        return
+      }
+
+      // Only set loading to true if we need to fetch from API
       setIsLoading(true)
 
-      // Try to get data from cache first
-      const cachedUsers = getCachedData<any[]>("users", institutionId)
+      try {
+        console.log("Fetching users data from API")
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-      if (cachedUsers && cachedUsers.length > 0) {
-        setUsers(cachedUsers)
+        // Fetch profiles with degree, group, and year information
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select(`
+          id, 
+          full_name, 
+          email, 
+          role, 
+          is_active, 
+          degree_id, 
+          group_id, 
+          academic_year,
+          degrees(id, name, name_ru),
+          groups(id, name)
+        `)
+          .eq("institution_id", institutionId)
+
+        if (profilesError) throw profilesError
+
+        // Store the raw data for future language switches
+        rawDataRef.current = profilesData || []
+
+        // Cache the data
+        setCachedData("users", institutionId, profilesData)
+
+        // Transform the data based on current language
+        const transformedUsers = transformUserData(profilesData || [], language)
+
+        // Update state
+        setUsers(transformedUsers)
+        initialDataLoadedRef.current = true
+      } catch (error: any) {
+        console.error("Error fetching users:", error)
+        setError(error.message)
+        toast({
+          title: "Error",
+          description: "Failed to load users data",
+          variant: "destructive",
+        })
+      } finally {
         setIsLoading(false)
-        setIsInitialDataLoaded(true)
-        return
       }
-
-      // Fetch profiles for the institution
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, role, is_active")
-        .eq("institution_id", institutionId)
-        .order("full_name")
-
-      if (profilesError) throw profilesError
-
-      if (!profilesData) {
-        setUsers([])
-        setIsLoading(false)
-        setIsInitialDataLoaded(true)
-        return
-      }
-
-      // Get all student profiles
-      const { data: studentProfiles, error: studentError } = await supabase
-        .from("student_profiles")
-        .select("profile_id, group_id, year, degree_id")
-
-      if (studentError) throw studentError
-
-      // Get all manager profiles
-      const { data: managerProfiles, error: managerError } = await supabase
-        .from("manager_profiles")
-        .select("profile_id, group_id, degree_id")
-
-      if (managerError) throw managerError
-
-      // Get all groups
-      const { data: groups, error: groupsError } = await supabase.from("groups").select("id, name, degree_id")
-
-      if (groupsError) throw groupsError
-
-      // Get all degrees
-      const { data: degrees, error: degreesError } = await supabase.from("degrees").select("id, name")
-
-      if (degreesError) throw degreesError
-
-      // Create maps for quick lookups
-      const studentProfileMap = new Map()
-      if (studentProfiles) {
-        studentProfiles.forEach((profile) => {
-          studentProfileMap.set(profile.profile_id, profile)
-        })
-      }
-
-      const managerProfileMap = new Map()
-      if (managerProfiles) {
-        managerProfiles.forEach((profile) => {
-          managerProfileMap.set(profile.profile_id, profile)
-        })
-      }
-
-      const groupMap = new Map()
-      if (groups) {
-        groups.forEach((group) => {
-          groupMap.set(group.id, group)
-        })
-      }
-
-      const degreeMap = new Map()
-      if (degrees) {
-        degrees.forEach((degree) => {
-          degreeMap.set(degree.id, degree)
-        })
-      }
-
-      // Format the users data
-      const formattedUsers = profilesData.map((profile) => {
-        const studentProfile = studentProfileMap.get(profile.id)
-        const managerProfile = managerProfileMap.get(profile.id)
-        const roleSpecificProfile = profile.role === "student" ? studentProfile : managerProfile
-
-        let groupName = ""
-        let degreeName = ""
-        let year = ""
-
-        if (roleSpecificProfile) {
-          const group = groupMap.get(roleSpecificProfile.group_id)
-          const degree = degreeMap.get(roleSpecificProfile.degree_id)
-
-          groupName = group ? group.name : ""
-          degreeName = degree ? degree.name : ""
-          year = roleSpecificProfile.year || ""
-        }
-
-        return {
-          id: profile.id,
-          name: profile.full_name || "",
-          email: profile.email || "",
-          role: profile.role,
-          status: profile.is_active ? "active" : "inactive",
-          groupId: roleSpecificProfile?.group_id || "",
-          groupName,
-          degreeId: roleSpecificProfile?.degree_id || "",
-          degreeName,
-          year,
-        }
-      })
-
-      // Save to cache
-      setCachedData("users", institutionId, formattedUsers)
-
-      setUsers(formattedUsers)
-      setError(null)
-    } catch (err: any) {
-      console.error("Error fetching users:", err)
-      setError(err.message || "Failed to fetch users")
-    } finally {
-      setIsLoading(false)
-      setIsInitialDataLoaded(true)
     }
-  }
 
-  useEffect(() => {
     fetchUsers()
-  }, [institutionId])
+  }, [institutionId, language, toast, getCachedData, setCachedData])
 
-  return { users, isLoading, error, isInitialDataLoaded, refetchUsers: fetchUsers }
+  return {
+    users,
+    isLoading,
+    error,
+    isInitialDataLoaded: initialDataLoadedRef.current,
+  }
 }
