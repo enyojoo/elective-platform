@@ -39,27 +39,17 @@ export function useCachedElectives(institutionId: string | undefined) {
 
         const { data, error } = await supabase
           .from("elective_packs")
-          .select(`
-    *,
-    academic_year:academic_year_id(id, year)
-  `)
+          .select("*, programs(name, code)")
           .eq("institution_id", institutionId)
           .eq("type", "course")
 
         if (error) throw error
 
-        // Format the data to match the expected structure
-        const formattedData = data.map((pack) => ({
-          ...pack,
-          program: pack.academic_year?.year || "Unknown",
-          programCode: "N/A",
-        }))
-
         // Save to cache
-        setCachedData("courseElectives", institutionId, formattedData)
+        setCachedData("courseElectives", institutionId, data)
 
         // Update state
-        setElectives(formattedData)
+        setElectives(data)
       } catch (error: any) {
         console.error("Error fetching course electives:", error)
         setError(error.message)

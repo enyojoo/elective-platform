@@ -1868,7 +1868,7 @@ const translations: Translations = {
     "admin.newUniversity.namePlaceholder": "Гарвардский университет",
     "admin.newUniversity.cityPlaceholder": "Кембридж",
     "admin.newUniversity.websitePlaceholder": "https://www.harvard.edu",
-    "admin.sidebar.universities": "Университеты",
+    "admin.sidebar.universities": "У��иверситеты",
     "admin.universities.title": "Партнерские университеты",
     "admin.universities.subtitle": "Управление партнерскими университетами для программ студенческого обмена",
     "admin.universities.addUniversity": "Добавить университет",
