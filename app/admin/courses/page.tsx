@@ -72,6 +72,17 @@ export default function CoursesPage() {
   const { toast } = useToast()
   const { institution } = useInstitution()
 
+  // Add this at the beginning of the component
+  useEffect(() => {
+    // Clear the cache on initial load to ensure we get fresh data
+    localStorage.removeItem(COURSES_CACHE_KEY)
+    localStorage.removeItem(DEGREES_CACHE_KEY)
+
+    // Set loading states to trigger data fetching
+    setIsLoadingCourses(true)
+    setIsLoadingDegrees(true)
+  }, [])
+
   // Load cached data on initial render
   useEffect(() => {
     const loadCachedData = () => {
@@ -170,7 +181,7 @@ export default function CoursesPage() {
         // Build query
         let query = supabase
           .from("courses")
-          .select("*, degree:degree_id(*)", { count: "exact" })
+          .select("*, degree:degree_id(id, name, name_ru, code)", { count: "exact" })
           .eq("institution_id", institution.id)
 
         // Apply filters
@@ -199,6 +210,9 @@ export default function CoursesPage() {
         if (error) {
           throw error
         }
+
+        // Clear the cache to ensure we're using fresh data
+        localStorage.removeItem(COURSES_CACHE_KEY)
 
         setCourses(data || [])
         setTotalCourses(count || 0)
@@ -454,10 +468,22 @@ export default function CoursesPage() {
                     ) : courses.length > 0 ? (
                       courses.map((course) => (
                         <TableRow key={course.id}>
-                          <TableCell className="font-medium">{getLocalizedCourseName(course)}</TableCell>
-                          <TableCell>{getLocalizedInstructorName(course)}</TableCell>
+                          <TableCell className="font-medium">
+                            {currentLanguage === "ru" && course.name_ru ? course.name_ru : course.name_en}
+                          </TableCell>
                           <TableCell>
-                            {course.degree && <Badge variant="outline">{getLocalizedDegreeName(course.degree)}</Badge>}
+                            {currentLanguage === "ru" && course.instructor_ru
+                              ? course.instructor_ru
+                              : course.instructor_en}
+                          </TableCell>
+                          <TableCell>
+                            {course.degree && (
+                              <Badge variant="outline">
+                                {currentLanguage === "ru" && course.degree.name_ru
+                                  ? course.degree.name_ru
+                                  : course.degree.name}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
