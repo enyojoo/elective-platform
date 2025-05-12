@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -34,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useDialogState } from "@/hooks/use-dialog-state"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { Label } from "@/components/ui/label"
 import { UserRole } from "@/lib/types"
@@ -44,13 +43,10 @@ export function UsersSettings() {
   const { t, language } = useLanguage()
   const { institution } = useInstitution()
   const { toast } = useToast()
-  const { users: cachedUsers, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
+  const { users, isLoading, error, isInitialDataLoaded } = useCachedUsers(institution?.id)
   const { degrees } = useCachedDegrees(institution?.id)
   const { groups } = useCachedGroups(institution?.id)
-  const { invalidateCache, setCachedData } = useDataCache()
-
-  // State management
-  const [users, setUsers] = useState<any[]>([])
+  const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
@@ -59,17 +55,13 @@ export function UsersSettings() {
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 10
 
-  // Component lifecycle management
-  const isMounted = useRef(true)
-  const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const dataFetchedRef = useRef(false)
-
   // User deletion state
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // User edit state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const { isOpen: isEditDialogOpen, openDialog: openEditDialog, closeDialog: closeEditDialog } = useDialogState()
   const [editingUser, setEditingUser] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
@@ -77,33 +69,15 @@ export function UsersSettings() {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Component lifecycle management
+  // Initialize filteredUsers with users data when it becomes available
   useEffect(() => {
-    isMounted.current = true
-    dataFetchedRef.current = false
-
-    return () => {
-      isMounted.current = false
-
-      // Clear any pending timeouts
-      if (cleanupTimeoutRef.current) {
-        clearTimeout(cleanupTimeoutRef.current)
-      }
-
-      // Force cleanup on unmount
-      cleanupDialogEffects()
+    if (users && users.length > 0) {
+      setFilteredUsers(users)
+      setTotalPages(Math.ceil(users.length / itemsPerPage))
     }
-  }, [])
+  }, [users, itemsPerPage])
 
-  // Initialize users state from cached users
-  useEffect(() => {
-    if (cachedUsers && cachedUsers.length > 0 && isMounted.current) {
-      setUsers([...cachedUsers])
-      dataFetchedRef.current = true
-    }
-  }, [cachedUsers])
-
-  // Apply filters to users whenever users or filter criteria change
+  // Filter users based on search term and filters
   useEffect(() => {
     if (!users || users.length === 0) return
 
@@ -125,16 +99,10 @@ export function UsersSettings() {
       result = result.filter((user) => user.status === statusFilter)
     }
 
-    if (isMounted.current) {
-      setFilteredUsers(result)
-      setTotalPages(Math.ceil(result.length / itemsPerPage))
-
-      // Adjust current page if it's now out of bounds
-      if (currentPage > Math.ceil(result.length / itemsPerPage) && result.length > 0) {
-        setCurrentPage(1)
-      }
-    }
-  }, [users, searchTerm, roleFilter, statusFilter, itemsPerPage, currentPage])
+    setFilteredUsers(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, roleFilter, statusFilter, users])
 
   // Filter groups based on selected degree
   useEffect(() => {
@@ -202,122 +170,27 @@ export function UsersSettings() {
     }
   }
 
-  // Function to safely open the edit dialog
-  const handleOpenEditDialog = (user?: any) => {
-    // Ensure body is in normal state before opening dialog
-    cleanupDialogEffects()
-
-    if (user) {
-      setEditingUser({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        degreeId: user.degreeId || "",
-        groupId: user.groupId || "",
-        year: user.year || "",
-      })
-    } else {
-      setEditingUser({
-        name: "",
-        email: "",
-        role: UserRole.STUDENT,
-        status: "active",
-        degreeId: "",
-        groupId: "",
-        year: "",
-      })
-    }
-
-    // Small delay to ensure DOM is ready
-    setTimeout(() => {
-      if (isMounted.current) {
-        setIsEditDialogOpen(true)
-      }
-    }, 50)
-  }
-
-  // Function to safely close the edit dialog
-  const handleCloseEditDialog = () => {
-    if (isMounted.current) {
-      setIsEditDialogOpen(false)
-
-      // Schedule cleanup after animation completes
-      if (cleanupTimeoutRef.current) {
-        clearTimeout(cleanupTimeoutRef.current)
-      }
-
-      cleanupTimeoutRef.current = setTimeout(() => {
-        if (isMounted.current) {
-          setEditingUser(null)
-          cleanupDialogEffects()
-        }
-      }, 300) // 300ms should be enough for most animations
-    }
-  }
-
-  // Function to safely open the delete dialog
-  const handleOpenDeleteDialog = (userId: string) => {
-    // Ensure body is in normal state before opening dialog
-    cleanupDialogEffects()
-
-    setUserToDelete(userId)
-
-    // Small delay to ensure DOM is ready
-    setTimeout(() => {
-      if (isMounted.current) {
-        setIsDeleteDialogOpen(true)
-      }
-    }, 50)
-  }
-
-  // Function to safely close the delete dialog
-  const handleCloseDeleteDialog = () => {
-    if (isMounted.current) {
-      setIsDeleteDialogOpen(false)
-
-      // Schedule cleanup after animation completes
-      if (cleanupTimeoutRef.current) {
-        clearTimeout(cleanupTimeoutRef.current)
-      }
-
-      cleanupTimeoutRef.current = setTimeout(() => {
-        if (isMounted.current) {
-          setUserToDelete(null)
-          cleanupDialogEffects()
-        }
-      }, 300) // 300ms should be enough for most animations
-    }
-  }
-
-  const handleEditInputChange = (field: string, value: string) => {
-    setEditingUser((prev: any) => ({ ...prev, [field]: value }))
-  }
-
-  // Simple status change function - just change it immediately
+  // Handle user status change
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
-    // Update local state immediately
-    const updatedUsers = users.map((user) => {
-      if (user.id === userId) {
-        return {
-          ...user,
-          status: newStatus ? "active" : "inactive",
-        }
-      }
-      return user
-    })
-    setUsers(updatedUsers)
-
-    // Make the API call in the background
     try {
       const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
 
       if (error) throw error
 
-      // Update the cache directly to avoid reversion
-      if (institution?.id && cachedUsers) {
-        const updatedCachedUsers = cachedUsers.map((user) => {
+      // Update local state immediately
+      const updatedUsers = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            status: newStatus ? "active" : "inactive",
+          }
+        }
+        return user
+      })
+
+      // Update filtered users
+      setFilteredUsers((prevFiltered) =>
+        prevFiltered.map((user) => {
           if (user.id === userId) {
             return {
               ...user,
@@ -325,103 +198,117 @@ export function UsersSettings() {
             }
           }
           return user
-        })
-        setCachedData("users", institution.id, updatedCachedUsers)
+        }),
+      )
+
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
       }
+
+      toast({
+        title: "Success",
+        description: newStatus ? "User has been activated" : "User has been deactivated",
+      })
     } catch (error: any) {
       console.error("Error updating user status:", error)
-
-      // Only show toast on error
       toast({
         title: "Error",
         description: `Failed to update user status: ${error.message}`,
         variant: "destructive",
       })
-
-      // Revert the UI changes on error
-      if (cachedUsers) {
-        setUsers([...cachedUsers])
-      }
     }
+  }
+
+  const handleDeleteUser = (userId: string) => {
+    setUserToDelete(userId)
+    openDeleteDialog()
+  }
+
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+    setTimeout(() => {
+      setUserToDelete(null)
+      cleanupDialogEffects()
+    }, 300)
   }
 
   const confirmDelete = async () => {
     if (!userToDelete) return
 
-    // Update local state immediately
-    const updatedUsers = users.filter((user) => user.id !== userToDelete)
-    setUsers(updatedUsers)
-
-    // Close dialog immediately
-    handleCloseDeleteDialog()
-
-    // Make the API call in the background
+    setIsDeleting(true)
     try {
       const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
 
       if (error) throw error
 
-      // Update the cache directly
-      if (institution?.id && cachedUsers) {
-        const updatedCachedUsers = cachedUsers.filter((user) => user.id !== userToDelete)
-        setCachedData("users", institution.id, updatedCachedUsers)
+      // Update local state immediately
+      const updatedFilteredUsers = filteredUsers.filter((user) => user.id !== userToDelete)
+      setFilteredUsers(updatedFilteredUsers)
+
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
       }
 
-      // Only show success toast
       toast({
         title: "Success",
         description: "User has been deleted successfully",
       })
+
+      handleCloseDeleteDialog()
     } catch (error: any) {
       console.error("Error deleting user:", error)
-
-      // Show error toast
       toast({
         title: "Error",
         description: `Failed to delete user: ${error.message}`,
         variant: "destructive",
       })
-
-      // Revert the UI changes on error
-      if (cachedUsers) {
-        setUsers([...cachedUsers])
-      }
+    } finally {
+      setIsDeleting(false)
     }
   }
 
-  const handleSaveUser = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Handle opening edit dialog
+  const handleEditUser = (userId: string) => {
+    const userToEdit = users.find((user) => user.id === userId)
+    if (userToEdit) {
+      setEditingUser({
+        id: userToEdit.id,
+        name: userToEdit.name,
+        email: userToEdit.email,
+        role: userToEdit.role,
+        status: userToEdit.status,
+        degreeId: userToEdit.degreeId || "",
+        groupId: userToEdit.groupId || "",
+        year: userToEdit.year || "",
+      })
+      console.log("Editing user:", userToEdit)
+      console.log("Available groups:", groups)
+      console.log(
+        "Filtered groups for degree:",
+        groups.filter((g) => g.degreeId === userToEdit.degreeId),
+      )
+      openEditDialog()
+    }
+  }
 
+  const handleCloseEditDialog = () => {
+    closeEditDialog()
+    setTimeout(() => {
+      setEditingUser(null)
+      cleanupDialogEffects()
+    }, 300)
+  }
+
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditingUser((prev: any) => ({ ...prev, [field]: value }))
+  }
+
+  const handleSaveUser = async () => {
     if (!editingUser) return
 
     setIsSaving(true)
-
-    // Update local state immediately
-    const updatedUsers = users.map((user) => {
-      if (user.id === editingUser.id) {
-        const updatedUser = {
-          ...user,
-          name: editingUser.name,
-          email: editingUser.email,
-          role: editingUser.role,
-          status: editingUser.status,
-          degreeId: editingUser.degreeId || "",
-          groupId: editingUser.role === UserRole.STUDENT ? editingUser.groupId || "" : "",
-          year: editingUser.year || "",
-          // Update related display fields
-          degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
-          groupName:
-            editingUser.role === UserRole.STUDENT ? groups.find((g) => g.id === editingUser.groupId)?.name || "" : "",
-        }
-        return updatedUser
-      }
-      return user
-    })
-    setUsers(updatedUsers)
-
-    // Close dialog immediately
-    handleCloseEditDialog()
-
     try {
       // Prepare update data
       const updateData = {
@@ -436,21 +323,37 @@ export function UsersSettings() {
       if (editingUser.role === UserRole.STUDENT || editingUser.role === UserRole.PROGRAM_MANAGER) {
         updateData.degree_id = editingUser.degreeId || null
         updateData.academic_year = editingUser.year || null
-
-        // Only add group_id for students
-        if (editingUser.role === UserRole.STUDENT) {
-          updateData.group_id = editingUser.groupId || null
-        }
+        updateData.group_id = editingUser.groupId || null
       }
 
-      // Make the API call
+      // Update profile
       const { error } = await supabase.from("profiles").update(updateData).eq("id", editingUser.id)
 
       if (error) throw error
 
-      // Update the cache directly
-      if (institution?.id && cachedUsers) {
-        const updatedCachedUsers = cachedUsers.map((user) => {
+      // Update local state immediately
+      const updatedUsers = users.map((user) => {
+        if (user.id === editingUser.id) {
+          return {
+            ...user,
+            name: editingUser.name,
+            email: editingUser.email,
+            role: editingUser.role,
+            status: editingUser.status,
+            degreeId: editingUser.degreeId || "",
+            groupId: editingUser.groupId || "",
+            year: editingUser.year || "",
+            // Update related display fields
+            degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
+            groupName: groups.find((g) => g.id === editingUser.groupId)?.name || "",
+          }
+        }
+        return user
+      })
+
+      // Update filtered users
+      setFilteredUsers(
+        filteredUsers.map((user) => {
           if (user.id === editingUser.id) {
             return {
               ...user,
@@ -459,39 +362,35 @@ export function UsersSettings() {
               role: editingUser.role,
               status: editingUser.status,
               degreeId: editingUser.degreeId || "",
-              groupId: editingUser.role === UserRole.STUDENT ? editingUser.groupId || "" : "",
+              groupId: editingUser.groupId || "",
               year: editingUser.year || "",
+              // Update related display fields
               degreeName: degrees.find((d) => d.id === editingUser.degreeId)?.name || "",
-              groupName:
-                editingUser.role === UserRole.STUDENT
-                  ? groups.find((g) => g.id === editingUser.groupId)?.name || ""
-                  : "",
+              groupName: groups.find((g) => g.id === editingUser.groupId)?.name || "",
             }
           }
           return user
-        })
-        setCachedData("users", institution.id, updatedCachedUsers)
+        }),
+      )
+
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
       }
 
-      // Show success toast
       toast({
         title: "Success",
         description: "User updated successfully",
       })
+
+      handleCloseEditDialog()
     } catch (error: any) {
       console.error("Error updating user:", error)
-
-      // Show error toast
       toast({
         title: "Error",
         description: `Failed to update user: ${error.message}`,
         variant: "destructive",
       })
-
-      // Revert the UI changes on error
-      if (cachedUsers) {
-        setUsers([...cachedUsers])
-      }
     } finally {
       setIsSaving(false)
     }
@@ -590,7 +489,7 @@ export function UsersSettings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleOpenEditDialog(user)}>
+                          <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
                             {t("admin.users.edit")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -603,10 +502,7 @@ export function UsersSettings() {
                           {(user.role !== "admin" ||
                             (user.role === "admin" &&
                               user.id !== users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => handleOpenDeleteDialog(user.id)}
-                            >
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteUser(user.id)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               {t("admin.users.delete")}
                             </DropdownMenuItem>
@@ -682,43 +578,43 @@ export function UsersSettings() {
             <DialogDescription>{t("admin.users.deleteConfirmMessage")}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">
-            <Button type="button" variant="outline" onClick={handleCloseDeleteDialog}>
+            <Button type="button" variant="outline" onClick={handleCloseDeleteDialog} disabled={isDeleting}>
               {t("admin.users.cancel")}
             </Button>
-            <Button type="button" variant="destructive" onClick={confirmDelete}>
-              {t("admin.users.confirmDelete")}
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <span className="mr-2">{t("admin.users.deleting")}</span>
+                </>
+              ) : (
+                t("admin.users.confirmDelete")
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit User Dialog */}
-      {isEditDialogOpen && editingUser && (
-        <Dialog
-          open={isEditDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) handleCloseEditDialog()
-          }}
-        >
-          <DialogContent
-            className="sm:max-w-md"
-            onPointerDownOutside={(e) => e.preventDefault()}
-            onEscapeKeyDown={(e) => e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>{t("admin.users.edit")}</DialogTitle>
-              <DialogDescription>{t("admin.settings.subtitle")}</DialogDescription>
-            </DialogHeader>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseEditDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t("admin.users.edit")}</DialogTitle>
+            <DialogDescription>{t("admin.settings.subtitle")}</DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleSaveUser} className="space-y-4 py-2">
+          {editingUser && (
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">{t("admin.users.name")}</Label>
                 <Input
                   id="edit-name"
-                  name="name"
                   value={editingUser.name}
                   onChange={(e) => handleEditInputChange("name", e.target.value)}
-                  required
                 />
               </div>
 
@@ -726,11 +622,9 @@ export function UsersSettings() {
                 <Label htmlFor="edit-email">{t("admin.users.email")}</Label>
                 <Input
                   id="edit-email"
-                  name="email"
                   type="email"
                   value={editingUser.email}
                   onChange={(e) => handleEditInputChange("email", e.target.value)}
-                  required
                 />
               </div>
 
@@ -866,26 +760,26 @@ export function UsersSettings() {
                   </div>
                 </>
               )}
+            </div>
+          )}
 
-              <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end pt-4">
-                <Button type="button" variant="outline" onClick={handleCloseEditDialog} disabled={isSaving}>
-                  {t("admin.users.cancel")}
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? (
-                    <span className="mr-2">{t("settings.branding.saving")}</span>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      {t("settings.branding.save")}
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+          <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={handleCloseEditDialog} disabled={isSaving}>
+              {t("admin.users.cancel")}
+            </Button>
+            <Button type="button" onClick={handleSaveUser} disabled={isSaving}>
+              {isSaving ? (
+                <span className="mr-2">{t("settings.branding.saving")}</span>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  {t("settings.branding.save")}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
