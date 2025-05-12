@@ -1,170 +1,360 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MoreHorizontal, Plus, Search, Edit, Trash2 } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
-import { useInstitution } from "@/lib/institution-context"
-import { useCachedUsers } from "@/hooks/use-cached-users"
-import { EditUserDialog } from "./edit-user-dialog"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@supabase/supabase-js"
+import { Search, MoreHorizontal, Filter, AlertCircle, Trash2, Pencil } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useCachedUsers } from "@/hooks/use-cached-users"
+import { useDataCache } from "@/lib/data-cache-context"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { EditUserDialog } from "./edit-user-dialog"
 
 export function UsersSettings() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { institution } = useInstitution()
-  const { users, isLoading, isInitialDataLoaded } = useCachedUsers(institution?.id)
   const { toast } = useToast()
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-  const [searchTerm, setSearchTerm] = useState("")
+  const { users, isLoading, error, isInitialDataLoaded, refetchUsers } = useCachedUsers(institution?.id)
+  const { invalidateCache } = useDataCache()
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 10
+
+  // Edit user dialog state
   const [editUserId, setEditUserId] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
-  // Filter users based on search term
-  useEffect(() => {
-    if (!users) return
+  // Delete confirmation dialog state
+  const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  const { isOpen: isDeleteDialogOpen, openDialog: openDeleteDialog, closeDialog: closeDeleteDialog } = useDialogState()
+  const [isDeleting, setIsDeleting] = useState(false)
 
-    if (!searchTerm) {
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+  // Initialize filteredUsers with users data when it becomes available
+  useEffect(() => {
+    if (users && users.length > 0) {
       setFilteredUsers(users)
-      return
+      setTotalPages(Math.ceil(users.length / itemsPerPage))
+    }
+  }, [users, itemsPerPage])
+
+  // Filter users based on search term and filters
+  useEffect(() => {
+    if (!users || users.length === 0) return
+
+    let result = [...users]
+
+    if (searchTerm) {
+      result = result.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
     }
 
-    const lowercasedSearch = searchTerm.toLowerCase()
-    const filtered = users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(lowercasedSearch) ||
-        user.email.toLowerCase().includes(lowercasedSearch) ||
-        t(`roles.${user.role.toLowerCase()}`).toLowerCase().includes(lowercasedSearch),
-    )
+    if (roleFilter !== "all") {
+      result = result.filter((user) => user.role === roleFilter)
+    }
 
-    setFilteredUsers(filtered)
-  }, [users, searchTerm, t])
+    if (statusFilter !== "all") {
+      result = result.filter((user) => user.status === statusFilter)
+    }
 
-  const handleEditUser = (userId: string) => {
-    setEditUserId(userId)
-    setIsEditDialogOpen(true)
+    setFilteredUsers(result)
+    setTotalPages(Math.ceil(result.length / itemsPerPage))
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, roleFilter, statusFilter, users])
+
+  // Get current page items
+  const getCurrentPageItems = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredUsers.slice(startIndex, endIndex)
   }
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm(t("admin.settings.users.confirmDelete"))) return
+  // Helper function to get role badge
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "admin":
+        return (
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200">{t("admin.users.admin")}</Badge>
+        )
+      case "program_manager":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
+            {t("admin.users.program_manager")}
+          </Badge>
+        )
+      case "student":
+        return (
+          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+            {t("admin.users.student")}
+          </Badge>
+        )
+      default:
+        return <Badge>{role}</Badge>
+    }
+  }
 
+  // Helper function to get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            {t("admin.users.active")}
+          </Badge>
+        )
+      case "inactive":
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            {t("admin.users.inactive")}
+          </Badge>
+        )
+      default:
+        return <Badge>{status}</Badge>
+    }
+  }
+
+  // Handle user status change
+  const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
-      // First check if this is the only admin
-      if (users.find((u) => u.id === userId)?.role === "admin") {
-        const adminCount = users.filter((u) => u.role === "admin").length
-        if (adminCount <= 1) {
-          toast({
-            title: t("common.error"),
-            description: t("admin.settings.users.lastAdminError"),
-            variant: "destructive",
-          })
-          return
-        }
-      }
-
-      // Deactivate user instead of deleting
-      const { error } = await supabase.from("profiles").update({ is_active: false }).eq("id", userId)
+      const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", userId)
 
       if (error) throw error
 
-      toast({
-        title: t("common.success"),
-        description: t("admin.settings.users.deactivateSuccess"),
-      })
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
+        refetchUsers()
+      }
 
-      // Refresh the user list
-      window.location.reload()
-    } catch (error) {
-      console.error("Error deactivating user:", error)
       toast({
-        title: t("common.error"),
-        description: t("admin.settings.users.deactivateError"),
+        title: t("admin.users.success"),
+        description: newStatus ? t("admin.users.userActivated") : t("admin.users.userDeactivated"),
+      })
+    } catch (error: any) {
+      console.error("Error updating user status:", error)
+      toast({
+        title: t("admin.users.error"),
+        description: t("admin.users.errorUpdatingStatus"),
         variant: "destructive",
       })
     }
   }
 
-  const handleUserUpdated = () => {
-    // Refresh the user list
-    window.location.reload()
+  // Handle opening edit dialog
+  const handleEditUser = (userId: string) => {
+    setEditUserId(userId)
+    setIsEditDialogOpen(true)
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder={t("admin.settings.users.search")}
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("admin.settings.users.addUser")}
-        </Button>
-      </div>
+  // Handle closing edit dialog
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false)
+    setEditUserId(null)
+  }
 
-      {isLoading && !isInitialDataLoaded ? (
-        <TableSkeleton columns={5} rows={5} />
-      ) : (
-        <div className="border rounded-md">
+  // Handle user update
+  const handleUserUpdated = () => {
+    if (institution?.id) {
+      invalidateCache("users", institution.id)
+      refetchUsers()
+    }
+  }
+
+  // Handle opening delete confirmation dialog
+  const handleDeleteUser = (userId: string) => {
+    setUserToDelete(userId)
+    openDeleteDialog()
+  }
+
+  // Handle closing delete confirmation dialog
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+    setTimeout(() => {
+      setUserToDelete(null)
+      cleanupDialogEffects()
+    }, 300)
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!userToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const { error } = await supabase.from("profiles").delete().eq("id", userToDelete)
+
+      if (error) throw error
+
+      // Invalidate the users cache
+      if (institution?.id) {
+        invalidateCache("users", institution.id)
+        refetchUsers()
+      }
+
+      toast({
+        title: t("admin.users.success"),
+        description: t("admin.users.userDeleted"),
+      })
+
+      handleCloseDeleteDialog()
+    } catch (error: any) {
+      console.error("Error deleting user:", error)
+      toast({
+        title: t("admin.users.error"),
+        description: t("admin.users.errorDeleting"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  // Show skeleton only for initial data load
+  const showSkeleton = isLoading && !isInitialDataLoaded && (!users || users.length === 0)
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{t("admin.users.error")}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={t("admin.users.searchUsers")}
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-[130px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder={t("admin.users.role")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("admin.users.allRoles")}</SelectItem>
+                <SelectItem value="admin">{t("admin.users.admin")}</SelectItem>
+                <SelectItem value="program_manager">{t("admin.users.program_manager")}</SelectItem>
+                <SelectItem value="student">{t("admin.users.student")}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[130px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder={t("admin.users.status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("admin.users.allStatus")}</SelectItem>
+                <SelectItem value="active">{t("admin.users.active")}</SelectItem>
+                <SelectItem value="inactive">{t("admin.users.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("admin.settings.users.name")}</TableHead>
-                <TableHead>{t("admin.settings.users.email")}</TableHead>
-                <TableHead>{t("admin.settings.users.role")}</TableHead>
-                <TableHead>{t("admin.settings.users.status")}</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                <TableHead>{t("admin.users.name")}</TableHead>
+                <TableHead>{t("admin.users.email")}</TableHead>
+                <TableHead>{t("admin.users.role")}</TableHead>
+                <TableHead>{t("admin.users.degree")}</TableHead>
+                <TableHead>{t("admin.users.group")}</TableHead>
+                <TableHead>{t("admin.users.year")}</TableHead>
+                <TableHead>{t("admin.users.status")}</TableHead>
+                <TableHead className="w-[80px]">{t("admin.users.action")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {showSkeleton ? (
+                <TableSkeleton columns={8} rows={5} />
+              ) : getCurrentPageItems().length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    {searchTerm ? t("admin.settings.users.noResults") : t("admin.settings.users.noUsers")}
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    {t("admin.users.noUsersFound") || "No users found"}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                getCurrentPageItems().map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{t(`roles.${user.role.toLowerCase()}`)}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                        {t(`status.${user.status}`)}
-                      </Badge>
-                    </TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>{user.degreeName}</TableCell>
+                    <TableCell>{user.groupName}</TableCell>
+                    <TableCell>{user.year}</TableCell>
+                    <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">{t("common.openMenu")}</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            {t("common.edit")}
+                            <Pencil className="mr-2 h-4 w-4" />
+                            {t("admin.users.edit")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDeleteUser(user.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {t("common.delete")}
+                          <DropdownMenuItem
+                            className={user.status === "active" ? "text-destructive" : "text-green-600"}
+                            onClick={() => handleStatusChange(user.id, user.status !== "active")}
+                          >
+                            {user.status === "active" ? t("admin.users.deactivate") : t("admin.users.activate")}
                           </DropdownMenuItem>
+                          {/* Only show delete option for non-admin users or if current admin is viewing other admin users */}
+                          {(user.role !== "admin" ||
+                            (user.role === "admin" &&
+                              user.id !== users.find((u) => u.role === "admin" && u.status === "active")?.id)) && (
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteUser(user.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t("admin.users.delete")}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -174,17 +364,94 @@ export function UsersSettings() {
             </TableBody>
           </Table>
         </div>
-      )}
+
+        {totalPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (currentPage > 1) setCurrentPage(currentPage - 1)
+                  }}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === currentPage}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCurrentPage(page)
+                    }}
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+                  }}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+      </div>
 
       {/* Edit User Dialog */}
-      {editUserId && (
+      {isEditDialogOpen && institution?.id && (
         <EditUserDialog
           isOpen={isEditDialogOpen}
-          onClose={() => setIsEditDialogOpen(false)}
+          onClose={handleCloseEditDialog}
           userId={editUserId}
           onUserUpdated={handleUserUpdated}
+          institutionId={institution.id}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("admin.users.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("admin.users.deleteConfirmMessage")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={handleCloseDeleteDialog} disabled={isDeleting}>
+              {t("admin.users.cancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <span className="mr-2">{t("admin.users.deleting")}</span>
+                </>
+              ) : (
+                t("admin.users.confirmDelete")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

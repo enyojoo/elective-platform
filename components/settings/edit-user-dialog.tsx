@@ -1,41 +1,38 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-import { Save } from "lucide-react"
-import { useLanguage } from "@/lib/language-context"
+import type React from "react"
 
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase"
 import { UserRole } from "@/lib/types"
-import { useInstitution } from "@/lib/institution-context"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface EditUserDialogProps {
   isOpen: boolean
   onClose: () => void
-  userId: string
+  userId: string | null
   onUserUpdated: () => void
+  institutionId: string
 }
 
-export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditUserDialogProps) {
-  const { t } = useLanguage()
+export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated, institutionId }: EditUserDialogProps) {
+  const { t, language } = useLanguage()
   const { toast } = useToast()
-  const { institution } = useInstitution()
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
+  const { invalidateCache } = useDataCache()
 
   // User data state
-  const [user, setUser] = useState({
+  const [userData, setUserData] = useState({
     id: "",
     name: "",
     email: "",
-    role: UserRole.STUDENT,
+    role: "",
     status: "active",
   })
 
@@ -56,61 +53,65 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
   const [degrees, setDegrees] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [years, setYears] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const years = Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - i).toString())
+  // Generate years array (current year and 9 years back)
+  useEffect(() => {
+    const currentYear = new Date().getFullYear()
+    const yearsArray = Array.from({ length: 10 }, (_, i) => (currentYear - i).toString())
+    setYears(yearsArray)
+  }, [])
 
   // Fetch reference data (degrees, groups)
   useEffect(() => {
     const fetchReferenceData = async () => {
-      if (!institution?.id) return
+      if (!institutionId) return
 
       try {
         // Fetch degrees
         const { data: degreesData, error: degreesError } = await supabase
           .from("degrees")
-          .select("id, name")
-          .eq("institution_id", institution.id)
+          .select("id, name, name_ru")
+          .eq("institution_id", institutionId)
           .eq("status", "active")
 
         if (degreesError) throw degreesError
+        setDegrees(degreesData || [])
 
         // Fetch groups
         const { data: groupsData, error: groupsError } = await supabase
           .from("groups")
           .select("id, name, degree_id")
-          .eq("institution_id", institution.id)
+          .eq("institution_id", institutionId)
           .eq("status", "active")
 
         if (groupsError) throw groupsError
-
-        setDegrees(degreesData || [])
         setGroups(groupsData || [])
       } catch (error) {
         console.error("Error fetching reference data:", error)
         toast({
-          title: t("common.error"),
-          description: t("admin.settings.users.referenceDataError"),
+          title: t("admin.users.error"),
+          description: t("admin.users.errorFetchingReferenceData"),
           variant: "destructive",
         })
       }
     }
 
-    if (isOpen) {
+    if (isOpen && institutionId) {
       fetchReferenceData()
     }
-  }, [institution?.id, supabase, toast, t, isOpen])
+  }, [isOpen, institutionId, t, toast])
 
-  // Fetch user data
+  // Fetch user data when dialog opens
   useEffect(() => {
     const fetchUserData = async () => {
-      if (!userId || !isOpen) {
-        setIsLoading(false)
-        return
-      }
-
-      setIsLoading(true)
+      if (!userId || !isOpen) return
 
       try {
+        setIsLoading(true)
+
         // Fetch user profile
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
@@ -120,7 +121,7 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
 
         if (profileError) throw profileError
 
-        setUser({
+        setUserData({
           id: profileData.id,
           name: profileData.full_name || "",
           email: profileData.email || "",
@@ -167,8 +168,8 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
       } catch (error) {
         console.error("Error fetching user data:", error)
         toast({
-          title: t("common.error"),
-          description: t("admin.settings.users.fetchError"),
+          title: t("admin.users.error"),
+          description: t("admin.users.errorFetchingUser"),
           variant: "destructive",
         })
       } finally {
@@ -177,25 +178,40 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
     }
 
     fetchUserData()
-  }, [userId, isOpen, supabase, toast, t])
+  }, [userId, isOpen, toast, t])
 
-  // Filter groups based on selected degree
+  // Filter groups based on selected degree for student
   useEffect(() => {
     if (studentData.degreeId) {
       const filtered = groups.filter((group) => group.degree_id === studentData.degreeId)
       setFilteredGroups(filtered)
+
       // Reset group selection if current selection is not valid for new degree
       if (!filtered.find((g) => g.id === studentData.groupId)) {
         setStudentData((prev) => ({ ...prev, groupId: "" }))
       }
     } else {
       setFilteredGroups([])
-      setStudentData((prev) => ({ ...prev, groupId: "" }))
     }
   }, [studentData.degreeId, groups, studentData.groupId])
 
+  // Filter groups based on selected degree for manager
+  useEffect(() => {
+    if (managerData.degreeId) {
+      const filtered = groups.filter((group) => group.degree_id === managerData.degreeId)
+      setFilteredGroups(filtered)
+
+      // Reset group selection if current selection is not valid for new degree
+      if (!filtered.find((g) => g.id === managerData.groupId)) {
+        setManagerData((prev) => ({ ...prev, groupId: "" }))
+      }
+    } else {
+      setFilteredGroups([])
+    }
+  }, [managerData.degreeId, groups, managerData.groupId])
+
   const handleInputChange = (field: string, value: string) => {
-    setUser((prev) => ({ ...prev, [field]: value }))
+    setUserData((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleStudentDataChange = (field: string, value: string) => {
@@ -206,31 +222,32 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
     setManagerData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsSaving(true)
 
     try {
-      // Update existing user
+      // Update user profile
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
-          full_name: user.name,
-          email: user.email,
-          role: user.role,
-          is_active: user.status === "active",
+          full_name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          is_active: userData.status === "active",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", user.id)
+        .eq("id", userData.id)
 
       if (updateError) throw updateError
 
       // Handle student-specific data
-      if (user.role === UserRole.STUDENT) {
+      if (userData.role === UserRole.STUDENT) {
         // Check if student profile exists
         const { data: existingProfile, error: checkError } = await supabase
           .from("student_profiles")
           .select("profile_id")
-          .eq("profile_id", user.id)
+          .eq("profile_id", userData.id)
           .maybeSingle()
 
         if (checkError) throw checkError
@@ -245,13 +262,13 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
               degree_id: studentData.degreeId,
               updated_at: new Date().toISOString(),
             })
-            .eq("profile_id", user.id)
+            .eq("profile_id", userData.id)
 
           if (updateError) throw updateError
         } else if (studentData.groupId && studentData.year && studentData.degreeId) {
           // Create new profile
           const { error: insertError } = await supabase.from("student_profiles").insert({
-            profile_id: user.id,
+            profile_id: userData.id,
             group_id: studentData.groupId,
             year: studentData.year,
             degree_id: studentData.degreeId,
@@ -264,12 +281,12 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
       }
 
       // Handle manager-specific data
-      if (user.role === UserRole.PROGRAM_MANAGER) {
+      if (userData.role === UserRole.PROGRAM_MANAGER) {
         // Check if manager profile exists
         const { data: existingProfile, error: checkError } = await supabase
           .from("manager_profiles")
           .select("profile_id")
-          .eq("profile_id", user.id)
+          .eq("profile_id", userData.id)
           .maybeSingle()
 
         if (checkError) throw checkError
@@ -283,13 +300,13 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
               degree_id: managerData.degreeId,
               updated_at: new Date().toISOString(),
             })
-            .eq("profile_id", user.id)
+            .eq("profile_id", userData.id)
 
           if (updateError) throw updateError
         } else if (managerData.groupId && managerData.degreeId) {
           // Create new profile
           const { error: insertError } = await supabase.from("manager_profiles").insert({
-            profile_id: user.id,
+            profile_id: userData.id,
             group_id: managerData.groupId,
             degree_id: managerData.degreeId,
             created_at: new Date().toISOString(),
@@ -300,18 +317,24 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
         }
       }
 
+      // Invalidate users cache
+      if (institutionId) {
+        invalidateCache("users", institutionId)
+      }
+
       toast({
-        title: t("common.success"),
-        description: t("admin.settings.users.updateSuccess"),
+        title: t("admin.users.success"),
+        description: t("admin.users.userUpdated"),
       })
 
+      // Close dialog and refresh data
       onUserUpdated()
       onClose()
     } catch (error: any) {
-      console.error("Error saving user:", error)
+      console.error("Error updating user:", error)
       toast({
-        title: t("common.error"),
-        description: `${t("admin.settings.users.updateError")}: ${error.message}`,
+        title: t("admin.users.error"),
+        description: t("admin.users.errorUpdating"),
         variant: "destructive",
       })
     } finally {
@@ -319,36 +342,54 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
     }
   }
 
+  // Get degree name based on ID and language
+  const getDegreeName = (degreeId: string) => {
+    const degree = degrees.find((d) => d.id === degreeId)
+    if (!degree) return ""
+    return language === "ru" && degree.name_ru ? degree.name_ru : degree.name
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent
+        className="sm:max-w-[550px]"
+        onEscapeKeyDown={(e) => {
+          e.stopPropagation()
+          onClose()
+        }}
+        onPointerDownOutside={(e) => {
+          e.preventDefault()
+          onClose()
+        }}
+        onInteractOutside={(e) => {
+          e.preventDefault()
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>{t("admin.settings.users.editUser")}</DialogTitle>
+          <DialogTitle>{t("admin.users.editUser")}</DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
-          <div className="py-6 flex items-center justify-center">
-            <p>{t("common.loading")}</p>
-          </div>
+          <div className="py-6 text-center">{t("admin.users.loading")}</div>
         ) : (
-          <div className="py-4 space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">{t("admin.settings.users.fullName")}</Label>
+                <Label htmlFor="name">{t("admin.users.fullName")}</Label>
                 <Input
                   id="name"
-                  value={user.name}
+                  value={userData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">{t("admin.settings.users.email")}</Label>
+                <Label htmlFor="email">{t("admin.users.email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  value={user.email}
+                  value={userData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   required
                 />
@@ -357,49 +398,50 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="role">{t("admin.settings.users.role")}</Label>
-                <Select value={user.role} onValueChange={(value) => handleInputChange("role", value)}>
+                <Label htmlFor="role">{t("admin.users.role")}</Label>
+                <Select value={userData.role} onValueChange={(value) => handleInputChange("role", value)}>
                   <SelectTrigger id="role">
-                    <SelectValue placeholder={t("admin.settings.users.selectRole")} />
+                    <SelectValue placeholder={t("admin.users.selectRole")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={UserRole.STUDENT}>{t("roles.student")}</SelectItem>
-                    <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("roles.programManager")}</SelectItem>
-                    <SelectItem value={UserRole.ADMIN}>{t("roles.admin")}</SelectItem>
+                    <SelectItem value={UserRole.STUDENT}>{t("admin.users.student")}</SelectItem>
+                    <SelectItem value={UserRole.PROGRAM_MANAGER}>{t("admin.users.program_manager")}</SelectItem>
+                    <SelectItem value={UserRole.ADMIN}>{t("admin.users.admin")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">{t("admin.settings.users.status")}</Label>
-                <Select value={user.status} onValueChange={(value) => handleInputChange("status", value)}>
+                <Label htmlFor="status">{t("admin.users.status")}</Label>
+                <Select value={userData.status} onValueChange={(value) => handleInputChange("status", value)}>
                   <SelectTrigger id="status">
-                    <SelectValue placeholder={t("admin.settings.users.selectStatus")} />
+                    <SelectValue placeholder={t("admin.users.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">{t("status.active")}</SelectItem>
-                    <SelectItem value="inactive">{t("status.inactive")}</SelectItem>
+                    <SelectItem value="active">{t("admin.users.active")}</SelectItem>
+                    <SelectItem value="inactive">{t("admin.users.inactive")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {user.role === UserRole.STUDENT && (
+            {/* Student-specific fields */}
+            {userData.role === UserRole.STUDENT && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="degreeId">{t("admin.settings.users.degree")}</Label>
+                    <Label htmlFor="studentDegree">{t("admin.users.degree")}</Label>
                     <Select
                       value={studentData.degreeId}
                       onValueChange={(value) => handleStudentDataChange("degreeId", value)}
                     >
-                      <SelectTrigger id="degreeId">
-                        <SelectValue placeholder={t("admin.settings.users.selectDegree")} />
+                      <SelectTrigger id="studentDegree">
+                        <SelectValue placeholder={t("admin.users.selectDegree")} />
                       </SelectTrigger>
                       <SelectContent>
                         {degrees.map((degree) => (
                           <SelectItem key={degree.id} value={degree.id}>
-                            {degree.name}
+                            {language === "ru" && degree.name_ru ? degree.name_ru : degree.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -407,14 +449,22 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="groupId">{t("admin.settings.users.group")}</Label>
+                    <Label htmlFor="studentGroup">{t("admin.users.group")}</Label>
                     <Select
                       value={studentData.groupId}
                       onValueChange={(value) => handleStudentDataChange("groupId", value)}
                       disabled={!studentData.degreeId || filteredGroups.length === 0}
                     >
-                      <SelectTrigger id="groupId">
-                        <SelectValue placeholder={t("admin.settings.users.selectGroup")} />
+                      <SelectTrigger id="studentGroup">
+                        <SelectValue
+                          placeholder={
+                            !studentData.degreeId
+                              ? t("admin.users.selectDegreeFirst")
+                              : filteredGroups.length === 0
+                                ? t("admin.users.noGroupsAvailable")
+                                : t("admin.users.selectGroup")
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {filteredGroups.map((group) => (
@@ -428,10 +478,10 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="year">{t("admin.settings.users.year")}</Label>
+                  <Label htmlFor="studentYear">{t("admin.users.year")}</Label>
                   <Select value={studentData.year} onValueChange={(value) => handleStudentDataChange("year", value)}>
-                    <SelectTrigger id="year">
-                      <SelectValue placeholder={t("admin.settings.users.selectYear")} />
+                    <SelectTrigger id="studentYear">
+                      <SelectValue placeholder={t("admin.users.selectYear")} />
                     </SelectTrigger>
                     <SelectContent>
                       {years.map((year) => (
@@ -445,21 +495,22 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
               </>
             )}
 
-            {user.role === UserRole.PROGRAM_MANAGER && (
+            {/* Manager-specific fields */}
+            {userData.role === UserRole.PROGRAM_MANAGER && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="managerDegree">{t("admin.settings.users.degree")}</Label>
+                  <Label htmlFor="managerDegree">{t("admin.users.degree")}</Label>
                   <Select
                     value={managerData.degreeId}
                     onValueChange={(value) => handleManagerDataChange("degreeId", value)}
                   >
                     <SelectTrigger id="managerDegree">
-                      <SelectValue placeholder={t("admin.settings.users.selectDegree")} />
+                      <SelectValue placeholder={t("admin.users.selectDegree")} />
                     </SelectTrigger>
                     <SelectContent>
                       {degrees.map((degree) => (
                         <SelectItem key={degree.id} value={degree.id}>
-                          {degree.name}
+                          {language === "ru" && degree.name_ru ? degree.name_ru : degree.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -467,46 +518,45 @@ export function EditUserDialog({ isOpen, onClose, userId, onUserUpdated }: EditU
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="managerGroup">{t("admin.settings.users.group")}</Label>
+                  <Label htmlFor="managerGroup">{t("admin.users.group")}</Label>
                   <Select
                     value={managerData.groupId}
                     onValueChange={(value) => handleManagerDataChange("groupId", value)}
-                    disabled={!managerData.degreeId}
+                    disabled={!managerData.degreeId || filteredGroups.length === 0}
                   >
                     <SelectTrigger id="managerGroup">
-                      <SelectValue placeholder={t("admin.settings.users.selectGroup")} />
+                      <SelectValue
+                        placeholder={
+                          !managerData.degreeId
+                            ? t("admin.users.selectDegreeFirst")
+                            : filteredGroups.length === 0
+                              ? t("admin.users.noGroupsAvailable")
+                              : t("admin.users.selectGroup")
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      {groups
-                        .filter((group) => group.degree_id === managerData.degreeId)
-                        .map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
+                      {filteredGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={handleSubmit} disabled={isLoading || isSaving}>
-            {isSaving ? (
-              <>{t("common.saving")}</>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                {t("common.save")}
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+                {t("admin.users.cancel")}
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? t("admin.users.saving") : t("admin.users.saveChanges")}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )
