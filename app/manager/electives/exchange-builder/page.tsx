@@ -47,6 +47,7 @@ export default function ExchangeBuilderPage() {
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingUniversities, setIsLoadingUniversities] = useState(false)
 
   // Semesters and years state
   const [semesters, setSemesters] = useState<Semester[]>([])
@@ -116,6 +117,13 @@ export default function ExchangeBuilderPage() {
     fetchData()
   }, [toast, t])
 
+  // Fetch universities when entering step 2
+  useEffect(() => {
+    if (currentStep === 2 && universities.length === 0 && !isLoadingUniversities) {
+      fetchUniversities()
+    }
+  }, [currentStep, universities.length, isLoadingUniversities])
+
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -170,7 +178,9 @@ export default function ExchangeBuilderPage() {
   const fetchUniversities = async () => {
     if (!institution?.id) return
 
+    setIsLoadingUniversities(true)
     try {
+      console.log("Fetching universities...")
       const { data, error } = await supabase
         .from("universities")
         .select("*")
@@ -180,6 +190,7 @@ export default function ExchangeBuilderPage() {
 
       if (error) throw error
 
+      console.log("Universities data:", data)
       setUniversities(data || [])
     } catch (error) {
       console.error("Error fetching universities:", error)
@@ -188,6 +199,8 @@ export default function ExchangeBuilderPage() {
         description: t("manager.exchangeBuilder.errorFetchingUniversities", "Failed to fetch universities"),
         variant: "destructive",
       })
+    } finally {
+      setIsLoadingUniversities(false)
     }
   }
 
@@ -240,11 +253,6 @@ export default function ExchangeBuilderPage() {
         return
       }
     } else if (currentStep === 2) {
-      // Fetch universities if not already loaded
-      if (universities.length === 0) {
-        fetchUniversities()
-      }
-
       // Validate step 2
       if (selectedUniversities.length === 0) {
         toast({
@@ -620,7 +628,27 @@ export default function ExchangeBuilderPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUniversities.length > 0 ? (
+                    {isLoadingUniversities ? (
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Skeleton className="h-4 w-4" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredUniversities.length > 0 ? (
                       filteredUniversities.map((university) => (
                         <TableRow
                           key={university.id}
@@ -642,10 +670,15 @@ export default function ExchangeBuilderPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center">
-                          {t(
-                            "manager.exchangeBuilder.noUniversitiesFound",
-                            "No universities found matching your search.",
-                          )}
+                          {universities.length === 0
+                            ? t(
+                                "manager.exchangeBuilder.noUniversitiesAvailable",
+                                "No universities available. Please add universities first.",
+                              )
+                            : t(
+                                "manager.exchangeBuilder.noUniversitiesFound",
+                                "No universities found matching your search.",
+                              )}
                         </TableCell>
                       </TableRow>
                     )}
@@ -657,7 +690,7 @@ export default function ExchangeBuilderPage() {
                 <Button type="button" variant="outline" onClick={handlePrevStep}>
                   {t("manager.exchangeBuilder.back", "Back")}
                 </Button>
-                <Button type="button" onClick={handleNextStep}>
+                <Button type="button" onClick={handleNextStep} disabled={isLoadingUniversities}>
                   {t("manager.exchangeBuilder.next", "Next")}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
