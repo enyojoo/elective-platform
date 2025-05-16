@@ -76,7 +76,7 @@ export default function ManagerCourseElectivesPage() {
             <Link href="/manager/electives/course-builder">
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                {t("manager.electives.addCourse")}
+                {t("manager.electives.create")}
               </Button>
             </Link>
           </div>
@@ -118,12 +118,6 @@ export default function ManagerCourseElectivesPage() {
         ) : (
           <div className="text-center py-10 border rounded-md">
             <p className="text-muted-foreground mb-4">{t("manager.electives.noCourseElectives")}</p>
-            <Link href="/manager/electives/course-builder">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("manager.electives.addCourse")}
-              </Button>
-            </Link>
           </div>
         )}
       </div>

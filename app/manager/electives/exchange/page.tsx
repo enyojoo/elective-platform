@@ -76,7 +76,7 @@ export default function ManagerExchangeElectivesPage() {
             <Link href="/manager/electives/exchange-builder">
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                {t("manager.electives.addExchange")}
+                {t("manager.electives.create")}
               </Button>
             </Link>
           </div>
@@ -117,13 +117,7 @@ export default function ManagerExchangeElectivesPage() {
           </div>
         ) : (
           <div className="text-center py-10 border rounded-md">
-            <p className="text-muted-foreground mb-4">{t("manager.electives.noExchangePrograms")}</p>
-            <Link href="/manager/electives/exchange-builder">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("manager.electives.addExchange")}
-              </Button>
-            </Link>
+            <p className="text-muted-foreground">{t("manager.electives.noExchangePrograms")}</p>
           </div>
         )}
       </div>
