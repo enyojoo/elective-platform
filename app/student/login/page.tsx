@@ -26,7 +26,7 @@ export default function StudentLoginPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess, DEFAULT_LOGO_URL } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -108,14 +108,16 @@ export default function StudentLoginPage() {
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           ) : (
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="ElectivePRO Logo"
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           )}
         </div>

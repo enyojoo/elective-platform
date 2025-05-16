@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("")
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { institution, isLoading: institutionLoading, DEFAULT_LOGO_URL } = useInstitution()
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -79,14 +79,16 @@ export default function ForgotPasswordPage() {
                 width={160}
                 height={45}
                 className="h-10 w-auto"
+                priority
               />
             ) : (
               <Image
-                src="/images/elective-pro-logo.svg"
+                src={DEFAULT_LOGO_URL || "/placeholder.svg"}
                 alt="ElectivePRO Logo"
                 width={160}
                 height={45}
                 className="h-10 w-auto"
+                priority
               />
             )}
           </div>
@@ -127,14 +129,16 @@ export default function ForgotPasswordPage() {
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           ) : (
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="ElectivePRO Logo"
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           )}
         </div>

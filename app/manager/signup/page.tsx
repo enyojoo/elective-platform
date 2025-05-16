@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
-import { useInstitution } from "@/lib/institution-context"
+import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
@@ -189,14 +189,16 @@ export default function ManagerSignupPage() {
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           ) : (
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="Elective Pro Logo"
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           )}
         </div>

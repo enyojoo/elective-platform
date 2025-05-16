@@ -22,7 +22,7 @@ export default function StudentSignupPage() {
   const { t, language } = useLanguage()
   const router = useRouter()
   const { toast } = useToast()
-  const { institution } = useInstitution()
+  const { institution, DEFAULT_LOGO_URL } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -197,14 +197,16 @@ export default function StudentSignupPage() {
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           ) : (
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="ElectivePRO Logo"
               width={160}
               height={45}
               className="h-10 w-auto"
+              priority
             />
           )}
         </div>
