@@ -28,6 +28,8 @@ interface ElectivePack {
   updated_at: string
   max_selections: number
   university_count?: number
+  created_by: string | null
+  creator_name?: string
 }
 
 export default function ExchangeElectivesPage() {
@@ -48,35 +50,41 @@ export default function ExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective packs of type 'exchange'
+        // Fetch elective exchange programs
         const { data: packs, error } = await supabase
-          .from("elective_packs")
-          .select("*")
+          .from("elective_exchange")
+          .select(`
+        *,
+        profiles:created_by (
+          first_name,
+          last_name
+        )
+      `)
           .eq("institution_id", institution.id)
           .eq("type", "exchange")
           .order("created_at", { ascending: false })
 
         if (error) throw error
 
-        // For each pack, fetch the count of universities
-        const packsWithCounts = await Promise.all(
-          (packs || []).map(async (pack) => {
-            const { count, error: countError } = await supabase
-              .from("exchange_universities")
-              .select("*", { count: "exact", head: true })
-              .eq("elective_pack_id", pack.id)
+        // Process the data to include university count and creator name
+        const processedPacks = (packs || []).map((pack) => {
+          // Get university count from the universities JSON array
+          const universityCount = pack.universities ? pack.universities.length : 0
 
-            if (countError) {
-              console.error("Error fetching university count:", countError)
-              return { ...pack, university_count: 0 }
-            }
+          // Get creator name from the joined profiles data
+          const creatorFirstName = pack.profiles?.first_name || ""
+          const creatorLastName = pack.profiles?.last_name || ""
+          const creatorName = creatorFirstName && creatorLastName ? `${creatorFirstName} ${creatorLastName}` : "Unknown"
 
-            return { ...pack, university_count: count || 0 }
-          }),
-        )
+          return {
+            ...pack,
+            university_count: universityCount,
+            creator_name: creatorName,
+          }
+        })
 
-        setElectivePacks(packsWithCounts)
-        setFilteredPacks(packsWithCounts)
+        setElectivePacks(processedPacks)
+        setFilteredPacks(processedPacks)
       } catch (error) {
         console.error("Error fetching elective packs:", error)
         toast({
@@ -235,7 +243,7 @@ export default function ExchangeElectivesPage() {
                           <TableCell>{pack.university_count || 0}</TableCell>
                           <TableCell>{getStatusBadge(pack.status)}</TableCell>
                           <TableCell>
-                            <span className="text-muted-foreground">Admin</span>
+                            <span className="text-muted-foreground">{pack.creator_name || "Admin"}</span>
                           </TableCell>
                           <TableCell className="text-right">
                             <Link href={`/admin/electives/exchange/${pack.id}`}>

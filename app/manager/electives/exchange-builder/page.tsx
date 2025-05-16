@@ -284,18 +284,20 @@ export default function ExchangeBuilderPage() {
   }
 
   // Generate program name based on semester and year
-  const generateProgramName = () => {
+  const generateProgramName = (lang: string = language) => {
     const selectedSemester = semesters.find((s) => s.code === formData.semester)
     const selectedYear = years.find((y) => y.id === formData.year)
 
     const semesterName =
-      language === "ru"
+      lang === "ru"
         ? selectedSemester?.name_ru || (formData.semester === "fall" ? "Осенний" : "Весенний")
         : selectedSemester?.name || (formData.semester === "fall" ? "Fall" : "Spring")
 
     const yearValue = selectedYear?.year || ""
 
-    return `${semesterName} ${yearValue} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
+    const exchangeText = lang === "ru" ? "Программа обмена" : "Exchange Program"
+
+    return `${semesterName} ${yearValue} ${exchangeText}`
   }
 
   // Handle form submission
@@ -306,105 +308,74 @@ export default function ExchangeBuilderPage() {
     setIsSubmitting(true)
 
     try {
-      const programName = generateProgramName()
+      // Generate both English and Russian program names
+      const programNameEn = generateProgramName("en")
+      const programNameRu = generateProgramName("ru")
 
       // Get the selected year value for the name
       const selectedYear = years.find((y) => y.id === formData.year)?.year || ""
 
+      // Get details of selected universities
+      const selectedUniversityDetails = universities.filter((uni) => selectedUniversities.includes(uni.id))
+
+      // Create a JSON array of university details to store in the elective_exchange table
+      const universitiesJson = selectedUniversityDetails.map((uni) => ({
+        id: uni.id,
+        name: uni.name,
+        name_ru: uni.name_ru,
+        country: uni.country,
+        city: uni.city,
+        city_ru: uni.city_ru,
+        max_students: uni.max_students,
+      }))
+
+      // Get current user profile for created_by
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      // Get profile information
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("user_id", user?.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError)
+      }
+
+      // Insert data into the elective_exchange table
       const insertData = {
         institution_id: institution.id,
-        name: programName,
-        name_ru: language === "ru" ? programName : undefined,
+        name: programNameEn,
+        name_ru: programNameRu,
         status: status,
         deadline: formData.endDate,
         max_selections: formData.maxSelections,
         statement_template_url: formData.statementTemplateUrl,
-        semester: formData.semester, // Add the semester field
-        academic_year: formData.year, // Use the year ID as academic_year
-        type: "exchange", // Make sure to set the type to exchange
+        semester: formData.semester,
+        academic_year: formData.year,
+        type: "exchange",
+        universities: universitiesJson, // Store universities as a JSON array
+        start_date: formData.startDate,
+        created_by: profileData?.id || null, // Store the profile ID of the creator
       }
 
-      console.log("Creating elective pack with data:", insertData)
+      console.log("Creating exchange program with data:", insertData)
 
-      // Create elective pack
-      const { data: packData, error: packError } = await supabase.from("elective_packs").insert([insertData]).select()
+      // Insert into elective_exchange table
+      const { data: exchangeData, error: exchangeError } = await supabase
+        .from("elective_exchange")
+        .insert([insertData])
+        .select()
 
-      if (packError) {
-        console.error("Error creating elective pack:", packError)
-        throw packError
+      if (exchangeError) {
+        console.error("Error creating exchange program:", exchangeError)
+        throw exchangeError
       }
 
-      console.log("Created elective pack:", packData)
-      const packId = packData[0].id
-
-      // First, let's try to get the structure of the exchange_universities table
-      try {
-        // Try to get a single row to see the structure
-        const { data: sampleData, error: sampleError } = await supabase
-          .from("exchange_universities")
-          .select("*")
-          .limit(1)
-
-        if (!sampleError && sampleData) {
-          console.log("Exchange universities table sample:", sampleData)
-        } else {
-          console.log("No sample data found, but that's okay if the table is empty")
-        }
-
-        // Try to get the table definition
-        const { data: tableInfo, error: tableError } = await supabase.rpc("get_table_definition", {
-          table_name: "exchange_universities",
-        })
-
-        if (!tableError && tableInfo) {
-          console.log("Exchange universities table definition:", tableInfo)
-        } else {
-          console.log("Could not get table definition:", tableError)
-        }
-      } catch (error) {
-        console.error("Error inspecting table structure:", error)
-        // Continue anyway, this is just for debugging
-      }
-
-      // Create direct SQL insert for exchange universities
-      for (const universityId of selectedUniversities) {
-        try {
-          // Try inserting with name_en and name_ru
-          const { data: universityData, error: universityError } = await supabase
-            .from("universities")
-            .select("name, name_ru")
-            .eq("id", universityId)
-            .single()
-
-          if (universityError) {
-            console.error("Error fetching university details:", universityError)
-            continue
-          }
-
-          // Create exchange university entry
-          const exchangeUniversityData = {
-            institution_id: institution.id,
-            elective_pack_id: packId,
-            name: universityData.name,
-            name_ru: universityData.name_ru,
-            country: "Unknown", // Default value
-            city: "Unknown", // Default value
-            status: "active",
-            max_students: 5, // Default value
-          }
-
-          console.log("Inserting exchange university:", exchangeUniversityData)
-          const { error: insertError } = await supabase.from("exchange_universities").insert([exchangeUniversityData])
-
-          if (insertError) {
-            console.error("Error creating exchange university:", insertError)
-            // Continue with other universities
-          }
-        } catch (error) {
-          console.error("Error processing university:", universityId, error)
-          // Continue with other universities
-        }
-      }
+      console.log("Created exchange program:", exchangeData)
 
       toast({
         title:
@@ -618,7 +589,7 @@ export default function ExchangeBuilderPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="endDate">{t("manager.exchangeBuilder.endDate", "Selection End Date")}</Label>
+                    <Label htmlFor="endDate">{t("manager.exchangeBuilder.deadline", "Deadline")}</Label>
                     <Input id="endDate" name="endDate" type="date" value={formData.endDate} onChange={handleChange} />
                   </div>
                 </div>
