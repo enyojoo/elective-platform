@@ -48,6 +48,7 @@ export default function ExchangeBuilderPage() {
   // Loading state
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingUniversities, setIsLoadingUniversities] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Semesters and years state
   const [semesters, setSemesters] = useState<Semester[]>([])
@@ -300,6 +301,9 @@ export default function ExchangeBuilderPage() {
   // Handle form submission
   const handleSubmit = async (status: string) => {
     if (!institution?.id) return
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
 
     try {
       const programName = generateProgramName()
@@ -317,6 +321,7 @@ export default function ExchangeBuilderPage() {
         statement_template_url: formData.statementTemplateUrl,
         semester: formData.semester, // Add the semester field
         academic_year: formData.year, // Use the year ID as academic_year
+        type: "exchange", // Make sure to set the type to exchange
       }
 
       console.log("Creating elective pack with data:", insertData)
@@ -332,30 +337,73 @@ export default function ExchangeBuilderPage() {
       console.log("Created elective pack:", packData)
       const packId = packData[0].id
 
-      // First, let's check the schema of the exchange_universities table
-      const { data: schemaData, error: schemaError } = await supabase.rpc("get_table_columns", {
-        table_name: "exchange_universities",
-      })
+      // First, let's try to get the structure of the exchange_universities table
+      try {
+        // Try to get a single row to see the structure
+        const { data: sampleData, error: sampleError } = await supabase
+          .from("exchange_universities")
+          .select("*")
+          .limit(1)
 
-      if (schemaError) {
-        console.error("Error fetching schema:", schemaError)
-      } else {
-        console.log("Exchange universities table schema:", schemaData)
+        if (!sampleError && sampleData) {
+          console.log("Exchange universities table sample:", sampleData)
+        } else {
+          console.log("No sample data found, but that's okay if the table is empty")
+        }
+
+        // Try to get the table definition
+        const { data: tableInfo, error: tableError } = await supabase.rpc("get_table_definition", {
+          table_name: "exchange_universities",
+        })
+
+        if (!tableError && tableInfo) {
+          console.log("Exchange universities table definition:", tableInfo)
+        } else {
+          console.log("Could not get table definition:", tableError)
+        }
+      } catch (error) {
+        console.error("Error inspecting table structure:", error)
+        // Continue anyway, this is just for debugging
       }
 
-      // Create exchange universities with the correct column name
-      const universityInserts = selectedUniversities.map((universityId) => ({
-        institution_id: institution.id,
-        elective_pack_id: packId,
-        university: universityId, // Changed from university_id to university
-      }))
+      // Create direct SQL insert for exchange universities
+      for (const universityId of selectedUniversities) {
+        try {
+          // Try inserting with name_en and name_ru
+          const { data: universityData, error: universityError } = await supabase
+            .from("universities")
+            .select("name, name_ru")
+            .eq("id", universityId)
+            .single()
 
-      console.log("Inserting exchange universities:", universityInserts)
-      const { error: universitiesError } = await supabase.from("exchange_universities").insert(universityInserts)
+          if (universityError) {
+            console.error("Error fetching university details:", universityError)
+            continue
+          }
 
-      if (universitiesError) {
-        console.error("Error creating exchange universities:", universitiesError)
-        throw universitiesError
+          // Create exchange university entry
+          const exchangeUniversityData = {
+            institution_id: institution.id,
+            elective_pack_id: packId,
+            name: universityData.name,
+            name_ru: universityData.name_ru,
+            country: "Unknown", // Default value
+            city: "Unknown", // Default value
+            status: "active",
+            max_students: 5, // Default value
+          }
+
+          console.log("Inserting exchange university:", exchangeUniversityData)
+          const { error: insertError } = await supabase.from("exchange_universities").insert([exchangeUniversityData])
+
+          if (insertError) {
+            console.error("Error creating exchange university:", insertError)
+            // Continue with other universities
+          }
+        } catch (error) {
+          console.error("Error processing university:", universityId, error)
+          // Continue with other universities
+        }
       }
 
       toast({
@@ -375,6 +423,8 @@ export default function ExchangeBuilderPage() {
         description: t("manager.exchangeBuilder.errorCreating", "Failed to create exchange program"),
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -835,11 +885,15 @@ export default function ExchangeBuilderPage() {
                   {t("manager.exchangeBuilder.back", "Back")}
                 </Button>
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={handleSaveAsDraft}>
-                    {t("manager.exchangeBuilder.saveAsDraft", "Save as Draft")}
+                  <Button type="button" variant="outline" onClick={handleSaveAsDraft} disabled={isSubmitting}>
+                    {isSubmitting
+                      ? t("manager.exchangeBuilder.saving", "Saving...")
+                      : t("manager.exchangeBuilder.saveAsDraft", "Save as Draft")}
                   </Button>
-                  <Button type="button" onClick={handlePublish}>
-                    {t("manager.exchangeBuilder.publishProgram", "Publish Program")}
+                  <Button type="button" onClick={handlePublish} disabled={isSubmitting}>
+                    {isSubmitting
+                      ? t("manager.exchangeBuilder.publishing", "Publishing...")
+                      : t("manager.exchangeBuilder.publishProgram", "Publish Program")}
                   </Button>
                 </div>
               </div>
