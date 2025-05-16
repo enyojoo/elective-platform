@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { useInstitution } from "@/lib/institution-context"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { getSemesters, type Semester } from "@/actions/semesters"
 
 interface University {
   id: string
@@ -42,12 +43,11 @@ export default function ExchangeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const totalSteps = 3
 
+  // Semesters state
+  const [semesters, setSemesters] = useState<Semester[]>([])
+
   // Form state
   const [formData, setFormData] = useState({
-    name: "",
-    name_ru: "",
-    description: "",
-    description_ru: "",
     semester: "fall",
     year: new Date().getFullYear().toString(),
     maxSelections: 2,
@@ -65,6 +65,25 @@ export default function ExchangeBuilderPage() {
   // File upload state
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Fetch semesters on component mount
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      try {
+        const semestersData = await getSemesters()
+        setSemesters(semestersData)
+      } catch (error) {
+        console.error("Error fetching semesters:", error)
+        toast({
+          title: t("manager.exchangeBuilder.error", "Error"),
+          description: t("manager.exchangeBuilder.errorFetchingSemesters", "Failed to fetch semesters"),
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchSemesters()
+  }, [toast, t])
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -224,19 +243,32 @@ export default function ExchangeBuilderPage() {
     await handleSubmit("published")
   }
 
+  // Generate program name based on semester and year
+  const generateProgramName = () => {
+    const selectedSemester = semesters.find((s) => s.code === formData.semester)
+    const semesterName =
+      language === "ru"
+        ? selectedSemester?.name_ru || (formData.semester === "fall" ? "Осенний" : "Весенний")
+        : selectedSemester?.name || (formData.semester === "fall" ? "Fall" : "Spring")
+
+    return `${semesterName} ${formData.year} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
+  }
+
   // Handle form submission
   const handleSubmit = async (status: string) => {
     if (!institution?.id) return
 
     try {
+      const programName = generateProgramName()
+
       // Create elective pack
       const { data: packData, error: packError } = await supabase
         .from("elective_packs")
         .insert([
           {
             institution_id: institution.id,
-            name: formData.name || `${formData.semester} ${formData.year} Exchange Program`,
-            name_ru: formData.name_ru,
+            name: programName,
+            name_ru: language === "ru" ? programName : undefined,
             description: formData.description,
             description_ru: formData.description_ru,
             type: "exchange",
@@ -373,8 +405,11 @@ export default function ExchangeBuilderPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fall">{t("manager.exchangeBuilder.fall", "Fall")}</SelectItem>
-                      <SelectItem value="spring">{t("manager.exchangeBuilder.spring", "Spring")}</SelectItem>
+                      {semesters.map((semester) => (
+                        <SelectItem key={semester.id} value={semester.code}>
+                          {language === "ru" && semester.name_ru ? semester.name_ru : semester.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -395,37 +430,7 @@ export default function ExchangeBuilderPage() {
 
               <div className="space-y-2">
                 <Label>{t("manager.exchangeBuilder.namePreview", "Program Name Preview")}</Label>
-                <div className="p-3 bg-muted rounded-md">
-                  {formData.name ||
-                    `${formData.semester === "fall" ? t("manager.exchangeBuilder.fall", "Fall") : t("manager.exchangeBuilder.spring", "Spring")} ${formData.year} ${t("manager.electives.exchangePrograms", "Exchange Program")}`}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("manager.exchangeBuilder.customName", "Custom Name (Optional)")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder={t("manager.exchangeBuilder.customNamePlaceholder", "Custom program name (optional)")}
-                  value={formData.name}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name_ru">
-                  {t("manager.exchangeBuilder.customNameRu", "Custom Name in Russian (Optional)")}
-                </Label>
-                <Input
-                  id="name_ru"
-                  name="name_ru"
-                  placeholder={t(
-                    "manager.exchangeBuilder.customNameRuPlaceholder",
-                    "Custom program name in Russian (optional)",
-                  )}
-                  value={formData.name_ru}
-                  onChange={handleChange}
-                />
+                <div className="p-3 bg-muted rounded-md">{generateProgramName()}</div>
               </div>
 
               <div className="space-y-2">
