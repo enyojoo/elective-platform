@@ -245,7 +245,7 @@ export default function ExchangeBuilderPage() {
   const handleNextStep = () => {
     if (currentStep === 1) {
       // Validate step 1
-      if (!formData.semester || !formData.year || !formData.startDate || !formData.endDate) {
+      if (!formData.semester || !formData.year || !formData.endDate) {
         toast({
           title: t("manager.exchangeBuilder.missingInfo", "Missing Information"),
           description: t("manager.exchangeBuilder.requiredFields", "Please fill in all required fields"),
@@ -568,25 +568,6 @@ export default function ExchangeBuilderPage() {
                       </span>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  {t("manager.exchangeBuilder.selectionPeriod", "Selection Period")}
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">{t("manager.exchangeBuilder.startDate", "Selection Start Date")}</Label>
-                    <Input
-                      id="startDate"
-                      name="startDate"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={handleChange}
-                    />
-                  </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="endDate">{t("manager.exchangeBuilder.deadline", "Deadline")}</Label>
@@ -789,11 +770,9 @@ export default function ExchangeBuilderPage() {
 
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("manager.exchangeBuilder.selectionPeriod", "Selection Period:")}
+                  {t("manager.exchangeBuilder.deadline", "Deadline:")}
                 </h3>
-                <p className="text-lg">
-                  {formData.startDate} - {formData.endDate}
-                </p>
+                <p className="text-lg">{formData.endDate}</p>
               </div>
 
               <div>
