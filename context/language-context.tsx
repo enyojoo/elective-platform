@@ -487,15 +487,26 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("en")
 
   const t = (key: string, params?: Record<string, any>) => {
-    const translation = translations[key]?.[language] || key
+    // Handle nested keys like "manager.exchangeBuilder.addUniversities"
+    const keys = key.split(".")
+    let translation: any = translations
 
-    if (params) {
-      return Object.entries(params).reduce((acc, [key, value]) => {
-        return acc.replace(new RegExp(`{${key}}`, "g"), String(value))
-      }, translation)
+    // Navigate through the nested structure
+    for (const k of keys) {
+      translation = translation[k]
+      if (!translation) break
     }
 
-    return translation
+    // Get the final translation based on current language
+    const finalTranslation = translation?.[language] || key
+
+    if (params) {
+      return Object.entries(params).reduce((acc, [paramKey, value]) => {
+        return acc.replace(new RegExp(`{${paramKey}}`, "g"), String(value))
+      }, finalTranslation)
+    }
+
+    return finalTranslation
   }
 
   return <LanguageContext.Provider value={{ language, setLanguage, t }}>{children}</LanguageContext.Provider>

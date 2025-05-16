@@ -50,31 +50,30 @@ export default function ExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective exchange programs
+        // Fetch elective exchange programs - UPDATED: Use full_name instead of first_name and last_name
         const { data: packs, error } = await supabase
           .from("elective_exchange")
           .select(`
-        *,
-        profiles:created_by (
-          first_name,
-          last_name
-        )
-      `)
+            *,
+            creator:profiles(full_name)
+          `)
           .eq("institution_id", institution.id)
-          .eq("type", "exchange")
           .order("created_at", { ascending: false })
 
-        if (error) throw error
+        if (error) {
+          console.error("Error fetching exchange programs:", error)
+          throw error
+        }
+
+        console.log("Fetched exchange programs:", packs)
 
         // Process the data to include university count and creator name
         const processedPacks = (packs || []).map((pack) => {
-          // Get university count from the universities JSON array
+          // Get university count from the universities array
           const universityCount = pack.universities ? pack.universities.length : 0
 
-          // Get creator name from the joined profiles data
-          const creatorFirstName = pack.profiles?.first_name || ""
-          const creatorLastName = pack.profiles?.last_name || ""
-          const creatorName = creatorFirstName && creatorLastName ? `${creatorFirstName} ${creatorLastName}` : "Unknown"
+          // Get creator name from the joined profiles data - UPDATED: Use full_name
+          const creatorName = pack.creator?.full_name || "Unknown"
 
           return {
             ...pack,
@@ -83,6 +82,7 @@ export default function ExchangeElectivesPage() {
           }
         })
 
+        console.log("Processed exchange programs:", processedPacks)
         setElectivePacks(processedPacks)
         setFilteredPacks(processedPacks)
       } catch (error) {
@@ -172,7 +172,7 @@ export default function ExchangeElectivesPage() {
               {t("admin.electives.subtitle", "Manage exchange programs for student mobility")}
             </p>
           </div>
-          <Link href="/admin/electives/exchange-builder">
+          <Link href="/admin/electives/exchange/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               {t("manager.electives.addExchange", "Add Exchange")}

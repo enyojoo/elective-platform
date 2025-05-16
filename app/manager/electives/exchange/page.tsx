@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Eye, Edit } from "lucide-react"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
-import { toast } from "sonner"
+import { toast } from "@/hooks/use-toast"
 
 interface ElectivePack {
   id: string
@@ -49,7 +49,7 @@ export default function ManagerExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective exchange programs
+        // Fetch elective exchange programs - FIXED: Changed table name to elective_exchange
         const { data: packs, error } = await supabase
           .from("elective_exchange")
           .select("*")
@@ -57,14 +57,18 @@ export default function ManagerExchangeElectivesPage() {
           .eq("type", "exchange")
           .order("created_at", { ascending: false })
 
-        if (error) throw error
+        if (error) {
+          console.error("Error fetching exchange programs:", error)
+          throw error
+        }
 
+        console.log("Fetched exchange programs:", packs)
         setExchangePrograms(packs || [])
       } catch (error) {
         console.error("Error fetching elective packs:", error)
         toast({
-          title: t("manager.electives.error", "Error"),
-          description: t("manager.electives.errorFetching", "Failed to fetch elective packs"),
+          title: t("manager.electives.error"),
+          description: t("manager.electives.errorFetching"),
           variant: "destructive",
         })
       } finally {
