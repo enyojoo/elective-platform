@@ -61,15 +61,25 @@ export default async function RootLayout({
       primary_color: institutionPrimaryColor || null,
     }
     console.log("Layout: Using institution from headers:", institution.name)
+
+    // Apply primary color as a CSS variable at the server level
+    if (institutionPrimaryColor) {
+      console.log("Layout: Setting primary color at server level:", institutionPrimaryColor)
+    }
   }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={institutionPrimaryColor ? ({ "--primary": institutionPrimaryColor } as React.CSSProperties) : undefined}
+    >
       <head>
         {/* Add a meta tag to help debug */}
         <meta name="x-subdomain" content={subdomain || "none"} />
         <meta name="x-institution-id" content={institutionId || "none"} />
         {institutionPrimaryColor && <meta name="theme-color" content={institutionPrimaryColor} />}
+        {institutionPrimaryColor && <meta name="x-primary-color" content={institutionPrimaryColor} />}
       </head>
       <body className={inter.className}>
         <Providers institution={institution}>

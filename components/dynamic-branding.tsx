@@ -8,12 +8,20 @@ const DEFAULT_FAVICON_URL =
   "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
 
 export function DynamicBranding() {
-  const { institution } = useInstitution()
+  const { institution, isSubdomainAccess } = useInstitution()
 
   useEffect(() => {
+    // Log for debugging
+    console.log("DynamicBranding: Applying branding", {
+      institution,
+      isSubdomainAccess,
+      primaryColor: institution?.primary_color,
+    })
+
     if (institution) {
       // Apply primary color as CSS variable
       if (institution.primary_color) {
+        console.log("DynamicBranding: Setting primary color to", institution.primary_color)
         document.documentElement.style.setProperty("--primary", institution.primary_color)
 
         // Also set primary color for compatibility with different components
@@ -24,6 +32,9 @@ export function DynamicBranding() {
             `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
           )
         }
+
+        // Set the color as a CSS custom property for Tailwind to use
+        document.documentElement.style.setProperty("--color-primary", institution.primary_color)
       }
 
       // Update favicon if available
@@ -56,7 +67,7 @@ export function DynamicBranding() {
         }
       }
     }
-  }, [institution])
+  }, [institution, isSubdomainAccess])
 
   // Helper function to convert hex color to RGB
   function hexToRgb(hex: string) {

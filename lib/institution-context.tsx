@@ -61,7 +61,28 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
     // Set primary color as CSS variable if it's updated
     if (data.primary_color) {
       document.documentElement.style.setProperty("--primary", data.primary_color)
+
+      // Also set the color as a CSS custom property for Tailwind to use
+      document.documentElement.style.setProperty("--color-primary", data.primary_color)
+
+      // Set RGB values for components that need them
+      const primaryRgb = hexToRgb(data.primary_color)
+      if (primaryRgb) {
+        document.documentElement.style.setProperty("--primary-rgb", `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`)
+      }
     }
+  }
+
+  // Helper function to convert hex color to RGB
+  function hexToRgb(hex: string) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? {
+          r: Number.parseInt(result[1], 16),
+          g: Number.parseInt(result[2], 16),
+          b: Number.parseInt(result[3], 16),
+        }
+      : null
   }
 
   useEffect(() => {
@@ -72,7 +93,20 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
           console.log("Context: Using initial institution:", initialInstitution.name)
           setInstitution(initialInstitution)
           if (initialInstitution.primary_color) {
+            console.log("Context: Setting primary color from initial institution:", initialInstitution.primary_color)
             document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
+
+            // Also set the color as a CSS custom property for Tailwind to use
+            document.documentElement.style.setProperty("--color-primary", initialInstitution.primary_color)
+
+            // Set RGB values for components that need them
+            const primaryRgb = hexToRgb(initialInstitution.primary_color)
+            if (primaryRgb) {
+              document.documentElement.style.setProperty(
+                "--primary-rgb",
+                `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+              )
+            }
           }
           setIsLoading(false)
           return
@@ -107,7 +141,20 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
             setInstitution(data)
             // Set primary color as CSS variable
             if (data.primary_color) {
+              console.log("Context: Setting primary color from subdomain institution:", data.primary_color)
               document.documentElement.style.setProperty("--primary", data.primary_color)
+
+              // Also set the color as a CSS custom property for Tailwind to use
+              document.documentElement.style.setProperty("--color-primary", data.primary_color)
+
+              // Set RGB values for components that need them
+              const primaryRgb = hexToRgb(data.primary_color)
+              if (primaryRgb) {
+                document.documentElement.style.setProperty(
+                  "--primary-rgb",
+                  `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+                )
+              }
             }
           }
         } else {
@@ -142,7 +189,20 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
                 console.log("Context: Found institution from profile:", institutionData.name)
                 setInstitution(institutionData)
                 if (institutionData.primary_color) {
+                  console.log("Context: Setting primary color from profile institution:", institutionData.primary_color)
                   document.documentElement.style.setProperty("--primary", institutionData.primary_color)
+
+                  // Also set the color as a CSS custom property for Tailwind to use
+                  document.documentElement.style.setProperty("--color-primary", institutionData.primary_color)
+
+                  // Set RGB values for components that need them
+                  const primaryRgb = hexToRgb(institutionData.primary_color)
+                  if (primaryRgb) {
+                    document.documentElement.style.setProperty(
+                      "--primary-rgb",
+                      `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+                    )
+                  }
                 }
               }
             }

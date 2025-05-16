@@ -49,8 +49,9 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
         ? "/student/login"
         : "/auth/login"
 
-  // Use institution logo if available, otherwise use default logo
-  const logoUrl = institution?.logo_url || DEFAULT_LOGO_URL
+  // Use institution logo only for manager and student sections, not for admin
+  // Admin should always use the default logo
+  const logoUrl = isAdmin ? DEFAULT_LOGO_URL : institution?.logo_url || DEFAULT_LOGO_URL
 
   return (
     <>
@@ -76,7 +77,7 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
             className="flex items-center gap-2"
             prefetch={true}
           >
-            {/* Updated to use the logo URL from institution or default */}
+            {/* Updated to use the appropriate logo based on user role */}
             <Image
               src={logoUrl || "/placeholder.svg"}
               alt="ElectivePRO Logo"
