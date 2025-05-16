@@ -304,7 +304,10 @@ export default function ExchangeBuilderPage() {
     try {
       const programName = generateProgramName()
 
-      console.log("Creating elective pack with data:", {
+      // Get the selected year value
+      const selectedYear = years.find((y) => y.id === formData.year)?.year || ""
+
+      const insertData = {
         institution_id: institution.id,
         name: programName,
         name_ru: language === "ru" ? programName : undefined,
@@ -312,23 +315,14 @@ export default function ExchangeBuilderPage() {
         deadline: formData.endDate,
         max_selections: formData.maxSelections,
         statement_template_url: formData.statementTemplateUrl,
-      })
+        semester: formData.semester, // Add the semester field
+        year: selectedYear, // Add the year field
+      }
+
+      console.log("Creating elective pack with data:", insertData)
 
       // Create elective pack
-      const { data: packData, error: packError } = await supabase
-        .from("elective_packs")
-        .insert([
-          {
-            institution_id: institution.id,
-            name: programName,
-            name_ru: language === "ru" ? programName : undefined,
-            status: status,
-            deadline: formData.endDate,
-            max_selections: formData.maxSelections,
-            statement_template_url: formData.statementTemplateUrl,
-          },
-        ])
-        .select()
+      const { data: packData, error: packError } = await supabase.from("elective_packs").insert([insertData]).select()
 
       if (packError) {
         console.error("Error creating elective pack:", packError)
@@ -473,7 +467,10 @@ export default function ExchangeBuilderPage() {
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="fall">{language === "ru" ? "Осенний" : "Fall"}</SelectItem>
+                          <>
+                            <SelectItem value="fall">{language === "ru" ? "Осенний" : "Fall"}</SelectItem>
+                            <SelectItem value="spring">{language === "ru" ? "Весенний" : "Spring"}</SelectItem>
+                          </>
                         )}
                       </SelectContent>
                     </Select>
@@ -736,6 +733,25 @@ export default function ExchangeBuilderPage() {
                     {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections:")}
                   </h3>
                   <p className="text-lg">{formData.maxSelections}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.semester", "Semester:")}
+                  </h3>
+                  <p className="text-lg">
+                    {semesters.find((s) => s.code === formData.semester)?.name ||
+                      (formData.semester === "fall" ? "Fall" : "Spring")}
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.year", "Year:")}
+                  </h3>
+                  <p className="text-lg">{years.find((y) => y.id === formData.year)?.year || ""}</p>
                 </div>
               </div>
 
