@@ -329,23 +329,13 @@ export default function ExchangeBuilderPage() {
         throw new Error("User not authenticated")
       }
 
-      // Get profile information - UPDATED: Use full_name instead of first_name and last_name
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("user_id", user.id)
-        .single()
+      console.log("Current user:", user)
 
-      if (profileError) {
-        console.error("Error fetching profile:", profileError)
-        throw new Error("Could not fetch user profile")
-      }
+      // FIXED: Use the current user's ID directly as the profile ID
+      // In this system, the profile ID is the same as the user ID
+      const profileId = user.id
 
-      if (!profileData || !profileData.id) {
-        throw new Error("User profile not found")
-      }
-
-      console.log("Profile data:", profileData)
+      console.log("Using profile ID:", profileId)
 
       // Insert data into the elective_exchange table
       const insertData = {
@@ -359,8 +349,7 @@ export default function ExchangeBuilderPage() {
         semester: formData.semester,
         academic_year: formData.year,
         universities: universityIds, // Store university IDs as an array of UUIDs
-        created_by: profileData.id, // Store the profile ID of the creator
-        type: "exchange", // Add type field to identify this as an exchange program
+        created_by: profileId, // Store the user ID as the creator
       }
 
       console.log("Creating exchange program with data:", insertData)
