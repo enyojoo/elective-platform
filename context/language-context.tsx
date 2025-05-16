@@ -265,16 +265,6 @@ const translations: Translations = {
     en: "Please select at least one university",
     ru: "Пожалуйста, выберите хотя бы один университет",
   },
-
-  // Exchange builder translations
-  "manager.exchangeBuilder.deadline": {
-    en: "Deadline",
-    ru: "Крайний срок",
-  },
-  "manager.exchangeBuilder.universitiesPerStudent": {
-    en: "universities per student",
-    ru: "университетов на студента",
-  },
   manager: {
     exchangeBuilder: {
       programInfo: {
@@ -288,6 +278,198 @@ const translations: Translations = {
       programDetails: {
         en: "Review & Publish",
         ru: "Просмотр и публикация",
+      },
+      title: {
+        en: "Create Exchange Program",
+        ru: "Создать программу обмена",
+      },
+      draft: {
+        en: "Draft",
+        ru: "Черновик",
+      },
+      step: {
+        en: "Step",
+        ru: "Шаг",
+      },
+      of: {
+        en: "of",
+        ru: "из",
+      },
+      semester: {
+        en: "Semester",
+        ru: "Семестр",
+      },
+      selectSemester: {
+        en: "Select semester",
+        ru: "Выберите семестр",
+      },
+      year: {
+        en: "Year",
+        ru: "Год",
+      },
+      selectYear: {
+        en: "Select year",
+        ru: "Выберите год",
+      },
+      namePreview: {
+        en: "Program Name Preview",
+        ru: "Предпросмотр названия программы",
+      },
+      selectionRules: {
+        en: "Selection Rules",
+        ru: "Правила выбора",
+      },
+      maxSelections: {
+        en: "Maximum Selections",
+        ru: "Максимальное количество выборов",
+      },
+      universitiesPerStudent: {
+        en: "universities per student",
+        ru: "университетов на студента",
+      },
+      deadline: {
+        en: "Deadline",
+        ru: "Крайний срок",
+      },
+      statementUpload: {
+        en: "Statement Upload",
+        ru: "Загрузка заявления",
+      },
+      statementDescription: {
+        en: "Upload a blank statement file that students will download, sign, and re-upload.",
+        ru: "Загрузите пустой файл заявления, который студенты скачают, подпишут и загрузят обратно.",
+      },
+      uploadStatementFile: {
+        en: "Upload Statement File (PDF)",
+        ru: "Загрузить файл заявления (PDF)",
+      },
+      next: {
+        en: "Next",
+        ru: "Далее",
+      },
+      searchUniversities: {
+        en: "Search universities...",
+        ru: "Поиск университетов...",
+      },
+      universitiesSelected: {
+        en: "universities selected",
+        ru: "выбрано университетов",
+      },
+      name: {
+        en: "Name",
+        ru: "Название",
+      },
+      country: {
+        en: "Country",
+        ru: "Страна",
+      },
+      city: {
+        en: "City",
+        ru: "Город",
+      },
+      maxStudents: {
+        en: "Max Students",
+        ru: "Макс. студентов",
+      },
+      noUniversitiesAvailable: {
+        en: "No universities available. Please add universities first.",
+        ru: "Нет доступных университетов. Пожалуйста, сначала добавьте университеты.",
+      },
+      noUniversitiesFound: {
+        en: "No universities found matching your search.",
+        ru: "Не найдено университетов, соответствующих вашему запросу.",
+      },
+      back: {
+        en: "Back",
+        ru: "Назад",
+      },
+      programName: {
+        en: "Program Name",
+        ru: "Название программы",
+      },
+      maxSelectionsLabel: {
+        en: "Max Selections",
+        ru: "Макс. выборов",
+      },
+      selectedUniversities: {
+        en: "Selected Universities",
+        ru: "Выбранные университеты",
+      },
+      noUniversitiesSelected: {
+        en: "No Universities Selected",
+        ru: "Университеты не выбраны",
+      },
+      goBackToAdd: {
+        en: "Go back to add universities to this exchange program.",
+        ru: "Вернитесь назад, чтобы добавить университеты в эту программу обмена.",
+      },
+      saving: {
+        en: "Saving...",
+        ru: "Сохранение...",
+      },
+      saveAsDraft: {
+        en: "Save as Draft",
+        ru: "Сохранить как черновик",
+      },
+      publishing: {
+        en: "Publishing...",
+        ru: "Публикация...",
+      },
+      publishProgram: {
+        en: "Publish Program",
+        ru: "Опубликовать программу",
+      },
+      error: {
+        en: "Error",
+        ru: "Ошибка",
+      },
+      errorFetchingData: {
+        en: "Failed to fetch data",
+        ru: "Не удалось получить данные",
+      },
+      errorFetchingUniversities: {
+        en: "Failed to fetch universities",
+        ru: "Не удалось получить список университетов",
+      },
+      uploadSuccess: {
+        en: "File uploaded",
+        ru: "Файл загружен",
+      },
+      uploadError: {
+        en: "Upload failed",
+        ru: "Ошибка загрузки",
+      },
+      uploadErrorDesc: {
+        en: "Failed to upload file",
+        ru: "Не удалось загрузить файл",
+      },
+      missingInfo: {
+        en: "Missing Information",
+        ru: "Отсутствует информация",
+      },
+      requiredFields: {
+        en: "Please fill in all required fields",
+        ru: "Пожалуйста, заполните все обязательные поля",
+      },
+      universityRequired: {
+        en: "At least one university must be selected",
+        ru: "Необходимо выбрать хотя бы один университет",
+      },
+      draftSaved: {
+        en: "Draft Saved",
+        ru: "Черновик сохранен",
+      },
+      programPublished: {
+        en: "Program Published",
+        ru: "Программа опубликована",
+      },
+      successDesc: {
+        en: "Exchange program has been created successfully",
+        ru: "Программа обмена успешно создана",
+      },
+      errorCreating: {
+        en: "Failed to create exchange program",
+        ru: "Не удалось создать программу обмена",
       },
     },
   },

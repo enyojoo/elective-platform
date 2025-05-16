@@ -105,8 +105,8 @@ export default function ExchangeBuilderPage() {
       } catch (error) {
         console.error("Error fetching data:", error)
         toast({
-          title: t("manager.exchangeBuilder.error", "Error"),
-          description: t("manager.exchangeBuilder.errorFetchingData", "Failed to fetch data"),
+          title: t("manager.exchangeBuilder.error"),
+          description: t("manager.exchangeBuilder.errorFetchingData"),
           variant: "destructive",
         })
       } finally {
@@ -158,15 +158,15 @@ export default function ExchangeBuilderPage() {
       if (urlData) {
         setFormData((prev) => ({ ...prev, statementTemplateUrl: urlData.publicUrl }))
         toast({
-          title: t("manager.exchangeBuilder.uploadSuccess", "File uploaded"),
+          title: t("manager.exchangeBuilder.uploadSuccess"),
           description: file.name,
         })
       }
     } catch (error) {
       console.error("Error uploading file:", error)
       toast({
-        title: t("manager.exchangeBuilder.uploadError", "Upload failed"),
-        description: t("manager.exchangeBuilder.uploadErrorDesc", "Failed to upload file"),
+        title: t("manager.exchangeBuilder.uploadError"),
+        description: t("manager.exchangeBuilder.uploadErrorDesc"),
         variant: "destructive",
       })
     } finally {
@@ -195,8 +195,8 @@ export default function ExchangeBuilderPage() {
     } catch (error) {
       console.error("Error fetching universities:", error)
       toast({
-        title: t("manager.exchangeBuilder.error", "Error"),
-        description: t("manager.exchangeBuilder.errorFetchingUniversities", "Failed to fetch universities"),
+        title: t("manager.exchangeBuilder.error"),
+        description: t("manager.exchangeBuilder.errorFetchingUniversities"),
         variant: "destructive",
       })
     } finally {
@@ -246,8 +246,8 @@ export default function ExchangeBuilderPage() {
       // Validate step 1
       if (!formData.semester || !formData.year || !formData.endDate) {
         toast({
-          title: t("manager.exchangeBuilder.missingInfo", "Missing Information"),
-          description: t("manager.exchangeBuilder.requiredFields", "Please fill in all required fields"),
+          title: t("manager.exchangeBuilder.missingInfo"),
+          description: t("manager.exchangeBuilder.requiredFields"),
           variant: "destructive",
         })
         return
@@ -256,8 +256,8 @@ export default function ExchangeBuilderPage() {
       // Validate step 2
       if (selectedUniversities.length === 0) {
         toast({
-          title: t("manager.exchangeBuilder.missingInfo", "Missing Information"),
-          description: t("manager.exchangeBuilder.universityRequired", "At least one university must be selected"),
+          title: t("manager.exchangeBuilder.missingInfo"),
+          description: t("manager.exchangeBuilder.universityRequired"),
           variant: "destructive",
         })
         return
@@ -318,15 +318,7 @@ export default function ExchangeBuilderPage() {
       const selectedUniversityDetails = universities.filter((uni) => selectedUniversities.includes(uni.id))
 
       // Create a JSON array of university details to store in the elective_exchange table
-      const universitiesJson = selectedUniversityDetails.map((uni) => ({
-        id: uni.id,
-        name: uni.name,
-        name_ru: uni.name_ru,
-        country: uni.country,
-        city: uni.city,
-        city_ru: uni.city_ru,
-        max_students: uni.max_students,
-      }))
+      const universityIds = selectedUniversities
 
       // Get current user profile for created_by
       const {
@@ -355,7 +347,7 @@ export default function ExchangeBuilderPage() {
         statement_template_url: formData.statementTemplateUrl,
         semester: formData.semester,
         academic_year: formData.year,
-        universities: universitiesJson, // Store universities as a JSON array
+        universities: universityIds, // Store university IDs as an array of UUIDs
         created_by: profileData?.id || null, // Store the profile ID of the creator
       }
 
@@ -376,10 +368,8 @@ export default function ExchangeBuilderPage() {
 
       toast({
         title:
-          status === "draft"
-            ? t("manager.exchangeBuilder.draftSaved", "Draft Saved")
-            : t("manager.exchangeBuilder.programPublished", "Program Published"),
-        description: t("manager.exchangeBuilder.successDesc", "Exchange program has been created successfully"),
+          status === "draft" ? t("manager.exchangeBuilder.draftSaved") : t("manager.exchangeBuilder.programPublished"),
+        description: t("manager.exchangeBuilder.successDesc"),
       })
 
       // Redirect to exchange programs page
@@ -387,8 +377,8 @@ export default function ExchangeBuilderPage() {
     } catch (error) {
       console.error("Error creating exchange program:", error)
       toast({
-        title: t("manager.exchangeBuilder.error", "Error"),
-        description: t("manager.exchangeBuilder.errorCreating", "Failed to create exchange program"),
+        title: t("manager.exchangeBuilder.error"),
+        description: t("manager.exchangeBuilder.errorCreating"),
         variant: "destructive",
       })
     } finally {
@@ -407,12 +397,10 @@ export default function ExchangeBuilderPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {t("manager.exchangeBuilder.title", "Create Exchange Program")}
-              </h1>
+              <h1 className="text-3xl font-bold tracking-tight">{t("manager.exchangeBuilder.title")}</h1>
               <p className="text-muted-foreground">
                 <Badge variant="outline" className="mt-1">
-                  {t("manager.exchangeBuilder.draft", "Draft")}
+                  {t("manager.exchangeBuilder.draft")}
                 </Badge>
               </p>
             </div>
@@ -430,7 +418,7 @@ export default function ExchangeBuilderPage() {
                 {currentStep > 1 ? <Check className="h-4 w-4" /> : "1"}
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programInfo", "Program Information")}</p>
+                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programInfo")}</p>
               </div>
             </div>
 
@@ -445,9 +433,7 @@ export default function ExchangeBuilderPage() {
                 {currentStep > 2 ? <Check className="h-4 w-4" /> : "2"}
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">
-                  {t("manager.exchangeBuilder.addUniversities", "Add Universities")}
-                </p>
+                <p className="text-sm font-medium">{t("manager.exchangeBuilder.addUniversities")}</p>
               </div>
             </div>
 
@@ -462,13 +448,13 @@ export default function ExchangeBuilderPage() {
                 3
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programDetails", "Review & Publish")}</p>
+                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programDetails")}</p>
               </div>
             </div>
           </div>
 
           <div className="text-sm text-muted-foreground">
-            {t("manager.exchangeBuilder.step", "Step")} {currentStep} {t("manager.exchangeBuilder.of", "of")}{" "}
+            {t("manager.exchangeBuilder.step")} {currentStep} {t("manager.exchangeBuilder.of")}
             {totalSteps}
           </div>
         </div>
@@ -477,18 +463,18 @@ export default function ExchangeBuilderPage() {
         {currentStep === 1 && (
           <Card>
             <CardHeader>
-              <CardTitle>{t("manager.exchangeBuilder.programInfo", "Program Information")}</CardTitle>
+              <CardTitle>{t("manager.exchangeBuilder.programInfo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="semester">{t("manager.exchangeBuilder.semester", "Semester")}</Label>
+                  <Label htmlFor="semester">{t("manager.exchangeBuilder.semester")}</Label>
                   {isLoading ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
                     <Select value={formData.semester} onValueChange={(value) => handleSelectChange("semester", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("manager.exchangeBuilder.selectSemester", "Select semester")} />
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectSemester")} />
                       </SelectTrigger>
                       <SelectContent>
                         {semesters.length > 0 ? (
@@ -509,13 +495,13 @@ export default function ExchangeBuilderPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="year">{t("manager.exchangeBuilder.year", "Year")}</Label>
+                  <Label htmlFor="year">{t("manager.exchangeBuilder.year")}</Label>
                   {isLoading ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
                     <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("manager.exchangeBuilder.selectYear", "Select year")} />
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectYear")} />
                       </SelectTrigger>
                       <SelectContent>
                         {years.length > 0 ? (
@@ -534,7 +520,7 @@ export default function ExchangeBuilderPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>{t("manager.exchangeBuilder.namePreview", "Program Name Preview")}</Label>
+                <Label>{t("manager.exchangeBuilder.namePreview")}</Label>
                 {isLoading ? (
                   <Skeleton className="h-10 w-full" />
                 ) : (
@@ -543,15 +529,11 @@ export default function ExchangeBuilderPage() {
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  {t("manager.exchangeBuilder.selectionRules", "Selection Rules")}
-                </h3>
+                <h3 className="text-lg font-medium">{t("manager.exchangeBuilder.selectionRules")}</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="maxSelections">
-                      {t("manager.exchangeBuilder.maxSelections", "Maximum Selections")}
-                    </Label>
+                    <Label htmlFor="maxSelections">{t("manager.exchangeBuilder.maxSelections")}</Label>
                     <Input
                       id="maxSelections"
                       name="maxSelections"
@@ -562,27 +544,20 @@ export default function ExchangeBuilderPage() {
                       onChange={handleChange}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {t("manager.exchangeBuilder.universitiesPerStudent", "universities per student")}
+                      {t("manager.exchangeBuilder.universitiesPerStudent")}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="endDate">{t("manager.exchangeBuilder.deadline", "Deadline")}</Label>
+                    <Label htmlFor="endDate">{t("manager.exchangeBuilder.deadline")}</Label>
                     <Input id="endDate" name="endDate" type="date" value={formData.endDate} onChange={handleChange} />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  {t("manager.exchangeBuilder.statementUpload", "Statement Upload")}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    "manager.exchangeBuilder.statementDescription",
-                    "Upload a blank statement file that students will download, sign, and re-upload.",
-                  )}
-                </p>
+                <h3 className="text-lg font-medium">{t("manager.exchangeBuilder.statementUpload")}</h3>
+                <p className="text-sm text-muted-foreground">{t("manager.exchangeBuilder.statementDescription")}</p>
 
                 <div className="flex items-center gap-4">
                   <Label
@@ -590,7 +565,7 @@ export default function ExchangeBuilderPage() {
                     className="flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background hover:bg-accent hover:text-accent-foreground cursor-pointer"
                   >
                     <FileUp className="mr-2 h-4 w-4" />
-                    {t("manager.exchangeBuilder.uploadStatementFile", "Upload Statement File (PDF)")}
+                    {t("manager.exchangeBuilder.uploadStatementFile")}
                   </Label>
                   <Input
                     id="statement-file"
@@ -607,7 +582,7 @@ export default function ExchangeBuilderPage() {
 
               <div className="pt-4 flex justify-end">
                 <Button type="button" onClick={handleNextStep} disabled={isLoading}>
-                  {t("manager.exchangeBuilder.next", "Next")}
+                  {t("manager.exchangeBuilder.next")}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -619,7 +594,7 @@ export default function ExchangeBuilderPage() {
         {currentStep === 2 && (
           <Card>
             <CardHeader>
-              <CardTitle>{t("manager.exchangeBuilder.addUniversities", "Add Universities")}</CardTitle>
+              <CardTitle>{t("manager.exchangeBuilder.addUniversities")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
@@ -627,7 +602,7 @@ export default function ExchangeBuilderPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder={t("manager.exchangeBuilder.searchUniversities", "Search universities...")}
+                    placeholder={t("manager.exchangeBuilder.searchUniversities")}
                     className="pl-8"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -636,7 +611,7 @@ export default function ExchangeBuilderPage() {
 
                 <div className="text-sm text-muted-foreground">
                   <span className="font-medium">{selectedUniversities.length}</span>{" "}
-                  {t("manager.exchangeBuilder.universitiesSelected", "universities selected")}
+                  {t("manager.exchangeBuilder.universitiesSelected")}
                 </div>
               </div>
 
@@ -645,10 +620,10 @@ export default function ExchangeBuilderPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>{t("manager.exchangeBuilder.name", "Name")}</TableHead>
-                      <TableHead>{t("manager.exchangeBuilder.country", "Country")}</TableHead>
-                      <TableHead>{t("manager.exchangeBuilder.city", "City")}</TableHead>
-                      <TableHead>{t("manager.exchangeBuilder.maxStudents", "Max Students")}</TableHead>
+                      <TableHead>{t("manager.exchangeBuilder.name")}</TableHead>
+                      <TableHead>{t("manager.exchangeBuilder.country")}</TableHead>
+                      <TableHead>{t("manager.exchangeBuilder.city")}</TableHead>
+                      <TableHead>{t("manager.exchangeBuilder.maxStudents")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -695,14 +670,8 @@ export default function ExchangeBuilderPage() {
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center">
                           {universities.length === 0
-                            ? t(
-                                "manager.exchangeBuilder.noUniversitiesAvailable",
-                                "No universities available. Please add universities first.",
-                              )
-                            : t(
-                                "manager.exchangeBuilder.noUniversitiesFound",
-                                "No universities found matching your search.",
-                              )}
+                            ? t("manager.exchangeBuilder.noUniversitiesAvailable")
+                            : t("manager.exchangeBuilder.noUniversitiesFound")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -712,10 +681,10 @@ export default function ExchangeBuilderPage() {
 
               <div className="pt-4 flex justify-between">
                 <Button type="button" variant="outline" onClick={handlePrevStep}>
-                  {t("manager.exchangeBuilder.back", "Back")}
+                  {t("manager.exchangeBuilder.back")}
                 </Button>
                 <Button type="button" onClick={handleNextStep} disabled={isLoadingUniversities}>
-                  {t("manager.exchangeBuilder.next", "Next")}
+                  {t("manager.exchangeBuilder.next")}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -727,47 +696,45 @@ export default function ExchangeBuilderPage() {
         {currentStep === 3 && (
           <Card>
             <CardHeader>
-              <CardTitle>{t("manager.exchangeBuilder.programDetails", "Program Details")}</CardTitle>
+              <CardTitle>{t("manager.exchangeBuilder.programDetails")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Program details in a single row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.programName", "Program Name")}
+                    {t("manager.exchangeBuilder.programName")}
                   </h3>
                   <p className="text-lg">{generateProgramName()}</p>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections")}
+                    {t("manager.exchangeBuilder.maxSelectionsLabel")}
                   </h3>
                   <p className="text-lg">{formData.maxSelections}</p>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.deadline", "Deadline")}
+                    {t("manager.exchangeBuilder.deadline")}
                   </h3>
                   <p className="text-lg">{formData.endDate}</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  {t("manager.exchangeBuilder.selectedUniversities", "Selected Universities")}
-                </h3>
+                <h3 className="text-lg font-medium">{t("manager.exchangeBuilder.selectedUniversities")}</h3>
 
                 {selectedUniversities.length > 0 ? (
                   <div className="rounded-md border overflow-hidden">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>{t("manager.exchangeBuilder.name", "Name")}</TableHead>
-                          <TableHead>{t("manager.exchangeBuilder.country", "Country")}</TableHead>
-                          <TableHead>{t("manager.exchangeBuilder.city", "City")}</TableHead>
-                          <TableHead>{t("manager.exchangeBuilder.maxStudents", "Max Students")}</TableHead>
+                          <TableHead>{t("manager.exchangeBuilder.name")}</TableHead>
+                          <TableHead>{t("manager.exchangeBuilder.country")}</TableHead>
+                          <TableHead>{t("manager.exchangeBuilder.city")}</TableHead>
+                          <TableHead>{t("manager.exchangeBuilder.maxStudents")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -786,17 +753,10 @@ export default function ExchangeBuilderPage() {
                   </div>
                 ) : (
                   <div className="p-8 text-center border rounded-md">
-                    <h3 className="text-lg font-medium mb-2">
-                      {t("manager.exchangeBuilder.noUniversitiesSelected", "No Universities Selected")}
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      {t(
-                        "manager.exchangeBuilder.goBackToAdd",
-                        "Go back to add universities to this exchange program.",
-                      )}
-                    </p>
+                    <h3 className="text-lg font-medium mb-2">{t("manager.exchangeBuilder.noUniversitiesSelected")}</h3>
+                    <p className="text-muted-foreground mb-4">{t("manager.exchangeBuilder.goBackToAdd")}</p>
                     <Button variant="outline" onClick={handlePrevStep}>
-                      {t("manager.exchangeBuilder.back", "Back")}
+                      {t("manager.exchangeBuilder.back")}
                     </Button>
                   </div>
                 )}
@@ -804,18 +764,16 @@ export default function ExchangeBuilderPage() {
 
               <div className="pt-4 flex justify-between">
                 <Button type="button" variant="outline" onClick={handlePrevStep}>
-                  {t("manager.exchangeBuilder.back", "Back")}
+                  {t("manager.exchangeBuilder.back")}
                 </Button>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={handleSaveAsDraft} disabled={isSubmitting}>
-                    {isSubmitting
-                      ? t("manager.exchangeBuilder.saving", "Saving...")
-                      : t("manager.exchangeBuilder.saveAsDraft", "Save as Draft")}
+                    {isSubmitting ? t("manager.exchangeBuilder.saving") : t("manager.exchangeBuilder.saveAsDraft")}
                   </Button>
                   <Button type="button" onClick={handlePublish} disabled={isSubmitting}>
                     {isSubmitting
-                      ? t("manager.exchangeBuilder.publishing", "Publishing...")
-                      : t("manager.exchangeBuilder.publishProgram", "Publish Program")}
+                      ? t("manager.exchangeBuilder.publishing")
+                      : t("manager.exchangeBuilder.publishProgram")}
                   </Button>
                 </div>
               </div>
