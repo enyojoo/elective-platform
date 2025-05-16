@@ -304,7 +304,7 @@ export default function ExchangeBuilderPage() {
     try {
       const programName = generateProgramName()
 
-      // Get the selected year value
+      // Get the selected year value for the name, but don't include it in the insert
       const selectedYear = years.find((y) => y.id === formData.year)?.year || ""
 
       const insertData = {
@@ -316,7 +316,7 @@ export default function ExchangeBuilderPage() {
         max_selections: formData.maxSelections,
         statement_template_url: formData.statementTemplateUrl,
         semester: formData.semester, // Add the semester field
-        year: selectedYear, // Add the year field
+        // Don't include year field as it doesn't exist in the database
       }
 
       console.log("Creating elective pack with data:", insertData)
