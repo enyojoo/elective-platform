@@ -4,6 +4,9 @@ import { useInstitution, DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR } from "@/li
 import { usePathname } from "next/navigation"
 import { useEffect } from "react"
 
+// Default platform name
+const DEFAULT_PLATFORM_NAME = "ElectivePRO"
+
 export function DynamicBranding() {
   const { institution, isSubdomainAccess } = useInstitution()
   const pathname = usePathname()
@@ -20,6 +23,15 @@ export function DynamicBranding() {
       favicon: institution?.favicon_url,
       isAdmin,
     })
+
+    // Update document title based on institution
+    if (institution && isSubdomainAccess && !isAdmin) {
+      // For subdomain access and not admin, use institution name
+      document.title = institution.name || DEFAULT_PLATFORM_NAME
+    } else {
+      // For non-subdomain access or admin, use default platform name
+      document.title = DEFAULT_PLATFORM_NAME
+    }
 
     // For admin pages, always use the default color and favicon
     if (isAdmin) {
