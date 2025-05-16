@@ -26,7 +26,7 @@ export default function InstitutionLoginPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const { toast } = useToast()
-  const { isSubdomainAccess } = useInstitution()
+  const { isSubdomainAccess, defaultLogoUrl } = useInstitution()
 
   // Ensure this page is only accessed via main domain
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function InstitutionLoginPage() {
       <div className="mx-auto max-w-md space-y-6 w-full">
         <div className="flex justify-center mb-6">
           <Image
-            src="/images/elective-pro-logo.svg"
+            src="https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
             alt="ElectivePRO Logo"
             width={160}
             height={45}

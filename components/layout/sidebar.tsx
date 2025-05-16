@@ -20,6 +20,8 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { useState } from "react"
+import { DEFAULT_LOGO_URL } from "@/lib/institution-context"
+import { useInstitution } from "@/lib/institution-context"
 
 interface SidebarProps {
   open: boolean
@@ -31,6 +33,7 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
   const pathname = usePathname()
   const { t, language } = useLanguage()
   const [electivesOpen, setElectivesOpen] = useState(pathname.includes("/electives"))
+  const { institution } = useInstitution()
 
   // Determine user role based on URL path
   const isAdmin = pathname.includes("/admin")
@@ -45,6 +48,9 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
       : isStudent
         ? "/student/login"
         : "/auth/login"
+
+  // Use institution logo if available, otherwise use default logo
+  const logoUrl = institution?.logo_url || DEFAULT_LOGO_URL
 
   return (
     <>
@@ -70,9 +76,9 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
             className="flex items-center gap-2"
             prefetch={true}
           >
-            {/* Ensure the logo path is correct and the dimensions are appropriate */}
+            {/* Updated to use the logo URL from institution or default */}
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={logoUrl || "/placeholder.svg"}
               alt="ElectivePRO Logo"
               width={110}
               height={30}

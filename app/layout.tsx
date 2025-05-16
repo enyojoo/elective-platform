@@ -11,14 +11,18 @@ import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
 
+// Updated default favicon URL
+const DEFAULT_FAVICON_URL =
+  "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+
 export const metadata: Metadata = {
   title: "ElectivePRO",
   description:
     "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: DEFAULT_FAVICON_URL,
+    shortcut: DEFAULT_FAVICON_URL,
+    apple: DEFAULT_FAVICON_URL,
   },
     generator: 'v0.dev'
 }

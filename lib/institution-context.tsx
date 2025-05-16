@@ -3,6 +3,12 @@
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 
+// Updated default logo URL
+export const DEFAULT_LOGO_URL = "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+// Updated default favicon URL
+export const DEFAULT_FAVICON_URL =
+  "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+
 export interface Institution {
   id: string
   name: string

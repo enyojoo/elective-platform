@@ -3,6 +3,10 @@
 import { useInstitution } from "@/lib/institution-context"
 import { useEffect } from "react"
 
+// Updated default favicon URL
+const DEFAULT_FAVICON_URL =
+  "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+
 export function DynamicBranding() {
   const { institution } = useInstitution()
 
@@ -43,6 +47,12 @@ export function DynamicBranding() {
           appleIcon.rel = "apple-touch-icon"
           appleIcon.href = institution.favicon_url
           document.head.appendChild(appleIcon)
+        }
+      } else {
+        // Set default favicon if institution doesn't have one
+        const existingFavicon = document.querySelector("link[rel='icon']")
+        if (existingFavicon) {
+          existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
         }
       }
     }

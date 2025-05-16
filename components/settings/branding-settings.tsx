@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { uploadLogo, uploadFavicon } from "@/lib/file-utils"
-import { useInstitution } from "@/lib/institution-context"
+import { useInstitution, DEFAULT_LOGO_URL, DEFAULT_FAVICON_URL } from "@/lib/institution-context"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useCachedInstitutionSettings } from "@/hooks/use-cached-institution-settings"
@@ -502,9 +502,13 @@ export function BrandingSettings() {
                 ) : (
                   <div className="h-10 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
                     {logoUrl ? (
-                      <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="h-full w-full object-contain" />
+                      <img src={logoUrl || DEFAULT_LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
                     ) : (
-                      <span className="text-xs text-muted-foreground">Logo</span>
+                      <img
+                        src={DEFAULT_LOGO_URL || "/placeholder.svg"}
+                        alt="Default Logo"
+                        className="h-full w-full object-contain"
+                      />
                     )}
                   </div>
                 )}
@@ -548,12 +552,16 @@ export function BrandingSettings() {
                   <div className="h-10 w-10 bg-muted rounded flex items-center justify-center overflow-hidden">
                     {faviconUrl ? (
                       <img
-                        src={faviconUrl || "/placeholder.svg"}
+                        src={faviconUrl || DEFAULT_FAVICON_URL}
                         alt="Favicon"
                         className="h-full w-full object-contain"
                       />
                     ) : (
-                      <span className="text-xs text-muted-foreground">Icon</span>
+                      <img
+                        src={DEFAULT_FAVICON_URL || "/placeholder.svg"}
+                        alt="Default Favicon"
+                        className="h-full w-full object-contain"
+                      />
                     )}
                   </div>
                 )}

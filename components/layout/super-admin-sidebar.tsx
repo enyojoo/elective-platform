@@ -8,6 +8,7 @@ import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { LayoutDashboard, BookOpen, Building2, X } from "lucide-react"
 import { useSuperAdminAuth } from "@/lib/super-admin-auth-context"
+import { DEFAULT_LOGO_URL } from "@/lib/institution-context"
 
 interface SuperAdminSidebarProps {
   open: boolean
@@ -43,12 +44,14 @@ export function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
       >
         <div className="flex h-16 items-center justify-center border-b px-4">
           <Link href="/super-admin/dashboard" className="flex items-center gap-2">
+            {/* Updated to use the default logo URL */}
             <Image
-              src="/images/elective-pro-logo.svg"
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="ElectivePRO Logo"
               width={110}
               height={30}
               className="h-7 w-auto"
+              priority
             />
           </Link>
           <button
