@@ -332,11 +332,22 @@ export default function ExchangeBuilderPage() {
       console.log("Created elective pack:", packData)
       const packId = packData[0].id
 
-      // Create exchange universities
+      // First, let's check the schema of the exchange_universities table
+      const { data: schemaData, error: schemaError } = await supabase.rpc("get_table_columns", {
+        table_name: "exchange_universities",
+      })
+
+      if (schemaError) {
+        console.error("Error fetching schema:", schemaError)
+      } else {
+        console.log("Exchange universities table schema:", schemaData)
+      }
+
+      // Create exchange universities with the correct column name
       const universityInserts = selectedUniversities.map((universityId) => ({
         institution_id: institution.id,
         elective_pack_id: packId,
-        university_id: universityId,
+        university: universityId, // Changed from university_id to university
       }))
 
       console.log("Inserting exchange universities:", universityInserts)
