@@ -265,6 +265,16 @@ const translations: Translations = {
     en: "Please select at least one university",
     ru: "Пожалуйста, выберите хотя бы один университет",
   },
+
+  // Exchange builder translations
+  "manager.exchangeBuilder.deadline": {
+    en: "Deadline",
+    ru: "Крайний срок",
+  },
+  "manager.exchangeBuilder.universitiesPerStudent": {
+    en: "universities per student",
+    ru: "университетов на студента",
+  },
 }
 
 interface LanguageContextType {

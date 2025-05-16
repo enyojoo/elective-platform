@@ -59,7 +59,6 @@ export default function ExchangeBuilderPage() {
     semester: "",
     year: "",
     maxSelections: 2,
-    startDate: "",
     endDate: "",
     status: "draft",
     statementTemplateUrl: "",
@@ -358,7 +357,6 @@ export default function ExchangeBuilderPage() {
         academic_year: formData.year,
         type: "exchange",
         universities: universitiesJson, // Store universities as a JSON array
-        start_date: formData.startDate,
         created_by: profileData?.id || null, // Store the profile ID of the creator
       }
 
@@ -553,20 +551,18 @@ export default function ExchangeBuilderPage() {
                     <Label htmlFor="maxSelections">
                       {t("manager.exchangeBuilder.maxSelections", "Maximum Selections")}
                     </Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="maxSelections"
-                        name="maxSelections"
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={formData.maxSelections}
-                        onChange={handleChange}
-                      />
-                      <span className="text-muted-foreground whitespace-nowrap">
-                        {t("manager.exchangeBuilder.universitiesPerStudent", "universities per student")}
-                      </span>
-                    </div>
+                    <Input
+                      id="maxSelections"
+                      name="maxSelections"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={formData.maxSelections}
+                      onChange={handleChange}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("manager.exchangeBuilder.universitiesPerStudent", "universities per student")}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -733,7 +729,8 @@ export default function ExchangeBuilderPage() {
               <CardTitle>{t("manager.exchangeBuilder.programDetails", "Program Details")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Program details in a single row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
                     {t("manager.exchangeBuilder.programName", "Program Name")}
@@ -743,43 +740,17 @@ export default function ExchangeBuilderPage() {
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections:")}
+                    {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections")}
                   </h3>
                   <p className="text-lg">{formData.maxSelections}</p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.semester", "Semester:")}
-                  </h3>
-                  <p className="text-lg">
-                    {semesters.find((s) => s.code === formData.semester)?.name ||
-                      (formData.semester === "fall" ? "Fall" : "Spring")}
-                  </p>
-                </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.year", "Year:")}
+                    {t("manager.exchangeBuilder.deadline", "Deadline")}
                   </h3>
-                  <p className="text-lg">{years.find((y) => y.id === formData.year)?.year || ""}</p>
+                  <p className="text-lg">{formData.endDate}</p>
                 </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("manager.exchangeBuilder.deadline", "Deadline:")}
-                </h3>
-                <p className="text-lg">{formData.endDate}</p>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("manager.exchangeBuilder.universities", "Universities:")}
-                </h3>
-                <p className="text-lg">{selectedUniversities.length}</p>
               </div>
 
               <div className="space-y-2">
