@@ -275,6 +275,22 @@ const translations: Translations = {
     en: "universities per student",
     ru: "университетов на студента",
   },
+  manager: {
+    exchangeBuilder: {
+      programInfo: {
+        en: "Program Information",
+        ru: "Информация о программе",
+      },
+      addUniversities: {
+        en: "Add Universities",
+        ru: "Добавить университеты",
+      },
+      programDetails: {
+        en: "Review & Publish",
+        ru: "Просмотр и публикация",
+      },
+    },
+  },
 }
 
 interface LanguageContextType {

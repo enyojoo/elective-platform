@@ -355,7 +355,6 @@ export default function ExchangeBuilderPage() {
         statement_template_url: formData.statementTemplateUrl,
         semester: formData.semester,
         academic_year: formData.year,
-        type: "exchange",
         universities: universitiesJson, // Store universities as a JSON array
         created_by: profileData?.id || null, // Store the profile ID of the creator
       }
@@ -431,7 +430,7 @@ export default function ExchangeBuilderPage() {
                 {currentStep > 1 ? <Check className="h-4 w-4" /> : "1"}
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">{t("manager.exchangeBuilder.step1", "Basic Information")}</p>
+                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programInfo", "Program Information")}</p>
               </div>
             </div>
 
@@ -446,7 +445,9 @@ export default function ExchangeBuilderPage() {
                 {currentStep > 2 ? <Check className="h-4 w-4" /> : "2"}
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">{t("manager.exchangeBuilder.step2", "Add Universities")}</p>
+                <p className="text-sm font-medium">
+                  {t("manager.exchangeBuilder.addUniversities", "Add Universities")}
+                </p>
               </div>
             </div>
 
@@ -461,7 +462,7 @@ export default function ExchangeBuilderPage() {
                 3
               </div>
               <div className="ml-2 hidden sm:block">
-                <p className="text-sm font-medium">{t("manager.exchangeBuilder.step3", "Review & Publish")}</p>
+                <p className="text-sm font-medium">{t("manager.exchangeBuilder.programDetails", "Review & Publish")}</p>
               </div>
             </div>
           </div>
@@ -732,19 +733,23 @@ export default function ExchangeBuilderPage() {
               {/* Program details in a single row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">{t("name", "Program Name")}</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.programName", "Program Name")}
+                  </h3>
                   <p className="text-lg">{generateProgramName()}</p>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("max_selections", "Max Selections")}
+                    {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections")}
                   </h3>
                   <p className="text-lg">{formData.maxSelections}</p>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">{t("deadline", "Deadline")}</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.deadline", "Deadline")}
+                  </h3>
                   <p className="text-lg">{formData.endDate}</p>
                 </div>
               </div>
