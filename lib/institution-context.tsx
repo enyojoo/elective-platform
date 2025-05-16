@@ -1,162 +1,77 @@
 "use client"
 
-import { type ReactNode, createContext, useContext, useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
+import type React from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 
-export interface Institution {
+interface Institution {
   id: string
   name: string
   subdomain: string
-  logo_url?: string
-  favicon_url?: string
-  primary_color?: string
   is_active: boolean
+  favicon_url: string | null
+  logo_url: string | null
+  primary_color: string | null
+  domain?: string | null
 }
 
 interface InstitutionContextType {
   institution: Institution | null
-  setInstitution: (institution: Institution | null) => void
-  updateInstitution: (data: Partial<Institution>) => Promise<void>
+  updateInstitution: (updates: Partial<Institution>) => Promise<void>
   isLoading: boolean
+  error: Error | null
   isSubdomainAccess: boolean
-  error: string | null
 }
 
 const InstitutionContext = createContext<InstitutionContextType | undefined>(undefined)
 
-interface InstitutionProviderProps {
-  children: ReactNode
+export function InstitutionProvider({
+  children,
+  initialInstitution = null,
+}: {
+  children: React.ReactNode
   initialInstitution?: Institution | null
-}
-
-export function InstitutionProvider({ children, initialInstitution = null }: InstitutionProviderProps) {
+}) {
   const [institution, setInstitution] = useState<Institution | null>(initialInstitution)
-  const [isLoading, setIsLoading] = useState(!initialInstitution)
-  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(!initialInstitution)
+  const [error, setError] = useState<Error | null>(null)
   const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
 
-  const updateInstitution = async (data: Partial<Institution>) => {
-    if (!institution?.id) {
-      throw new Error("No institution found")
+  useEffect(() => {
+    const checkSubdomain = () => {
+      const hostname = window.location.hostname
+      setIsSubdomainAccess(
+        hostname.includes(".electivepro.net") &&
+          !hostname.startsWith("www") &&
+          !hostname.startsWith("app") &&
+          !hostname.startsWith("api"),
+      )
     }
 
-    const { error } = await supabase.from("institutions").update(data).eq("id", institution.id)
+    // Check on mount and whenever the URL changes
+    checkSubdomain()
+    window.addEventListener("popstate", checkSubdomain)
 
-    if (error) {
-      throw error
+    return () => {
+      window.removeEventListener("popstate", checkSubdomain)
     }
-
-    // Update the local state
-    setInstitution({
-      ...institution,
-      ...data,
-    })
-
-    // Set primary color as CSS variable if it's updated
-    if (data.primary_color) {
-      document.documentElement.style.setProperty("--primary", data.primary_color)
-    }
-  }
+  }, [])
 
   useEffect(() => {
-    async function loadInstitution() {
-      try {
-        // If we already have an institution from props, use it
-        if (initialInstitution) {
-          console.log("Context: Using initial institution:", initialInstitution.name)
-          setInstitution(initialInstitution)
-          if (initialInstitution.primary_color) {
-            document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
-          }
-          setIsLoading(false)
-          return
-        }
-
-        const hostname = window.location.hostname
-        const isSubdomain =
-          hostname.includes(".electivepro.net") && !hostname.startsWith("www") && !hostname.startsWith("app")
-
-        setIsSubdomainAccess(isSubdomain)
-        console.log("Context: Checking for subdomain access:", { hostname, isSubdomain })
-
-        if (isSubdomain) {
-          const subdomain = hostname.split(".")[0]
-          console.log("Context: Detected subdomain:", subdomain)
-
-          // Simple direct query - no RPC functions
-          const { data, error } = await supabase
-            .from("institutions")
-            .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
-            .eq("subdomain", subdomain)
-            .eq("is_active", true)
-            .single()
-
-          console.log("Context: Institution query result:", { data, error })
-
-          if (error) {
-            console.error("Context: Institution not found:", error)
-            setError("Institution not found")
-          } else if (data) {
-            console.log("Context: Found institution:", data.name)
-            setInstitution(data)
-            // Set primary color as CSS variable
-            if (data.primary_color) {
-              document.documentElement.style.setProperty("--primary", data.primary_color)
-            }
-          }
-        } else {
-          // If not accessing via subdomain, try to get institution from auth session
-          console.log("Context: Not a subdomain access, checking auth session")
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
-
-          if (session?.user) {
-            console.log("Context: User is authenticated, fetching profile")
-            const { data: profileData, error: profileError } = await supabase
-              .from("profiles")
-              .select("institution_id")
-              .eq("id", session.user.id)
-              .single()
-
-            if (profileError) {
-              console.error("Context: Error fetching profile:", profileError)
-            } else if (profileData?.institution_id) {
-              console.log("Context: Found institution ID in profile:", profileData.institution_id)
-
-              const { data: institutionData, error: institutionError } = await supabase
-                .from("institutions")
-                .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
-                .eq("id", profileData.institution_id)
-                .single()
-
-              if (institutionError) {
-                console.error("Context: Error fetching institution:", institutionError)
-              } else {
-                console.log("Context: Found institution from profile:", institutionData.name)
-                setInstitution(institutionData)
-                if (institutionData.primary_color) {
-                  document.documentElement.style.setProperty("--primary", institutionData.primary_color)
-                }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Context: Error loading institution:", err)
-        setError("Failed to load institution")
-      } finally {
-        setIsLoading(false)
-      }
+    if (initialInstitution) {
+      setInstitution(initialInstitution)
+      setIsLoading(false)
+      return
     }
 
-    loadInstitution()
+    setIsLoading(false)
   }, [initialInstitution])
 
+  const updateInstitution = useCallback(async (updates: Partial<Institution>) => {
+    setInstitution((prev) => (prev ? { ...prev, ...updates } : null))
+  }, [])
+
   return (
-    <InstitutionContext.Provider
-      value={{ institution, setInstitution, updateInstitution, isLoading, isSubdomainAccess, error }}
-    >
+    <InstitutionContext.Provider value={{ institution, updateInstitution, isLoading, error, isSubdomainAccess }}>
       {children}
     </InstitutionContext.Provider>
   )
@@ -170,4 +85,4 @@ export function useInstitution() {
   return context
 }
 
-export const useInstitutionContext = useInstitution
+export default InstitutionContext

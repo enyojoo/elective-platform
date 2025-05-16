@@ -19,6 +19,7 @@ import { useInstitution } from "@/lib/institution-context"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
 
@@ -44,13 +45,16 @@ export default function ExchangeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const totalSteps = 3
 
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true)
+
   // Semesters and years state
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [years, setYears] = useState<Year[]>([])
 
   // Form state
   const [formData, setFormData] = useState({
-    semester: "fall",
+    semester: "",
     year: "",
     maxSelections: 2,
     startDate: "",
@@ -71,11 +75,24 @@ export default function ExchangeBuilderPage() {
   // Fetch semesters and years on component mount
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true)
       try {
+        console.log("Fetching semesters and years data...")
         const [semestersData, yearsData] = await Promise.all([getSemesters(), getYears()])
+
+        console.log("Semesters data:", semestersData)
+        console.log("Years data:", yearsData)
 
         setSemesters(semestersData)
         setYears(yearsData)
+
+        // Set default semester if available
+        if (semestersData.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            semester: semestersData[0].code,
+          }))
+        }
 
         // Set default year if available
         if (yearsData.length > 0) {
@@ -91,6 +108,8 @@ export default function ExchangeBuilderPage() {
           description: t("manager.exchangeBuilder.errorFetchingData", "Failed to fetch data"),
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -265,9 +284,9 @@ export default function ExchangeBuilderPage() {
         ? selectedSemester?.name_ru || (formData.semester === "fall" ? "Осенний" : "Весенний")
         : selectedSemester?.name || (formData.semester === "fall" ? "Fall" : "Spring")
 
-    const yearName = language === "ru" ? selectedYear?.name_ru || formData.year : selectedYear?.name || formData.year
+    const yearValue = selectedYear?.year || ""
 
-    return `${semesterName} ${yearName} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
+    return `${semesterName} ${yearValue} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
   }
 
   // Handle form submission
@@ -285,8 +304,6 @@ export default function ExchangeBuilderPage() {
             institution_id: institution.id,
             name: programName,
             name_ru: language === "ru" ? programName : undefined,
-            description: formData.description,
-            description_ru: formData.description_ru,
             type: "exchange",
             status: status,
             deadline: formData.endDate,
@@ -416,40 +433,60 @@ export default function ExchangeBuilderPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="semester">{t("manager.exchangeBuilder.semester", "Semester")}</Label>
-                  <Select value={formData.semester} onValueChange={(value) => handleSelectChange("semester", value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {semesters.map((semester) => (
-                        <SelectItem key={semester.id} value={semester.code}>
-                          {language === "ru" && semester.name_ru ? semester.name_ru : semester.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={formData.semester} onValueChange={(value) => handleSelectChange("semester", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectSemester", "Select semester")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {semesters.length > 0 ? (
+                          semesters.map((semester) => (
+                            <SelectItem key={semester.id} value={semester.code}>
+                              {language === "ru" && semester.name_ru ? semester.name_ru : semester.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="fall">{language === "ru" ? "Осенний" : "Fall"}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("manager.exchangeBuilder.year", "Year")}</Label>
-                  <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map((year) => (
-                        <SelectItem key={year.id} value={year.id}>
-                          {language === "ru" && year.name_ru ? year.name_ru : year.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectYear", "Select year")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.length > 0 ? (
+                          years.map((year) => (
+                            <SelectItem key={year.id} value={year.id}>
+                              {year.year}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="default">{new Date().getFullYear()}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>{t("manager.exchangeBuilder.namePreview", "Program Name Preview")}</Label>
-                <div className="p-3 bg-muted rounded-md">{generateProgramName()}</div>
+                {isLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <div className="p-3 bg-muted rounded-md">{generateProgramName()}</div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -537,7 +574,7 @@ export default function ExchangeBuilderPage() {
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button type="button" onClick={handleNextStep}>
+                <Button type="button" onClick={handleNextStep} disabled={isLoading}>
                   {t("manager.exchangeBuilder.next", "Next")}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -639,15 +676,9 @@ export default function ExchangeBuilderPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.semester", "Semester")}
+                    {t("manager.exchangeBuilder.programName", "Program Name")}
                   </h3>
-                  <p className="text-lg">
-                    {semesters.find((s) => s.code === formData.semester)?.name ||
-                      (formData.semester === "fall"
-                        ? t("manager.exchangeBuilder.fall", "Fall")
-                        : t("manager.exchangeBuilder.spring", "Spring"))}{" "}
-                    {years.find((y) => y.id === formData.year)?.name || formData.year}
-                  </p>
+                  <p className="text-lg">{generateProgramName()}</p>
                 </div>
 
                 <div>

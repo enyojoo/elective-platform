@@ -2,6 +2,7 @@
 
 import { useInstitution } from "@/lib/institution-context"
 import { useEffect } from "react"
+import { DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR } from "@/lib/constants"
 
 export function DynamicBranding() {
   const { institution } = useInstitution()
@@ -20,30 +21,39 @@ export function DynamicBranding() {
             `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
           )
         }
+      } else {
+        // Use default primary color if not set
+        document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
+        const defaultRgb = hexToRgb(DEFAULT_PRIMARY_COLOR)
+        if (defaultRgb) {
+          document.documentElement.style.setProperty(
+            "--primary-rgb",
+            `${defaultRgb.r}, ${defaultRgb.g}, ${defaultRgb.b}`,
+          )
+        }
       }
 
       // Update favicon if available
-      if (institution.favicon_url) {
-        const existingFavicon = document.querySelector("link[rel='icon']")
-        if (existingFavicon) {
-          existingFavicon.setAttribute("href", institution.favicon_url)
-        } else {
-          const favicon = document.createElement("link")
-          favicon.rel = "icon"
-          favicon.href = institution.favicon_url
-          document.head.appendChild(favicon)
-        }
+      const faviconUrl = institution.favicon_url || DEFAULT_FAVICON_URL
+      const existingFavicon = document.querySelector("link[rel='icon']")
+      if (existingFavicon) {
+        existingFavicon.setAttribute("href", faviconUrl)
+      } else {
+        const favicon = document.createElement("link")
+        favicon.rel = "icon"
+        favicon.href = faviconUrl
+        document.head.appendChild(favicon)
+      }
 
-        // Also update apple-touch-icon
-        const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-        if (existingAppleIcon) {
-          existingAppleIcon.setAttribute("href", institution.favicon_url)
-        } else {
-          const appleIcon = document.createElement("link")
-          appleIcon.rel = "apple-touch-icon"
-          appleIcon.href = institution.favicon_url
-          document.head.appendChild(appleIcon)
-        }
+      // Also update apple-touch-icon
+      const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+      if (existingAppleIcon) {
+        existingAppleIcon.setAttribute("href", faviconUrl)
+      } else {
+        const appleIcon = document.createElement("link")
+        appleIcon.rel = "apple-touch-icon"
+        appleIcon.href = faviconUrl
+        document.head.appendChild(appleIcon)
       }
     }
   }, [institution])

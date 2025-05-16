@@ -11,14 +11,19 @@ import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
 
+// Default branding assets
+const DEFAULT_FAVICON_URL =
+  "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+const DEFAULT_LOGO_URL = "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/logos//epro_logo.svg"
+
 export const metadata: Metadata = {
   title: "ElectivePRO",
   description:
     "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: DEFAULT_FAVICON_URL,
+    shortcut: DEFAULT_FAVICON_URL,
+    apple: DEFAULT_FAVICON_URL,
   },
     generator: 'v0.dev'
 }
@@ -33,7 +38,7 @@ export default async function RootLayout({
   const subdomain = getSubdomain(host)
   const institutionId = headersList.get("x-institution-id")
   const institutionName = headersList.get("x-institution-name")
-  const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
+  const institutionFaviconUrl = headersList.get("x-institution-favicon-url") || DEFAULT_FAVICON_URL
   const institutionPrimaryColor = headersList.get("x-institution-primary-color")
 
   console.log("Layout: Processing request for", {
@@ -53,8 +58,9 @@ export default async function RootLayout({
       name: institutionName || "Institution",
       subdomain: subdomain,
       is_active: true,
-      favicon_url: institutionFaviconUrl || null,
+      favicon_url: institutionFaviconUrl,
       primary_color: institutionPrimaryColor || null,
+      logo_url: DEFAULT_LOGO_URL, // Default to the ElectivePRO logo if not provided
     }
     console.log("Layout: Using institution from headers:", institution.name)
   }

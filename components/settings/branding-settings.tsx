@@ -17,6 +17,7 @@ import { useCachedInstitutionSettings } from "@/hooks/use-cached-institution-set
 import { useDataCache } from "@/lib/data-cache-context"
 import { Copy, Check } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DEFAULT_FAVICON_URL, DEFAULT_LOGO_URL, DEFAULT_PRIMARY_COLOR } from "@/lib/constants"
 
 export function BrandingSettings() {
   const { t } = useLanguage()
@@ -26,12 +27,12 @@ export function BrandingSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [isFaviconUploading, setIsFaviconUploading] = useState(false)
-  const [primaryColor, setPrimaryColor] = useState(institution?.primary_color || "#027659")
+  const [primaryColor, setPrimaryColor] = useState(institution?.primary_color || DEFAULT_PRIMARY_COLOR)
   const [institutionName, setInstitutionName] = useState(institution?.name || "")
   const [institutionDomain, setInstitutionDomain] = useState(institution?.domain || "")
   const [subdomain, setSubdomain] = useState(institution?.subdomain || "")
-  const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(institution?.favicon_url || DEFAULT_FAVICON_URL)
+  const [logoUrl, setLogoUrl] = useState<string | null>(institution?.logo_url || DEFAULT_LOGO_URL)
   const [institutionId, setInstitutionId] = useState<string | null>(institution?.id || null)
   const [hasFaviconColumn, setHasFaviconColumn] = useState(false)
   const [copiedStudent, setCopiedStudent] = useState(false)
@@ -98,15 +99,15 @@ export function BrandingSettings() {
   useEffect(() => {
     if (settings) {
       // Get favicon URL from localStorage if not in database
-      let faviconUrlValue = settings.favicon_url
+      let faviconUrlValue = settings.favicon_url || DEFAULT_FAVICON_URL
       if (!faviconUrlValue && hasFaviconColumn) {
         const storedFaviconUrl = localStorage.getItem(`favicon_url_${institutionId}`)
-        faviconUrlValue = storedFaviconUrl || null
+        faviconUrlValue = storedFaviconUrl || DEFAULT_FAVICON_URL
       }
 
       setFaviconUrl(faviconUrlValue)
-      setLogoUrl(settings.logo_url)
-      setPrimaryColor(settings.primary_color || "#027659")
+      setLogoUrl(settings.logo_url || DEFAULT_LOGO_URL)
+      setPrimaryColor(settings.primary_color || DEFAULT_PRIMARY_COLOR)
       setInstitutionName(settings.name || "")
       setInstitutionDomain(settings.domain || "")
       setSubdomain(settings.subdomain || "")
@@ -328,7 +329,7 @@ export function BrandingSettings() {
 
   const handleResetDefaults = () => {
     if (settings) {
-      setPrimaryColor(settings.primary_color || "#027659")
+      setPrimaryColor(settings.primary_color || DEFAULT_PRIMARY_COLOR)
       setInstitutionName(settings.name || "")
       setInstitutionDomain(settings.domain || "")
       setSubdomain(settings.subdomain || "")
