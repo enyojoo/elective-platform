@@ -5,609 +5,506 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, ElectivePackStatus } from "@/lib/types"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } from "lucide-react"
+import { ArrowLeft, Check, ChevronRight, Search } from "lucide-react"
 import Link from "next/link"
-
-// First, import the useLanguage hook
 import { useLanguage } from "@/lib/language-context"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
+import { useInstitution } from "@/lib/institution-context"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 
-// Add the useLanguage hook to the component
-export default function ElectivePackBuilderPage() {
+interface Course {
+  id: string
+  name_en: string
+  name_ru: string | null
+  instructor_en: string
+  instructor_ru: string | null
+  max_students: number
+  status: string
+}
+
+export default function CourseBuilderPage() {
   const router = useRouter()
-  const { t } = useLanguage()
-  const [activeStep, setActiveStep] = useState(0)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+  const { t, language } = useLanguage()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitution()
+
+  // Step state
+  const [currentStep, setCurrentStep] = useState(1)
+  const totalSteps = 3
 
   // Form state
-  const [packDetails, setPackDetails] = useState({
-    semester: "",
-    year: new Date().getFullYear(),
+  const [formData, setFormData] = useState({
+    name: "",
+    name_ru: "",
+    description: "",
+    description_ru: "",
+    semester: "fall",
+    year: new Date().getFullYear().toString(),
     maxSelections: 2,
     startDate: "",
     endDate: "",
-    status: ElectivePackStatus.DRAFT,
+    status: "draft",
   })
 
-  // Mock available courses data
-  const availableCourses = [
-    {
-      id: "1",
-      name: "Business Ethics",
-      description: "Explore ethical principles and moral challenges in business decision-making.",
-      maxStudents: 30,
-      teacher: "Dr. Anna Ivanova",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "2",
-      name: "Digital Marketing",
-      description: "Learn modern digital marketing strategies and tools for business growth.",
-      maxStudents: 25,
-      teacher: "Prof. Mikhail Petrov",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "3",
-      name: "Sustainable Business",
-      description: "Study sustainable business practices and their impact on the environment and society.",
-      maxStudents: 35,
-      teacher: "Dr. Elena Smirnova",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "4",
-      name: "Project Management",
-      description: "Master the principles and methodologies of effective project management.",
-      maxStudents: 30,
-      teacher: "Prof. Sergei Kuznetsov",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "5",
-      name: "International Business Law",
-      description: "Understand legal frameworks governing international business operations.",
-      maxStudents: 25,
-      teacher: "Dr. Olga Volkova",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["International Management"],
-    },
-    {
-      id: "6",
-      name: "Financial Markets",
-      description: "Analyze financial markets, instruments, and investment strategies.",
-      maxStudents: 30,
-      teacher: "Prof. Dmitry Sokolov",
-      academicYear: 2,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "7",
-      name: "Strategic Management",
-      description: "Develop strategic thinking and decision-making skills for business leadership.",
-      maxStudents: 30,
-      teacher: "Prof. Natalia Volkova",
-      academicYear: 3,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "8",
-      name: "Data Analytics for Business",
-      description: "Learn to analyze and interpret data for business decision-making.",
-      maxStudents: 25,
-      teacher: "Dr. Ivan Petrov",
-      academicYear: 3,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-  ]
-
-  // Filter courses based on search query
-  const filteredCourses = availableCourses.filter(
-    (course) =>
-      course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  // Toggle course selection
-  const toggleCourseSelection = (courseId: string) => {
-    if (selectedCourses.includes(courseId)) {
-      setSelectedCourses(selectedCourses.filter((id) => id !== courseId))
-    } else {
-      setSelectedCourses([...selectedCourses, courseId])
-    }
-  }
+  // Courses state
+  const [courses, setCourses] = useState<Course[]>([])
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
 
   // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setPackDetails({
-      ...packDetails,
-      [name]: value,
-    })
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   // Handle select changes
   const handleSelectChange = (name: string, value: string) => {
-    setPackDetails({
-      ...packDetails,
-      [name]: value,
-    })
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Updated steps for the 3-step wizard
-  const steps = [
-    { title: t("manager.courseBuilder.step1") },
-    { title: t("manager.courseBuilder.step2") },
-    { title: t("manager.courseBuilder.step3") },
-  ]
+  // Fetch courses
+  const fetchCourses = async () => {
+    if (!institution?.id) return
 
-  // Add a computed pack name function
-  const getPackName = () => {
-    if (!packDetails.semester || !packDetails.year) return ""
-    return `${packDetails.semester.charAt(0).toUpperCase() + packDetails.semester.slice(1)} ${packDetails.year}`
+    try {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("institution_id", institution.id)
+        .eq("status", "active")
+        .order("name_en", { ascending: true })
+
+      if (error) throw error
+
+      setCourses(data || [])
+    } catch (error) {
+      console.error("Error fetching courses:", error)
+      toast({
+        title: t("manager.courseBuilder.error", "Error"),
+        description: t("manager.courseBuilder.errorFetchingCourses", "Failed to fetch courses"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Toggle course selection
+  const toggleCourse = (courseId: string) => {
+    setSelectedCourses((prev) => (prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]))
+  }
+
+  // Filter courses based on search term
+  const filteredCourses = courses.filter((course) => {
+    if (!searchTerm) return true
+
+    const term = searchTerm.toLowerCase()
+    return (
+      (course.name_en && course.name_en.toLowerCase().includes(term)) ||
+      (course.name_ru && course.name_ru.toLowerCase().includes(term)) ||
+      (course.instructor_en && course.instructor_en.toLowerCase().includes(term)) ||
+      (course.instructor_ru && course.instructor_ru.toLowerCase().includes(term))
+    )
+  })
+
+  // Get localized name based on current language
+  const getLocalizedName = (course: Course) => {
+    if (language === "ru" && course.name_ru) {
+      return course.name_ru
+    }
+    return course.name_en
+  }
+
+  // Get localized instructor based on current language
+  const getLocalizedInstructor = (course: Course) => {
+    if (language === "ru" && course.instructor_ru) {
+      return course.instructor_ru
+    }
+    return course.instructor_en
   }
 
   // Handle next step
   const handleNextStep = () => {
-    if (activeStep < steps.length - 1) {
-      setActiveStep(activeStep + 1)
+    if (currentStep === 1) {
+      // Validate step 1
+      if (!formData.semester || !formData.year || !formData.startDate || !formData.endDate) {
+        toast({
+          title: t("manager.courseBuilder.missingInfo", "Missing Information"),
+          description: t("manager.courseBuilder.requiredFields", "Please fill in all required fields"),
+          variant: "destructive",
+        })
+        return
+      }
+    } else if (currentStep === 2) {
+      // Fetch courses if not already loaded
+      if (courses.length === 0) {
+        fetchCourses()
+      }
+
+      // Validate step 2
+      if (selectedCourses.length === 0) {
+        toast({
+          title: t("manager.courseBuilder.missingInfo", "Missing Information"),
+          description: t("manager.courseBuilder.courseRequired", "At least one course must be selected"),
+          variant: "destructive",
+        })
+        return
+      }
     }
+
+    setCurrentStep((prev) => Math.min(prev + 1, totalSteps))
   }
 
   // Handle previous step
   const handlePrevStep = () => {
-    if (activeStep > 0) {
-      setActiveStep(activeStep - 1)
-    }
+    setCurrentStep((prev) => Math.max(prev - 1, 1))
   }
 
   // Handle save as draft
-  const handleSaveAsDraft = () => {
-    // Here you would typically save to your backend
-    const courseSelectionName = getPackName()
-    console.log("Saving as draft:", {
-      name: courseSelectionName,
-      ...packDetails,
-      courses: selectedCourses,
-    })
-    router.push("/manager/electives/course")
+  const handleSaveAsDraft = async () => {
+    await handleSubmit("draft")
   }
 
   // Handle publish
-  const handlePublish = () => {
-    // Here you would typically save and publish to your backend
-    const courseSelectionName = getPackName()
-    console.log("Publishing:", {
-      name: courseSelectionName,
-      ...packDetails,
-      courses: selectedCourses,
-      status: ElectivePackStatus.PUBLISHED,
-    })
-    router.push("/manager/electives/course")
+  const handlePublish = async () => {
+    await handleSubmit("published")
+  }
+
+  // Handle form submission
+  const handleSubmit = async (status: string) => {
+    if (!institution?.id) return
+
+    try {
+      // Create elective pack
+      const { data: packData, error: packError } = await supabase
+        .from("elective_packs")
+        .insert([
+          {
+            institution_id: institution.id,
+            name: formData.name || `${formData.semester} ${formData.year} Course Selection`,
+            name_ru: formData.name_ru,
+            description: formData.description,
+            description_ru: formData.description_ru,
+            type: "course",
+            status: status,
+            deadline: formData.endDate,
+            max_selections: formData.maxSelections,
+          },
+        ])
+        .select()
+
+      if (packError) throw packError
+
+      const packId = packData[0].id
+
+      // Update courses with elective_pack_id
+      const { error: coursesError } = await supabase
+        .from("courses")
+        .update({ elective_pack_id: packId })
+        .in("id", selectedCourses)
+
+      if (coursesError) throw coursesError
+
+      toast({
+        title:
+          status === "draft"
+            ? t("manager.courseBuilder.draftSaved", "Draft Saved")
+            : t("manager.courseBuilder.programPublished", "Program Published"),
+        description: t("manager.courseBuilder.successDesc", "Course selection has been created successfully"),
+      })
+
+      // Redirect to course electives page
+      router.push("/manager/electives/course")
+    } catch (error) {
+      console.error("Error creating course selection:", error)
+      toast({
+        title: t("manager.courseBuilder.error", "Error"),
+        description: t("manager.courseBuilder.errorCreating", "Failed to create course selection"),
+        variant: "destructive",
+      })
+    }
   }
 
   return (
-    <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-      <div className="space-y-6">
-        {/* Replace the header section with this updated version (removing the subtitle) */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <DashboardLayout>
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Link href="/manager/electives/course">
               <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{t("manager.courseBuilder.title")}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {t("manager.courseBuilder.title", "Create Elective Course Selection")}
+              </h1>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{t("manager.courseBuilder.draft")}</Badge>
           </div>
         </div>
 
-        {/* Stepper */}
-        <div className="hidden md:flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={index} className="flex items-center">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  index === activeStep
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : index < activeStep
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-muted-foreground text-muted-foreground"
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                  currentStep >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}
               >
-                {index < activeStep ? <Check className="h-5 w-5" /> : <span>{index + 1}</span>}
+                {currentStep > 1 ? <Check className="h-4 w-4" /> : "1"}
               </div>
-              <div className="ml-4 mr-8">
-                <p className="text-sm font-medium">{step.title}</p>
+              <div className="ml-2 hidden sm:block">
+                <p className="text-sm font-medium">{t("manager.courseBuilder.step1", "General Information")}</p>
               </div>
-              {index < steps.length - 1 && <ChevronRight className="h-5 w-5 text-muted-foreground mr-8" />}
             </div>
-          ))}
+            <ChevronRight className="mx-4 h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                  currentStep >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {currentStep > 2 ? <Check className="h-4 w-4" /> : "2"}
+              </div>
+              <div className="ml-2 hidden sm:block">
+                <p className="text-sm font-medium">{t("manager.courseBuilder.step2", "Select Courses")}</p>
+              </div>
+            </div>
+            <ChevronRight className="mx-4 h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                  currentStep >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {currentStep > 3 ? <Check className="h-4 w-4" /> : "3"}
+              </div>
+              <div className="ml-2 hidden sm:block">
+                <p className="text-sm font-medium">{t("manager.courseBuilder.step3", "Confirmation")}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Mobile Stepper */}
-        <div className="md:hidden">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium">
-              {t("manager.courseBuilder.step")} {activeStep + 1} {t("manager.courseBuilder.of")} {steps.length}
-            </p>
-            <p className="text-sm font-medium">{steps[activeStep].title}</p>
-          </div>
-          <div className="w-full bg-muted h-2 rounded-full mb-6">
-            <div
-              className="bg-primary h-2 rounded-full"
-              style={{ width: `${((activeStep + 1) / steps.length) * 100}%` }}
-            ></div>
+        {/* Step 1: General Information */}
+        {currentStep === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("manager.courseBuilder.step1", "General Information")}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="name">{t("manager.courseBuilder.name", "Name")}</Label>
+                  <Input type="text" id="name" name="name" value={formData.name} onChange={handleChange} />
+                </div>
+                <div>
+                  <Label htmlFor="name_ru">{t("manager.courseBuilder.nameRu", "Name (Russian)")}</Label>
+                  <Input type="text" id="name_ru" name="name_ru" value={formData.name_ru} onChange={handleChange} />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="description">{t("manager.courseBuilder.description", "Description")}</Label>
+                <Input
+                  type="text"
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                />
+              </div>
+              <div>
+                <Label htmlFor="description_ru">
+                  {t("manager.courseBuilder.descriptionRu", "Description (Russian)")}
+                </Label>
+                <Input
+                  type="text"
+                  id="description_ru"
+                  name="description_ru"
+                  value={formData.description_ru}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <Label htmlFor="semester">{t("manager.courseBuilder.semester", "Semester")}</Label>
+                  <Select onValueChange={(value) => handleSelectChange("semester", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("manager.courseBuilder.selectSemester", "Select a semester")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fall">{t("manager.courseBuilder.fall", "Fall")}</SelectItem>
+                      <SelectItem value="spring">{t("manager.courseBuilder.spring", "Spring")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="year">{t("manager.courseBuilder.year", "Year")}</Label>
+                  <Input type="number" id="year" name="year" value={formData.year} onChange={handleChange} />
+                </div>
+                <div>
+                  <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections", "Max Selections")}</Label>
+                  <Input
+                    type="number"
+                    id="maxSelections"
+                    name="maxSelections"
+                    value={formData.maxSelections}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="startDate">{t("manager.courseBuilder.startDate", "Start Date")}</Label>
+                  <Input
+                    type="date"
+                    id="startDate"
+                    name="startDate"
+                    value={formData.startDate}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="endDate">{t("manager.courseBuilder.endDate", "End Date")}</Label>
+                  <Input type="date" id="endDate" name="endDate" value={formData.endDate} onChange={handleChange} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 2: Select Courses */}
+        {currentStep === 2 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("manager.courseBuilder.step2", "Select Courses")}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-5 w-5 text-muted-foreground peer-focus:text-primary" />
+                <Input
+                  placeholder={t("manager.courseBuilder.searchCourses", "Search courses...")}
+                  className="pl-8"
+                  type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[20px]"></TableHead>
+                    <TableHead>{t("manager.courseBuilder.courseName", "Course Name")}</TableHead>
+                    <TableHead>{t("manager.courseBuilder.instructor", "Instructor")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("manager.courseBuilder.maxStudents", "Max Students")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCourses.map((course) => (
+                    <TableRow key={course.id}>
+                      <TableCell className="font-medium">
+                        <Checkbox
+                          checked={selectedCourses.includes(course.id)}
+                          onCheckedChange={() => toggleCourse(course.id)}
+                          id={course.id}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Label htmlFor={course.id} className="cursor-pointer">
+                          {getLocalizedName(course)}
+                        </Label>
+                      </TableCell>
+                      <TableCell>
+                        <Label htmlFor={course.id} className="cursor-pointer">
+                          {getLocalizedInstructor(course)}
+                        </Label>
+                      </TableCell>
+                      <TableCell className="text-right">{course.max_students}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredCourses.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center">
+                        {t("manager.courseBuilder.noCoursesFound", "No courses found.")}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3: Confirmation */}
+        {currentStep === 3 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("manager.courseBuilder.step3", "Confirmation")}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label>{t("manager.courseBuilder.name", "Name")}</Label>
+                  <p className="font-medium">
+                    {formData.name || `${formData.semester} ${formData.year} Course Selection`}
+                  </p>
+                </div>
+                <div>
+                  <Label>{t("manager.courseBuilder.semester", "Semester")}</Label>
+                  <p className="font-medium">{t(`manager.courseBuilder.${formData.semester}`, formData.semester)}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label>{t("manager.courseBuilder.year", "Year")}</Label>
+                  <p className="font-medium">{formData.year}</p>
+                </div>
+                <div>
+                  <Label>{t("manager.courseBuilder.maxSelections", "Max Selections")}</Label>
+                  <p className="font-medium">{formData.maxSelections}</p>
+                </div>
+              </div>
+              <div>
+                <Label>{t("manager.courseBuilder.selectedCourses", "Selected Courses")}</Label>
+                <ul>
+                  {selectedCourses.map((courseId) => {
+                    const course = courses.find((c) => c.id === courseId)
+                    return (
+                      <li key={courseId} className="font-medium">
+                        {course ? getLocalizedName(course) : "Unknown Course"}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex justify-between">
+          <Button variant="secondary" onClick={handlePrevStep} disabled={currentStep === 1}>
+            {t("manager.courseBuilder.previous", "Previous")}
+          </Button>
+          <div>
+            <Button variant="outline" onClick={handleSaveAsDraft}>
+              {t("manager.courseBuilder.saveDraft", "Save as Draft")}
+            </Button>
+            <Button onClick={handleNextStep} disabled={currentStep === totalSteps}>
+              {t("manager.courseBuilder.next", "Next")}
+            </Button>
+            {currentStep === totalSteps && (
+              <Button onClick={handlePublish}>{t("manager.courseBuilder.publish", "Publish")}</Button>
+            )}
           </div>
         </div>
-
-        {/* Step Content */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{steps[activeStep].title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Step 1: Basic Information & Selection Rules (Combined) */}
-            {activeStep === 0 && (
-              <div className="space-y-6">
-                {/* Basic Information Section */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.courseInfo")}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="semester">{t("manager.courseBuilder.semester")}</Label>
-                      <Select
-                        value={packDetails.semester}
-                        onValueChange={(value) => handleSelectChange("semester", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("manager.courseBuilder.semester")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="fall">{t("manager.courseBuilder.fall")}</SelectItem>
-                          <SelectItem value="spring">{t("manager.courseBuilder.spring")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="year">{t("manager.courseBuilder.year")}</Label>
-                      <Input
-                        id="year"
-                        name="year"
-                        type="number"
-                        placeholder="e.g. 2025"
-                        value={packDetails.year}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  {packDetails.semester && packDetails.year && (
-                    <div className="p-4 bg-muted rounded-md mt-4">
-                      <div className="flex items-center gap-2">
-                        <Info className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">{t("manager.courseBuilder.namePreview")}</p>
-                          <p className="text-lg font-semibold">{getPackName()}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Selection Rules Section */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.selectionRules")}</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="maxSelections"
-                          name="maxSelections"
-                          type="number"
-                          min={1}
-                          placeholder="e.g. 2"
-                          value={packDetails.maxSelections}
-                          onChange={handleInputChange}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {t("manager.courseBuilder.coursesPerStudent")}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="startDate">{t("manager.courseBuilder.startDate")}</Label>
-                        <Input
-                          id="startDate"
-                          name="startDate"
-                          type="date"
-                          value={packDetails.startDate}
-                          onChange={handleInputChange}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="endDate">{t("manager.courseBuilder.endDate")}</Label>
-                        <Input
-                          id="endDate"
-                          name="endDate"
-                          type="date"
-                          value={packDetails.endDate}
-                          onChange={handleInputChange}
-                        />
-                      </div>
-                    </div>
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
-                      <div className="flex items-start gap-2">
-                        <Info className="h-5 w-5 text-amber-500 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-amber-800">
-                            {t("manager.courseBuilder.importantNote")}
-                          </p>
-                          <p className="text-sm text-amber-700">{t("manager.courseBuilder.dateRangeNote")}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Statement Template Upload Section */}
-                <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.statementTemplate")}</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="statementTemplate">Upload Statement Template (PDF)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="statementTemplate"
-                          name="statementTemplate"
-                          type="file"
-                          accept=".pdf"
-                          className="flex-1"
-                          onChange={(e) => {
-                            // In a real app, you would handle the file upload here
-                            console.log("File selected:", e.target.files?.[0]?.name)
-                          }}
-                        />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Upload a blank statement template that students will download, sign, and re-upload.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Add Courses */}
-            {activeStep === 1 && (
-              <div className="space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="relative w-full md:w-auto">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      placeholder={t("manager.courseBuilder.searchCourses")}
-                      className="pl-8 w-full md:w-[300px]"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedCourses.length} {t("manager.courseBuilder.coursesSelected")}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="w-[50px] py-3 px-4 text-left text-sm font-medium"></th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseBuilder.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseBuilder.teacher")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseBuilder.maxStudents")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCourses.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                            {t("manager.courseBuilder.noCoursesFound")}
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredCourses.map((course) => (
-                          <tr
-                            key={course.id}
-                            className={`border-b hover:bg-muted/50 cursor-pointer ${
-                              selectedCourses.includes(course.id) ? "bg-primary/10" : ""
-                            }`}
-                            onClick={() => toggleCourseSelection(course.id)}
-                          >
-                            <td className="py-3 px-4 text-sm">
-                              <Checkbox
-                                checked={selectedCourses.includes(course.id)}
-                                onCheckedChange={() => toggleCourseSelection(course.id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </td>
-                            <td className="py-3 px-4 text-sm">{course.name}</td>
-                            <td className="py-3 px-4 text-sm">{course.teacher}</td>
-                            <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Review & Publish */}
-            {activeStep === 2 && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.courseSelectionDetails")}</h3>
-                    <dl className="space-y-2">
-                      <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.courseBuilder.name")}:</dt>
-                        <dd>{getPackName() || t("manager.courseBuilder.notSpecified")}</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.courseBuilder.maxSelectionsLabel")}</dt>
-                        <dd>
-                          {packDetails.maxSelections} {t("manager.courseBuilder.courses")}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.courseBuilder.selectionPeriod")}</dt>
-                        <dd>
-                          {packDetails.startDate && packDetails.endDate
-                            ? `${new Date(packDetails.startDate).toLocaleDateString()} - ${new Date(packDetails.endDate).toLocaleDateString()}`
-                            : t("manager.courseBuilder.notSpecified")}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.courseBuilder.courses")}</dt>
-                        <dd>{selectedCourses.length}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.selectedCourses")}</h3>
-                  {selectedCourses.length === 0 ? (
-                    <div className="text-center py-8 border rounded-md">
-                      <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">{t("manager.courseBuilder.noCoursesSelected")}</h3>
-                      <p className="mt-2 text-muted-foreground">{t("manager.courseBuilder.goBackToAdd")}</p>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b bg-muted/50">
-                            <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.courseBuilder.name")}
-                            </th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.courseBuilder.teacher")}
-                            </th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.courseBuilder.maxStudents")}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {availableCourses
-                            .filter((course) => selectedCourses.includes(course.id))
-                            .map((course) => (
-                              <tr key={course.id} className="border-b">
-                                <td className="py-3 px-4 text-sm">{course.name}</td>
-                                <td className="py-3 px-4 text-sm">{course.teacher}</td>
-                                <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Validation warnings */}
-                {(!packDetails.semester ||
-                  !packDetails.year ||
-                  !packDetails.startDate ||
-                  !packDetails.endDate ||
-                  selectedCourses.length === 0) && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
-                    <div className="flex items-start gap-2">
-                      <Info className="h-5 w-5 text-amber-500 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-800">{t("manager.courseBuilder.missingInfo")}</p>
-                        <ul className="text-sm text-amber-700 list-disc list-inside">
-                          {!packDetails.semester && <li>{t("manager.courseBuilder.semesterRequired")}</li>}
-                          {!packDetails.year && <li>{t("manager.courseBuilder.yearRequired")}</li>}
-                          {!packDetails.startDate && <li>{t("manager.courseBuilder.startDateRequired")}</li>}
-                          {!packDetails.endDate && <li>{t("manager.courseBuilder.endDateRequired")}</li>}
-                          {selectedCourses.length === 0 && <li>{t("manager.courseBuilder.courseRequired")}</li>}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <div>
-              {activeStep > 0 && (
-                <Button variant="outline" onClick={handlePrevStep}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  {t("manager.courseBuilder.back")}
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleSaveAsDraft}>
-                {t("manager.courseBuilder.saveAsDraft")}
-              </Button>
-              {activeStep < steps.length - 1 ? (
-                <Button onClick={handleNextStep}>
-                  {t("manager.courseBuilder.next")}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handlePublish}
-                  disabled={
-                    !packDetails.semester ||
-                    !packDetails.year ||
-                    !packDetails.startDate ||
-                    !packDetails.endDate ||
-                    selectedCourses.length === 0
-                  }
-                >
-                  {t("manager.courseBuilder.publishCourseSelection")}
-                </Button>
-              )}
-            </div>
-          </CardFooter>
-        </Card>
       </div>
     </DashboardLayout>
   )
