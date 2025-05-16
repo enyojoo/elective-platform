@@ -71,7 +71,7 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
           className,
         )}
       >
-        <div className="flex h-16 items-center justify-center border-b px-4 flex-shrink-0">
+        <div className="flex h-16 items-center border-b px-4 flex-shrink-0">
           <Link
             href={isAdmin ? "/admin/dashboard" : isManager ? "/manager/dashboard" : "/student/dashboard"}
             className="flex items-center gap-2"

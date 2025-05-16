@@ -15,6 +15,9 @@ const inter = Inter({ subsets: ["latin"] })
 const DEFAULT_FAVICON_URL =
   "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
 
+// Default primary color
+const DEFAULT_PRIMARY_COLOR = "#027659"
+
 export const metadata: Metadata = {
   title: "ElectivePRO",
   description:
@@ -40,6 +43,10 @@ export default async function RootLayout({
   const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
   const institutionPrimaryColor = headersList.get("x-institution-primary-color")
 
+  // Check if this is an admin path
+  const url = headersList.get("x-url") || ""
+  const isAdminPath = url.includes("/admin")
+
   console.log("Layout: Processing request for", {
     host,
     subdomain,
@@ -47,6 +54,8 @@ export default async function RootLayout({
     institutionName,
     hasFavicon: !!institutionFaviconUrl,
     hasPrimaryColor: !!institutionPrimaryColor,
+    url,
+    isAdminPath,
   })
 
   // If we have institution info from headers, use it
@@ -61,25 +70,36 @@ export default async function RootLayout({
       primary_color: institutionPrimaryColor || null,
     }
     console.log("Layout: Using institution from headers:", institution.name)
+  }
 
-    // Apply primary color as a CSS variable at the server level
-    if (institutionPrimaryColor) {
-      console.log("Layout: Setting primary color at server level:", institutionPrimaryColor)
-    }
+  // For admin paths, always use the default color
+  const primaryColor = isAdminPath ? DEFAULT_PRIMARY_COLOR : institutionPrimaryColor || DEFAULT_PRIMARY_COLOR
+
+  // For admin paths, always use the default favicon
+  const faviconUrl = isAdminPath ? DEFAULT_FAVICON_URL : institutionFaviconUrl || DEFAULT_FAVICON_URL
+
+  // Update metadata for the current request
+  metadata.icons = {
+    icon: faviconUrl,
+    shortcut: faviconUrl,
+    apple: faviconUrl,
   }
 
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      style={institutionPrimaryColor ? ({ "--primary": institutionPrimaryColor } as React.CSSProperties) : undefined}
-    >
+    <html lang="en" suppressHydrationWarning style={{ "--primary": primaryColor } as React.CSSProperties}>
       <head>
         {/* Add a meta tag to help debug */}
         <meta name="x-subdomain" content={subdomain || "none"} />
         <meta name="x-institution-id" content={institutionId || "none"} />
-        {institutionPrimaryColor && <meta name="theme-color" content={institutionPrimaryColor} />}
-        {institutionPrimaryColor && <meta name="x-primary-color" content={institutionPrimaryColor} />}
+        <meta name="theme-color" content={primaryColor} />
+        <meta name="x-primary-color" content={primaryColor} />
+        <meta name="x-is-admin" content={isAdminPath ? "true" : "false"} />
+        <meta name="x-favicon-url" content={faviconUrl} />
+
+        {/* Set favicon explicitly for server-side rendering */}
+        <link rel="icon" href={faviconUrl} />
+        <link rel="shortcut icon" href={faviconUrl} />
+        <link rel="apple-touch-icon" href={faviconUrl} />
       </head>
       <body className={inter.className}>
         <Providers institution={institution}>

@@ -42,7 +42,7 @@ export function SuperAdminSidebar({ open, setOpen }: SuperAdminSidebarProps) {
           "transition-transform duration-200 ease-in-out",
         )}
       >
-        <div className="flex h-16 items-center justify-center border-b px-4">
+        <div className="flex h-16 items-center border-b px-4">
           <Link href="/super-admin/dashboard" className="flex items-center gap-2">
             {/* Updated to use the default logo URL */}
             <Image
