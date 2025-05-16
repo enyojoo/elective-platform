@@ -732,23 +732,19 @@ export default function ExchangeBuilderPage() {
               {/* Program details in a single row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.programName", "Program Name")}
-                  </h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">{t("name", "Program Name")}</h3>
                   <p className="text-lg">{generateProgramName()}</p>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.maxSelectionsLabel", "Max Selections")}
+                    {t("max_selections", "Max Selections")}
                   </h3>
                   <p className="text-lg">{formData.maxSelections}</p>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.deadline", "Deadline")}
-                  </h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">{t("deadline", "Deadline")}</h3>
                   <p className="text-lg">{formData.endDate}</p>
                 </div>
               </div>
