@@ -73,7 +73,7 @@ export default function ExchangeBuilderPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  // Fetch semesters and years on component mount
+  // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
@@ -304,6 +304,16 @@ export default function ExchangeBuilderPage() {
     try {
       const programName = generateProgramName()
 
+      console.log("Creating elective pack with data:", {
+        institution_id: institution.id,
+        name: programName,
+        name_ru: language === "ru" ? programName : undefined,
+        status: status,
+        deadline: formData.endDate,
+        max_selections: formData.maxSelections,
+        statement_template_url: formData.statementTemplateUrl,
+      })
+
       // Create elective pack
       const { data: packData, error: packError } = await supabase
         .from("elective_packs")
@@ -312,7 +322,6 @@ export default function ExchangeBuilderPage() {
             institution_id: institution.id,
             name: programName,
             name_ru: language === "ru" ? programName : undefined,
-            type: "exchange",
             status: status,
             deadline: formData.endDate,
             max_selections: formData.maxSelections,
@@ -321,8 +330,12 @@ export default function ExchangeBuilderPage() {
         ])
         .select()
 
-      if (packError) throw packError
+      if (packError) {
+        console.error("Error creating elective pack:", packError)
+        throw packError
+      }
 
+      console.log("Created elective pack:", packData)
       const packId = packData[0].id
 
       // Create exchange universities
@@ -332,9 +345,13 @@ export default function ExchangeBuilderPage() {
         university_id: universityId,
       }))
 
+      console.log("Inserting exchange universities:", universityInserts)
       const { error: universitiesError } = await supabase.from("exchange_universities").insert(universityInserts)
 
-      if (universitiesError) throw universitiesError
+      if (universitiesError) {
+        console.error("Error creating exchange universities:", universitiesError)
+        throw universitiesError
+      }
 
       toast({
         title:
