@@ -18,7 +18,6 @@ interface ElectivePack {
   id: string
   name: string
   name_ru: string | null
-  type: string
   status: string
   deadline: string | null
   created_at: string
@@ -49,12 +48,11 @@ export default function ManagerExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective exchange programs - FIXED: Changed table name to elective_exchange
+        // Fetch elective exchange programs - REMOVED type filter
         const { data: packs, error } = await supabase
           .from("elective_exchange")
           .select("*")
           .eq("institution_id", institution.id)
-          .eq("type", "exchange")
           .order("created_at", { ascending: false })
 
         if (error) {

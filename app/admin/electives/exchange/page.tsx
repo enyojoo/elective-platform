@@ -21,7 +21,6 @@ interface ElectivePack {
   id: string
   name: string
   name_ru: string | null
-  type: string
   status: string
   deadline: string | null
   created_at: string
@@ -50,7 +49,7 @@ export default function ExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective exchange programs - UPDATED: Use full_name instead of first_name and last_name
+        // Fetch elective exchange programs - REMOVED type filter
         const { data: packs, error } = await supabase
           .from("elective_exchange")
           .select(`
@@ -72,7 +71,7 @@ export default function ExchangeElectivesPage() {
           // Get university count from the universities array
           const universityCount = pack.universities ? pack.universities.length : 0
 
-          // Get creator name from the joined profiles data - UPDATED: Use full_name
+          // Get creator name from the joined profiles data
           const creatorName = pack.creator?.full_name || "Unknown"
 
           return {
