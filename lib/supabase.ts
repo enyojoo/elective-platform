@@ -22,6 +22,12 @@ export function getSupabaseBrowserClient() {
   return browserClient
 }
 
+// Function to get the server client
+export function getSupabaseServerClient() {
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient<Database>(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
+}
+
 // Export the singleton client for backward compatibility
 export const supabase = getSupabaseBrowserClient()
 

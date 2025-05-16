@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { getSemesters, type Semester } from "@/actions/semesters"
+import { getYears, type Year } from "@/actions/years"
 
 interface University {
   id: string
@@ -43,13 +44,14 @@ export default function ExchangeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const totalSteps = 3
 
-  // Semesters state
+  // Semesters and years state
   const [semesters, setSemesters] = useState<Semester[]>([])
+  const [years, setYears] = useState<Year[]>([])
 
   // Form state
   const [formData, setFormData] = useState({
     semester: "fall",
-    year: new Date().getFullYear().toString(),
+    year: "",
     maxSelections: 2,
     startDate: "",
     endDate: "",
@@ -66,23 +68,33 @@ export default function ExchangeBuilderPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  // Fetch semesters on component mount
+  // Fetch semesters and years on component mount
   useEffect(() => {
-    const fetchSemesters = async () => {
+    const fetchData = async () => {
       try {
-        const semestersData = await getSemesters()
+        const [semestersData, yearsData] = await Promise.all([getSemesters(), getYears()])
+
         setSemesters(semestersData)
+        setYears(yearsData)
+
+        // Set default year if available
+        if (yearsData.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            year: yearsData[0].id,
+          }))
+        }
       } catch (error) {
-        console.error("Error fetching semesters:", error)
+        console.error("Error fetching data:", error)
         toast({
           title: t("manager.exchangeBuilder.error", "Error"),
-          description: t("manager.exchangeBuilder.errorFetchingSemesters", "Failed to fetch semesters"),
+          description: t("manager.exchangeBuilder.errorFetchingData", "Failed to fetch data"),
           variant: "destructive",
         })
       }
     }
 
-    fetchSemesters()
+    fetchData()
   }, [toast, t])
 
   // Handle form input changes
@@ -246,12 +258,16 @@ export default function ExchangeBuilderPage() {
   // Generate program name based on semester and year
   const generateProgramName = () => {
     const selectedSemester = semesters.find((s) => s.code === formData.semester)
+    const selectedYear = years.find((y) => y.id === formData.year)
+
     const semesterName =
       language === "ru"
         ? selectedSemester?.name_ru || (formData.semester === "fall" ? "Осенний" : "Весенний")
         : selectedSemester?.name || (formData.semester === "fall" ? "Fall" : "Spring")
 
-    return `${semesterName} ${formData.year} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
+    const yearName = language === "ru" ? selectedYear?.name_ru || formData.year : selectedYear?.name || formData.year
+
+    return `${semesterName} ${yearName} ${t("manager.electives.exchangePrograms", "Exchange Program")}`
   }
 
   // Handle form submission
@@ -416,15 +432,18 @@ export default function ExchangeBuilderPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("manager.exchangeBuilder.year", "Year")}</Label>
-                  <Input
-                    id="year"
-                    name="year"
-                    type="number"
-                    min={new Date().getFullYear()}
-                    max={new Date().getFullYear() + 5}
-                    value={formData.year}
-                    onChange={handleChange}
-                  />
+                  <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year.id} value={year.id}>
+                          {language === "ru" && year.name_ru ? year.name_ru : year.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -623,10 +642,11 @@ export default function ExchangeBuilderPage() {
                     {t("manager.exchangeBuilder.semester", "Semester")}
                   </h3>
                   <p className="text-lg">
-                    {formData.semester === "fall"
-                      ? t("manager.exchangeBuilder.fall", "Fall")
-                      : t("manager.exchangeBuilder.spring", "Spring")}{" "}
-                    {formData.year}
+                    {semesters.find((s) => s.code === formData.semester)?.name ||
+                      (formData.semester === "fall"
+                        ? t("manager.exchangeBuilder.fall", "Fall")
+                        : t("manager.exchangeBuilder.spring", "Spring"))}{" "}
+                    {years.find((y) => y.id === formData.year)?.name || formData.year}
                   </p>
                 </div>
 
