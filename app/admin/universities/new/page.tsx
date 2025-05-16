@@ -50,6 +50,7 @@ export default function NewUniversityPage() {
     country: "",
     website: "",
     status: "active", // Default status
+    max_students: 5, // Default max students
   })
 
   // State for languages and programs
@@ -403,21 +404,38 @@ export default function NewUniversityPage() {
                 </div>
               </div>
 
-              {/* Status */}
-              <div className="space-y-2">
-                <Label htmlFor="status">{t("admin.newUniversity.status", "Status")}</Label>
-                <Select value={university.status} onValueChange={handleStatusChange} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("admin.newUniversity.selectStatus", "Select status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {t(`admin.universities.status.${option.value}`, option.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Status and Max Students */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="status">{t("admin.newUniversity.status", "Status")}</Label>
+                  <Select value={university.status} onValueChange={handleStatusChange} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.newUniversity.selectStatus", "Select status")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {t(`admin.universities.status.${option.value}`, option.label)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_students">{t("admin.newUniversity.maxStudents", "Max Students")}</Label>
+                  <Input
+                    id="max_students"
+                    name="max_students"
+                    type="number"
+                    min="1"
+                    placeholder="5"
+                    value={university.max_students}
+                    onChange={(e) =>
+                      setUniversity((prev) => ({ ...prev, max_students: Number.parseInt(e.target.value) || 5 }))
+                    }
+                    required
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-4">

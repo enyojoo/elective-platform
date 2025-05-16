@@ -39,6 +39,7 @@ interface Course {
   created_at: string
   updated_at: string
   institution_id: string
+  max_students: number
 }
 
 export default function EditCoursePage() {
@@ -63,6 +64,7 @@ export default function EditCoursePage() {
     descriptionEn: "",
     descriptionRu: "",
     status: "active",
+    maxStudents: 30,
   })
 
   // Fetch course data
@@ -95,6 +97,7 @@ export default function EditCoursePage() {
             descriptionEn: data.description_en || "",
             descriptionRu: data.description_ru || "",
             status: data.status || "active",
+            maxStudents: data.max_students || 30,
           })
         }
       } catch (error) {
@@ -146,6 +149,7 @@ export default function EditCoursePage() {
           description_en: formData.descriptionEn || null,
           description_ru: formData.descriptionRu || null,
           status: formData.status,
+          max_students: Number.parseInt(formData.maxStudents) || 30,
           updated_at: new Date().toISOString(),
         })
         .eq("id", course.id)
@@ -225,7 +229,7 @@ export default function EditCoursePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="degreeId">{t("admin.editCourse.degree", "Degree")}</Label>
                     <Select value={formData.degreeId} onValueChange={handleDegreeChange} required>
@@ -261,6 +265,19 @@ export default function EditCoursePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxStudents">{t("admin.editCourse.maxStudents", "Max Students")}</Label>
+                    <Input
+                      id="maxStudents"
+                      name="maxStudents"
+                      type="number"
+                      min="1"
+                      placeholder="30"
+                      value={formData.maxStudents}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
                 </div>
 

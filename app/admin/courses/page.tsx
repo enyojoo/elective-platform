@@ -44,6 +44,7 @@ interface Course {
   code: string
   status: string
   degree_id: string
+  max_students: number
   degree: {
     id: string
     name: string
@@ -472,13 +473,14 @@ export default function CoursesPage() {
                       <TableHead>{t("admin.courses.name")}</TableHead>
                       <TableHead>{t("admin.courses.instructor")}</TableHead>
                       <TableHead>{t("admin.courses.degree")}</TableHead>
+                      <TableHead>{t("admin.courses.maxStudents", "Max Students")}</TableHead>
                       <TableHead>{t("admin.courses.status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.courses.action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoadingCourses ? (
-                      <TableSkeleton columns={5} rows={itemsPerPage} />
+                      <TableSkeleton columns={6} rows={itemsPerPage} />
                     ) : courses.length > 0 ? (
                       courses.map((course) => (
                         <TableRow key={course.id}>
@@ -497,6 +499,7 @@ export default function CoursesPage() {
                               </Badge>
                             )}
                           </TableCell>
+                          <TableCell>{course.max_students || 30}</TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>

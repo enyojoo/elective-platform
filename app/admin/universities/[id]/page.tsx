@@ -24,6 +24,7 @@ interface University {
   city_ru: string | null
   website: string | null
   status: string
+  max_students: number
   created_at: string
   updated_at: string
   university_languages: string[] | null
@@ -188,6 +189,21 @@ export default function UniversityDetailsPage() {
                   <p>{university.city_ru}</p>
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  {t("admin.universities.status.label", "Status")}
+                </h3>
+                <p className="mt-1">{getStatusBadge(university.status)}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  {t("admin.universities.maxStudents", "Max Students")}
+                </h3>
+                <p className="mt-1">{university.max_students}</p>
+              </div>
             </div>
 
             {university.website && (

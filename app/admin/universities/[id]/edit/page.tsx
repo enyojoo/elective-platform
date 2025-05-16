@@ -35,6 +35,7 @@ interface University {
   city_ru: string | null
   website: string | null
   status: string
+  max_students: number
   created_at: string
   updated_at: string
   university_languages: string[] | null
@@ -72,6 +73,7 @@ export default function EditUniversityPage() {
     country: "",
     website: "",
     status: "active",
+    max_students: 5,
     university_languages: [] as string[],
     university_programs: [] as string[],
   })
@@ -135,6 +137,7 @@ export default function EditUniversityPage() {
             country: data.country || "",
             website: data.website || "",
             status: data.status || "active",
+            max_students: data.max_students || 5,
             university_languages: data.university_languages || [],
             university_programs: data.university_programs || [],
           })
@@ -234,6 +237,7 @@ export default function EditUniversityPage() {
           country: formData.country,
           website: formData.website || null,
           status: formData.status,
+          max_students: formData.max_students,
           university_languages: formData.university_languages,
           university_programs: formData.university_programs,
           updated_at: new Date().toISOString(),
@@ -480,21 +484,38 @@ export default function EditUniversityPage() {
                 </div>
               </div>
 
-              {/* Status */}
-              <div className="space-y-2">
-                <Label htmlFor="status">{t("admin.newUniversity.status", "Status")}</Label>
-                <Select value={formData.status} onValueChange={handleStatusChange} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("admin.newUniversity.selectStatus", "Select status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {t(`admin.universities.status.${option.value}`, option.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Status and Max Students */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="status">{t("admin.newUniversity.status", "Status")}</Label>
+                  <Select value={formData.status} onValueChange={handleStatusChange} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("admin.newUniversity.selectStatus", "Select status")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {t(`admin.universities.status.${option.value}`, option.label)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_students">{t("admin.newUniversity.maxStudents", "Max Students")}</Label>
+                  <Input
+                    id="max_students"
+                    name="max_students"
+                    type="number"
+                    min="1"
+                    placeholder="5"
+                    value={formData.max_students}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, max_students: Number.parseInt(e.target.value) || 5 }))
+                    }
+                    required
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-4">

@@ -45,6 +45,7 @@ export default function NewCoursePage() {
     descriptionEn: "",
     descriptionRu: "",
     status: "active", // Default status
+    maxStudents: 30, // Default max students
   })
 
   // Set default degree when degrees are loaded
@@ -94,6 +95,7 @@ export default function NewCoursePage() {
         description_en: course.descriptionEn,
         description_ru: course.descriptionRu,
         status: course.status,
+        max_students: Number.parseInt(course.maxStudents) || 30,
         institution_id: institution.id,
       })
 
@@ -173,7 +175,7 @@ export default function NewCoursePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="degreeId">{t("admin.newCourse.degree")}</Label>
                   <Select value={course.degreeId} onValueChange={handleDegreeChange} required>
@@ -211,6 +213,19 @@ export default function NewCoursePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxStudents">{t("admin.newCourse.maxStudents", "Max Students")}</Label>
+                  <Input
+                    id="maxStudents"
+                    name="maxStudents"
+                    type="number"
+                    min="1"
+                    placeholder="30"
+                    value={course.maxStudents || "30"}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
 

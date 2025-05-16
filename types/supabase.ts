@@ -443,6 +443,7 @@ export interface Database {
           description: string | null
           description_ru: string | null
           credits: number
+          max_students: number
           status: string
           created_at: string
           updated_at: string
@@ -457,6 +458,7 @@ export interface Database {
           description?: string | null
           description_ru?: string | null
           credits: number
+          max_students?: number
           status?: string
           created_at?: string
           updated_at?: string
@@ -471,6 +473,7 @@ export interface Database {
           description?: string | null
           description_ru?: string | null
           credits?: number
+          max_students?: number
           status?: string
           created_at?: string
           updated_at?: string

@@ -45,6 +45,7 @@ interface University {
   city_ru: string | null
   website: string | null
   status: string
+  max_students: number
   created_at: string
   updated_at: string
   university_languages: string[] | null
@@ -460,19 +461,21 @@ export default function UniversitiesPage() {
                       <TableHead className="w-[30%]">{t("admin.universities.name", "Name")}</TableHead>
                       <TableHead>{t("admin.universities.country", "Country")}</TableHead>
                       <TableHead>{t("admin.universities.city", "City")}</TableHead>
+                      <TableHead>{t("admin.universities.maxStudents", "Max Students")}</TableHead>
                       <TableHead>{t("admin.universities.status.label", "Status")}</TableHead>
                       <TableHead className="w-[80px]">{t("admin.universities.action", "Action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoadingUniversities || isLoadingCountries ? (
-                      <TableSkeleton columns={5} rows={itemsPerPage} />
+                      <TableSkeleton columns={6} rows={itemsPerPage} />
                     ) : currentItems.length > 0 ? (
                       currentItems.map((university) => (
                         <TableRow key={university.id}>
                           <TableCell className="font-medium">{getLocalizedName(university)}</TableCell>
                           <TableCell>{getLocalizedCountry(university.country)}</TableCell>
                           <TableCell>{getLocalizedCity(university)}</TableCell>
+                          <TableCell>{university.max_students}</TableCell>
                           <TableCell>{getStatusBadge(university.status)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -515,7 +518,7 @@ export default function UniversitiesPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
+                        <TableCell colSpan={6} className="h-24 text-center">
                           {t("admin.universities.noUniversitiesFound", "No universities found matching your criteria")}
                         </TableCell>
                       </TableRow>
