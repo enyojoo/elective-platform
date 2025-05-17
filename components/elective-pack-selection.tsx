@@ -1,70 +1,95 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { SelectionStatus } from "@/lib/types"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
-interface ElectivePackSelectionProps {
-  courses: any[] // Replace 'any' with a more specific type if possible
+interface ElectivePack {
+  id: string
+  name: string
+  description: string
   maxSelections: number
-  existingSelection: any // Replace 'any' with a more specific type if possible
-  packId: string
 }
 
-export function ElectivePackSelection({
-  courses,
-  maxSelections,
-  existingSelection,
-  packId,
-}: ElectivePackSelectionProps) {
-  const [selectedCourses, setSelectedCourses] = useState<string[]>(existingSelection?.selectedCourseIds || [])
+interface ElectivePackSelectionProps {
+  electivePacks: ElectivePack[]
+}
 
-  const handleCourseSelect = (courseId: string) => {
-    if (selectedCourses.includes(courseId)) {
-      setSelectedCourses(selectedCourses.filter((id) => id !== courseId))
-    } else {
-      if (selectedCourses.length < maxSelections) {
-        setSelectedCourses([...selectedCourses, courseId])
+export function ElectivePackSelection({ electivePacks }: ElectivePackSelectionProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const { t } = useLanguage()
+
+  // Remove useSearchParams
+  // const searchParams = useSearchParams()
+
+  const [selectedPacks, setSelectedPacks] = useState<string[]>([])
+
+  const handlePackSelection = (packId: string) => {
+    setSelectedPacks((prev) => {
+      if (prev.includes(packId)) {
+        return prev.filter((id) => id !== packId)
       } else {
-        alert(`You can only select up to ${maxSelections} courses.`)
+        return [...prev, packId]
       }
-    }
+    })
   }
 
   const handleSubmit = () => {
-    // In a real application, you would send the selectedCourses to the server
-    console.log("Selected courses:", selectedCourses)
-    alert("Selection submitted!")
+    if (selectedPacks.length === 0) {
+      toast({
+        title: t("student.courses.noPacksSelected", "No Packs Selected"),
+        description: t("student.courses.selectAtLeastOne", "Please select at least one elective pack."),
+      })
+      return
+    }
+
+    if (selectedPacks.length > 1) {
+      toast({
+        title: t("student.courses.tooManyPacks", "Too Many Packs Selected"),
+        description: t("student.courses.selectOnlyOne", "Please select only one elective pack."),
+      })
+      return
+    }
+
+    // Remove searchParams
+    // const packId = searchParams?.get("packId")
+    const packId = selectedPacks[0]
+
+    router.push(`/student/courses/${packId}`)
   }
 
   return (
     <Card>
-      <CardContent className="space-y-4">
-        <p>Select your preferred elective courses for this pack:</p>
-        <div className="space-y-2">
-          {courses.map((course) => (
-            <div key={course.id} className="flex items-center space-x-2">
-              <Checkbox
-                id={`course-${course.id}`}
-                checked={selectedCourses.includes(course.id)}
-                onCheckedChange={() => handleCourseSelect(course.id)}
-                disabled={existingSelection?.status === SelectionStatus.APPROVED}
-              />
-              <label
-                htmlFor={`course-${course.id}`}
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                {course.name} - {course.teacher}
-              </label>
-            </div>
-          ))}
-        </div>
-        <Button onClick={handleSubmit} disabled={existingSelection?.status === SelectionStatus.APPROVED}>
-          Submit Selection
-        </Button>
+      <CardHeader>
+        <CardTitle>{t("student.courses.selectElectivePacks", "Select Elective Packs")}</CardTitle>
+        <CardDescription>
+          {t("student.courses.chooseFromAvailable", "Choose from the available elective packs.")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {electivePacks.map((pack) => (
+          <div key={pack.id} className="flex items-center space-x-2">
+            <Checkbox
+              id={pack.id}
+              checked={selectedPacks.includes(pack.id)}
+              onCheckedChange={() => handlePackSelection(pack.id)}
+            />
+            <Label
+              htmlFor={pack.id}
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              {pack.name}
+            </Label>
+          </div>
+        ))}
       </CardContent>
+      <Button onClick={handleSubmit}>{t("student.courses.selectCourses", "Select Courses")}</Button>
     </Card>
   )
 }

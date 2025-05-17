@@ -18,17 +18,8 @@ const DEFAULT_FAVICON_URL =
 // Default primary color
 const DEFAULT_PRIMARY_COLOR = "#027659"
 
-export const metadata: Metadata = {
-  title: "ElectivePRO",
-  description:
-    "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
-  icons: {
-    icon: DEFAULT_FAVICON_URL,
-    shortcut: DEFAULT_FAVICON_URL,
-    apple: DEFAULT_FAVICON_URL,
-  },
-    generator: 'v0.dev'
-}
+// Default platform name
+const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 
 export default async function RootLayout({
   children,
@@ -78,11 +69,20 @@ export default async function RootLayout({
   // For admin paths, always use the default favicon
   const faviconUrl = isAdminPath ? DEFAULT_FAVICON_URL : institutionFaviconUrl || DEFAULT_FAVICON_URL
 
-  // Update metadata for the current request
-  metadata.icons = {
-    icon: faviconUrl,
-    shortcut: faviconUrl,
-    apple: faviconUrl,
+  // Set the page title based on whether we're on a subdomain and have an institution name
+  // For admin paths, always use the default platform name
+  const pageTitle = isAdminPath ? DEFAULT_PLATFORM_NAME : institutionName || DEFAULT_PLATFORM_NAME
+
+  // Create metadata for the current request
+  const metadata: Metadata = {
+    title: pageTitle,
+    description:
+      "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
+    icons: {
+      icon: faviconUrl,
+      shortcut: faviconUrl,
+      apple: faviconUrl,
+    },
   }
 
   return (
@@ -95,11 +95,15 @@ export default async function RootLayout({
         <meta name="x-primary-color" content={primaryColor} />
         <meta name="x-is-admin" content={isAdminPath ? "true" : "false"} />
         <meta name="x-favicon-url" content={faviconUrl} />
+        <meta name="x-page-title" content={pageTitle} />
 
         {/* Set favicon explicitly for server-side rendering */}
         <link rel="icon" href={faviconUrl} />
         <link rel="shortcut icon" href={faviconUrl} />
         <link rel="apple-touch-icon" href={faviconUrl} />
+
+        {/* Set the page title explicitly */}
+        <title>{pageTitle}</title>
       </head>
       <body className={inter.className}>
         <Providers institution={institution}>
@@ -113,3 +117,7 @@ export default async function RootLayout({
     </html>
   )
 }
+
+export const metadata = {
+      generator: 'v0.dev'
+    };

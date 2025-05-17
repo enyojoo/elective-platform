@@ -4,6 +4,9 @@ import { useInstitution, DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR } from "@/li
 import { usePathname } from "next/navigation"
 import { useEffect } from "react"
 
+// Default platform name
+const DEFAULT_PLATFORM_NAME = "ElectivePRO"
+
 export function DynamicBranding() {
   const { institution, isSubdomainAccess } = useInstitution()
   const pathname = usePathname()
@@ -18,12 +21,13 @@ export function DynamicBranding() {
       isSubdomainAccess,
       primaryColor: institution?.primary_color,
       favicon: institution?.favicon_url,
+      name: institution?.name,
       isAdmin,
     })
 
-    // For admin pages, always use the default color and favicon
+    // For admin pages, always use the default color, favicon, and platform name
     if (isAdmin) {
-      console.log("DynamicBranding: Using default color and favicon for admin page")
+      console.log("DynamicBranding: Using default branding for admin page")
       document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
       document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
 
@@ -54,8 +58,11 @@ export function DynamicBranding() {
         appleIcon.href = DEFAULT_FAVICON_URL
         document.head.appendChild(appleIcon)
       }
+
+      // Set default platform name for admin pages
+      document.title = DEFAULT_PLATFORM_NAME
     }
-    // For non-admin pages, use institution color and favicon if available
+    // For non-admin pages, use institution color, favicon, and name if available
     else if (institution) {
       // Apply primary color as CSS variable
       if (institution.primary_color) {
@@ -108,6 +115,12 @@ export function DynamicBranding() {
         if (existingFavicon) {
           existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
         }
+      }
+
+      // Update page title with institution name if available
+      if (institution.name) {
+        console.log("DynamicBranding: Setting page title to institution name:", institution.name)
+        document.title = institution.name
       }
     }
   }, [institution, isSubdomainAccess, isAdmin, pathname])
