@@ -48,6 +48,15 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   // Determine if we're in the admin section
   const isAdmin = pathname?.includes("/admin") || false
 
+  // If we have initial institution data from the server, use it immediately
+  useEffect(() => {
+    if (initialInstitution) {
+      console.log("Context: Using initial institution from server:", initialInstitution.name)
+      setInstitution(initialInstitution)
+      setIsLoading(false)
+    }
+  }, [initialInstitution])
+
   const updateInstitution = async (data: Partial<Institution>) => {
     if (!institution?.id) {
       throw new Error("No institution found")

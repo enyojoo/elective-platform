@@ -44,6 +44,11 @@ type CacheData = {
     timestamp: number
     institutionId: string
   }
+  exchangeElectives?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
   exchangePrograms?: {
     data: any[]
     timestamp: number
@@ -161,6 +166,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         key === "degrees" ||
         key === "groups" ||
         key === "courseElectives" ||
+        key === "exchangeElectives" ||
         key === "exchangePrograms") &&
       cache.institutionId !== id
     ) {
@@ -205,6 +211,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         key === "degrees" ||
         key === "groups" ||
         key === "courseElectives" ||
+        key === "exchangeElectives" ||
         key === "exchangePrograms"
       ) {
         newCache[key] = {
@@ -262,6 +269,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
           key === "degrees" ||
           key === "groups" ||
           key === "courseElectives" ||
+          key === "exchangeElectives" ||
           key === "exchangePrograms") &&
         newCache[key]?.institutionId === id
       ) {

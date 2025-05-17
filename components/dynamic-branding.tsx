@@ -16,7 +16,7 @@ export function DynamicBranding() {
 
   useEffect(() => {
     // Log for debugging
-    console.log("DynamicBranding: Applying branding", {
+    console.log("DynamicBranding: Checking if branding update is needed", {
       institution,
       isSubdomainAccess,
       primaryColor: institution?.primary_color,
@@ -25,49 +25,46 @@ export function DynamicBranding() {
       isAdmin,
     })
 
+    // Get current values from DOM
+    const currentPrimaryColor = document.documentElement.style.getPropertyValue("--primary")
+    const currentFavicon = document.querySelector("link[rel='icon']")?.getAttribute("href")
+    const currentTitle = document.title
+
     // For admin pages, always use the default color, favicon, and platform name
     if (isAdmin) {
-      console.log("DynamicBranding: Using default branding for admin page")
-      document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
-      document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
+      // Only update if values are different from current
+      if (currentPrimaryColor !== DEFAULT_PRIMARY_COLOR) {
+        console.log("DynamicBranding: Updating to default admin branding")
+        document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
+        document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
 
-      // Set RGB values for components that need them
-      const primaryRgb = hexToRgb(DEFAULT_PRIMARY_COLOR)
-      if (primaryRgb) {
-        document.documentElement.style.setProperty("--primary-rgb", `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`)
+        // Set RGB values for components that need them
+        const primaryRgb = hexToRgb(DEFAULT_PRIMARY_COLOR)
+        if (primaryRgb) {
+          document.documentElement.style.setProperty(
+            "--primary-rgb",
+            `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+          )
+        }
       }
 
-      // Set default favicon for admin pages
-      const existingFavicon = document.querySelector("link[rel='icon']")
-      if (existingFavicon) {
-        existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
-      } else {
-        const favicon = document.createElement("link")
-        favicon.rel = "icon"
-        favicon.href = DEFAULT_FAVICON_URL
-        document.head.appendChild(favicon)
+      // Only update favicon if different
+      if (currentFavicon !== DEFAULT_FAVICON_URL) {
+        updateFavicon(DEFAULT_FAVICON_URL)
       }
 
-      // Also update apple-touch-icon
-      const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-      if (existingAppleIcon) {
-        existingAppleIcon.setAttribute("href", DEFAULT_FAVICON_URL)
-      } else {
-        const appleIcon = document.createElement("link")
-        appleIcon.rel = "apple-touch-icon"
-        appleIcon.href = DEFAULT_FAVICON_URL
-        document.head.appendChild(appleIcon)
+      // Only update title if different
+      if (currentTitle !== DEFAULT_PLATFORM_NAME) {
+        document.title = DEFAULT_PLATFORM_NAME
       }
-
-      // Set default platform name for admin pages
-      document.title = DEFAULT_PLATFORM_NAME
     }
     // For non-admin pages, use institution color, favicon, and name if available
     else if (institution) {
-      // Apply primary color as CSS variable
-      if (institution.primary_color) {
-        console.log("DynamicBranding: Setting institution color:", institution.primary_color)
+      // Apply primary color as CSS variable if different
+      if (institution.primary_color && currentPrimaryColor !== institution.primary_color) {
+        console.log("DynamicBranding: Updating to institution color:", institution.primary_color)
         document.documentElement.style.setProperty("--primary", institution.primary_color)
+        document.documentElement.style.setProperty("--color-primary", institution.primary_color)
 
         // Also set primary color for compatibility with different components
         const primaryRgb = hexToRgb(institution.primary_color)
@@ -77,53 +74,63 @@ export function DynamicBranding() {
             `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
           )
         }
-
-        // Set the color as a CSS custom property for Tailwind to use
-        document.documentElement.style.setProperty("--color-primary", institution.primary_color)
-      } else {
+      } else if (!institution.primary_color && currentPrimaryColor !== DEFAULT_PRIMARY_COLOR) {
         // If no institution color, use default
         document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
         document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
       }
 
-      // Update favicon if available
-      if (institution.favicon_url) {
-        console.log("DynamicBranding: Setting institution favicon:", institution.favicon_url)
-        const existingFavicon = document.querySelector("link[rel='icon']")
-        if (existingFavicon) {
-          existingFavicon.setAttribute("href", institution.favicon_url)
-        } else {
-          const favicon = document.createElement("link")
-          favicon.rel = "icon"
-          favicon.href = institution.favicon_url
-          document.head.appendChild(favicon)
-        }
-
-        // Also update apple-touch-icon
-        const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-        if (existingAppleIcon) {
-          existingAppleIcon.setAttribute("href", institution.favicon_url)
-        } else {
-          const appleIcon = document.createElement("link")
-          appleIcon.rel = "apple-touch-icon"
-          appleIcon.href = institution.favicon_url
-          document.head.appendChild(appleIcon)
-        }
-      } else {
-        // Set default favicon if institution doesn't have one
-        const existingFavicon = document.querySelector("link[rel='icon']")
-        if (existingFavicon) {
-          existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
-        }
+      // Update favicon if available and different
+      const faviconToUse = institution.favicon_url || DEFAULT_FAVICON_URL
+      if (currentFavicon !== faviconToUse) {
+        updateFavicon(faviconToUse)
       }
 
-      // Update page title with institution name if available
-      if (institution.name) {
-        console.log("DynamicBranding: Setting page title to institution name:", institution.name)
+      // Update page title with institution name if available and different
+      if (institution.name && currentTitle !== institution.name) {
+        console.log("DynamicBranding: Updating page title to institution name:", institution.name)
         document.title = institution.name
       }
     }
   }, [institution, isSubdomainAccess, isAdmin, pathname])
+
+  // Extract favicon update logic to a separate function
+  function updateFavicon(url: string) {
+    console.log("DynamicBranding: Updating favicon to:", url)
+
+    // Update icon
+    const existingFavicon = document.querySelector("link[rel='icon']")
+    if (existingFavicon) {
+      existingFavicon.setAttribute("href", url)
+    } else {
+      const favicon = document.createElement("link")
+      favicon.rel = "icon"
+      favicon.href = url
+      document.head.appendChild(favicon)
+    }
+
+    // Update apple-touch-icon
+    const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+    if (existingAppleIcon) {
+      existingAppleIcon.setAttribute("href", url)
+    } else {
+      const appleIcon = document.createElement("link")
+      appleIcon.rel = "apple-touch-icon"
+      appleIcon.href = url
+      document.head.appendChild(appleIcon)
+    }
+
+    // Update shortcut icon
+    const existingShortcutIcon = document.querySelector("link[rel='shortcut icon']")
+    if (existingShortcutIcon) {
+      existingShortcutIcon.setAttribute("href", url)
+    } else {
+      const shortcutIcon = document.createElement("link")
+      shortcutIcon.rel = "shortcut icon"
+      shortcutIcon.href = url
+      document.head.appendChild(shortcutIcon)
+    }
+  }
 
   // Helper function to convert hex color to RGB
   function hexToRgb(hex: string) {

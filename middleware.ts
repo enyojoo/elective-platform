@@ -68,6 +68,9 @@ export async function middleware(req: NextRequest) {
         requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
       }
 
+      // Add the current URL to headers for path-based decisions
+      requestHeaders.set("x-url", req.url)
+
       // If accessing the root of a subdomain, redirect to student login
       if (path === "/") {
         return NextResponse.redirect(new URL("/student/login", req.url))
@@ -121,5 +124,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg|api/subdomain).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(svg|png|jpg|jpeg|gif|webp)|api/subdomain).*)"],
 }

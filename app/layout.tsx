@@ -21,6 +21,14 @@ const DEFAULT_PRIMARY_COLOR = "#027659"
 // Default platform name
 const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 
+// Helper function to convert hex color to RGB string
+function hexToRgbString(hex: string): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result
+    ? `${Number.parseInt(result[1], 16)}, ${Number.parseInt(result[2], 16)}, ${Number.parseInt(result[3], 16)}`
+    : "2, 118, 89" // Default RGB for #027659
+}
+
 export default async function RootLayout({
   children,
 }: {
@@ -75,18 +83,37 @@ export default async function RootLayout({
 
   // Create metadata for the current request
   const metadata: Metadata = {
-    title: pageTitle,
+    title: {
+      template: `%s | ${pageTitle}`,
+      default: pageTitle,
+    },
     description:
       "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
     icons: {
-      icon: faviconUrl,
+      icon: [
+        {
+          url: faviconUrl,
+          href: faviconUrl,
+        },
+      ],
       shortcut: faviconUrl,
       apple: faviconUrl,
     },
+    themeColor: primaryColor,
   }
 
   return (
-    <html lang="en" suppressHydrationWarning style={{ "--primary": primaryColor } as React.CSSProperties}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={
+        {
+          "--primary": primaryColor,
+          "--color-primary": primaryColor,
+          "--primary-rgb": hexToRgbString(primaryColor),
+        } as React.CSSProperties
+      }
+    >
       <head>
         {/* Add a meta tag to help debug */}
         <meta name="x-subdomain" content={subdomain || "none"} />
