@@ -49,6 +49,11 @@ type CacheData = {
     timestamp: number
     institutionId: string
   }
+  exchangeElectives?: {
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
 
   // Manager caches
   managerProfile?: {
