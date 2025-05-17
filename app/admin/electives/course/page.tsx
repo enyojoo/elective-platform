@@ -366,16 +366,6 @@ export default function CourseElectivesPage() {
                       <SelectItem value="archived">{t("manager.status.archived", "Archived")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      clearCache()
-                      setIsLoading(true)
-                      window.location.reload()
-                    }}
-                  >
-                    {t("common.refresh", "Refresh")}
-                  </Button>
                 </div>
               </div>
 
