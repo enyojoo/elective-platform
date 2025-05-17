@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus, Calendar } from "lucide-react"
+import { Search, Filter, Plus } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -231,10 +231,7 @@ export default function ExchangeElectivesPage() {
                           <TableCell className="font-medium">{getLocalizedName(pack)}</TableCell>
                           <TableCell>
                             {pack.deadline ? (
-                              <div className="flex items-center">
-                                <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-                                {formatDate(pack.deadline)}
-                              </div>
+                              formatDate(pack.deadline)
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
