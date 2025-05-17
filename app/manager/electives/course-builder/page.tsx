@@ -59,6 +59,9 @@ export default function CourseBuilderPage() {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
 
+  // Update the state to include loading state
+  const [isLoading, setIsLoading] = useState(false)
+
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -249,6 +252,7 @@ export default function CourseBuilderPage() {
           </div>
         </div>
 
+        {/* Update the progress indicator to match exchange-builder style */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex items-center">
@@ -263,7 +267,9 @@ export default function CourseBuilderPage() {
                 <p className="text-sm font-medium">{t("manager.courseBuilder.step1", "General Information")}</p>
               </div>
             </div>
-            <ChevronRight className="mx-4 h-4 w-4 text-muted-foreground" />
+
+            <div className="mx-2 h-px w-8 bg-muted" />
+
             <div className="flex items-center">
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
@@ -276,65 +282,40 @@ export default function CourseBuilderPage() {
                 <p className="text-sm font-medium">{t("manager.courseBuilder.step2", "Select Courses")}</p>
               </div>
             </div>
-            <ChevronRight className="mx-4 h-4 w-4 text-muted-foreground" />
+
+            <div className="mx-2 h-px w-8 bg-muted" />
+
             <div className="flex items-center">
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
                   currentStep >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}
               >
-                {currentStep > 3 ? <Check className="h-4 w-4" /> : "3"}
+                3
               </div>
               <div className="ml-2 hidden sm:block">
                 <p className="text-sm font-medium">{t("manager.courseBuilder.step3", "Confirmation")}</p>
               </div>
             </div>
           </div>
+
+          <div className="text-sm text-muted-foreground">
+            {t("manager.courseBuilder.step", "Step")} {currentStep} {t("manager.courseBuilder.of", "of")} {totalSteps}
+          </div>
         </div>
 
         {/* Step 1: General Information */}
+        {/* Update the Step 1 implementation to match exchange-builder style */}
         {currentStep === 1 && (
           <Card>
             <CardHeader>
               <CardTitle>{t("manager.courseBuilder.step1", "General Information")}</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="name">{t("manager.courseBuilder.name", "Name")}</Label>
-                  <Input type="text" id="name" name="name" value={formData.name} onChange={handleChange} />
-                </div>
-                <div>
-                  <Label htmlFor="name_ru">{t("manager.courseBuilder.nameRu", "Name (Russian)")}</Label>
-                  <Input type="text" id="name_ru" name="name_ru" value={formData.name_ru} onChange={handleChange} />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="description">{t("manager.courseBuilder.description", "Description")}</Label>
-                <Input
-                  type="text"
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="description_ru">
-                  {t("manager.courseBuilder.descriptionRu", "Description (Russian)")}
-                </Label>
-                <Input
-                  type="text"
-                  id="description_ru"
-                  name="description_ru"
-                  value={formData.description_ru}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="semester">{t("manager.courseBuilder.semester", "Semester")}</Label>
-                  <Select onValueChange={(value) => handleSelectChange("semester", value)}>
+                  <Select value={formData.semester} onValueChange={(value) => handleSelectChange("semester", value)}>
                     <SelectTrigger>
                       <SelectValue placeholder={t("manager.courseBuilder.selectSemester", "Select a semester")} />
                     </SelectTrigger>
@@ -344,36 +325,96 @@ export default function CourseBuilderPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+
+                <div className="space-y-2">
                   <Label htmlFor="year">{t("manager.courseBuilder.year", "Year")}</Label>
                   <Input type="number" id="year" name="year" value={formData.year} onChange={handleChange} />
                 </div>
-                <div>
-                  <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections", "Max Selections")}</Label>
-                  <Input
-                    type="number"
-                    id="maxSelections"
-                    name="maxSelections"
-                    value={formData.maxSelections}
-                    onChange={handleChange}
-                  />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t("manager.courseBuilder.namePreview", "Name Preview")}</Label>
+                <div className="p-3 bg-muted rounded-md">
+                  {formData.name || `${formData.semester} ${formData.year} Course Selection`}
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="startDate">{t("manager.courseBuilder.startDate", "Start Date")}</Label>
-                  <Input
-                    type="date"
-                    id="startDate"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleChange}
-                  />
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">{t("manager.courseBuilder.programDetails", "Program Details")}</h3>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">{t("manager.courseBuilder.name", "Name")}</Label>
+                    <Input type="text" id="name" name="name" value={formData.name} onChange={handleChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name_ru">{t("manager.courseBuilder.nameRu", "Name (Russian)")}</Label>
+                    <Input type="text" id="name_ru" name="name_ru" value={formData.name_ru} onChange={handleChange} />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="endDate">{t("manager.courseBuilder.endDate", "End Date")}</Label>
-                  <Input type="date" id="endDate" name="endDate" value={formData.endDate} onChange={handleChange} />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">{t("manager.courseBuilder.description", "Description")}</h3>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">{t("manager.courseBuilder.description", "Description")}</Label>
+                    <Input
+                      type="text"
+                      id="description"
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description_ru">
+                      {t("manager.courseBuilder.descriptionRu", "Description (Russian)")}
+                    </Label>
+                    <Input
+                      type="text"
+                      id="description_ru"
+                      name="description_ru"
+                      value={formData.description_ru}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">{t("manager.courseBuilder.selectionRules", "Selection Rules")}</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections", "Max Selections")}</Label>
+                    <Input
+                      type="number"
+                      id="maxSelections"
+                      name="maxSelections"
+                      min={1}
+                      max={10}
+                      value={formData.maxSelections}
+                      onChange={handleChange}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("manager.courseBuilder.coursesPerStudent", "Maximum number of courses a student can select")}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">{t("manager.courseBuilder.endDate", "End Date")}</Label>
+                    <Input type="date" id="endDate" name="endDate" value={formData.endDate} onChange={handleChange} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button type="button" onClick={handleNextStep}>
+                  {t("manager.courseBuilder.next", "Next")}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
