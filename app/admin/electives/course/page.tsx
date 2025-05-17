@@ -44,6 +44,8 @@ interface ElectivePack {
   syllabus_template_url: string | null
   courses: string[] | null
   course_count?: number
+  created_by: string | null
+  creator_name?: string | null
 }
 
 interface CacheData {
@@ -54,6 +56,8 @@ interface CacheData {
 // Cache helper functions
 const getCachedData = (): CacheData | null => {
   try {
+    if (typeof window === "undefined") return null
+
     const cachedData = localStorage.getItem(CACHE_KEY)
     if (!cachedData) return null
 
@@ -74,6 +78,8 @@ const getCachedData = (): CacheData | null => {
 
 const setCachedData = (data: ElectivePack[]) => {
   try {
+    if (typeof window === "undefined") return
+
     const cacheData: CacheData = {
       data,
       timestamp: Date.now(),
@@ -86,6 +92,8 @@ const setCachedData = (data: ElectivePack[]) => {
 
 const clearCache = () => {
   try {
+    if (typeof window === "undefined") return
+
     localStorage.removeItem(CACHE_KEY)
   } catch (error) {
     console.error("Error clearing cache:", error)
@@ -124,21 +132,36 @@ export default function CourseElectivesPage() {
         }
 
         console.log("Fetching fresh course electives data")
-        // Fetch elective packs from elective_courses table
+        // Fetch elective packs from elective_courses table with creator information
         const { data: packs, error } = await supabase
           .from("elective_courses")
-          .select("*")
+          .select(`
+            *,
+            profiles:created_by (
+              id,
+              full_name,
+              role
+            )
+          `)
           .eq("institution_id", institution.id)
           .order("created_at", { ascending: false })
 
         if (error) throw error
 
-        // For each pack, fetch the count of courses
+        // For each pack, fetch the count of courses and add creator name
         const packsWithCounts = await Promise.all(
           (packs || []).map(async (pack) => {
+            // Extract creator name from the joined profiles data
+            const creatorName = pack.profiles?.full_name || null
+
             // If courses array exists, use its length
             if (pack.courses && Array.isArray(pack.courses)) {
-              return { ...pack, course_count: pack.courses.length }
+              return {
+                ...pack,
+                course_count: pack.courses.length,
+                creator_name: creatorName,
+                profiles: undefined, // Remove the nested profiles object
+              }
             }
 
             // Otherwise query the courses table
@@ -149,10 +172,20 @@ export default function CourseElectivesPage() {
 
             if (countError) {
               console.error("Error fetching course count:", countError)
-              return { ...pack, course_count: 0 }
+              return {
+                ...pack,
+                course_count: 0,
+                creator_name: creatorName,
+                profiles: undefined, // Remove the nested profiles object
+              }
             }
 
-            return { ...pack, course_count: count || 0 }
+            return {
+              ...pack,
+              course_count: count || 0,
+              creator_name: creatorName,
+              profiles: undefined, // Remove the nested profiles object
+            }
           }),
         )
 
@@ -238,7 +271,7 @@ export default function CourseElectivesPage() {
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase.from("elective_packs").update({ status: newStatus }).eq("id", id)
+      const { error } = await supabase.from("elective_courses").update({ status: newStatus }).eq("id", id)
 
       if (error) throw error
 
@@ -296,7 +329,7 @@ export default function CourseElectivesPage() {
         return
       }
 
-      const { error } = await supabase.from("elective_packs").delete().eq("id", packToDelete)
+      const { error } = await supabase.from("elective_courses").delete().eq("id", packToDelete)
 
       if (error) throw error
 
@@ -406,7 +439,11 @@ export default function CourseElectivesPage() {
                           <TableCell>{pack.course_count || 0}</TableCell>
                           <TableCell>{getStatusBadge(pack.status)}</TableCell>
                           <TableCell>
-                            <span className="text-muted-foreground">Admin</span>
+                            {pack.creator_name ? (
+                              <span>{pack.creator_name}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
