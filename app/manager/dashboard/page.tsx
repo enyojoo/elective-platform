@@ -13,15 +13,71 @@ import { useRouter } from "next/navigation"
 import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { formatDate, calculateDaysLeft } from "@/lib/utils"
+
+// Cache constants
+const ELECTIVE_COUNTS_CACHE_KEY = "managerDashboardElectiveCounts"
+const DEADLINES_CACHE_KEY = "managerDashboardDeadlines"
+const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+
+// Cache helper functions
+const getCachedData = (key: string): any | null => {
+  try {
+    const cachedData = localStorage.getItem(key)
+    if (!cachedData) return null
+
+    const parsed = JSON.parse(cachedData)
+
+    // Check if cache is expired
+    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return parsed.data
+  } catch (error) {
+    console.error(`Error reading from cache (${key}):`, error)
+    return null
+  }
+}
+
+const setCachedData = (key: string, data: any) => {
+  try {
+    const cacheData = {
+      data,
+      timestamp: Date.now(),
+    }
+    localStorage.setItem(key, JSON.stringify(cacheData))
+  } catch (error) {
+    console.error(`Error writing to cache (${key}):`, error)
+  }
+}
+
+interface DeadlineItem {
+  id: string
+  title: string
+  date: string
+  daysLeft: number
+  type: "course" | "exchange"
+}
+
+interface ElectiveCounts {
+  courses: number
+  exchange: number
+}
 
 export default function ManagerDashboard() {
-  const { t } = useLanguage()
-  const { isSubdomainAccess } = useInstitution()
+  const { t, language } = useLanguage()
+  const { isSubdomainAccess, institution } = useInstitution()
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
   // State for user ID
   const [userId, setUserId] = useState<string | undefined>(undefined)
+
+  // State for loading
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true)
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
   // Fetch current user ID
   useEffect(() => {
@@ -38,60 +94,147 @@ export default function ManagerDashboard() {
   // Fetch manager profile using the cached hook
   const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
 
-  // State for deadlines
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState([
-    {
-      title: "Fall 2025 Course Electives",
-      date: "2025-06-15",
-      daysLeft: 45,
-    },
-    {
-      title: "Spring 2025 Exchange Programs",
-      date: "2024-10-30",
-      daysLeft: 12,
-    },
-    {
-      title: "Spring 2025 Course Electives",
-      date: "2024-11-15",
-      daysLeft: 28,
-    },
-  ])
-
-  // State for elective counts
-  const [electiveCounts, setElectiveCounts] = useState({
+  // State for deadlines and elective counts
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
+  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({
     courses: 0,
     exchange: 0,
   })
 
-  // Fetch elective counts
+  // Fetch elective counts with caching
   useEffect(() => {
     const fetchElectiveCounts = async () => {
-      if (!isSubdomainAccess) return
+      if (!isSubdomainAccess || !institution?.id) return
 
       try {
+        setIsLoadingCounts(true)
+
+        // Check for cached data
+        const cachedCounts = getCachedData(ELECTIVE_COUNTS_CACHE_KEY)
+        if (cachedCounts) {
+          console.log("Using cached elective counts data")
+          setElectiveCounts(cachedCounts)
+          setIsLoadingCounts(false)
+          return
+        }
+
+        console.log("Fetching fresh elective counts data")
+
         // Fetch course electives count
         const { count: courseCount, error: courseError } = await supabase
           .from("elective_courses")
           .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
         // Fetch exchange electives count
         const { count: exchangeCount, error: exchangeError } = await supabase
           .from("elective_exchange")
           .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
         if (!courseError && !exchangeError) {
-          setElectiveCounts({
+          const counts = {
             courses: courseCount || 0,
             exchange: exchangeCount || 0,
-          })
+          }
+
+          setElectiveCounts(counts)
+
+          // Cache the data
+          setCachedData(ELECTIVE_COUNTS_CACHE_KEY, counts)
         }
       } catch (error) {
         console.error("Error fetching elective counts:", error)
+      } finally {
+        setIsLoadingCounts(false)
       }
     }
 
     fetchElectiveCounts()
-  }, [supabase, isSubdomainAccess])
+  }, [supabase, isSubdomainAccess, institution?.id])
+
+  // Fetch upcoming deadlines with caching
+  useEffect(() => {
+    const fetchUpcomingDeadlines = async () => {
+      if (!isSubdomainAccess || !institution?.id) return
+
+      try {
+        setIsLoadingDeadlines(true)
+
+        // Check for cached data
+        const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
+        if (cachedDeadlines) {
+          console.log("Using cached deadlines data")
+          setUpcomingDeadlines(cachedDeadlines)
+          setIsLoadingDeadlines(false)
+          return
+        }
+
+        console.log("Fetching fresh deadlines data")
+
+        // Get current date
+        const now = new Date()
+
+        // Fetch course electives with deadlines
+        const { data: courseElectives, error: courseError } = await supabase
+          .from("elective_courses")
+          .select("id, name, name_ru, deadline, status")
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+          .not("deadline", "is", null)
+          .gte("deadline", now.toISOString())
+          .order("deadline", { ascending: true })
+          .limit(5)
+
+        // Fetch exchange programs with deadlines
+        const { data: exchangePrograms, error: exchangeError } = await supabase
+          .from("elective_exchange")
+          .select("id, name, name_ru, deadline, status")
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+          .not("deadline", "is", null)
+          .gte("deadline", now.toISOString())
+          .order("deadline", { ascending: true })
+          .limit(5)
+
+        if (!courseError && !exchangeError) {
+          // Process course electives
+          const courseDeadlines = (courseElectives || []).map((item) => ({
+            id: item.id,
+            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+            date: item.deadline,
+            daysLeft: calculateDaysLeft(item.deadline),
+            type: "course" as const,
+          }))
+
+          // Process exchange programs
+          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
+            id: item.id,
+            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+            date: item.deadline,
+            daysLeft: calculateDaysLeft(item.deadline),
+            type: "exchange" as const,
+          }))
+
+          // Combine and sort by closest deadline
+          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
+            .sort((a, b) => a.daysLeft - b.daysLeft)
+            .slice(0, 5) // Take top 5 closest deadlines
+
+          setUpcomingDeadlines(allDeadlines)
+
+          // Cache the data
+          setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
+        }
+      } catch (error) {
+        console.error("Error fetching upcoming deadlines:", error)
+      } finally {
+        setIsLoadingDeadlines(false)
+      }
+    }
+
+    fetchUpcomingDeadlines()
+  }, [supabase, isSubdomainAccess, institution?.id, language])
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -118,10 +261,14 @@ export default function ManagerDashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{electiveCounts.courses}</div>
+              {isLoadingCounts ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">{electiveCounts.courses}</div>
+              )}
               <p className="text-xs text-muted-foreground">{t("manager.dashboard.totalCourseElectives")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/manager/electives?tab=courses">{t("manager.dashboard.manageCourseElectives")}</Link>
+                <Link href="/manager/electives/course">{t("manager.dashboard.manageCourseElectives")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -132,10 +279,14 @@ export default function ManagerDashboard() {
               <GlobeIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{electiveCounts.exchange}</div>
+              {isLoadingCounts ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">{electiveCounts.exchange}</div>
+              )}
               <p className="text-xs text-muted-foreground">{t("manager.dashboard.totalExchangePrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
-                <Link href="/manager/electives?tab=exchange">{t("manager.dashboard.manageExchangePrograms")}</Link>
+                <Link href="/manager/electives/exchange">{t("manager.dashboard.manageExchangePrograms")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -184,27 +335,47 @@ export default function ManagerDashboard() {
               <CardDescription>{t("manager.dashboard.importantDates")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {upcomingDeadlines.map((deadline, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{deadline.title}</p>
-                      <p className="text-sm text-muted-foreground">{deadline.date}</p>
+              {isLoadingDeadlines ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : upcomingDeadlines.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingDeadlines.map((deadline) => (
+                    <div key={deadline.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{deadline.title}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(deadline.date)}</p>
+                      </div>
+                      <Link
+                        href={
+                          deadline.type === "course"
+                            ? `/manager/electives/course/${deadline.id}`
+                            : `/manager/electives/exchange/${deadline.id}`
+                        }
+                      >
+                        <div
+                          className={`px-2 py-1 rounded-md text-xs font-medium cursor-pointer ${
+                            deadline.daysLeft < 7
+                              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              : deadline.daysLeft < 30
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          }`}
+                        >
+                          {deadline.daysLeft} {t("manager.dashboard.daysLeft")}
+                        </div>
+                      </Link>
                     </div>
-                    <div
-                      className={`px-2 py-1 rounded-md text-xs font-medium ${
-                        deadline.daysLeft < 7
-                          ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                          : deadline.daysLeft < 30
-                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                            : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      }`}
-                    >
-                      {deadline.daysLeft} {t("manager.dashboard.daysLeft")}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  {t("manager.dashboard.noUpcomingDeadlines", "No upcoming deadlines")}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
