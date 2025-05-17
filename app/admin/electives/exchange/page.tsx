@@ -16,7 +16,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
-import { useDataCache } from "@/lib/data-cache-context"
+
+// Cache constants
+const CACHE_KEY = "admin_exchange_programs"
+const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
 interface ElectivePack {
   id: string
@@ -32,6 +35,11 @@ interface ElectivePack {
   creator_name?: string
 }
 
+interface CachedData {
+  data: ElectivePack[]
+  timestamp: number
+}
+
 export default function ExchangeElectivesPage() {
   const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
@@ -42,7 +50,45 @@ export default function ExchangeElectivesPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
-  const { getCachedData, setCachedData } = useDataCache()
+
+  // Function to get cached data
+  const getCachedData = (): CachedData | null => {
+    if (typeof window === "undefined") return null
+
+    try {
+      const cachedData = localStorage.getItem(CACHE_KEY)
+      if (!cachedData) return null
+
+      const parsedData = JSON.parse(cachedData) as CachedData
+      const now = Date.now()
+
+      // Check if cache is expired
+      if (now - parsedData.timestamp > CACHE_EXPIRY) {
+        localStorage.removeItem(CACHE_KEY)
+        return null
+      }
+
+      return parsedData
+    } catch (error) {
+      console.error("Error getting cached data:", error)
+      return null
+    }
+  }
+
+  // Function to set cached data
+  const setCachedData = (data: ElectivePack[]) => {
+    if (typeof window === "undefined") return
+
+    try {
+      const cacheData: CachedData = {
+        data,
+        timestamp: Date.now(),
+      }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData))
+    } catch (error) {
+      console.error("Error setting cached data:", error)
+    }
+  }
 
   useEffect(() => {
     const fetchElectivePacks = async () => {
@@ -52,19 +98,11 @@ export default function ExchangeElectivesPage() {
         setIsLoading(true)
 
         // Try to get data from cache first
-        const cachedData = getCachedData<{
-          packs: ElectivePack[]
-          filters: { searchTerm: string; statusFilter: string }
-        }>("adminExchangePrograms", institution.id)
+        const cachedData = getCachedData()
 
-        if (
-          cachedData &&
-          cachedData.filters.searchTerm === searchTerm &&
-          cachedData.filters.statusFilter === statusFilter
-        ) {
+        if (cachedData) {
           console.log("Using cached admin exchange programs data")
-          setElectivePacks(cachedData.packs)
-          setFilteredPacks(cachedData.packs)
+          setElectivePacks(cachedData.data)
           setIsLoading(false)
           return
         }
@@ -101,13 +139,9 @@ export default function ExchangeElectivesPage() {
         })
 
         // Save to cache
-        setCachedData("adminExchangePrograms", institution.id, {
-          packs: processedPacks,
-          filters: { searchTerm, statusFilter },
-        })
+        setCachedData(processedPacks)
 
         setElectivePacks(processedPacks)
-        setFilteredPacks(processedPacks)
       } catch (error) {
         console.error("Error fetching elective packs:", error)
         toast({
@@ -121,7 +155,7 @@ export default function ExchangeElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t, searchTerm, statusFilter, getCachedData, setCachedData])
+  }, [supabase, institution?.id, toast, t])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {
