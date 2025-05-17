@@ -11,49 +11,25 @@ import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
 
-// Constants
+// Updated default favicon URL
 const DEFAULT_FAVICON_URL =
   "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
+
+// Default primary color
 const DEFAULT_PRIMARY_COLOR = "#027659"
-const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 
-// Dynamic metadata function
-export async function generateMetadata(): Promise<Metadata> {
-  const headersList = headers()
-  const host = headersList.get("host") || ""
-  const subdomain = getSubdomain(host)
-  const institutionId = headersList.get("x-institution-id")
-  const institutionName = headersList.get("x-institution-name")
-  const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
-
-  // Check if this is an admin path
-  const url = headersList.get("x-url") || ""
-  const isAdminPath = url.includes("/admin")
-
-  // For admin paths, always use the default favicon
-  const faviconUrl = isAdminPath ? DEFAULT_FAVICON_URL : institutionFaviconUrl || DEFAULT_FAVICON_URL
-
-  // Set the page title based on whether it's a subdomain access or not
-  let pageTitle = DEFAULT_PLATFORM_NAME
-
-  // If it's a subdomain access and not an admin path, use the institution name
-  if (subdomain && institutionName && !isAdminPath) {
-    pageTitle = institutionName
-  }
-
-  return {
-    title: pageTitle,
-    description:
-      "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
-    icons: {
-      icon: faviconUrl,
-      shortcut: faviconUrl,
-      apple: faviconUrl,
-    },
-  }
+export const metadata: Metadata = {
+  title: "ElectivePRO",
+  description:
+    "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
+  icons: {
+    icon: DEFAULT_FAVICON_URL,
+    shortcut: DEFAULT_FAVICON_URL,
+    apple: DEFAULT_FAVICON_URL,
+  },
+    generator: 'v0.dev'
 }
 
-// Root layout component
 export default async function RootLayout({
   children,
 }: {
@@ -102,6 +78,13 @@ export default async function RootLayout({
   // For admin paths, always use the default favicon
   const faviconUrl = isAdminPath ? DEFAULT_FAVICON_URL : institutionFaviconUrl || DEFAULT_FAVICON_URL
 
+  // Update metadata for the current request
+  metadata.icons = {
+    icon: faviconUrl,
+    shortcut: faviconUrl,
+    apple: faviconUrl,
+  }
+
   return (
     <html lang="en" suppressHydrationWarning style={{ "--primary": primaryColor } as React.CSSProperties}>
       <head>
@@ -112,7 +95,6 @@ export default async function RootLayout({
         <meta name="x-primary-color" content={primaryColor} />
         <meta name="x-is-admin" content={isAdminPath ? "true" : "false"} />
         <meta name="x-favicon-url" content={faviconUrl} />
-        <meta name="x-institution-name" content={institutionName || DEFAULT_PLATFORM_NAME} />
 
         {/* Set favicon explicitly for server-side rendering */}
         <link rel="icon" href={faviconUrl} />
@@ -131,7 +113,3 @@ export default async function RootLayout({
     </html>
   )
 }
-
-export const metadata = {
-      generator: 'v0.dev'
-    };
