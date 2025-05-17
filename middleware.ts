@@ -95,50 +95,25 @@ export async function middleware(req: NextRequest) {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-      try {
-        const response = await fetch(apiUrl, {
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-          signal: controller.signal,
-        })
+      const response = await fetch(apiUrl, {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+        signal: controller.signal,
+      })
 
-        clearTimeout(timeoutId)
+      clearTimeout(timeoutId)
 
-        // If the API call fails, log it but still allow the request to proceed
-        // This prevents redirects on temporary API issues
-        if (!response.ok) {
-          console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
+      // If the API call fails, log it but still allow the request to proceed
+      // This prevents redirects on temporary API issues
+      if (!response.ok) {
+        console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
 
-          // Only redirect for 404 (Not Found) responses
-          // For other errors (like 500), we'll assume the subdomain is valid to prevent disruption
-          if (response.status === 404) {
-            // Redirect to institution required page on MAIN domain
-            if (isDevelopment) {
-              return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-            } else {
-              return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-            }
-          }
-
-          // For other errors, proceed with the request but log the issue
-          console.warn(`Middleware: Proceeding with request despite API error for subdomain: ${subdomain}`)
-          const requestHeaders = new Headers(req.headers)
-          requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          })
-        }
-
-        const data = await response.json()
-
-        if (!data.exists) {
-          console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main domain institution-required`)
+        // Only redirect for 404 (Not Found) responses
+        // For other errors (like 500), we'll assume the subdomain is valid to prevent disruption
+        if (response.status === 404) {
           // Redirect to institution required page on MAIN domain
           if (isDevelopment) {
             return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
@@ -147,55 +122,9 @@ export async function middleware(req: NextRequest) {
           }
         }
 
-        // Valid subdomain - allow access and add institution info to headers
-        console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
+        // For other errors, proceed with the request but log the issue
+        console.warn(`Middleware: Proceeding with request despite API error for subdomain: ${subdomain}`)
         const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain)
-        requestHeaders.set("x-institution-id", data.institution.id || "unknown")
-        requestHeaders.set("x-institution-name", data.institution.name || "Unknown Institution")
-        requestHeaders.set("x-url", req.url)
-
-        // Add favicon and primary color to headers if available
-        if (data.institution.favicon_url) {
-          requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
-        }
-        if (data.institution.primary_color) {
-          requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
-        }
-
-        // If accessing the root of a subdomain, redirect to student login
-        if (path === "/") {
-          return NextResponse.redirect(new URL("/student/login", req.url))
-        }
-
-        // Redirect /student to /student/login on subdomains
-        if (path === "/student") {
-          return NextResponse.redirect(new URL("/student/login", req.url))
-        }
-
-        // Redirect /manager to /manager/login on subdomains
-        if (path === "/manager") {
-          return NextResponse.redirect(new URL("/manager/login", req.url))
-        }
-
-        // IMPORTANT: Return next response with the updated headers
-        return NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        })
-      } catch (fetchError) {
-        // Handle fetch errors (network issues, timeouts, etc.)
-        clearTimeout(timeoutId)
-        console.error(`Middleware: Fetch error for subdomain ${subdomain}:`, fetchError)
-
-        // For fetch errors, we'll assume the subdomain is valid to prevent disruption
-        // This is better than redirecting users on temporary network issues
-        console.warn(`Middleware: Proceeding with request despite fetch error for subdomain: ${subdomain}`)
-        const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-        // If we have the subdomain in the URL, we can at least set that
         requestHeaders.set("x-electivepro-subdomain", subdomain)
 
         return NextResponse.next({
@@ -204,9 +133,59 @@ export async function middleware(req: NextRequest) {
           },
         })
       }
+
+      const data = await response.json()
+
+      if (!data.exists) {
+        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main domain institution-required`)
+        // Redirect to institution required page on MAIN domain
+        if (isDevelopment) {
+          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+        } else {
+          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+        }
+      }
+
+      // Valid subdomain - allow access and add institution info to headers
+      console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.set("x-electivepro-subdomain", subdomain)
+      requestHeaders.set("x-institution-id", data.institution.id)
+      requestHeaders.set("x-institution-name", data.institution.name)
+      requestHeaders.set("x-url", req.url)
+
+      // Add favicon and primary color to headers if available
+      if (data.institution.favicon_url) {
+        requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
+      }
+      if (data.institution.primary_color) {
+        requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
+      }
+
+      // If accessing the root of a subdomain, redirect to student login
+      if (path === "/") {
+        return NextResponse.redirect(new URL("/student/login", req.url))
+      }
+
+      // Redirect /student to /student/login on subdomains
+      if (path === "/student") {
+        return NextResponse.redirect(new URL("/student/login", req.url))
+      }
+
+      // Redirect /manager to /manager/login on subdomains
+      if (path === "/manager") {
+        return NextResponse.redirect(new URL("/manager/login", req.url))
+      }
+
+      // IMPORTANT: Return next response with the updated headers
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
-      // For unexpected errors, redirect to institution required page on MAIN domain
+      // Redirect to institution required page on MAIN domain
       if (isDevelopment) {
         return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
       } else {
