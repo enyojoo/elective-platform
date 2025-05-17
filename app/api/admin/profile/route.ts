@@ -11,11 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Use supabaseAdmin to bypass RLS
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .select("*, degrees(*), groups(*)")
-      .eq("id", userId)
-      .single()
+    const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).single()
 
     if (error) {
       console.error("Error fetching profile:", error)
