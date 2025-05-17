@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 // Cache constants
 const CACHE_KEY = "managerProfile"
@@ -89,50 +89,9 @@ export function useCachedManagerProfile(userId: string | undefined) {
 
         // If not in cache, fetch from API
         console.log("Fetching manager profile from API")
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Use the browser client from our utility
-        const supabase = getSupabaseBrowserClient()
-
-        // First try to fetch using the profiles API endpoint
-        try {
-          const response = await fetch(`/api/admin/profile?userId=${userId}`)
-
-          if (response.ok) {
-            const profileData = await response.json()
-
-            // If we got data from the API, use it
-            if (profileData) {
-              // Fetch related degree data if needed
-              if (profileData.degree_id) {
-                const { data: degreeData } = await supabase
-                  .from("degrees")
-                  .select("*")
-                  .eq("id", profileData.degree_id)
-                  .single()
-
-                if (degreeData) {
-                  profileData.degrees = degreeData
-                }
-              }
-
-              // Save to cache
-              setCachedData(userId, profileData)
-
-              // Update state
-              setProfile(profileData)
-
-              // Update the last fetched userId
-              lastFetchedUserId.current = userId
-              setIsLoading(false)
-              return
-            }
-          }
-        } catch (apiError) {
-          console.error("Error fetching from profile API:", apiError)
-          // Continue to fallback method
-        }
-
-        // Fallback: Fetch profile with related data directly
+        // Fetch profile with related data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*, degrees(*), groups(*)")
@@ -140,31 +99,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
           .eq("role", "program_manager")
           .single()
 
-        if (profileError) {
-          // If we get a specific error about the role, try without the role filter
-          if (profileError.message.includes("no rows returned")) {
-            console.log("No profile found with program_manager role, trying without role filter")
-            const { data: anyProfileData, error: anyProfileError } = await supabase
-              .from("profiles")
-              .select("*, degrees(*), groups(*)")
-              .eq("id", userId)
-              .single()
-
-            if (anyProfileError) throw anyProfileError
-
-            // Save to cache
-            setCachedData(userId, anyProfileData)
-
-            // Update state
-            setProfile(anyProfileData)
-
-            // Update the last fetched userId
-            lastFetchedUserId.current = userId
-            return
-          }
-
-          throw profileError
-        }
+        if (profileError) throw profileError
 
         // Save to cache
         setCachedData(userId, profileData)
