@@ -7,17 +7,11 @@ import { LanguageProvider } from "@/lib/language-context"
 import { InstitutionProvider } from "@/lib/institution-context"
 import { DataCacheProvider } from "@/lib/data-cache-context"
 
-export function Providers({
-  children,
-  institution = null,
-}: {
-  children: React.ReactNode
-  institution?: any | null
-}) {
+export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <LanguageProvider>
-        <InstitutionProvider initialInstitution={institution}>
+        <InstitutionProvider>
           <DataCacheProvider>{children}</DataCacheProvider>
         </InstitutionProvider>
       </LanguageProvider>

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 export async function middleware(req: NextRequest) {
   // Get hostname for multi-tenancy
@@ -68,45 +67,12 @@ export async function middleware(req: NextRequest) {
       if (data.institution.primary_color) {
         requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
       }
-
-      // If we have a subdomain that's not www or app, fetch the institution data
-      if (subdomain && !["www", "app"].includes(subdomain)) {
-        try {
-          // Create a Supabase client for server-side
-          const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          )
-
-          // Fetch institution data
-          const { data: institution, error } = await supabaseAdmin
-            .from("institutions")
-            .select("id, name, logo_url, favicon_url, primary_color")
-            .eq("subdomain", subdomain)
-            .eq("is_active", true)
-            .single()
-
-          if (institution && !error) {
-            // Add institution data to headers
-            requestHeaders.set("x-institution-id", institution.id)
-            requestHeaders.set("x-institution-name", institution.name)
-
-            if (institution.logo_url) {
-              requestHeaders.set("x-institution-logo-url", institution.logo_url)
-            }
-
-            if (institution.favicon_url) {
-              requestHeaders.set("x-institution-favicon-url", institution.favicon_url)
-            }
-
-            if (institution.primary_color) {
-              requestHeaders.set("x-institution-primary-color", institution.primary_color)
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching institution in middleware:", error)
-        }
+      if (data.institution.logo_url) {
+        requestHeaders.set("x-institution-logo-url", data.institution.logo_url)
       }
+
+      // Add the current URL to headers for path-based decisions
+      requestHeaders.set("x-url", req.nextUrl.pathname)
 
       // If accessing the root of a subdomain, redirect to student login
       if (path === "/") {

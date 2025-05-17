@@ -2,7 +2,7 @@
 
 import { useInstitution, DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR } from "@/lib/institution-context"
 import { usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 // Default platform name
 const DEFAULT_PLATFORM_NAME = "ElectivePRO"
@@ -10,11 +10,22 @@ const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 export function DynamicBranding() {
   const { institution, isSubdomainAccess } = useInstitution()
   const pathname = usePathname()
+  const hasAppliedBranding = useRef(false)
 
   // Determine if we're in the admin section
   const isAdmin = pathname?.includes("/admin") || false
 
   useEffect(() => {
+    // Skip if we've already applied branding and nothing has changed
+    if (
+      hasAppliedBranding.current &&
+      !pathname?.includes("/admin") &&
+      document.documentElement.style.getPropertyValue("--primary") ===
+        (institution?.primary_color || DEFAULT_PRIMARY_COLOR)
+    ) {
+      return
+    }
+
     // Log for debugging
     console.log("DynamicBranding: Applying branding", {
       institution,
@@ -66,24 +77,20 @@ export function DynamicBranding() {
     else if (institution) {
       // Apply primary color as CSS variable
       if (institution.primary_color) {
-        // Check if the color is already applied from server-side rendering
-        const currentColor = document.documentElement.style.getPropertyValue("--primary")
-        if (!currentColor || currentColor !== institution.primary_color) {
-          console.log("DynamicBranding: Setting institution color:", institution.primary_color)
-          document.documentElement.style.setProperty("--primary", institution.primary_color)
+        console.log("DynamicBranding: Setting institution color:", institution.primary_color)
+        document.documentElement.style.setProperty("--primary", institution.primary_color)
 
-          // Also set primary color for compatibility with different components
-          const primaryRgb = hexToRgb(institution.primary_color)
-          if (primaryRgb) {
-            document.documentElement.style.setProperty(
-              "--primary-rgb",
-              `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
-            )
-          }
-
-          // Set the color as a CSS custom property for Tailwind to use
-          document.documentElement.style.setProperty("--color-primary", institution.primary_color)
+        // Also set primary color for compatibility with different components
+        const primaryRgb = hexToRgb(institution.primary_color)
+        if (primaryRgb) {
+          document.documentElement.style.setProperty(
+            "--primary-rgb",
+            `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+          )
         }
+
+        // Set the color as a CSS custom property for Tailwind to use
+        document.documentElement.style.setProperty("--color-primary", institution.primary_color)
       } else {
         // If no institution color, use default
         document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
@@ -92,25 +99,44 @@ export function DynamicBranding() {
 
       // Update favicon if available
       if (institution.favicon_url) {
+        console.log("DynamicBranding: Setting institution favicon:", institution.favicon_url)
         const existingFavicon = document.querySelector("link[rel='icon']")
-        if (existingFavicon && existingFavicon.getAttribute("href") !== institution.favicon_url) {
-          console.log("DynamicBranding: Setting institution favicon:", institution.favicon_url)
+        if (existingFavicon) {
           existingFavicon.setAttribute("href", institution.favicon_url)
+        } else {
+          const favicon = document.createElement("link")
+          favicon.rel = "icon"
+          favicon.href = institution.favicon_url
+          document.head.appendChild(favicon)
+        }
 
-          // Also update apple-touch-icon
-          const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-          if (existingAppleIcon) {
-            existingAppleIcon.setAttribute("href", institution.favicon_url)
-          }
+        // Also update apple-touch-icon
+        const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+        if (existingAppleIcon) {
+          existingAppleIcon.setAttribute("href", institution.favicon_url)
+        } else {
+          const appleIcon = document.createElement("link")
+          appleIcon.rel = "apple-touch-icon"
+          appleIcon.href = institution.favicon_url
+          document.head.appendChild(appleIcon)
+        }
+      } else {
+        // Set default favicon if institution doesn't have one
+        const existingFavicon = document.querySelector("link[rel='icon']")
+        if (existingFavicon) {
+          existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
         }
       }
 
       // Update page title with institution name if available
-      if (institution.name && document.title !== institution.name) {
+      if (institution.name) {
         console.log("DynamicBranding: Setting page title to institution name:", institution.name)
         document.title = institution.name
       }
     }
+
+    // Mark that we've applied branding
+    hasAppliedBranding.current = true
   }, [institution, isSubdomainAccess, isAdmin, pathname])
 
   // Helper function to convert hex color to RGB
