@@ -67,12 +67,6 @@ export async function middleware(req: NextRequest) {
       if (data.institution.primary_color) {
         requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
       }
-      if (data.institution.logo_url) {
-        requestHeaders.set("x-institution-logo-url", data.institution.logo_url)
-      }
-
-      // Add the current URL to headers for path-based decisions
-      requestHeaders.set("x-url", req.nextUrl.pathname)
 
       // If accessing the root of a subdomain, redirect to student login
       if (path === "/") {

@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
 
   try {
     // Query the database for the institution with this subdomain
-    const { data: institution, error } = await supabase
+    const { data, error } = await supabase
       .from("institutions")
       .select("id, name, subdomain, is_active, logo_url, favicon_url, primary_color")
       .eq("subdomain", subdomain)
@@ -28,22 +28,21 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
       return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
     }
 
-    if (!institution) {
+    if (!data) {
       // Subdomain is available (not found in database)
       return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
     }
 
-    // Ensure we return all necessary institution data
+    // Subdomain exists and is in use
     return NextResponse.json({
       exists: true,
       institution: {
-        id: institution.id,
-        name: institution.name,
-        subdomain: institution.subdomain,
-        primary_color: institution.primary_color,
-        favicon_url: institution.favicon_url,
-        logo_url: institution.logo_url,
-        is_active: institution.is_active,
+        id: data.id,
+        name: data.name,
+        subdomain: data.subdomain,
+        logo_url: data.logo_url,
+        favicon_url: data.favicon_url,
+        primary_color: data.primary_color,
       },
     })
   } catch (error) {

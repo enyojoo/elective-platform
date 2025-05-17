@@ -6,6 +6,7 @@ import "./globals.css"
 import { Providers } from "./providers"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { DynamicBranding } from "@/components/dynamic-branding"
 import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -32,7 +33,6 @@ export default async function RootLayout({
   const institutionName = headersList.get("x-institution-name")
   const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
   const institutionPrimaryColor = headersList.get("x-institution-primary-color")
-  const institutionLogoUrl = headersList.get("x-institution-logo-url")
 
   // Check if this is an admin path
   const url = headersList.get("x-url") || ""
@@ -45,7 +45,6 @@ export default async function RootLayout({
     institutionName,
     hasFavicon: !!institutionFaviconUrl,
     hasPrimaryColor: !!institutionPrimaryColor,
-    hasLogo: !!institutionLogoUrl,
     url,
     isAdminPath,
   })
@@ -60,7 +59,6 @@ export default async function RootLayout({
       is_active: true,
       favicon_url: institutionFaviconUrl || null,
       primary_color: institutionPrimaryColor || null,
-      logo_url: institutionLogoUrl || null,
     }
     console.log("Layout: Using institution from headers:", institution.name)
   }
@@ -87,22 +85,8 @@ export default async function RootLayout({
     },
   }
 
-  // Create CSS variables for server-side rendering
-  const cssVars = {
-    "--primary": primaryColor,
-    "--color-primary": primaryColor,
-  } as React.CSSProperties
-
-  // If we have RGB values, add them too
-  if (primaryColor) {
-    const rgb = hexToRgb(primaryColor)
-    if (rgb) {
-      cssVars["--primary-rgb"] = `${rgb.r}, ${rgb.g}, ${rgb.b}`
-    }
-  }
-
   return (
-    <html lang="en" suppressHydrationWarning style={cssVars}>
+    <html lang="en" suppressHydrationWarning style={{ "--primary": primaryColor } as React.CSSProperties}>
       <head>
         {/* Add a meta tag to help debug */}
         <meta name="x-subdomain" content={subdomain || "none"} />
@@ -124,6 +108,7 @@ export default async function RootLayout({
       <body className={inter.className}>
         <Providers institution={institution}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+            <DynamicBranding />
             {children}
             <Toaster />
           </ThemeProvider>
@@ -131,18 +116,6 @@ export default async function RootLayout({
       </body>
     </html>
   )
-}
-
-// Helper function to convert hex color to RGB
-function hexToRgb(hex: string) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result
-    ? {
-        r: Number.parseInt(result[1], 16),
-        g: Number.parseInt(result[2], 16),
-        b: Number.parseInt(result[3], 16),
-      }
-    : null
 }
 
 export const metadata = {

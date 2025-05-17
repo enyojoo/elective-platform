@@ -24,9 +24,6 @@ export function SuperAdminHeader({ sidebarOpen, setSidebarOpen }: SuperAdminHead
           <Menu className="h-5 w-5" />
           <span className="sr-only">Toggle sidebar</span>
         </Button>
-        <div className="flex items-center">
-          <div className="institution-logo h-8 w-auto" style={{ minWidth: "120px" }} aria-label="ElectivePRO logo" />
-        </div>
       </div>
       <div className="ml-auto flex items-center gap-4">{/* Right side content if needed */}</div>
     </header>
