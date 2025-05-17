@@ -1,24 +1,26 @@
 "use client"
 
 import type React from "react"
+
+import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/lib/language-context"
 import { InstitutionProvider } from "@/lib/institution-context"
 import { DataCacheProvider } from "@/lib/data-cache-context"
-import { SuperAdminAuthProvider } from "@/lib/super-admin-auth-context"
 
-interface ProvidersProps {
+export function Providers({
+  children,
+  institution = null,
+}: {
   children: React.ReactNode
-  institution?: string
-}
-
-export function Providers({ children, institution }: ProvidersProps) {
+  institution?: any | null
+}) {
   return (
-    <LanguageProvider>
-      <InstitutionProvider initialInstitution={institution}>
-        <DataCacheProvider>
-          <SuperAdminAuthProvider>{children}</SuperAdminAuthProvider>
-        </DataCacheProvider>
-      </InstitutionProvider>
-    </LanguageProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <LanguageProvider>
+        <InstitutionProvider initialInstitution={institution}>
+          <DataCacheProvider>{children}</DataCacheProvider>
+        </InstitutionProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   )
 }

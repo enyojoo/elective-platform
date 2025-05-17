@@ -27,8 +27,6 @@ import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
-import { useCachedExchangeElectives } from "@/hooks/use-cached-exchange-electives"
-import { useDataCache } from "@/lib/data-cache-context"
 
 interface ElectivePack {
   id: string
@@ -43,17 +41,15 @@ interface ElectivePack {
 }
 
 export default function ManagerExchangeElectivesPage() {
+  const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
-  const { invalidateCache } = useDataCache()
-
-  // Use the cached exchange electives hook
-  const { exchangeElectives, isLoading, error, setExchangeElectives } = useCachedExchangeElectives(institution?.id)
 
   // Delete confirmation dialog state
   const [packToDelete, setPackToDelete] = useState<string | null>(null)
@@ -63,11 +59,56 @@ export default function ManagerExchangeElectivesPage() {
     closeDialog: closeDeleteDialog,
   } = useDialogState(false)
 
+  useEffect(() => {
+    const fetchElectivePacks = async () => {
+      if (!institution?.id) return
+
+      try {
+        setIsLoading(true)
+
+        // Fetch elective exchange programs
+        const { data: packs, error } = await supabase
+          .from("elective_exchange")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching exchange programs:", error)
+          throw error
+        }
+
+        // Process the data to include university count
+        const processedPacks = (packs || []).map((pack) => {
+          // Get university count from the universities array
+          const universityCount = pack.universities ? pack.universities.length : 0
+
+          return {
+            ...pack,
+            university_count: universityCount,
+          }
+        })
+
+        setElectivePacks(processedPacks)
+        setFilteredPacks(processedPacks)
+      } catch (error) {
+        console.error("Error fetching elective packs:", error)
+        toast({
+          title: t("manager.electives.error", "Error"),
+          description: t("manager.electives.errorFetching", "Failed to fetch elective packs"),
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchElectivePacks()
+  }, [supabase, institution?.id, toast, t])
+
   // Filter elective packs based on search term and status filter
   useEffect(() => {
-    if (!exchangeElectives) return
-
-    let result = [...exchangeElectives]
+    let result = [...electivePacks]
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -83,7 +124,7 @@ export default function ManagerExchangeElectivesPage() {
     }
 
     setFilteredPacks(result)
-  }, [searchTerm, statusFilter, exchangeElectives])
+  }, [searchTerm, statusFilter, electivePacks])
 
   // Get localized name based on current language
   const getLocalizedName = (pack: ElectivePack) => {
@@ -138,17 +179,7 @@ export default function ManagerExchangeElectivesPage() {
       }
 
       // Update local state
-      const updatedElectives = exchangeElectives.map((pack) =>
-        pack.id === packId ? { ...pack, status: newStatus } : pack,
-      )
-
-      // Update the cache with the new data
-      if (institution?.id) {
-        invalidateCache("exchangeElectives", institution.id)
-      }
-
-      // Update local state
-      setExchangeElectives(updatedElectives)
+      setElectivePacks((prev) => prev.map((pack) => (pack.id === packId ? { ...pack, status: newStatus } : pack)))
 
       toast({
         title: t("manager.electives.statusUpdated", "Status updated"),
@@ -193,15 +224,8 @@ export default function ManagerExchangeElectivesPage() {
       }
 
       // Update local state
-      const updatedElectives = exchangeElectives.filter((pack) => pack.id !== packToDelete)
-
-      // Invalidate the cache
-      if (institution?.id) {
-        invalidateCache("exchangeElectives", institution.id)
-      }
-
-      // Update local state
-      setExchangeElectives(updatedElectives)
+      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
+      setFilteredPacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
 
       toast({
         title: t("manager.electives.deleteSuccess", "Exchange program deleted"),

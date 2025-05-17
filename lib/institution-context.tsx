@@ -48,15 +48,6 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   // Determine if we're in the admin section
   const isAdmin = pathname?.includes("/admin") || false
 
-  // If we have initial institution data from the server, use it immediately
-  useEffect(() => {
-    if (initialInstitution) {
-      console.log("Context: Using initial institution from server:", initialInstitution.name)
-      setInstitution(initialInstitution)
-      setIsLoading(false)
-    }
-  }, [initialInstitution])
-
   const updateInstitution = async (data: Partial<Institution>) => {
     if (!institution?.id) {
       throw new Error("No institution found")
@@ -123,31 +114,38 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
           // Only apply the institution color and favicon if we're not in admin section
           if (!isAdmin) {
             if (initialInstitution.primary_color) {
-              console.log("Context: Setting primary color from initial institution:", initialInstitution.primary_color)
-              document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
-              document.documentElement.style.setProperty("--color-primary", initialInstitution.primary_color)
-
-              // Set RGB values for components that need them
-              const primaryRgb = hexToRgb(initialInstitution.primary_color)
-              if (primaryRgb) {
-                document.documentElement.style.setProperty(
-                  "--primary-rgb",
-                  `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+              // Check if the color is already applied from server-side rendering
+              const currentColor = document.documentElement.style.getPropertyValue("--primary")
+              if (!currentColor || currentColor !== initialInstitution.primary_color) {
+                console.log(
+                  "Context: Setting primary color from initial institution:",
+                  initialInstitution.primary_color,
                 )
+                document.documentElement.style.setProperty("--primary", initialInstitution.primary_color)
+                document.documentElement.style.setProperty("--color-primary", initialInstitution.primary_color)
+
+                // Set RGB values for components that need them
+                const primaryRgb = hexToRgb(initialInstitution.primary_color)
+                if (primaryRgb) {
+                  document.documentElement.style.setProperty(
+                    "--primary-rgb",
+                    `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+                  )
+                }
               }
             }
 
-            // Set institution favicon if available
+            // Similar check for favicon
             if (initialInstitution.favicon_url) {
-              console.log("Context: Setting favicon from initial institution:", initialInstitution.favicon_url)
               const existingFavicon = document.querySelector("link[rel='icon']")
-              if (existingFavicon) {
+              if (existingFavicon && existingFavicon.getAttribute("href") !== initialInstitution.favicon_url) {
+                console.log("Context: Setting favicon from initial institution:", initialInstitution.favicon_url)
                 existingFavicon.setAttribute("href", initialInstitution.favicon_url)
-              }
 
-              const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-              if (existingAppleIcon) {
-                existingAppleIcon.setAttribute("href", initialInstitution.favicon_url)
+                const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+                if (existingAppleIcon) {
+                  existingAppleIcon.setAttribute("href", initialInstitution.favicon_url)
+                }
               }
             }
           } else {

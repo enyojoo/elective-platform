@@ -83,23 +83,14 @@ export default async function RootLayout({
 
   // Create metadata for the current request
   const metadata: Metadata = {
-    title: {
-      template: `%s | ${pageTitle}`,
-      default: pageTitle,
-    },
+    title: pageTitle,
     description:
       "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
     icons: {
-      icon: [
-        {
-          url: faviconUrl,
-          href: faviconUrl,
-        },
-      ],
+      icon: faviconUrl,
       shortcut: faviconUrl,
       apple: faviconUrl,
     },
-    themeColor: primaryColor,
   }
 
   return (
@@ -110,7 +101,7 @@ export default async function RootLayout({
         {
           "--primary": primaryColor,
           "--color-primary": primaryColor,
-          "--primary-rgb": hexToRgbString(primaryColor),
+          "--primary-rgb": primaryColor ? hexToRgbString(primaryColor) : "2, 118, 89",
         } as React.CSSProperties
       }
     >

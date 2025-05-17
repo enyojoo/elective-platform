@@ -16,8 +16,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
-import { useCachedExchangeElectives } from "@/hooks/use-cached-exchange-electives"
-import { useDataCache } from "@/lib/data-cache-context"
 
 interface ElectivePack {
   id: string
@@ -34,23 +32,76 @@ interface ElectivePack {
 }
 
 export default function ExchangeElectivesPage() {
+  const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
-  const { invalidateCache } = useDataCache()
 
-  // Use the cached exchange electives hook
-  const { exchangeElectives, isLoading, error } = useCachedExchangeElectives(institution?.id)
+  useEffect(() => {
+    const fetchElectivePacks = async () => {
+      if (!institution?.id) return
+
+      try {
+        setIsLoading(true)
+
+        // Fetch elective exchange programs - REMOVED type filter
+        const { data: packs, error } = await supabase
+          .from("elective_exchange")
+          .select(`
+            *,
+            creator:profiles(full_name)
+          `)
+          .eq("institution_id", institution.id)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching exchange programs:", error)
+          throw error
+        }
+
+        console.log("Fetched exchange programs:", packs)
+
+        // Process the data to include university count and creator name
+        const processedPacks = (packs || []).map((pack) => {
+          // Get university count from the universities array
+          const universityCount = pack.universities ? pack.universities.length : 0
+
+          // Get creator name from the joined profiles data
+          const creatorName = pack.creator?.full_name || "Unknown"
+
+          return {
+            ...pack,
+            university_count: universityCount,
+            creator_name: creatorName,
+          }
+        })
+
+        console.log("Processed exchange programs:", processedPacks)
+        setElectivePacks(processedPacks)
+        setFilteredPacks(processedPacks)
+      } catch (error) {
+        console.error("Error fetching elective packs:", error)
+        toast({
+          title: t("admin.electives.error", "Error"),
+          description: t("admin.electives.errorFetching", "Failed to fetch elective packs"),
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchElectivePacks()
+  }, [supabase, institution?.id, toast, t])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {
-    if (!exchangeElectives) return
-
-    let result = [...exchangeElectives]
+    let result = [...electivePacks]
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -66,7 +117,7 @@ export default function ExchangeElectivesPage() {
     }
 
     setFilteredPacks(result)
-  }, [searchTerm, statusFilter, exchangeElectives])
+  }, [searchTerm, statusFilter, electivePacks])
 
   // Get localized name based on current language
   const getLocalizedName = (pack: ElectivePack) => {
