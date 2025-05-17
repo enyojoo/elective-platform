@@ -7,8 +7,17 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus, MoreHorizontal, Eye, Pencil, Trash2, Power } from "lucide-react"
+import { Search, Filter, Plus, MoreHorizontal, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -16,15 +25,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useRouter } from "next/navigation"
-import { SafeDialog } from "@/components/safe-dialog"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { cleanupDialogEffects } from "@/lib/dialog-utils"
 
 interface ElectivePack {
   id: string
@@ -44,14 +46,18 @@ export default function ManagerExchangeElectivesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false)
-  const [selectedPack, setSelectedPack] = useState<ElectivePack | null>(null)
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
-  const router = useRouter()
+
+  // Delete confirmation dialog state
+  const [packToDelete, setPackToDelete] = useState<string | null>(null)
+  const {
+    isOpen: isDeleteDialogOpen,
+    openDialog: openDeleteDialog,
+    closeDialog: closeDeleteDialog,
+  } = useDialogState(false)
 
   useEffect(() => {
     const fetchElectivePacks = async () => {
@@ -160,71 +166,82 @@ export default function ManagerExchangeElectivesPage() {
     }
   }
 
-  // Handle status toggle
-  const handleStatusToggle = async () => {
-    if (!selectedPack) return
-
+  // Handle status change
+  const handleStatusChange = async (packId: string, newStatus: string) => {
     try {
-      const newStatus = selectedPack.status === "published" ? "closed" : "published"
+      const { error } = await supabase
+        .from("elective_exchange")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", packId)
 
-      const { error } = await supabase.from("elective_exchange").update({ status: newStatus }).eq("id", selectedPack.id)
-
-      if (error) throw error
+      if (error) {
+        throw error
+      }
 
       // Update local state
-      const updatedPacks = electivePacks.map((pack) =>
-        pack.id === selectedPack.id ? { ...pack, status: newStatus } : pack,
-      )
-
-      setElectivePacks(updatedPacks)
+      setElectivePacks((prev) => prev.map((pack) => (pack.id === packId ? { ...pack, status: newStatus } : pack)))
 
       toast({
-        title: t("manager.electives.statusUpdated", "Status Updated"),
-        description: t(
-          "manager.electives.statusUpdateSuccess",
-          `Exchange program has been ${newStatus === "published" ? "activated" : "deactivated"}`,
-        ),
+        title: t("manager.electives.statusUpdated", "Status updated"),
+        description: t("manager.electives.statusUpdatedDesc", "Exchange program status has been updated successfully"),
       })
-    } catch (error) {
-      console.error("Error updating status:", error)
+    } catch (error: any) {
       toast({
         title: t("manager.electives.error", "Error"),
-        description: t("manager.electives.statusUpdateFailed", "Failed to update status"),
+        description:
+          t("manager.electives.errorUpdatingStatus", "Failed to update exchange program status") + ": " + error.message,
         variant: "destructive",
       })
-    } finally {
-      setStatusDialogOpen(false)
-      setSelectedPack(null)
     }
   }
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (!selectedPack) return
+  // Handle opening delete confirmation dialog
+  const handleDelete = (packId: string) => {
+    setPackToDelete(packId)
+    openDeleteDialog()
+  }
+
+  // Handle closing delete confirmation dialog
+  const handleCloseDeleteDialog = () => {
+    closeDeleteDialog()
+
+    // Ensure cleanup after dialog closes
+    setTimeout(() => {
+      setPackToDelete(null)
+      cleanupDialogEffects()
+    }, 300) // Wait for animation to complete
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!packToDelete) return
 
     try {
-      const { error } = await supabase.from("elective_exchange").delete().eq("id", selectedPack.id)
+      const { error } = await supabase.from("elective_exchange").delete().eq("id", packToDelete)
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
 
       // Update local state
-      const updatedPacks = electivePacks.filter((pack) => pack.id !== selectedPack.id)
-      setElectivePacks(updatedPacks)
+      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
+      setFilteredPacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
 
       toast({
-        title: t("manager.electives.deleted", "Deleted"),
-        description: t("manager.electives.deleteSuccess", "Exchange program has been deleted"),
+        title: t("manager.electives.deleteSuccess", "Exchange program deleted"),
+        description: t("manager.electives.deleteSuccessDesc", "Exchange program has been deleted successfully"),
       })
-    } catch (error) {
+
+      // Close dialog and clean up
+      handleCloseDeleteDialog()
+    } catch (error: any) {
       console.error("Error deleting exchange program:", error)
       toast({
         title: t("manager.electives.error", "Error"),
-        description: t("manager.electives.deleteFailed", "Failed to delete exchange program"),
+        description: t("manager.electives.errorDeleting", "Failed to delete exchange program") + ": " + error.message,
         variant: "destructive",
       })
-    } finally {
-      setDeleteDialogOpen(false)
-      setSelectedPack(null)
+      handleCloseDeleteDialog()
     }
   }
 
@@ -287,7 +304,7 @@ export default function ManagerExchangeElectivesPage() {
                       <TableHead>{t("manager.electives.deadline", "Deadline")}</TableHead>
                       <TableHead>{t("manager.electives.universities", "Universities")}</TableHead>
                       <TableHead>{t("manager.electives.status", "Status")}</TableHead>
-                      <TableHead className="text-right w-[100px]">{t("manager.electives.action", "Action")}</TableHead>
+                      <TableHead className="w-[80px]">{t("manager.electives.action", "Action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -306,46 +323,36 @@ export default function ManagerExchangeElectivesPage() {
                           </TableCell>
                           <TableCell>{pack.university_count || 0}</TableCell>
                           <TableCell>{getStatusBadge(pack.status)}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <Button variant="ghost" className="h-8 w-8 p-0">
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => router.push(`/manager/electives/exchange/${pack.id}`)}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  {t("common.view", "View")}
+                                <DropdownMenuItem>
+                                  <Link href={`/manager/electives/exchange/${pack.id}`} className="w-full">
+                                    {t("manager.electives.view", "View Details")}
+                                  </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => router.push(`/manager/electives/exchange/${pack.id}/edit`)}
-                                >
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  {t("common.edit", "Edit")}
+                                <DropdownMenuItem>
+                                  <Link href={`/manager/electives/exchange/${pack.id}/edit`} className="w-full">
+                                    {t("manager.electives.edit", "Edit")}
+                                  </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedPack(pack)
-                                    setStatusDialogOpen(true)
-                                  }}
-                                >
-                                  <Power className="mr-2 h-4 w-4" />
-                                  {pack.status === "published"
-                                    ? t("manager.electives.deactivate", "Deactivate")
-                                    : t("manager.electives.activate", "Activate")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => {
-                                    setSelectedPack(pack)
-                                    setDeleteDialogOpen(true)
-                                  }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  {t("common.delete", "Delete")}
+                                {pack.status === "published" ? (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "closed")}>
+                                    {t("manager.electives.deactivate", "Deactivate")}
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
+                                    {t("manager.electives.activate", "Activate")}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(pack.id)}>
+                                  {t("manager.electives.delete", "Delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -368,48 +375,48 @@ export default function ManagerExchangeElectivesPage() {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <SafeDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title={t("manager.electives.deleteConfirmTitle", "Delete Exchange Program")}
-        description={t(
-          "manager.electives.deleteConfirmDescription",
-          "Are you sure you want to delete this exchange program? This action cannot be undone.",
-        )}
-        confirmText={t("common.delete", "Delete")}
-        cancelText={t("common.cancel", "Cancel")}
-        onConfirm={handleDelete}
-        variant="destructive"
-      />
-
-      {/* Status Change Dialog */}
-      <SafeDialog
-        open={statusDialogOpen}
-        onOpenChange={setStatusDialogOpen}
-        title={
-          selectedPack?.status === "published"
-            ? t("manager.electives.deactivateTitle", "Deactivate Exchange Program")
-            : t("manager.electives.activateTitle", "Activate Exchange Program")
-        }
-        description={
-          selectedPack?.status === "published"
-            ? t(
-                "manager.electives.deactivateDescription",
-                "Are you sure you want to deactivate this exchange program? Students will no longer be able to select it.",
-              )
-            : t(
-                "manager.electives.activateDescription",
-                "Are you sure you want to activate this exchange program? It will become visible to students.",
-              )
-        }
-        confirmText={
-          selectedPack?.status === "published"
-            ? t("manager.electives.deactivate", "Deactivate")
-            : t("manager.electives.activate", "Activate")
-        }
-        cancelText={t("common.cancel", "Cancel")}
-        onConfirm={handleStatusToggle}
-      />
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDeleteDialog()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation()
+            handleCloseDeleteDialog()
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+            handleCloseDeleteDialog()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t("manager.electives.deleteConfirmTitle", "Delete Exchange Program")}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {t(
+                "manager.electives.deleteConfirmMessage",
+                "Are you sure you want to delete this exchange program? This action cannot be undone.",
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
+              {t("manager.electives.cancelDelete", "Cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {t("manager.electives.confirmDelete", "Delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
