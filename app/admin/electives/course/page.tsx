@@ -150,45 +150,62 @@ export default function CourseElectivesPage() {
         // Fetch creator profiles in a single query
         let creatorProfiles: Record<string, string> = {}
         if (creatorIds.length > 0) {
-          try {
-            const { data: profiles, error: profilesError } = await supabase
-              .from("profiles")
-              .select("id, full_name")
-              .in("id", creatorIds)
+          const { data: profiles, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", creatorIds)
 
-            if (profilesError) {
-              console.error("Error fetching creator profiles:", profilesError)
-            } else if (profiles) {
-              // Create a map of profile IDs to names
-              creatorProfiles = profiles.reduce(
-                (acc, profile) => {
-                  if (profile && profile.id) {
-                    acc[profile.id] = profile.full_name || "Unknown"
-                  }
-                  return acc
-                },
-                {} as Record<string, string>,
-              )
-            }
-          } catch (profileError) {
-            console.error("Error in profile fetching:", profileError)
+          if (profilesError) {
+            console.error("Error fetching creator profiles:", profilesError)
+          } else if (profiles) {
+            // Create a map of profile IDs to names
+            creatorProfiles = profiles.reduce(
+              (acc, profile) => {
+                acc[profile.id] = profile.full_name
+                return acc
+              },
+              {} as Record<string, string>,
+            )
           }
         }
 
-        // For each pack, add course count and creator name
-        const packsWithCounts = (packs || []).map((pack) => {
-          // Get creator name from the profiles map
-          const creatorName = pack.created_by ? creatorProfiles[pack.created_by] || null : null
+        // For each pack, fetch the count of courses and add creator name
+        const packsWithCounts = await Promise.all(
+          (packs || []).map(async (pack) => {
+            // Get creator name from the profiles map
+            const creatorName = pack.created_by ? creatorProfiles[pack.created_by] || null : null
 
-          // If courses array exists, use its length
-          const courseCount = pack.courses && Array.isArray(pack.courses) ? pack.courses.length : 0
+            // If courses array exists, use its length
+            if (pack.courses && Array.isArray(pack.courses)) {
+              return {
+                ...pack,
+                course_count: pack.courses.length,
+                creator_name: creatorName,
+              }
+            }
 
-          return {
-            ...pack,
-            course_count: courseCount,
-            creator_name: creatorName,
-          }
-        })
+            // Otherwise query the courses table
+            const { count, error: countError } = await supabase
+              .from("courses")
+              .select("*", { count: "exact", head: true })
+              .eq("elective_pack_id", pack.id)
+
+            if (countError) {
+              console.error("Error fetching course count:", countError)
+              return {
+                ...pack,
+                course_count: 0,
+                creator_name: creatorName,
+              }
+            }
+
+            return {
+              ...pack,
+              course_count: count || 0,
+              creator_name: creatorName,
+            }
+          }),
+        )
 
         setElectivePacks(packsWithCounts)
         setFilteredPacks(packsWithCounts)

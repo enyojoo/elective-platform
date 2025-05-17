@@ -49,12 +49,12 @@ export default function StudentDashboard() {
   const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
     useCachedStudentExchangeSelections(userId)
 
-  // REMOVE THIS EFFECT - This is causing the redirect issue
-  // useEffect(() => {
-  //   if (!isSubdomainAccess) {
-  //     router.push("/institution-required")
-  //   }
-  // }, [isSubdomainAccess, router])
+  // Ensure this page is only accessed via subdomain
+  useEffect(() => {
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
+    }
+  }, [isSubdomainAccess, router])
 
   // Mock upcoming deadlines
   const upcomingDeadlines = [
@@ -101,10 +101,9 @@ export default function StudentDashboard() {
 
   const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading
 
-  // REMOVE THIS CHECK - This is part of the redirect issue
-  // if (!isSubdomainAccess) {
-  //   return null // Don't render anything while redirecting
-  // }
+  if (!isSubdomainAccess) {
+    return null // Don't render anything while redirecting
+  }
 
   if (isProfileLoading) {
     return (

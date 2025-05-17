@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("elective_packs")
     .select(
-      "id, name, name_ru, description, description_ru, semester, academic_year, status, selection_start_date, selection_end_date, created_by",
+      "id, name, name_ru, description, description_ru, semester, academic_year, status, selection_start_date, selection_end_date",
     )
     .eq("institution_id", institution.id)
 
@@ -34,47 +34,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Get unique creator IDs
-  const creatorIds = data
-    .map((item) => item.created_by)
-    .filter((id) => id !== null && id !== undefined)
-    .filter((id, index, self) => self.indexOf(id) === index)
-
-  // Fetch creator profiles in a single query
-  let creatorProfiles = {}
-  if (creatorIds.length > 0) {
-    try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", creatorIds)
-
-      if (profilesError) {
-        console.error("Error fetching creator profiles:", profilesError)
-      } else if (profiles) {
-        // Create a map of profile IDs to names
-        creatorProfiles = profiles.reduce((acc, profile) => {
-          if (profile && profile.id) {
-            acc[profile.id] = profile.full_name || "Unknown"
-          }
-          return acc
-        }, {})
-      }
-    } catch (profileError) {
-      console.error("Error in profile fetching:", profileError)
-    }
-  }
-
-  // Add creator_name to each item
-  const dataWithCreatorNames = data.map((item) => {
-    const creatorName = item.created_by ? creatorProfiles[item.created_by] || null : null
-    return {
-      ...item,
-      creator_name: creatorName,
-    }
-  })
-
-  return NextResponse.json(dataWithCreatorNames)
+  return NextResponse.json(data)
 }
 
 export async function POST(req: NextRequest) {

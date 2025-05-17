@@ -91,47 +91,21 @@ export async function middleware(req: NextRequest) {
 
       console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
 
-      // Add timeout to prevent hanging requests
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
       const response = await fetch(apiUrl, {
         headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Cache-Control": "no-cache",
           Pragma: "no-cache",
-          Expires: "0",
         },
-        signal: controller.signal,
       })
 
-      clearTimeout(timeoutId)
-
-      // If the API call fails, log it but still allow the request to proceed
-      // This prevents redirects on temporary API issues
       if (!response.ok) {
         console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
-
-        // Only redirect for 404 (Not Found) responses
-        // For other errors (like 500), we'll assume the subdomain is valid to prevent disruption
-        if (response.status === 404) {
-          // Redirect to institution required page on MAIN domain
-          if (isDevelopment) {
-            return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-          } else {
-            return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-          }
+        // Redirect to institution required page on MAIN domain
+        if (isDevelopment) {
+          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+        } else {
+          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
         }
-
-        // For other errors, proceed with the request but log the issue
-        console.warn(`Middleware: Proceeding with request despite API error for subdomain: ${subdomain}`)
-        const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-        return NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        })
       }
 
       const data = await response.json()
