@@ -10,9 +10,13 @@ interface HeaderProps {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   className?: string
+  institution?: {
+    logo_url?: string
+    name?: string
+  }
 }
 
-export function Header({ sidebarOpen, setSidebarOpen, className }: HeaderProps) {
+export function Header({ sidebarOpen, setSidebarOpen, className, institution }: HeaderProps) {
   const pathname = usePathname()
 
   return (
@@ -27,6 +31,17 @@ export function Header({ sidebarOpen, setSidebarOpen, className }: HeaderProps) 
           <Menu className="h-5 w-5" />
           <span className="sr-only">Toggle sidebar</span>
         </Button>
+        <div className="flex items-center">
+          {institution?.logo_url ? (
+            <div
+              className="institution-logo h-8 w-auto"
+              style={{ minWidth: "120px" }}
+              aria-label={institution.name || "Institution logo"}
+            />
+          ) : (
+            <div className="institution-logo h-8 w-auto" style={{ minWidth: "120px" }} aria-label="ElectivePRO logo" />
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-4">
         <LanguageSwitcher />

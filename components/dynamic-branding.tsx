@@ -1,16 +1,17 @@
 "use client"
 
-import { useInstitution, DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR } from "@/lib/institution-context"
+import { useInstitution, DEFAULT_FAVICON_URL, DEFAULT_PRIMARY_COLOR, DEFAULT_LOGO_URL } from "@/lib/institution-context"
 import { usePathname } from "next/navigation"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 // Default platform name
 const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 
 export function DynamicBranding() {
-  const { institution, isSubdomainAccess } = useInstitution()
+  const { institution, isSubdomainAccess, isLoading } = useInstitution()
   const pathname = usePathname()
   const hasAppliedBranding = useRef(false)
+  const [brandingReady, setBrandingReady] = useState(false)
 
   // Determine if we're in the admin section
   const isAdmin = pathname?.includes("/admin") || false
@@ -26,12 +27,20 @@ export function DynamicBranding() {
       return
     }
 
+    // Don't apply branding until institution data is loaded
+    if (isLoading) {
+      // Add a class to hide logos until branding is ready
+      document.documentElement.classList.add("branding-loading")
+      return
+    }
+
     // Log for debugging
     console.log("DynamicBranding: Applying branding", {
       institution,
       isSubdomainAccess,
       primaryColor: institution?.primary_color,
       favicon: institution?.favicon_url,
+      logo: institution?.logo_url,
       name: institution?.name,
       isAdmin,
     })
@@ -72,6 +81,9 @@ export function DynamicBranding() {
 
       // Set default platform name for admin pages
       document.title = DEFAULT_PLATFORM_NAME
+
+      // Set logo CSS variable to default for admin
+      document.documentElement.style.setProperty("--institution-logo", `url('${DEFAULT_LOGO_URL}')`)
     }
     // For non-admin pages, use institution color, favicon, and name if available
     else if (institution) {
@@ -128,6 +140,14 @@ export function DynamicBranding() {
         }
       }
 
+      // Set logo CSS variable
+      if (institution.logo_url) {
+        console.log("DynamicBranding: Setting institution logo:", institution.logo_url)
+        document.documentElement.style.setProperty("--institution-logo", `url('${institution.logo_url}')`)
+      } else {
+        document.documentElement.style.setProperty("--institution-logo", `url('${DEFAULT_LOGO_URL}')`)
+      }
+
       // Update page title with institution name if available
       if (institution.name) {
         console.log("DynamicBranding: Setting page title to institution name:", institution.name)
@@ -137,7 +157,11 @@ export function DynamicBranding() {
 
     // Mark that we've applied branding
     hasAppliedBranding.current = true
-  }, [institution, isSubdomainAccess, isAdmin, pathname])
+    setBrandingReady(true)
+
+    // Remove the loading class
+    document.documentElement.classList.remove("branding-loading")
+  }, [institution, isSubdomainAccess, isAdmin, pathname, isLoading])
 
   // Helper function to convert hex color to RGB
   function hexToRgb(hex: string) {
