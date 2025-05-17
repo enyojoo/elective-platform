@@ -124,5 +124,17 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(svg|png|jpg|jpeg|gif|webp)|api/subdomain).*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images/ (image files)
+     * - api/subdomain (API routes for subdomain)
+     * - files with extensions (static files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|images|api/subdomain).*)",
+    "/((?!.*\\.(svg|png|jpg|jpeg|gif|webp)).*)",
+  ],
 }
