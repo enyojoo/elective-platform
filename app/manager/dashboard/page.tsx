@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -10,30 +10,36 @@ import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { useRouter } from "next/navigation"
+import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
+import { Skeleton } from "@/components/ui/skeleton"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 export default function ManagerDashboard() {
   const { t } = useLanguage()
   const { isSubdomainAccess } = useInstitution()
   const router = useRouter()
+  const supabase = getSupabaseBrowserClient()
 
-  // Ensure this page is only accessed via subdomain
+  // State for user ID
+  const [userId, setUserId] = useState<string | undefined>(undefined)
+
+  // Fetch current user ID
   useEffect(() => {
-    if (!isSubdomainAccess) {
-      router.push("/institution-required")
+    const fetchUserId = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) {
+        setUserId(data.user.id)
+      }
     }
-  }, [isSubdomainAccess, router])
 
-  // Mock manager data
-  const managerData = {
-    name: "Elena Petrova",
-    email: "e.petrova@gsom.spbu.ru",
-    program: "Management",
-    degree: "Bachelor's",
-    year: "2024",
-  }
+    fetchUserId()
+  }, [supabase])
 
-  // Mock upcoming deadlines
-  const upcomingDeadlines = [
+  // Fetch manager profile using the cached hook
+  const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
+
+  // State for deadlines
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState([
     {
       title: "Fall 2025 Course Electives",
       date: "2025-06-15",
@@ -49,7 +55,50 @@ export default function ManagerDashboard() {
       date: "2024-11-15",
       daysLeft: 28,
     },
-  ]
+  ])
+
+  // State for elective counts
+  const [electiveCounts, setElectiveCounts] = useState({
+    courses: 0,
+    exchange: 0,
+  })
+
+  // Fetch elective counts
+  useEffect(() => {
+    const fetchElectiveCounts = async () => {
+      if (!isSubdomainAccess) return
+
+      try {
+        // Fetch course electives count
+        const { count: courseCount, error: courseError } = await supabase
+          .from("elective_courses")
+          .select("*", { count: "exact", head: true })
+
+        // Fetch exchange electives count
+        const { count: exchangeCount, error: exchangeError } = await supabase
+          .from("elective_exchange")
+          .select("*", { count: "exact", head: true })
+
+        if (!courseError && !exchangeError) {
+          setElectiveCounts({
+            courses: courseCount || 0,
+            exchange: exchangeCount || 0,
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching elective counts:", error)
+      }
+    }
+
+    fetchElectiveCounts()
+  }, [supabase, isSubdomainAccess])
+
+  // Ensure this page is only accessed via subdomain
+  useEffect(() => {
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
+    }
+  }, [isSubdomainAccess, router])
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting
@@ -69,7 +118,7 @@ export default function ManagerDashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
+              <div className="text-2xl font-bold">{electiveCounts.courses}</div>
               <p className="text-xs text-muted-foreground">{t("manager.dashboard.totalCourseElectives")}</p>
               <Button asChild className="w-full mt-4" size="sm">
                 <Link href="/manager/electives?tab=courses">{t("manager.dashboard.manageCourseElectives")}</Link>
@@ -83,7 +132,7 @@ export default function ManagerDashboard() {
               <GlobeIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
+              <div className="text-2xl font-bold">{electiveCounts.exchange}</div>
               <p className="text-xs text-muted-foreground">{t("manager.dashboard.totalExchangePrograms")}</p>
               <Button asChild className="w-full mt-4" size="sm">
                 <Link href="/manager/electives?tab=exchange">{t("manager.dashboard.manageExchangePrograms")}</Link>
@@ -99,28 +148,33 @@ export default function ManagerDashboard() {
               <CardDescription>{t("manager.dashboard.managerDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("manager.dashboard.name")}:</dt>
-                  <dd>{managerData.name}</dd>
+              {isLoadingProfile ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
                 </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("manager.dashboard.program")}:</dt>
-                  <dd>{managerData.program}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("manager.dashboard.degree")}:</dt>
-                  <dd>{managerData.degree}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("manager.dashboard.year")}:</dt>
-                  <dd>{managerData.year}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="font-medium">{t("manager.dashboard.email")}:</dt>
-                  <dd>{managerData.email}</dd>
-                </div>
-              </dl>
+              ) : (
+                <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("manager.dashboard.name")}:</dt>
+                    <dd>{profile?.full_name || "-"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("manager.dashboard.degree")}:</dt>
+                    <dd>{profile?.degrees?.name || "-"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("manager.dashboard.year")}:</dt>
+                    <dd>{profile?.academic_year || "-"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">{t("manager.dashboard.email")}:</dt>
+                    <dd>{profile?.email || "-"}</dd>
+                  </div>
+                </dl>
+              )}
             </CardContent>
           </Card>
 
