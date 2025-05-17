@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -18,6 +18,7 @@ import { formatDate, calculateDaysLeft } from "@/lib/utils"
 // Cache constants
 const ELECTIVE_COUNTS_CACHE_KEY = "managerDashboardElectiveCounts"
 const DEADLINES_CACHE_KEY = "managerDashboardDeadlines"
+const USER_ID_CACHE_KEY = "managerDashboardUserId"
 const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
 // Cache helper functions
@@ -72,24 +73,45 @@ export default function ManagerDashboard() {
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
-  // State for user ID
-  const [userId, setUserId] = useState<string | undefined>(undefined)
+  // Use a ref to track if this is the initial mount
+  const isInitialMount = useRef(true)
+
+  // State for user ID with caching
+  const [userId, setUserId] = useState<string | undefined>(() => {
+    // Try to get userId from cache on initial render
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUserId = getCachedData(USER_ID_CACHE_KEY)
+        return cachedUserId || undefined
+      } catch (e) {
+        return undefined
+      }
+    }
+    return undefined
+  })
 
   // State for loading
   const [isLoadingCounts, setIsLoadingCounts] = useState(true)
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
-  // Fetch current user ID
+  // Fetch current user ID only once on mount
   useEffect(() => {
     const fetchUserId = async () => {
+      // Skip if we already have a userId from cache
+      if (userId) return
+
       const { data } = await supabase.auth.getUser()
       if (data?.user) {
-        setUserId(data.user.id)
+        const newUserId = data.user.id
+        setUserId(newUserId)
+        // Cache the userId
+        setCachedData(USER_ID_CACHE_KEY, newUserId)
       }
     }
 
     fetchUserId()
-  }, [supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]) // Only depend on supabase
 
   // Fetch manager profile using the cached hook
   const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
@@ -242,6 +264,18 @@ export default function ManagerDashboard() {
       router.push("/institution-required")
     }
   }, [isSubdomainAccess, router])
+
+  // Log when component mounts/unmounts to track re-renders
+  useEffect(() => {
+    console.log("Manager Dashboard mounted")
+
+    // Mark that we're no longer on initial mount
+    isInitialMount.current = false
+
+    return () => {
+      console.log("Manager Dashboard unmounted")
+    }
+  }, [])
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting

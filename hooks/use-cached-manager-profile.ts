@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 
@@ -10,6 +10,8 @@ const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
 // Cache helper functions
 const getCachedData = (userId: string): any | null => {
+  if (typeof window === "undefined") return null
+
   try {
     const cachedData = localStorage.getItem(`${CACHE_KEY}_${userId}`)
     if (!cachedData) return null
@@ -30,6 +32,8 @@ const getCachedData = (userId: string): any | null => {
 }
 
 const setCachedData = (userId: string, data: any) => {
+  if (typeof window === "undefined") return
+
   try {
     const cacheData = {
       data,
@@ -47,24 +51,30 @@ export function useCachedManagerProfile(userId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
-  // Track if this is the initial load
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  // Use a ref to track if this is the initial mount
+  const isInitialMount = useRef(true)
+
+  // Use a ref to track the last userId we fetched for
+  const lastFetchedUserId = useRef<string | undefined>(undefined)
 
   useEffect(() => {
+    // If no userId, we can't fetch anything
     if (!userId) {
       setIsLoading(false)
       return
     }
 
-    const fetchProfile = async () => {
-      // Only show loading state on initial load
-      if (isInitialLoad) {
-        setIsLoading(true)
-      }
+    // If we already fetched for this userId and this isn't the initial mount, don't fetch again
+    if (lastFetchedUserId.current === userId && !isInitialMount.current) {
+      return
+    }
 
+    const fetchProfile = async () => {
+      setIsLoading(true)
       setError(null)
 
       try {
+        console.log(`Checking cache for manager profile: ${userId}`)
         // Try to get data from cache first
         const cachedProfile = getCachedData(userId)
 
@@ -72,7 +82,8 @@ export function useCachedManagerProfile(userId: string | undefined) {
           console.log("Using cached manager profile")
           setProfile(cachedProfile)
           setIsLoading(false)
-          setIsInitialLoad(false)
+          // Update the last fetched userId
+          lastFetchedUserId.current = userId
           return
         }
 
@@ -95,6 +106,9 @@ export function useCachedManagerProfile(userId: string | undefined) {
 
         // Update state
         setProfile(profileData)
+
+        // Update the last fetched userId
+        lastFetchedUserId.current = userId
       } catch (error: any) {
         console.error("Error fetching manager profile:", error)
         setError(error.message)
@@ -105,12 +119,14 @@ export function useCachedManagerProfile(userId: string | undefined) {
         })
       } finally {
         setIsLoading(false)
-        setIsInitialLoad(false)
       }
     }
 
     fetchProfile()
-  }, [userId, toast, isInitialLoad])
+
+    // Mark that we're no longer on initial mount
+    isInitialMount.current = false
+  }, [userId, toast])
 
   return { profile, isLoading, error }
 }
