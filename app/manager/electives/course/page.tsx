@@ -30,16 +30,20 @@ import {
 const CACHE_KEY = "managerCourseElectives"
 const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
+// Update the ElectivePack interface to match the elective_courses table structure
 interface ElectivePack {
   id: string
   name: string
   name_ru: string | null
-  type: string
   status: string
   deadline: string | null
   created_at: string
   updated_at: string
   max_selections: number
+  semester: string | null
+  academic_year: string | null
+  syllabus_template_url: string | null
+  courses: string[] | null
   course_count?: number
 }
 
@@ -104,6 +108,7 @@ export default function ManagerCourseElectivesPage() {
   const { institution } = useInstitution()
 
   useEffect(() => {
+    // Update the fetchElectivePacks function to query the elective_courses table
     const fetchElectivePacks = async () => {
       if (!institution?.id) return
 
@@ -121,12 +126,11 @@ export default function ManagerCourseElectivesPage() {
         }
 
         console.log("Fetching fresh course electives data")
-        // Fetch elective packs of type 'course'
+        // Fetch elective packs from elective_courses table
         const { data: packs, error } = await supabase
-          .from("elective_packs")
+          .from("elective_courses")
           .select("*")
           .eq("institution_id", institution.id)
-          .eq("type", "course")
           .order("created_at", { ascending: false })
 
         if (error) throw error
@@ -134,6 +138,12 @@ export default function ManagerCourseElectivesPage() {
         // For each pack, fetch the count of courses
         const packsWithCounts = await Promise.all(
           (packs || []).map(async (pack) => {
+            // If courses array exists, use its length
+            if (pack.courses && Array.isArray(pack.courses)) {
+              return { ...pack, course_count: pack.courses.length }
+            }
+
+            // Otherwise query the courses table
             const { count, error: countError } = await supabase
               .from("courses")
               .select("*", { count: "exact", head: true })
