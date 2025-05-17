@@ -11,6 +11,9 @@ export async function middleware(req: NextRequest) {
   // Check if we're in development mode (localhost)
   const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1")
 
+  // Define main domain based on environment
+  const mainDomain = isDevelopment ? "localhost:3000" : "app.electivepro.net"
+
   // Extract subdomain parameter in development mode
   let subdomain = null
   if (isDevelopment) {
@@ -35,6 +38,16 @@ export async function middleware(req: NextRequest) {
   const isMainDomain =
     hostname === "app.electivepro.net" || hostname === "electivepro.net" || (isDevelopment && !subdomain)
 
+  // IMPORTANT: /institution-required should NEVER be accessible on a subdomain
+  if (path === "/institution-required" && subdomain) {
+    console.log(`Middleware: Redirecting /institution-required from subdomain to main domain`)
+    if (isDevelopment) {
+      return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+    } else {
+      return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+    }
+  }
+
   // Check if the path is for student or manager routes
   const isStudentOrManagerRoute = path.startsWith("/student/") || path.startsWith("/manager/")
 
@@ -44,17 +57,21 @@ export async function middleware(req: NextRequest) {
   // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
   if (isStudentOrManagerRoute && !subdomain) {
     console.log(`Middleware: Redirecting student/manager route to institution-required: ${path}`)
-    // Redirect to institution required page
-    return NextResponse.redirect(new URL("/institution-required", req.url))
+    // Redirect to institution required page on main domain
+    if (isDevelopment) {
+      return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+    } else {
+      return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+    }
   }
 
   // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
   if (isAdminOrSuperAdminRoute && subdomain) {
     console.log(`Middleware: Redirecting admin route to main domain: ${path}`)
     if (isDevelopment) {
-      return NextResponse.redirect(new URL(`http://localhost:3000${path}`, req.url))
+      return NextResponse.redirect(new URL(`http://${mainDomain}${path}`, req.url))
     } else {
-      return NextResponse.redirect(new URL(`https://app.electivepro.net${path}`, req.url))
+      return NextResponse.redirect(new URL(`https://${mainDomain}${path}`, req.url))
     }
   }
 
@@ -83,14 +100,24 @@ export async function middleware(req: NextRequest) {
 
       if (!response.ok) {
         console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
-        return NextResponse.redirect(new URL("/institution-required", req.url))
+        // Redirect to institution required page on MAIN domain
+        if (isDevelopment) {
+          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+        } else {
+          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+        }
       }
 
       const data = await response.json()
 
       if (!data.exists) {
-        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to institution-required`)
-        return NextResponse.redirect(new URL("/institution-required", req.url))
+        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main domain institution-required`)
+        // Redirect to institution required page on MAIN domain
+        if (isDevelopment) {
+          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+        } else {
+          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+        }
       }
 
       // Valid subdomain - allow access and add institution info to headers
@@ -132,7 +159,12 @@ export async function middleware(req: NextRequest) {
       })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
-      return NextResponse.redirect(new URL("/institution-required", req.url))
+      // Redirect to institution required page on MAIN domain
+      if (isDevelopment) {
+        return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+      } else {
+        return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+      }
     }
   }
 
