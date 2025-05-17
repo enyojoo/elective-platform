@@ -270,10 +270,6 @@ export default function ManagerDashboard() {
     }
   }, [])
 
-  if (!isSubdomainAccess) {
-    return null // Don't render anything while redirecting
-  }
-
   return (
     <DashboardLayout userRole={UserRole.MANAGER}>
       <div className="space-y-6">

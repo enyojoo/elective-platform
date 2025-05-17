@@ -11,10 +11,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Use supabaseAdmin to bypass RLS
-    const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).single()
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("*, degrees(*), groups(*)")
+      .eq("id", userId)
+      .single()
 
     if (error) {
       console.error("Error fetching profile:", error)
+
+      // If no rows returned, try without any joins
+      if (error.message.includes("no rows returned")) {
+        const { data: basicData, error: basicError } = await supabaseAdmin
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single()
+
+        if (basicError) {
+          return NextResponse.json({ error: basicError.message }, { status: 500 })
+        }
+
+        return NextResponse.json(basicData)
+      }
+
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
