@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface ElectivePack {
   id: string
@@ -41,6 +42,7 @@ export default function ExchangeElectivesPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+  const { getCachedData, setCachedData } = useDataCache()
 
   useEffect(() => {
     const fetchElectivePacks = async () => {
@@ -49,7 +51,26 @@ export default function ExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
-        // Fetch elective exchange programs - REMOVED type filter
+        // Try to get data from cache first
+        const cachedData = getCachedData<{
+          packs: ElectivePack[]
+          filters: { searchTerm: string; statusFilter: string }
+        }>("adminExchangePrograms", institution.id)
+
+        if (
+          cachedData &&
+          cachedData.filters.searchTerm === searchTerm &&
+          cachedData.filters.statusFilter === statusFilter
+        ) {
+          console.log("Using cached admin exchange programs data")
+          setElectivePacks(cachedData.packs)
+          setFilteredPacks(cachedData.packs)
+          setIsLoading(false)
+          return
+        }
+
+        console.log("Fetching admin exchange programs from API")
+        // Fetch elective exchange programs
         const { data: packs, error } = await supabase
           .from("elective_exchange")
           .select(`
@@ -63,8 +84,6 @@ export default function ExchangeElectivesPage() {
           console.error("Error fetching exchange programs:", error)
           throw error
         }
-
-        console.log("Fetched exchange programs:", packs)
 
         // Process the data to include university count and creator name
         const processedPacks = (packs || []).map((pack) => {
@@ -81,7 +100,12 @@ export default function ExchangeElectivesPage() {
           }
         })
 
-        console.log("Processed exchange programs:", processedPacks)
+        // Save to cache
+        setCachedData("adminExchangePrograms", institution.id, {
+          packs: processedPacks,
+          filters: { searchTerm, statusFilter },
+        })
+
         setElectivePacks(processedPacks)
         setFilteredPacks(processedPacks)
       } catch (error) {
@@ -97,7 +121,7 @@ export default function ExchangeElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t])
+  }, [supabase, institution?.id, toast, t, searchTerm, statusFilter, getCachedData, setCachedData])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {

@@ -27,6 +27,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface ElectivePack {
   id: string
@@ -50,6 +51,7 @@ export default function ManagerExchangeElectivesPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
   // Delete confirmation dialog state
   const [packToDelete, setPackToDelete] = useState<string | null>(null)
@@ -66,6 +68,25 @@ export default function ManagerExchangeElectivesPage() {
       try {
         setIsLoading(true)
 
+        // Try to get data from cache first
+        const cachedData = getCachedData<{
+          packs: ElectivePack[]
+          filters: { searchTerm: string; statusFilter: string }
+        }>("exchangePrograms", institution.id)
+
+        if (
+          cachedData &&
+          cachedData.filters.searchTerm === searchTerm &&
+          cachedData.filters.statusFilter === statusFilter
+        ) {
+          console.log("Using cached exchange programs data")
+          setElectivePacks(cachedData.packs)
+          setFilteredPacks(cachedData.packs)
+          setIsLoading(false)
+          return
+        }
+
+        console.log("Fetching exchange programs from API")
         // Fetch elective exchange programs
         const { data: packs, error } = await supabase
           .from("elective_exchange")
@@ -89,6 +110,12 @@ export default function ManagerExchangeElectivesPage() {
           }
         })
 
+        // Save to cache
+        setCachedData("exchangePrograms", institution.id, {
+          packs: processedPacks,
+          filters: { searchTerm, statusFilter },
+        })
+
         setElectivePacks(processedPacks)
         setFilteredPacks(processedPacks)
       } catch (error) {
@@ -104,7 +131,7 @@ export default function ManagerExchangeElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t])
+  }, [supabase, institution?.id, toast, t, searchTerm, statusFilter, getCachedData, setCachedData])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {
@@ -181,6 +208,9 @@ export default function ManagerExchangeElectivesPage() {
       // Update local state
       setElectivePacks((prev) => prev.map((pack) => (pack.id === packId ? { ...pack, status: newStatus } : pack)))
 
+      // Invalidate cache
+      invalidateCache("exchangePrograms", institution?.id)
+
       toast({
         title: t("manager.electives.statusUpdated", "Status updated"),
         description: t("manager.electives.statusUpdatedDesc", "Exchange program status has been updated successfully"),
@@ -226,6 +256,9 @@ export default function ManagerExchangeElectivesPage() {
       // Update local state
       setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
       setFilteredPacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
+
+      // Invalidate cache
+      invalidateCache("exchangePrograms", institution?.id)
 
       toast({
         title: t("manager.electives.deleteSuccess", "Exchange program deleted"),
