@@ -1,64 +1,48 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 
-export async function GET(request: Request, { params }: { params: { subdomain: string } }) {
-  const subdomain = params.subdomain
+// Improve error handling in the subdomain validation API
 
-  if (!subdomain) {
-    return NextResponse.json({ error: "Subdomain is required" }, { status: 400 })
-  }
+// Add better error handling and logging:
+export async function GET(request: Request, { params }: { params: { subdomain: string } }) {
+  const { subdomain } = params
 
   console.log(`API: Validating subdomain: ${subdomain}`)
 
+  if (!subdomain) {
+    console.log("API: No subdomain provided")
+    return NextResponse.json({ exists: false }, { status: 404 })
+  }
+
   try {
-    // Query the database for the institution with this subdomain
     const { data, error } = await supabase
       .from("institutions")
-      .select("id, name, subdomain, is_active, logo_url, favicon_url, primary_color")
+      .select("id, name, favicon_url, primary_color")
       .eq("subdomain", subdomain)
       .eq("is_active", true)
       .single()
 
     if (error) {
-      // Check if it's a "not found" error (PGRST116)
-      if (error.code === "PGRST116") {
-        // Subdomain is available (not found in database)
-        return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
-      }
+      console.error(`API: Error fetching institution for subdomain ${subdomain}:`, error.message)
 
-      console.error("API: Error fetching institution by subdomain:", error)
-      return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
+      // For database errors, return a 500 status
+      return NextResponse.json({ exists: false, error: "Database error" }, { status: 500 })
     }
 
     if (!data) {
-      // Subdomain is available (not found in database)
-      return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
+      console.log(`API: No institution found for subdomain ${subdomain}`)
+      return NextResponse.json({ exists: false }, { status: 404 })
     }
 
-    // Subdomain exists and is in use
-    const institution = {
-      id: data.id,
-      name: data.name,
-      subdomain: data.subdomain,
-      logo_url: data.logo_url,
-      favicon_url: data.favicon_url,
-      primary_color: data.primary_color,
-    }
-
-    console.log(`API: Subdomain validation result:`, { exists: !!institution, institution })
+    console.log(`API: Valid institution found for subdomain ${subdomain}`)
     return NextResponse.json({
       exists: true,
-      institution: {
-        id: data.id,
-        name: data.name,
-        subdomain: data.subdomain,
-        logo_url: data.logo_url,
-        favicon_url: data.favicon_url,
-        primary_color: data.primary_color,
-      },
+      institution: data,
     })
   } catch (error) {
-    console.error(`API: Error validating subdomain ${subdomain}:`, error)
-    return NextResponse.json({ exists: false, error: "Internal server error" }, { status: 500 })
+    console.error(`API: Unexpected error validating subdomain ${subdomain}:`, error)
+
+    // For unexpected errors, return a 500 status
+    return NextResponse.json({ exists: false, error: "Unexpected error" }, { status: 500 })
   }
 }

@@ -42,7 +42,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
   const [institution, setInstitution] = useState<Institution | null>(initialInstitution)
   const [isLoading, setIsLoading] = useState(!initialInstitution)
   const [error, setError] = useState<string | null>(null)
-  const [isSubdomainAccess, setIsSubdomainAccess] = useState(false)
+  const [isSubdomainAccess, setIsSubdomainAccess] = useState(true) // Default to true to prevent unnecessary redirects
   const pathname = usePathname()
 
   // Determine if we're in the admin section
@@ -103,6 +103,48 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
       : null
   }
 
+  // Check if we're on a subdomain
+  useEffect(() => {
+    const detectSubdomain = () => {
+      try {
+        // Check if we're in development mode
+        const isDevelopment =
+          typeof window !== "undefined" &&
+          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+
+        if (isDevelopment) {
+          // In development, check for subdomain query parameter
+          const url = new URL(window.location.href)
+          const subdomain = url.searchParams.get("subdomain")
+
+          // If we have a subdomain parameter, we're on a subdomain
+          setIsSubdomainAccess(!!subdomain)
+          console.log(
+            `Context: Development mode, subdomain from query: ${subdomain}, isSubdomainAccess: ${!!subdomain}`,
+          )
+          return
+        }
+
+        // In production, check the hostname
+        const hostname = window.location.hostname
+        const isSubdomain =
+          hostname.includes(".electivepro.net") &&
+          !hostname.startsWith("www.") &&
+          !hostname.startsWith("app.") &&
+          !hostname.startsWith("api.")
+
+        setIsSubdomainAccess(isSubdomain)
+        console.log(`Context: Production mode, hostname: ${hostname}, isSubdomainAccess: ${isSubdomain}`)
+      } catch (err) {
+        console.error("Error detecting subdomain:", err)
+        // Default to true to prevent unnecessary redirects
+        setIsSubdomainAccess(true)
+      }
+    }
+
+    detectSubdomain()
+  }, [])
+
   useEffect(() => {
     async function loadInstitution() {
       try {
@@ -162,78 +204,91 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
           return
         }
 
-        const hostname = window.location.hostname
-        const isSubdomain =
-          hostname.includes(".electivepro.net") && !hostname.startsWith("www") && !hostname.startsWith("app")
+        // Check if we're on a subdomain
+        if (isSubdomainAccess) {
+          // Get the subdomain
+          let subdomain
 
-        setIsSubdomainAccess(isSubdomain)
-        console.log("Context: Checking for subdomain access:", { hostname, isSubdomain })
+          // Check if we're in development mode
+          const isDevelopment =
+            typeof window !== "undefined" &&
+            (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
 
-        if (isSubdomain) {
-          const subdomain = hostname.split(".")[0]
+          if (isDevelopment) {
+            // In development, get subdomain from query parameter
+            const url = new URL(window.location.href)
+            subdomain = url.searchParams.get("subdomain")
+          } else {
+            // In production, extract subdomain from hostname
+            const hostname = window.location.hostname
+            subdomain = hostname.split(".")[0]
+          }
+
           console.log("Context: Detected subdomain:", subdomain)
 
-          // Simple direct query - no RPC functions
-          const { data, error } = await supabase
-            .from("institutions")
-            .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
-            .eq("subdomain", subdomain)
-            .eq("is_active", true)
-            .single()
+          if (subdomain) {
+            // Simple direct query - no RPC functions
+            const { data, error } = await supabase
+              .from("institutions")
+              .select("id, name, subdomain, logo_url, primary_color, is_active, favicon_url")
+              .eq("subdomain", subdomain)
+              .eq("is_active", true)
+              .single()
 
-          console.log("Context: Institution query result:", { data, error })
+            console.log("Context: Institution query result:", { data, error })
 
-          if (error) {
-            console.error("Context: Institution not found:", error)
-            setError("Institution not found")
-          } else if (data) {
-            console.log("Context: Found institution:", data.name)
-            setInstitution(data)
+            if (error) {
+              console.error("Context: Institution not found:", error)
+              setError("Institution not found")
+            } else if (data) {
+              console.log("Context: Found institution:", data.name)
+              setInstitution(data)
 
-            // Only apply the institution color and favicon if we're not in admin section
-            if (!isAdmin) {
-              if (data.primary_color) {
-                console.log("Context: Setting primary color from subdomain institution:", data.primary_color)
-                document.documentElement.style.setProperty("--primary", data.primary_color)
-                document.documentElement.style.setProperty("--color-primary", data.primary_color)
+              // Only apply the institution color and favicon if we're not in admin section
+              if (!isAdmin) {
+                if (data.primary_color) {
+                  console.log("Context: Setting primary color from subdomain institution:", data.primary_color)
+                  document.documentElement.style.setProperty("--primary", data.primary_color)
+                  document.documentElement.style.setProperty("--color-primary", data.primary_color)
 
-                // Set RGB values for components that need them
-                const primaryRgb = hexToRgb(data.primary_color)
-                if (primaryRgb) {
-                  document.documentElement.style.setProperty(
-                    "--primary-rgb",
-                    `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
-                  )
+                  // Set RGB values for components that need them
+                  const primaryRgb = hexToRgb(data.primary_color)
+                  if (primaryRgb) {
+                    document.documentElement.style.setProperty(
+                      "--primary-rgb",
+                      `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`,
+                    )
+                  }
                 }
-              }
 
-              // Set institution favicon if available
-              if (data.favicon_url) {
-                console.log("Context: Setting favicon from subdomain institution:", data.favicon_url)
+                // Set institution favicon if available
+                if (data.favicon_url) {
+                  console.log("Context: Setting favicon from subdomain institution:", data.favicon_url)
+                  const existingFavicon = document.querySelector("link[rel='icon']")
+                  if (existingFavicon) {
+                    existingFavicon.setAttribute("href", data.favicon_url)
+                  }
+
+                  const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
+                  if (existingAppleIcon) {
+                    existingAppleIcon.setAttribute("href", data.favicon_url)
+                  }
+                }
+              } else {
+                // For admin, always use default color and favicon
+                console.log("Context: Using default color and favicon for admin section")
+                document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
+                document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
+
                 const existingFavicon = document.querySelector("link[rel='icon']")
                 if (existingFavicon) {
-                  existingFavicon.setAttribute("href", data.favicon_url)
+                  existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
                 }
 
                 const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
                 if (existingAppleIcon) {
-                  existingAppleIcon.setAttribute("href", data.favicon_url)
+                  existingAppleIcon.setAttribute("href", DEFAULT_FAVICON_URL)
                 }
-              }
-            } else {
-              // For admin, always use default color and favicon
-              console.log("Context: Using default color and favicon for admin section")
-              document.documentElement.style.setProperty("--primary", DEFAULT_PRIMARY_COLOR)
-              document.documentElement.style.setProperty("--color-primary", DEFAULT_PRIMARY_COLOR)
-
-              const existingFavicon = document.querySelector("link[rel='icon']")
-              if (existingFavicon) {
-                existingFavicon.setAttribute("href", DEFAULT_FAVICON_URL)
-              }
-
-              const existingAppleIcon = document.querySelector("link[rel='apple-touch-icon']")
-              if (existingAppleIcon) {
-                existingAppleIcon.setAttribute("href", DEFAULT_FAVICON_URL)
               }
             }
           }
@@ -331,7 +386,7 @@ export function InstitutionProvider({ children, initialInstitution = null }: Ins
     }
 
     loadInstitution()
-  }, [initialInstitution, isAdmin])
+  }, [initialInstitution, isAdmin, isSubdomainAccess])
 
   return (
     <InstitutionContext.Provider

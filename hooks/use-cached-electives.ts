@@ -39,18 +39,55 @@ export function useCachedElectives(institutionId: string | undefined) {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
         // Update to fetch from elective_courses table
-        const { data, error } = await supabase
-          .from("elective_courses")
-          .select("*, programs(name, code)")
-          .eq("institution_id", institutionId)
+        const { data, error } = await supabase.from("elective_courses").select("*").eq("institution_id", institutionId)
 
         if (error) throw error
 
-        // Add course_count based on courses array
-        const formattedData = data.map((item) => ({
-          ...item,
-          course_count: item.courses && Array.isArray(item.courses) ? item.courses.length : 0,
-        }))
+        // Get unique creator IDs
+        const creatorIds = data
+          .map((item) => item.created_by)
+          .filter((id): id is string => id !== null && id !== undefined)
+          .filter((id, index, self) => self.indexOf(id) === index)
+
+        // Fetch creator profiles in a single query
+        let creatorProfiles: Record<string, string> = {}
+        if (creatorIds.length > 0) {
+          try {
+            const { data: profiles, error: profilesError } = await supabase
+              .from("profiles")
+              .select("id, full_name")
+              .in("id", creatorIds)
+
+            if (profilesError) {
+              console.error("Error fetching creator profiles:", profilesError)
+            } else if (profiles) {
+              // Create a map of profile IDs to names
+              creatorProfiles = profiles.reduce(
+                (acc, profile) => {
+                  if (profile && profile.id) {
+                    acc[profile.id] = profile.full_name || "Unknown"
+                  }
+                  return acc
+                },
+                {} as Record<string, string>,
+              )
+            }
+          } catch (profileError) {
+            console.error("Error in profile fetching:", profileError)
+          }
+        }
+
+        // Add course_count based on courses array and creator name
+        const formattedData = data.map((item) => {
+          const creatorName = item.created_by ? creatorProfiles[item.created_by] || null : null
+          const courseCount = item.courses && Array.isArray(item.courses) ? item.courses.length : 0
+
+          return {
+            ...item,
+            course_count: courseCount,
+            creator_name: creatorName,
+          }
+        })
 
         // Save to cache
         setCachedData("courseElectives", institutionId, formattedData)

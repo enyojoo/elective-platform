@@ -258,13 +258,6 @@ export default function ManagerDashboard() {
     fetchUpcomingDeadlines()
   }, [supabase, isSubdomainAccess, institution?.id, language])
 
-  // Ensure this page is only accessed via subdomain
-  useEffect(() => {
-    if (!isSubdomainAccess) {
-      router.push("/institution-required")
-    }
-  }, [isSubdomainAccess, router])
-
   // Log when component mounts/unmounts to track re-renders
   useEffect(() => {
     console.log("Manager Dashboard mounted")
