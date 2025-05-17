@@ -308,9 +308,6 @@ export default function CourseBuilderPage() {
       const programNameEn = generateProgramName("en")
       const programNameRu = generateProgramName("ru")
 
-      // Get the selected year value for the name
-      const selectedYear = years.find((y) => y.id === formData.year)?.year || ""
-
       // Get current user profile for created_by
       const {
         data: { user },
@@ -327,45 +324,32 @@ export default function CourseBuilderPage() {
 
       console.log("Using profile ID:", profileId)
 
-      // Create elective pack
-      const { data: packData, error: packError } = await supabase
-        .from("elective_packs")
+      // Create elective_courses entry
+      const { data: electiveCoursesData, error: electiveCoursesError } = await supabase
+        .from("elective_courses")
         .insert([
           {
             institution_id: institution.id,
             name: programNameEn,
             name_ru: programNameRu,
-            type: "course",
             status: status,
             deadline: formData.endDate,
             max_selections: formData.maxSelections,
             syllabus_template_url: formData.syllabusTemplateUrl,
             semester: formData.semester,
             academic_year: formData.year,
+            courses: selectedCourses, // Store course IDs as an array of UUIDs
             created_by: profileId,
           },
         ])
         .select()
 
-      if (packError) {
-        console.error("Error creating elective pack:", packError)
-        throw packError
+      if (electiveCoursesError) {
+        console.error("Error creating elective courses:", electiveCoursesError)
+        throw electiveCoursesError
       }
 
-      console.log("Created elective pack:", packData)
-
-      const packId = packData[0].id
-
-      // Update courses with elective_pack_id
-      const { error: coursesError } = await supabase
-        .from("courses")
-        .update({ elective_pack_id: packId })
-        .in("id", selectedCourses)
-
-      if (coursesError) {
-        console.error("Error updating courses:", coursesError)
-        throw coursesError
-      }
+      console.log("Created elective courses:", electiveCoursesData)
 
       toast({
         title:
