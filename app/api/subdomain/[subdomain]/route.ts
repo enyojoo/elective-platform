@@ -8,6 +8,8 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
     return NextResponse.json({ error: "Subdomain is required" }, { status: 400 })
   }
 
+  console.log(`API: Validating subdomain: ${subdomain}`)
+
   try {
     // Query the database for the institution with this subdomain
     const { data, error } = await supabase
@@ -34,6 +36,16 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
     }
 
     // Subdomain exists and is in use
+    const institution = {
+      id: data.id,
+      name: data.name,
+      subdomain: data.subdomain,
+      logo_url: data.logo_url,
+      favicon_url: data.favicon_url,
+      primary_color: data.primary_color,
+    }
+
+    console.log(`API: Subdomain validation result:`, { exists: !!institution, institution })
     return NextResponse.json({
       exists: true,
       institution: {
@@ -46,7 +58,7 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
       },
     })
   } catch (error) {
-    console.error("API: Unexpected error in subdomain check:", error)
-    return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
+    console.error(`API: Error validating subdomain ${subdomain}:`, error)
+    return NextResponse.json({ exists: false, error: "Internal server error" }, { status: 500 })
   }
 }

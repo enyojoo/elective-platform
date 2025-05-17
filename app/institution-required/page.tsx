@@ -45,6 +45,10 @@ export default function InstitutionRequiredPage() {
                       {t("institution.required.accessDescription")}
                       <span className="font-mono font-bold">yourschool.electivepro.net</span>
                     </p>
+                    <p className="mt-2">
+                      If you believe you're seeing this page in error and should have access to your institution's
+                      platform, please ensure you're using the correct subdomain or contact your administrator.
+                    </p>
                   </div>
                 </div>
               </div>

@@ -8,13 +8,32 @@ export async function middleware(req: NextRequest) {
 
   console.log(`Middleware: Processing request for hostname: ${hostname}, path: ${path}`)
 
-  const isMainDomain = hostname === "app.electivepro.net" || hostname === "electivepro.net"
+  // Check if we're in development mode (localhost)
+  const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1")
 
-  const isSubdomain =
-    hostname.includes(".electivepro.net") &&
-    !hostname.startsWith("www") &&
-    !hostname.startsWith("app") &&
-    !hostname.startsWith("api")
+  // Extract subdomain parameter in development mode
+  let subdomain = null
+  if (isDevelopment) {
+    // In development, get subdomain from query parameter
+    const url = new URL(req.url)
+    subdomain = url.searchParams.get("subdomain")
+    console.log(`Middleware: Development mode, subdomain from query: ${subdomain}`)
+  } else {
+    // In production, extract subdomain from hostname
+    const isSubdomain =
+      hostname.includes(".electivepro.net") &&
+      !hostname.startsWith("www.") &&
+      !hostname.startsWith("app.") &&
+      !hostname.startsWith("api.")
+
+    if (isSubdomain) {
+      subdomain = hostname.split(".")[0]
+      console.log(`Middleware: Production mode, subdomain from hostname: ${subdomain}`)
+    }
+  }
+
+  const isMainDomain =
+    hostname === "app.electivepro.net" || hostname === "electivepro.net" || (isDevelopment && !subdomain)
 
   // Check if the path is for student or manager routes
   const isStudentOrManagerRoute = path.startsWith("/student/") || path.startsWith("/manager/")
@@ -23,34 +42,55 @@ export async function middleware(req: NextRequest) {
   const isAdminOrSuperAdminRoute = path.startsWith("/admin/") || path.startsWith("/super-admin/")
 
   // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
-  if (isStudentOrManagerRoute && !isSubdomain) {
-    console.log(`Middleware: Redirecting student/manager route to subdomain: ${path}`)
-    // Redirect to a default subdomain or show an error page
+  if (isStudentOrManagerRoute && !subdomain) {
+    console.log(`Middleware: Redirecting student/manager route to institution-required: ${path}`)
+    // Redirect to institution required page
     return NextResponse.redirect(new URL("/institution-required", req.url))
   }
 
   // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
-  if (isAdminOrSuperAdminRoute && isSubdomain) {
+  if (isAdminOrSuperAdminRoute && subdomain) {
     console.log(`Middleware: Redirecting admin route to main domain: ${path}`)
-    return NextResponse.redirect(new URL(`https://app.electivepro.net${path}`, req.url))
+    if (isDevelopment) {
+      return NextResponse.redirect(new URL(`http://localhost:3000${path}`, req.url))
+    } else {
+      return NextResponse.redirect(new URL(`https://app.electivepro.net${path}`, req.url))
+    }
   }
 
   // Handle subdomain routing
-  if (isSubdomain) {
-    const subdomain = hostname.split(".")[0]
-    console.log(`Middleware: Detected subdomain: ${subdomain}`)
+  if (subdomain) {
+    console.log(`Middleware: Processing subdomain: ${subdomain}`)
 
     try {
       // Use our special API endpoint to check the subdomain
-      const apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
+      let apiUrl
+      if (isDevelopment) {
+        apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
+      } else {
+        // In production, use the full URL to avoid cross-origin issues
+        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
+      }
+
       console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
 
-      const response = await fetch(apiUrl)
+      const response = await fetch(apiUrl, {
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      })
+
+      if (!response.ok) {
+        console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
+        return NextResponse.redirect(new URL("/institution-required", req.url))
+      }
+
       const data = await response.json()
 
-      if (!response.ok || !data.exists) {
-        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main app`)
-        return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      if (!data.exists) {
+        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to institution-required`)
+        return NextResponse.redirect(new URL("/institution-required", req.url))
       }
 
       // Valid subdomain - allow access and add institution info to headers
@@ -59,6 +99,7 @@ export async function middleware(req: NextRequest) {
       requestHeaders.set("x-electivepro-subdomain", subdomain)
       requestHeaders.set("x-institution-id", data.institution.id)
       requestHeaders.set("x-institution-name", data.institution.name)
+      requestHeaders.set("x-url", req.url)
 
       // Add favicon and primary color to headers if available
       if (data.institution.favicon_url) {
@@ -91,7 +132,7 @@ export async function middleware(req: NextRequest) {
       })
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
-      return NextResponse.redirect(new URL("https://app.electivepro.net", req.url))
+      return NextResponse.redirect(new URL("/institution-required", req.url))
     }
   }
 
@@ -121,5 +162,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg|api/subdomain).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg|api/subdomain|api/auth).*)"],
 }

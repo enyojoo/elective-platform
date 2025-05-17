@@ -1,6 +1,10 @@
 export function getSubdomain(hostname: string): string | null {
-  // Skip localhost for development
-  if (hostname.includes("localhost")) return null
+  // For localhost development, check URL parameters
+  if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
+    // In middleware, we'll handle this differently
+    // This is for server components that can't access URL params directly
+    return null
+  }
 
   // Check if it's a subdomain of electivepro.net
   if (hostname.includes(".electivepro.net")) {
@@ -24,7 +28,13 @@ export function getInstitutionUrl(subdomain: string): string {
 }
 
 export async function isValidSubdomain(subdomain: string, supabase: any): Promise<boolean> {
+  if (!subdomain || subdomain.trim() === "") {
+    console.log("Invalid subdomain: empty or null")
+    return false
+  }
+
   try {
+    console.log(`Checking validity of subdomain: ${subdomain}`)
     const { data, error } = await supabase
       .from("institutions")
       .select("id")
@@ -32,7 +42,13 @@ export async function isValidSubdomain(subdomain: string, supabase: any): Promis
       .eq("is_active", true)
       .single()
 
-    return !error && !!data
+    if (error) {
+      console.error(`Error checking subdomain ${subdomain}:`, error.message)
+      return false
+    }
+
+    console.log(`Subdomain ${subdomain} validity result:`, !!data)
+    return !!data
   } catch (error) {
     console.error("Error checking subdomain validity:", error)
     return false

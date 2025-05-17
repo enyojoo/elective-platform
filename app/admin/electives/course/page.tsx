@@ -132,27 +132,48 @@ export default function CourseElectivesPage() {
         }
 
         console.log("Fetching fresh course electives data")
-        // Fetch elective packs from elective_courses table with creator information
+        // Fetch elective packs from elective_courses table
         const { data: packs, error } = await supabase
           .from("elective_courses")
-          .select(`
-            *,
-            profiles:created_by (
-              id,
-              full_name,
-              role
-            )
-          `)
+          .select("*")
           .eq("institution_id", institution.id)
           .order("created_at", { ascending: false })
 
         if (error) throw error
 
+        // Get unique creator IDs
+        const creatorIds = packs
+          .map((pack) => pack.created_by)
+          .filter((id): id is string => id !== null && id !== undefined)
+          .filter((id, index, self) => self.indexOf(id) === index)
+
+        // Fetch creator profiles in a single query
+        let creatorProfiles: Record<string, string> = {}
+        if (creatorIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", creatorIds)
+
+          if (profilesError) {
+            console.error("Error fetching creator profiles:", profilesError)
+          } else if (profiles) {
+            // Create a map of profile IDs to names
+            creatorProfiles = profiles.reduce(
+              (acc, profile) => {
+                acc[profile.id] = profile.full_name
+                return acc
+              },
+              {} as Record<string, string>,
+            )
+          }
+        }
+
         // For each pack, fetch the count of courses and add creator name
         const packsWithCounts = await Promise.all(
           (packs || []).map(async (pack) => {
-            // Extract creator name from the joined profiles data
-            const creatorName = pack.profiles?.full_name || null
+            // Get creator name from the profiles map
+            const creatorName = pack.created_by ? creatorProfiles[pack.created_by] || null : null
 
             // If courses array exists, use its length
             if (pack.courses && Array.isArray(pack.courses)) {
@@ -160,7 +181,6 @@ export default function CourseElectivesPage() {
                 ...pack,
                 course_count: pack.courses.length,
                 creator_name: creatorName,
-                profiles: undefined, // Remove the nested profiles object
               }
             }
 
@@ -176,7 +196,6 @@ export default function CourseElectivesPage() {
                 ...pack,
                 course_count: 0,
                 creator_name: creatorName,
-                profiles: undefined, // Remove the nested profiles object
               }
             }
 
@@ -184,7 +203,6 @@ export default function CourseElectivesPage() {
               ...pack,
               course_count: count || 0,
               creator_name: creatorName,
-              profiles: undefined, // Remove the nested profiles object
             }
           }),
         )
