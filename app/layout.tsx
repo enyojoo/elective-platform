@@ -11,18 +11,14 @@ import { getSubdomain } from "@/lib/subdomain-utils"
 
 const inter = Inter({ subsets: ["latin"] })
 
-// Updated default favicon URL
+// Constants
 const DEFAULT_FAVICON_URL =
   "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
-
-// Default primary color
 const DEFAULT_PRIMARY_COLOR = "#027659"
-
-// Default platform name
 const DEFAULT_PLATFORM_NAME = "ElectivePRO"
 
-// This is a dynamic metadata function instead of the static metadata object
-export async function generateMetadata({ params }: { params: any }): Promise<Metadata> {
+// Dynamic metadata function
+export async function generateMetadata(): Promise<Metadata> {
   const headersList = headers()
   const host = headersList.get("host") || ""
   const subdomain = getSubdomain(host)
@@ -57,6 +53,7 @@ export async function generateMetadata({ params }: { params: any }): Promise<Met
   }
 }
 
+// Root layout component
 export default async function RootLayout({
   children,
 }: {
