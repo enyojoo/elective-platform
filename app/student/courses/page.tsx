@@ -2,37 +2,22 @@
 
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, type Semester, type SelectionStatus } from "@/lib/types"
+import { UserRole, type Semester, type SelectionStatus, type FormattedElectiveCourse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useDataCache } from "@/lib/data-cache-context"
 import { Skeleton } from "@/components/ui/skeleton"
-
-interface ElectiveCourse {
-  id: string
-  name: string
-  semester: Semester
-  year: number
-  max_selections: number
-  status: string
-  start_date: string
-  end_date: string
-  course_count: number
-  available_spaces: boolean
-  selected: boolean
-  selection_status: SelectionStatus | null
-  selected_count: number
-}
+import { formatDate } from "@/lib/utils"
 
 export default function ElectivesPage() {
   const { t } = useLanguage()
-  const [electiveCourses, setElectiveCourses] = useState<ElectiveCourse[]>([])
+  const [electiveCourses, setElectiveCourses] = useState<FormattedElectiveCourse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
   const { getCachedData, setCachedData } = useDataCache()
@@ -44,7 +29,7 @@ export default function ElectivesPage() {
 
       try {
         // Try to get data from cache first
-        const cachedData = getCachedData<ElectiveCourse[]>("studentElectiveCourses", "current")
+        const cachedData = getCachedData<FormattedElectiveCourse[]>("studentElectiveCourses", "current")
 
         if (cachedData) {
           console.log("Using cached elective courses data")
@@ -79,17 +64,20 @@ export default function ElectivesPage() {
           .select(`
             id, 
             name, 
+            name_ru,
             semester,
-            year,
-            max_selections,
+            academic_year,
             status,
-            start_date,
-            end_date,
+            deadline,
+            max_selections,
+            syllabus_template_url,
             courses,
-            institution_id
+            institution_id,
+            created_at,
+            updated_at
           `)
           .eq("institution_id", studentProfile.institution_id)
-          .order("year", { ascending: false })
+          .order("academic_year", { ascending: false })
           .order("semester", { ascending: true })
 
         if (electiveCoursesError) {
@@ -99,8 +87,9 @@ export default function ElectivesPage() {
         // Get student selections for these elective courses from course_selections table
         const { data: studentSelections, error: selectionsError } = await supabase
           .from("course_selections")
-          .select("elective_course_id, status, course_id")
+          .select("elective_courses_id, status, statement_url")
           .eq("student_id", user.id)
+          .eq("institution_id", studentProfile.institution_id)
 
         if (selectionsError) {
           throw selectionsError
@@ -110,25 +99,30 @@ export default function ElectivesPage() {
         const formattedData = electiveCoursesData.map((course) => {
           // Find selections for this course
           const courseSelections =
-            studentSelections?.filter((selection) => selection.elective_course_id === course.id) || []
+            studentSelections?.filter((selection) => selection.elective_courses_id === course.id) || []
 
           // Calculate if the course has available spaces
           const hasAvailableSpaces = course.status === "published"
 
+          // Get statement URL if available
+          const statementUrl = courseSelections.length > 0 ? courseSelections[0].statement_url : null
+
           return {
             id: course.id,
-            name: `${course.semester.charAt(0).toUpperCase() + course.semester.slice(1)} ${course.year}`,
+            name: course.name,
+            name_ru: course.name_ru,
             semester: course.semester as Semester,
-            year: course.year,
+            academic_year: course.academic_year,
+            deadline: course.deadline,
             max_selections: course.max_selections,
+            syllabus_template_url: course.syllabus_template_url,
             status: course.status,
-            start_date: course.start_date,
-            end_date: course.end_date,
             course_count: Array.isArray(course.courses) ? course.courses.length : 0,
             available_spaces: hasAvailableSpaces,
             selected: courseSelections.length > 0,
             selection_status: courseSelections.length > 0 ? (courseSelections[0].status as SelectionStatus) : null,
             selected_count: courseSelections.length,
+            statement_url: statementUrl,
           }
         })
 
@@ -150,12 +144,6 @@ export default function ElectivesPage() {
 
     fetchElectiveCourses()
   }, [supabase, toast, getCachedData, setCachedData])
-
-  // Helper function to format date
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-  }
 
   // Helper function to get status color
   const getStatusColor = (status: string | null) => {
@@ -184,6 +172,26 @@ export default function ElectivesPage() {
       default:
         return <AlertCircle className="h-4 w-4" />
     }
+  }
+
+  // Function to handle syllabus download
+  const handleSyllabusDownload = (url: string | null, courseName: string) => {
+    if (!url) {
+      toast({
+        title: "No syllabus available",
+        description: "There is no syllabus template available for this course.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Create a temporary anchor element to trigger download
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${courseName.replace(/\s+/g, "_")}_syllabus.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   return (
@@ -272,12 +280,28 @@ export default function ElectivesPage() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="flex-grow"></CardContent>
+                <CardContent className="flex-grow space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    {elective.academic_year} • {elective.semester.charAt(0).toUpperCase() + elective.semester.slice(1)}
+                  </div>
+
+                  {elective.syllabus_template_url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-center gap-2"
+                      onClick={() => handleSyllabusDownload(elective.syllabus_template_url, elective.name)}
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>{t("student.courses.downloadSyllabus")}</span>
+                    </Button>
+                  )}
+                </CardContent>
                 <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
                   <div className="flex flex-col gap-y-2 text-sm w-full">
                     <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
-                      <span>{formatDate(elective.end_date)}</span>
+                      <span>{formatDate(elective.deadline)}</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1.5">

@@ -106,30 +106,30 @@ export async function uploadFile(
 }
 
 export async function uploadStatement(file: File, userId: string, packId: string): Promise<string> {
-  try {
-    // Create a unique file path
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${userId}_${packId}_${Date.now()}.${fileExt}`
-    const filePath = `${fileName}`
+  // Import supabase client dynamically to avoid circular dependencies
+  const { getSupabaseBrowserClient } = await import("@/lib/supabase")
+  const supabase = getSupabaseBrowserClient()
 
-    // Upload the file to Supabase Storage
-    const { error } = await supabase.storage.from("statements").upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    })
+  // Create a unique file path for the statement
+  const filePath = `statements/${userId}/${packId}/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
 
-    if (error) {
-      throw error
-    }
+  // Upload the file to Supabase Storage
+  const { data, error } = await supabase.storage.from("student-statements").upload(filePath, file, {
+    cacheControl: "3600",
+    upsert: true,
+  })
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from("statements").getPublicUrl(filePath)
-
-    return urlData.publicUrl
-  } catch (error) {
-    console.error("Error uploading file:", error)
-    throw error
+  if (error) {
+    console.error("Error uploading statement:", error)
+    throw new Error(`Failed to upload statement: ${error.message}`)
   }
+
+  // Get the public URL for the uploaded file
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("student-statements").getPublicUrl(filePath)
+
+  return publicUrl
 }
 
 export async function deleteFile(bucket: string, path: string): Promise<boolean> {

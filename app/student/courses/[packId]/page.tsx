@@ -1,11 +1,13 @@
 "use client"
 
+import { CardFooter } from "@/components/ui/card"
+
 import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole } from "@/lib/types"
+import { UserRole, SelectionStatus } from "@/lib/types"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useDataCache } from "@/lib/data-cache-context"
@@ -15,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useLanguage } from "@/lib/language-context"
 import { uploadStatement } from "@/lib/file-utils"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -31,25 +33,20 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-
-// Define the SelectionStatus enum
-enum SelectionStatus {
-  PENDING = "pending",
-  APPROVED = "approved",
-  REJECTED = "rejected",
-}
+import { formatDate } from "@/lib/utils"
 
 interface CourseDetailData {
   id: string
   name: string
+  name_ru: string | null
   formatted_name: string
   semester: string
-  year: number
+  academic_year: string
   max_selections: number
   status: string
-  start_date: string
-  end_date: string
-  description: string
+  deadline: string
+  syllabus_template_url: string | null
+  description: string | null
   courses: Array<{
     id: string
     name: string
@@ -65,8 +62,10 @@ interface CourseDetailData {
   selected_courses: Array<{
     course_id: string
     status: string
+    statement_url: string | null
   }>
   selected_count: number
+  institution_id: string
 }
 
 // Update the handleFileUpload function to use real file uploads
@@ -74,9 +73,12 @@ const handleFileUpload = async (
   e: React.ChangeEvent<HTMLInputElement>,
   userId: string,
   packId: string,
+  institutionId: string,
   setIsUploading: React.Dispatch<React.SetStateAction<boolean>>,
   setUploadedStatement: React.Dispatch<React.SetStateAction<File | null>>,
+  setStatementUrl: React.Dispatch<React.SetStateAction<string | null>>,
   toast: any,
+  supabase: any,
 ) => {
   const file = e.target.files?.[0]
   if (file) {
@@ -103,14 +105,19 @@ const handleFileUpload = async (
     try {
       // Upload the file to Supabase storage
       const statementUrl = await uploadStatement(file, userId, packId)
+      setStatementUrl(statementUrl)
 
-      // In a real app, you would save this URL to the database
-      // For example:
-      // await supabase
-      //   .from('course_selections')
-      //   .update({ statement_url: statementUrl })
-      //   .eq('user_id', userId)
-      //   .eq('pack_id', packId)
+      // Update the course_selections table with the statement URL
+      const { error: updateError } = await supabase
+        .from("course_selections")
+        .update({ statement_url: statementUrl })
+        .eq("student_id", userId)
+        .eq("elective_courses_id", packId)
+        .eq("institution_id", institutionId)
+
+      if (updateError) {
+        throw updateError
+      }
 
       setUploadedStatement(file)
       toast({
@@ -146,9 +153,11 @@ export default function ElectiveCourseDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [viewingCourse, setViewingCourse] = useState<any>(null)
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
+  const [statementUrl, setStatementUrl] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [institutionId, setInstitutionId] = useState<string | null>(null)
 
   // State for selected courses
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
@@ -162,6 +171,17 @@ export default function ElectiveCourseDetailPage() {
 
       if (user) {
         setUserId(user.id)
+
+        // Get the institution ID
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", user.id)
+          .single()
+
+        if (!profileError && profileData) {
+          setInstitutionId(profileData.institution_id)
+        }
       } else {
         // Redirect to login if not authenticated
         router.push("/student/login")
@@ -184,7 +204,7 @@ export default function ElectiveCourseDetailPage() {
 
   // Handle submission
   const handleSubmit = async () => {
-    if (!userId || !courseData) return
+    if (!userId || !courseData || !institutionId) return
 
     setSubmitting(true)
 
@@ -194,7 +214,8 @@ export default function ElectiveCourseDetailPage() {
         .from("course_selections")
         .delete()
         .eq("student_id", userId)
-        .eq("elective_course_id", courseData.id)
+        .eq("elective_courses_id", courseData.id)
+        .eq("institution_id", institutionId)
 
       if (deleteError) throw deleteError
 
@@ -202,8 +223,10 @@ export default function ElectiveCourseDetailPage() {
       const selectionsToInsert = selectedCourses.map((courseId) => ({
         student_id: userId,
         course_id: courseId,
-        elective_course_id: courseData.id,
+        elective_courses_id: courseData.id,
+        institution_id: institutionId,
         status: "pending",
+        statement_url: statementUrl,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }))
@@ -236,30 +259,35 @@ export default function ElectiveCourseDetailPage() {
     }
   }
 
-  // Format date helper
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-  }
-
   // Handle statement download
   const handleDownloadStatement = () => {
-    setDownloadingStatement(true)
-    // Simulate download delay
-    setTimeout(() => {
-      // In a real app, this would download the actual statement
-      console.log("Downloading statement")
+    if (!courseData?.syllabus_template_url) {
       toast({
-        title: "Statement downloaded",
-        description: "The statement has been downloaded successfully.",
+        title: "No syllabus available",
+        description: "There is no syllabus template available for this course.",
+        variant: "destructive",
       })
+      return
+    }
+
+    setDownloadingStatement(true)
+
+    // Create a temporary anchor element to trigger download
+    const a = document.createElement("a")
+    a.href = courseData.syllabus_template_url
+    a.download = `${courseData.name.replace(/\s+/g, "_")}_syllabus.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+
+    setTimeout(() => {
       setDownloadingStatement(false)
     }, 1000)
   }
 
   useEffect(() => {
     const fetchCourseDetails = async () => {
-      if (!userId) return
+      if (!userId || !institutionId) return
 
       setIsLoading(true)
 
@@ -271,6 +299,7 @@ export default function ElectiveCourseDetailPage() {
         if (cachedData) {
           console.log("Using cached elective course detail data")
           setCourseData(cachedData)
+          setStatementUrl(cachedData.selected_courses[0]?.statement_url || null)
 
           // Set selected courses from cached data
           const selectedCourseIds = cachedData.selected_courses.map((sc) => sc.course_id)
@@ -285,13 +314,14 @@ export default function ElectiveCourseDetailPage() {
           .from("elective_courses")
           .select(`
             id, 
-            name, 
+            name,
+            name_ru,
             semester,
-            year,
+            academic_year,
             max_selections,
             status,
-            start_date,
-            end_date,
+            deadline,
+            syllabus_template_url,
             courses,
             description,
             institution_id
@@ -306,12 +336,18 @@ export default function ElectiveCourseDetailPage() {
         // Get student selections for this course from course_selections table
         const { data: studentSelections, error: selectionsError } = await supabase
           .from("course_selections")
-          .select("course_id, status")
+          .select("course_id, status, statement_url")
           .eq("student_id", userId)
-          .eq("elective_course_id", packId)
+          .eq("elective_courses_id", packId)
+          .eq("institution_id", institutionId)
 
         if (selectionsError) {
           throw selectionsError
+        }
+
+        // Set statement URL if available
+        if (studentSelections && studentSelections.length > 0) {
+          setStatementUrl(studentSelections[0].statement_url)
         }
 
         // Get course details for the courses in this elective
@@ -343,7 +379,7 @@ export default function ElectiveCourseDetailPage() {
         // Combine all data
         const formattedData = {
           ...courseDetails,
-          formatted_name: `${courseDetails.semester.charAt(0).toUpperCase() + courseDetails.semester.slice(1)} ${courseDetails.year}`,
+          formatted_name: `${courseDetails.semester.charAt(0).toUpperCase() + courseDetails.semester.slice(1)} ${courseDetails.academic_year}`,
           courses: coursesList,
           selected_courses: studentSelections || [],
           selected_count: studentSelections?.length || 0,
@@ -369,10 +405,10 @@ export default function ElectiveCourseDetailPage() {
       }
     }
 
-    if (packId && userId) {
+    if (packId && userId && institutionId) {
       fetchCourseDetails()
     }
-  }, [packId, userId, supabase, toast, getCachedData, setCachedData])
+  }, [packId, userId, institutionId, supabase, toast, getCachedData, setCachedData])
 
   // Calculate selection progress
   const selectionProgress = courseData ? (selectedCourses.length / courseData.max_selections) * 100 : 0
@@ -409,7 +445,7 @@ export default function ElectiveCourseDetailPage() {
           <Info className="h-4 w-4" />
           <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
           <AlertDescription>
-            {t("student.courses.comingSoonDesc")} {formatDate(courseData.start_date)}.
+            {t("student.courses.comingSoonDesc")} {formatDate(courseData.deadline)}.
           </AlertDescription>
         </Alert>
       )
@@ -420,7 +456,7 @@ export default function ElectiveCourseDetailPage() {
           <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
           <AlertDescription>
             {t("student.courses.selectionPeriodDesc")} {courseData.max_selections} {t("student.courses.until")}{" "}
-            {formatDate(courseData.end_date)}.
+            {formatDate(courseData.deadline)}.
           </AlertDescription>
         </Alert>
       )
@@ -476,9 +512,12 @@ export default function ElectiveCourseDetailPage() {
                 </div>
               </Link>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">{courseData.formatted_name}</h1>
+                <h1 className="text-3xl font-bold tracking-tight">{courseData.name}</h1>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <p className="text-sm text-muted-foreground">{t("student.courses.selectCourses")}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {courseData.academic_year} •{" "}
+                    {courseData.semester.charAt(0).toUpperCase() + courseData.semester.slice(1)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -537,7 +576,9 @@ export default function ElectiveCourseDetailPage() {
                       variant="outline"
                       className="flex items-center gap-2 w-full sm:w-[120px] h-10"
                       onClick={handleDownloadStatement}
-                      disabled={downloadingStatement || courseData.status === "draft"}
+                      disabled={
+                        downloadingStatement || courseData.status === "draft" || !courseData.syllabus_template_url
+                      }
                     >
                       {downloadingStatement ? (
                         <>
@@ -558,7 +599,17 @@ export default function ElectiveCourseDetailPage() {
                         type="file"
                         accept=".pdf"
                         onChange={(e) =>
-                          handleFileUpload(e, userId || "", packId, setIsUploading, setUploadedStatement, toast)
+                          handleFileUpload(
+                            e,
+                            userId || "",
+                            packId,
+                            institutionId || "",
+                            setIsUploading,
+                            setUploadedStatement,
+                            setStatementUrl,
+                            toast,
+                            supabase,
+                          )
                         }
                         disabled={
                           isUploading ||
@@ -575,18 +626,31 @@ export default function ElectiveCourseDetailPage() {
                       )}
                     </div>
                   </div>
-                  {uploadedStatement && (
+                  {(uploadedStatement || statementUrl) && (
                     <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
                       <CheckCircle className="h-4 w-4" />
                       <span className="text-sm">
                         {t("student.statement.fileUploaded")}{" "}
-                        <span className="font-medium">{uploadedStatement.name}</span>
+                        <span className="font-medium">
+                          {uploadedStatement ? uploadedStatement.name : "statement.pdf"}
+                        </span>
                       </span>
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
+
+            {courseData.description && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("student.courses.courseDescription")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{courseData.description}</p>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {courseData.courses.map((course) => {
@@ -650,11 +714,11 @@ export default function ElectiveCourseDetailPage() {
                         selectedCourses.length === 0 ||
                         selectedCourses.length > courseData.max_selections ||
                         courseData.status === "draft" ||
-                        !uploadedStatement
+                        !statementUrl
                       }
                       className="px-8"
                       onClick={() => {
-                        if (selectedCourses.length > 0 && !uploadedStatement) {
+                        if (selectedCourses.length > 0 && !statementUrl) {
                           toast({
                             title: "Statement required",
                             description: "Please upload your signed statement before confirming your selection.",
@@ -695,7 +759,9 @@ export default function ElectiveCourseDetailPage() {
                         <div className="flex items-center gap-2 text-sm">
                           <CheckCircle className="h-4 w-4 text-green-600" />
                           <span>
-                            {uploadedStatement?.name} ({Math.round(uploadedStatement?.size / 1024)} KB)
+                            {uploadedStatement
+                              ? `${uploadedStatement.name} (${Math.round(uploadedStatement.size / 1024)} KB)`
+                              : "statement.pdf"}
                           </span>
                         </div>
                       </div>
@@ -713,7 +779,7 @@ export default function ElectiveCourseDetailPage() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !uploadedStatement}>
+                      <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !statementUrl}>
                         {submitting ? t("student.courses.submitting") : t("student.courses.submitSelection")}
                       </Button>
                     </DialogFooter>

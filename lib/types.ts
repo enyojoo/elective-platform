@@ -59,3 +59,48 @@ export interface SuperAdmin {
   name: string
   createdAt: string
 }
+
+export interface ElectiveCourse {
+  id: string
+  institution_id: string
+  name: string
+  name_ru: string | null
+  status: string
+  academic_year: string
+  semester: Semester
+  deadline: string
+  max_selections: number
+  syllabus_template_url: string | null
+  courses: string[] // Array of course IDs
+  created_at: string
+  updated_at: string
+}
+
+export interface CourseSelection {
+  id: string
+  institution_id: string
+  student_id: string
+  elective_courses_id: string
+  status: SelectionStatus
+  statement_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FormattedElectiveCourse {
+  id: string
+  name: string
+  name_ru: string | null
+  semester: Semester
+  academic_year: string
+  deadline: string
+  max_selections: number
+  syllabus_template_url: string | null
+  status: string
+  course_count: number
+  available_spaces: boolean
+  selected: boolean
+  selection_status: SelectionStatus | null
+  selected_count: number
+  statement_url: string | null
+}
