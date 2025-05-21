@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, MoreHorizontal } from "lucide-react"
+import { Search, Filter, Plus, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -126,6 +126,7 @@ export default function ExchangeElectivesPage() {
         if (cachedData) {
           console.log("Using cached admin exchange programs data")
           setElectivePacks(cachedData.data)
+          setFilteredPacks(cachedData.data)
           setIsLoading(false)
           return
         }
@@ -165,6 +166,7 @@ export default function ExchangeElectivesPage() {
         setCachedData(processedPacks)
 
         setElectivePacks(processedPacks)
+        setFilteredPacks(processedPacks)
       } catch (error) {
         console.error("Error fetching elective packs:", error)
         toast({
@@ -250,6 +252,7 @@ export default function ExchangeElectivesPage() {
       const updatedPacks = electivePacks.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack))
 
       setElectivePacks(updatedPacks)
+      setFilteredPacks(updatedPacks)
 
       // Update cache
       clearCache()
@@ -307,6 +310,7 @@ export default function ExchangeElectivesPage() {
       // Update local state
       const updatedPacks = electivePacks.filter((pack) => pack.id !== packToDelete)
       setElectivePacks(updatedPacks)
+      setFilteredPacks(updatedPacks)
 
       // Update cache
       clearCache()
@@ -342,6 +346,12 @@ export default function ExchangeElectivesPage() {
               {t("admin.electives.subtitle", "Manage exchange programs for student mobility")}
             </p>
           </div>
+          <Link href="/admin/electives/exchange/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("manager.electives.addExchange", "Add Exchange")}
+            </Button>
+          </Link>
         </div>
 
         <Card>
