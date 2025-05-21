@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// EMERGENCY FIX: Add debug logging
+const DEBUG = true
+function log(...args: any[]) {
+  if (DEBUG) {
+    console.log(...args)
+  }
+}
+
 export async function middleware(req: NextRequest) {
   // Get hostname for multi-tenancy
   const hostname = req.headers.get("host") || ""
   const path = req.nextUrl.pathname
   const method = req.method
 
-  console.log(`Middleware: Processing ${method} request for hostname: ${hostname}, path: ${path}`)
+  log(`🔍 MIDDLEWARE START: ${method} ${hostname}${path}`)
 
   // Check if we're in development mode (localhost)
   const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1")
@@ -21,7 +29,7 @@ export async function middleware(req: NextRequest) {
     // In development, get subdomain from query parameter
     const url = new URL(req.url)
     subdomain = url.searchParams.get("subdomain")
-    console.log(`Middleware: Development mode, subdomain from query: ${subdomain}`)
+    log(`🔍 Development mode, subdomain from query: ${subdomain}`)
   } else {
     // In production, extract subdomain from hostname
     const isSubdomain =
@@ -32,8 +40,29 @@ export async function middleware(req: NextRequest) {
 
     if (isSubdomain) {
       subdomain = hostname.split(".")[0]
-      console.log(`Middleware: Production mode, subdomain from hostname: ${subdomain}`)
+      log(`🔍 Production mode, subdomain from hostname: ${subdomain}`)
     }
+  }
+
+  // EMERGENCY FIX: Check if this is a dashboard page that should NEVER redirect
+  const isDashboardPath = path.includes("/dashboard") || path.startsWith("/student/") || path.startsWith("/manager/")
+
+  log(`🔍 Path: ${path}, Is Dashboard Path: ${isDashboardPath}`)
+
+  // EMERGENCY FIX: If this is a dashboard path with a subdomain, NEVER redirect
+  if (isDashboardPath && subdomain) {
+    log(`⚠️ EMERGENCY FIX: Dashboard path detected with subdomain, BYPASSING ALL CHECKS: ${path}`)
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set("x-electivepro-subdomain", subdomain)
+    requestHeaders.set("x-url", req.url)
+    requestHeaders.set("x-emergency-bypass", "true")
+
+    // EMERGENCY FIX: ALWAYS allow dashboard paths with a subdomain
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
   }
 
   const isMainDomain =
@@ -41,7 +70,7 @@ export async function middleware(req: NextRequest) {
 
   // IMPORTANT: /institution-required should NEVER be accessible on a subdomain
   if (path === "/institution-required" && subdomain) {
-    console.log(`Middleware: Redirecting /institution-required from subdomain to main domain`)
+    log(`🔄 Redirecting /institution-required from subdomain to main domain`)
     if (isDevelopment) {
       return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
     } else {
@@ -57,7 +86,7 @@ export async function middleware(req: NextRequest) {
 
   // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
   if (isStudentOrManagerRoute && !subdomain) {
-    console.log(`Middleware: Redirecting student/manager route to institution-required: ${path}`)
+    log(`🔄 Redirecting student/manager route to institution-required: ${path}`)
     // Redirect to institution required page on main domain
     if (isDevelopment) {
       return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
@@ -68,7 +97,7 @@ export async function middleware(req: NextRequest) {
 
   // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
   if (isAdminOrSuperAdminRoute && subdomain) {
-    console.log(`Middleware: Redirecting admin route to main domain: ${path}`)
+    log(`🔄 Redirecting admin route to main domain: ${path}`)
     if (isDevelopment) {
       return NextResponse.redirect(new URL(`http://${mainDomain}${path}`, req.url))
     } else {
@@ -78,12 +107,12 @@ export async function middleware(req: NextRequest) {
 
   // Handle subdomain routing
   if (subdomain) {
-    console.log(`Middleware: Processing subdomain: ${subdomain}`)
+    log(`🔍 Processing subdomain: ${subdomain}`)
 
     try {
       // CRITICAL FIX: Always allow access to API routes on subdomains
       if (path.startsWith("/api/")) {
-        console.log(`Middleware: Allowing API access on subdomain: ${path}`)
+        log(`✅ Allowing API access on subdomain: ${path}`)
         const requestHeaders = new Headers(req.headers)
         requestHeaders.set("x-electivepro-subdomain", subdomain)
         return NextResponse.next({
@@ -95,11 +124,11 @@ export async function middleware(req: NextRequest) {
 
       // CRITICAL FIX: Always allow access to static assets
       if (path.startsWith("/_next/") || path.includes(".") || path.startsWith("/images/")) {
-        console.log(`Middleware: Allowing static asset access on subdomain: ${path}`)
+        log(`✅ Allowing static asset access on subdomain: ${path}`)
         return NextResponse.next()
       }
 
-      // For all paths on a subdomain, validate the subdomain
+      // For all other paths on a subdomain, validate the subdomain
       let apiUrl
       if (isDevelopment) {
         apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
@@ -107,7 +136,7 @@ export async function middleware(req: NextRequest) {
         apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
       }
 
-      console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
+      log(`🔍 Checking subdomain via API: ${apiUrl}`)
 
       // CRITICAL FIX: Increase timeout and add better error handling
       const controller = new AbortController()
@@ -125,10 +154,11 @@ export async function middleware(req: NextRequest) {
 
         // CRITICAL FIX: If API call fails, assume subdomain is valid to prevent false negatives
         if (!response.ok) {
-          console.error(`Middleware: API error for subdomain ${subdomain}, assuming valid:`, response.status)
+          log(`⚠️ API error for subdomain ${subdomain}, assuming valid:`, response.status)
           const requestHeaders = new Headers(req.headers)
           requestHeaders.set("x-electivepro-subdomain", subdomain)
           requestHeaders.set("x-url", req.url)
+          requestHeaders.set("x-api-error", "true")
 
           return NextResponse.next({
             request: {
@@ -138,12 +168,11 @@ export async function middleware(req: NextRequest) {
         }
 
         const data = await response.json()
+        log(`🔍 API response for subdomain ${subdomain}:`, data)
 
         // ONLY redirect if the API explicitly confirms the subdomain is invalid
         if (data.exists === false) {
-          console.log(
-            `Middleware: Confirmed invalid subdomain: ${subdomain}, redirecting to main domain institution-required`,
-          )
+          log(`❌ Confirmed invalid subdomain: ${subdomain}, redirecting to institution-required`)
 
           // Redirect to institution required page on MAIN domain
           if (isDevelopment) {
@@ -154,7 +183,7 @@ export async function middleware(req: NextRequest) {
         }
 
         // Valid subdomain - allow access and add institution info to headers
-        console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
+        log(`✅ Valid subdomain: ${subdomain}, allowing access`)
         const requestHeaders = new Headers(req.headers)
         requestHeaders.set("x-electivepro-subdomain", subdomain)
 
@@ -199,10 +228,11 @@ export async function middleware(req: NextRequest) {
         })
       } catch (err) {
         // CRITICAL FIX: If fetch fails, assume subdomain is valid
-        console.error("Middleware: Error in subdomain API call:", err)
+        log(`⚠️ Error in subdomain API call:`, err)
         const requestHeaders = new Headers(req.headers)
         requestHeaders.set("x-electivepro-subdomain", subdomain)
         requestHeaders.set("x-url", req.url)
+        requestHeaders.set("x-api-error", "true")
 
         return NextResponse.next({
           request: {
@@ -212,10 +242,11 @@ export async function middleware(req: NextRequest) {
       }
     } catch (err) {
       // CRITICAL FIX: If overall processing fails, assume subdomain is valid
-      console.error("Middleware: Critical error in subdomain processing:", err)
+      log(`⚠️ Critical error in subdomain processing:`, err)
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
       requestHeaders.set("x-url", req.url)
+      requestHeaders.set("x-processing-error", "true")
 
       return NextResponse.next({
         request: {
@@ -247,6 +278,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/super-admin/login", req.url))
   }
 
+  log(`🔍 MIDDLEWARE END: ${method} ${hostname}${path}`)
   return NextResponse.next()
 }
 

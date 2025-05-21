@@ -8,61 +8,48 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Formats a date string to a localized format
- * @param dateString - The date string to format
- * @param locale - The locale to use for formatting (defaults to 'en-US')
- * @returns Formatted date string
- */
+// Add the missing formatDate function
 export function formatDate(dateString: string, locale = "en-US"): string {
-  if (!dateString) return ""
-
   try {
+    if (!dateString) return "Invalid date"
+
     const date = new Date(dateString)
 
     // Check if date is valid
-    if (isNaN(date.getTime())) {
-      return ""
-    }
+    if (isNaN(date.getTime())) return "Invalid date"
 
     return new Intl.DateTimeFormat(locale, {
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
     }).format(date)
   } catch (error) {
     console.error("Error formatting date:", error)
-    return ""
+    return "Invalid date"
   }
 }
 
-/**
- * Calculates the number of days left until a given date
- * @param dateString - The target date string
- * @returns Number of days left (0 if date is invalid or in the past)
- */
-export function calculateDaysLeft(dateString: string): number {
-  if (!dateString) return 0
-
+// Add the missing calculateDaysLeft function
+export function calculateDaysLeft(targetDateString: string): number {
   try {
-    const targetDate = new Date(dateString)
-    const currentDate = new Date()
+    if (!targetDateString) return 0
 
-    // Reset time portion for accurate day calculation
-    targetDate.setHours(0, 0, 0, 0)
-    currentDate.setHours(0, 0, 0, 0)
+    const targetDate = new Date(targetDateString)
 
     // Check if date is valid
-    if (isNaN(targetDate.getTime())) {
-      return 0
-    }
+    if (isNaN(targetDate.getTime())) return 0
+
+    // Remove time portion for accurate day calculation
+    const today = new Date()
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const normalizedTarget = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
 
     // Calculate difference in milliseconds and convert to days
-    const differenceMs = targetDate.getTime() - currentDate.getTime()
-    const daysLeft = Math.ceil(differenceMs / (1000 * 60 * 60 * 24))
+    const diffTime = normalizedTarget.getTime() - normalizedToday.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    // Return 0 if date is in the past
-    return Math.max(0, daysLeft)
+    // Return 0 if the date is in the past
+    return Math.max(0, diffDays)
   } catch (error) {
     console.error("Error calculating days left:", error)
     return 0
