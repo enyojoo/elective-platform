@@ -62,11 +62,11 @@ export default function ElectivesPage() {
           throw new Error("User not authenticated")
         }
 
-        // Get the student profile to get institution_id
+        // Get the student profile to get institution_id from the profiles table
         const { data: studentProfile, error: profileError } = await supabase
-          .from("student_profiles")
+          .from("profiles")
           .select("institution_id")
-          .eq("user_id", user.id)
+          .eq("id", user.id)
           .single()
 
         if (profileError) {
