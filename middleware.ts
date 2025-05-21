@@ -99,70 +99,7 @@ export async function middleware(req: NextRequest) {
         return NextResponse.next()
       }
 
-      // CRITICAL FIX: Check if this is a page that should always be allowed
-      // This includes dashboard pages, login pages, and other critical paths
-      const criticalPaths = [
-        "/dashboard",
-        "/student/login",
-        "/student/dashboard",
-        "/manager/login",
-        "/manager/dashboard",
-      ]
-
-      const isCriticalPath = criticalPaths.some((criticalPath) => path.includes(criticalPath))
-
-      if (isCriticalPath) {
-        console.log(`Middleware: Critical path detected, bypassing validation: ${path}`)
-        const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-        // Try to get institution info but don't block if it fails
-        try {
-          let apiUrl
-          if (isDevelopment) {
-            apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
-          } else {
-            apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
-          }
-
-          const response = await fetch(apiUrl, {
-            headers: {
-              "Cache-Control": "no-cache, no-store, must-revalidate",
-              Pragma: "no-cache",
-              Expires: "0",
-            },
-            signal: AbortSignal.timeout(2000), // 2 second timeout for critical paths
-          })
-
-          if (response.ok) {
-            const data = await response.json()
-            if (data.institution) {
-              if (data.institution.id) {
-                requestHeaders.set("x-institution-id", data.institution.id)
-              }
-              if (data.institution.name) {
-                requestHeaders.set("x-institution-name", data.institution.name)
-              }
-              if (data.institution.favicon_url) {
-                requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
-              }
-              if (data.institution.primary_color) {
-                requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Middleware: Non-blocking error fetching institution data:", err)
-        }
-
-        return NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        })
-      }
-
-      // For non-critical paths, validate the subdomain
+      // For all paths on a subdomain, validate the subdomain
       let apiUrl
       if (isDevelopment) {
         apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
@@ -202,7 +139,7 @@ export async function middleware(req: NextRequest) {
 
         const data = await response.json()
 
-        // Only redirect if we're 100% sure the subdomain is invalid
+        // ONLY redirect if the API explicitly confirms the subdomain is invalid
         if (data.exists === false) {
           console.log(
             `Middleware: Confirmed invalid subdomain: ${subdomain}, redirecting to main domain institution-required`,
