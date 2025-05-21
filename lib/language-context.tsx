@@ -1160,7 +1160,7 @@ const translations: Translations = {
     "auth.error.invalidEmail": "Пожалуйста, введите действительный адрес электронной почты",
     "auth.error.incompleteFields": "Пожалуйста, заполните все обязательные поля",
     "auth.signup.success": "Регистрация успешна",
-    "auth.signup.successMessage": "Ваш аккаунт успешно создан. Теперь вы можете войти в систему.",
+    "auth.signup.successMessage": "Ваш аккаунт успешно создан. Теперь вы может�� войти в систему.",
     "auth.signup.error": "Ошибка регистрации",
     "auth.signup.loading": "Регистрация...",
     "auth.signup.creating": "Создание аккаунта...",

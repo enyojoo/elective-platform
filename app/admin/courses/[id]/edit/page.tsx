@@ -302,7 +302,7 @@ export default function EditCoursePage() {
                     <Input
                       id="instructorRu"
                       name="instructorRu"
-                      placeholder={t("admin.editCourse.instructorRuPlaceholder", "Проф. Иван Смирнов")}
+                      placeholder={t("admin.editCourse.instructorRuPlaceholder", "Проф. Ив��н Смирнов")}
                       value={formData.instructorRu}
                       onChange={handleChange}
                       required

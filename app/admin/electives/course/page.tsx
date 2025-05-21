@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus, MoreHorizontal } from "lucide-react"
+import { Search, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -297,7 +297,6 @@ export default function CourseElectivesPage() {
       const updatedPacks = electivePacks.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack))
 
       setElectivePacks(updatedPacks)
-      setFilteredPacks(updatedPacks)
 
       // Update cache
       clearCache()
@@ -355,7 +354,6 @@ export default function CourseElectivesPage() {
       // Update local state
       const updatedPacks = electivePacks.filter((pack) => pack.id !== packToDelete)
       setElectivePacks(updatedPacks)
-      setFilteredPacks(updatedPacks)
 
       // Update cache
       clearCache()
@@ -391,12 +389,6 @@ export default function CourseElectivesPage() {
               {t("admin.electives.subtitle", "Manage elective courses for students")}
             </p>
           </div>
-          <Link href="/admin/electives/course-builder">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("manager.electives.addCourse", "Add Course")}
-            </Button>
-          </Link>
         </div>
 
         <Card>
