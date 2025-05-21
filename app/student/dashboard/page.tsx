@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,114 +8,30 @@ import { BookOpen, Calendar, ClipboardList, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { useRouter } from "next/navigation"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
+import {
+  useCachedStudentCourseSelections,
+  useCachedStudentExchangeSelections,
+} from "@/hooks/use-cached-student-selections"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { supabase } from "@/lib/supabase"
-import { formatDate, calculateDaysLeft } from "@/lib/utils"
-import Link from "next/link"
-
-// Cache constants
-const STUDENT_PROFILE_CACHE_KEY = "studentDashboardProfile"
-const COURSE_SELECTIONS_CACHE_KEY = "studentDashboardCourseSelections"
-const EXCHANGE_SELECTIONS_CACHE_KEY = "studentDashboardExchangeSelections"
-const DEADLINES_CACHE_KEY = "studentDashboardDeadlines"
-const USER_ID_CACHE_KEY = "studentDashboardUserId"
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
-
-// Cache helper functions
-const getCachedData = (key: string): any | null => {
-  try {
-    if (typeof window === "undefined") return null
-
-    const cachedData = localStorage.getItem(key)
-    if (!cachedData) return null
-
-    const parsed = JSON.parse(cachedData)
-
-    // Check if cache is expired
-    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(key)
-      return null
-    }
-
-    return parsed.data
-  } catch (error) {
-    console.error(`Error reading from cache (${key}):`, error)
-    return null
-  }
-}
-
-const setCachedData = (key: string, data: any) => {
-  try {
-    if (typeof window === "undefined") return
-
-    const cacheData = {
-      data,
-      timestamp: Date.now(),
-    }
-    localStorage.setItem(key, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error(`Error writing to cache (${key}):`, error)
-  }
-}
-
-interface DeadlineItem {
-  id: string
-  title: string
-  date: string
-  daysLeft: number
-  type: "course" | "exchange"
-}
 
 export default function StudentDashboard() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
+  const [userId, setUserId] = useState<string | undefined>(undefined)
 
-  // Use a ref to track if this is the initial mount
-  const isInitialMount = useRef(true)
-
-  // State for user ID with caching
-  const [userId, setUserId] = useState<string | undefined>(() => {
-    // Try to get userId from cache on initial render
-    if (typeof window !== "undefined") {
-      try {
-        const cachedUserId = getCachedData(USER_ID_CACHE_KEY)
-        return cachedUserId || undefined
-      } catch (e) {
-        return undefined
-      }
-    }
-    return undefined
-  })
-
-  // State for loading
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
-  const [isLoadingCourseSelections, setIsLoadingCourseSelections] = useState(true)
-  const [isLoadingExchangeSelections, setIsLoadingExchangeSelections] = useState(true)
-  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
-
-  // State for data
-  const [profile, setProfile] = useState<any>(null)
-  const [profileError, setProfileError] = useState<string | null>(null)
-  const [courseSelections, setCourseSelections] = useState<any[]>([])
-  const [exchangeSelections, setExchangeSelections] = useState<any[]>([])
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
-
-  // Fetch current user ID only once on mount
   useEffect(() => {
-    const fetchUserId = async () => {
-      // Skip if we already have a userId from cache
-      if (userId) return
-
+    async function getCurrentUserId() {
       try {
-        const { data } = await supabase.auth.getUser()
-        if (data?.user) {
-          const newUserId = data.user.id
-          setUserId(newUserId)
-          // Cache the userId
-          setCachedData(USER_ID_CACHE_KEY, newUserId)
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          setUserId(user.id)
         } else {
           // If no user is found, redirect to login
           router.push("/student/login")
@@ -125,234 +41,14 @@ export default function StudentDashboard() {
       }
     }
 
-    fetchUserId()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount
+    getCurrentUserId()
+  }, [router])
 
-  // Fetch student profile with caching
-  useEffect(() => {
-    const fetchStudentProfile = async () => {
-      if (!userId) return
-
-      try {
-        setIsLoadingProfile(true)
-        setProfileError(null)
-
-        // Try to get data from cache first
-        const cachedProfile = getCachedData(STUDENT_PROFILE_CACHE_KEY)
-        if (cachedProfile) {
-          console.log("Using cached student profile")
-          setProfile(cachedProfile)
-          setIsLoadingProfile(false)
-          return
-        }
-
-        console.log("Fetching student profile from API")
-
-        // Fetch profile with related data
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select(`
-            *,
-            studentDetails:student_details(
-              *,
-              groups(
-                *,
-                programs(
-                  *,
-                  degrees(*)
-                )
-              )
-            )
-          `)
-          .eq("id", userId)
-          .eq("role", "student")
-          .single()
-
-        if (profileError) throw profileError
-
-        // Save to cache
-        setCachedData(STUDENT_PROFILE_CACHE_KEY, profileData)
-
-        // Update state
-        setProfile(profileData)
-      } catch (error: any) {
-        console.error("Error fetching student profile:", error)
-        setProfileError(error.message)
-      } finally {
-        setIsLoadingProfile(false)
-      }
-    }
-
-    fetchStudentProfile()
-  }, [userId])
-
-  // Fetch course selections with caching
-  useEffect(() => {
-    const fetchCourseSelections = async () => {
-      if (!userId) return
-
-      try {
-        setIsLoadingCourseSelections(true)
-
-        // Try to get data from cache first
-        const cachedSelections = getCachedData(COURSE_SELECTIONS_CACHE_KEY)
-        if (cachedSelections) {
-          console.log("Using cached course selections")
-          setCourseSelections(cachedSelections)
-          setIsLoadingCourseSelections(false)
-          return
-        }
-
-        console.log("Fetching course selections from API")
-
-        // Fetch course selections
-        const { data, error } = await supabase
-          .from("student_course_selections")
-          .select("*, elective_courses(*)")
-          .eq("student_id", userId)
-
-        if (error) throw error
-
-        // Save to cache
-        setCachedData(COURSE_SELECTIONS_CACHE_KEY, data)
-
-        // Update state
-        setCourseSelections(data || [])
-      } catch (error) {
-        console.error("Error fetching course selections:", error)
-      } finally {
-        setIsLoadingCourseSelections(false)
-      }
-    }
-
-    fetchCourseSelections()
-  }, [userId])
-
-  // Fetch exchange selections with caching
-  useEffect(() => {
-    const fetchExchangeSelections = async () => {
-      if (!userId) return
-
-      try {
-        setIsLoadingExchangeSelections(true)
-
-        // Try to get data from cache first
-        const cachedSelections = getCachedData(EXCHANGE_SELECTIONS_CACHE_KEY)
-        if (cachedSelections) {
-          console.log("Using cached exchange selections")
-          setExchangeSelections(cachedSelections)
-          setIsLoadingExchangeSelections(false)
-          return
-        }
-
-        console.log("Fetching exchange selections from API")
-
-        // Fetch exchange selections
-        const { data, error } = await supabase
-          .from("student_exchange_selections")
-          .select("*, elective_exchange(*)")
-          .eq("student_id", userId)
-
-        if (error) throw error
-
-        // Save to cache
-        setCachedData(EXCHANGE_SELECTIONS_CACHE_KEY, data)
-
-        // Update state
-        setExchangeSelections(data || [])
-      } catch (error) {
-        console.error("Error fetching exchange selections:", error)
-      } finally {
-        setIsLoadingExchangeSelections(false)
-      }
-    }
-
-    fetchExchangeSelections()
-  }, [userId])
-
-  // Fetch upcoming deadlines with caching
-  useEffect(() => {
-    const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
-
-      try {
-        setIsLoadingDeadlines(true)
-
-        // Check for cached data
-        const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
-        if (cachedDeadlines) {
-          console.log("Using cached deadlines data")
-          setUpcomingDeadlines(cachedDeadlines)
-          setIsLoadingDeadlines(false)
-          return
-        }
-
-        console.log("Fetching fresh deadlines data")
-
-        // Get current date
-        const now = new Date()
-
-        // Fetch course electives with deadlines
-        const { data: courseElectives, error: courseError } = await supabase
-          .from("elective_courses")
-          .select("id, name, name_ru, deadline, status")
-          .eq("institution_id", institution.id)
-          .eq("status", "published")
-          .not("deadline", "is", null)
-          .gte("deadline", now.toISOString())
-          .order("deadline", { ascending: true })
-          .limit(5)
-
-        // Fetch exchange programs with deadlines
-        const { data: exchangePrograms, error: exchangeError } = await supabase
-          .from("elective_exchange")
-          .select("id, name, name_ru, deadline, status")
-          .eq("institution_id", institution.id)
-          .eq("status", "published")
-          .not("deadline", "is", null)
-          .gte("deadline", now.toISOString())
-          .order("deadline", { ascending: true })
-          .limit(5)
-
-        if (!courseError && !exchangeError) {
-          // Process course electives
-          const courseDeadlines = (courseElectives || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "course" as const,
-          }))
-
-          // Process exchange programs
-          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "exchange" as const,
-          }))
-
-          // Combine and sort by closest deadline
-          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
-            .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 5) // Take top 5 closest deadlines
-
-          setUpcomingDeadlines(allDeadlines)
-
-          // Cache the data
-          setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming deadlines:", error)
-      } finally {
-        setIsLoadingDeadlines(false)
-      }
-    }
-
-    fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language])
+  const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
+  const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
+    useCachedStudentCourseSelections(userId)
+  const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
+    useCachedStudentExchangeSelections(userId)
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -361,17 +57,49 @@ export default function StudentDashboard() {
     }
   }, [isSubdomainAccess, router])
 
-  // Log when component mounts/unmounts to track re-renders
+  // Get upcoming deadlines from elective packs
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([])
+  const [isDeadlinesLoading, setIsDeadlinesLoading] = useState(true)
+
   useEffect(() => {
-    console.log("Student Dashboard mounted")
+    async function fetchDeadlines() {
+      if (!institution?.id) return
 
-    // Mark that we're no longer on initial mount
-    isInitialMount.current = false
+      try {
+        const { data, error } = await supabase
+          .from("elective_packs")
+          .select("*")
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+          .order("deadline", { ascending: true })
+          .limit(3)
 
-    return () => {
-      console.log("Student Dashboard unmounted")
+        if (error) throw error
+
+        // Calculate days left for each deadline
+        const deadlinesWithDaysLeft = data.map((pack) => {
+          const deadlineDate = new Date(pack.deadline)
+          const today = new Date()
+          const diffTime = deadlineDate.getTime() - today.getTime()
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+          return {
+            title: pack.name,
+            date: pack.deadline,
+            daysLeft: diffDays > 0 ? diffDays : 0,
+          }
+        })
+
+        setUpcomingDeadlines(deadlinesWithDaysLeft)
+      } catch (error) {
+        console.error("Error fetching deadlines:", error)
+      } finally {
+        setIsDeadlinesLoading(false)
+      }
     }
-  }, [])
+
+    fetchDeadlines()
+  }, [institution?.id])
 
   // Calculate student data from profile and selections
   const studentData = {
@@ -404,13 +132,13 @@ export default function StudentDashboard() {
     },
   }
 
-  const isLoading = isLoadingProfile || isLoadingCourseSelections || isLoadingExchangeSelections || isLoadingDeadlines
+  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading || isDeadlinesLoading
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting
   }
 
-  if (isLoadingProfile && !profile) {
+  if (isProfileLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
         <PageSkeleton type="dashboard" />
@@ -442,7 +170,7 @@ export default function StudentDashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoadingProfile ? (
+              {isLoading ? (
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
@@ -461,7 +189,7 @@ export default function StudentDashboard() {
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoadingCourseSelections || isLoadingExchangeSelections ? (
+              {isLoading ? (
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
@@ -480,7 +208,7 @@ export default function StudentDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoadingCourseSelections || isLoadingExchangeSelections ? (
+              {isLoading ? (
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
@@ -502,7 +230,7 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.academicDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingProfile ? (
+              {isLoading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-6 w-full" />
@@ -541,9 +269,9 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.importantDates")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingDeadlines ? (
+              {isDeadlinesLoading ? (
                 <div className="space-y-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
+                  {Array.from({ length: 2 }).map((_, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <div className="space-y-1">
                         <Skeleton className="h-5 w-32" />
@@ -555,38 +283,28 @@ export default function StudentDashboard() {
                 </div>
               ) : upcomingDeadlines.length > 0 ? (
                 <div className="space-y-4">
-                  {upcomingDeadlines.map((deadline) => (
-                    <div key={deadline.id} className="flex items-center justify-between">
+                  {upcomingDeadlines.map((deadline, index) => (
+                    <div key={index} className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">{deadline.title}</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(deadline.date)}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(deadline.date).toLocaleDateString()}</p>
                       </div>
-                      <Link
-                        href={
-                          deadline.type === "course"
-                            ? `/student/courses/${deadline.id}`
-                            : `/student/exchange/${deadline.id}`
-                        }
+                      <div
+                        className={`px-2 py-1 rounded-md text-xs font-medium ${
+                          deadline.daysLeft < 7
+                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            : deadline.daysLeft < 30
+                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                              : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        }`}
                       >
-                        <div
-                          className={`px-2 py-1 rounded-md text-xs font-medium cursor-pointer ${
-                            deadline.daysLeft < 7
-                              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                              : deadline.daysLeft < 30
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                          }`}
-                        >
-                          {deadline.daysLeft} {t("student.dashboard.daysLeft")}
-                        </div>
-                      </Link>
+                        {deadline.daysLeft} {t("student.dashboard.daysLeft")}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  {t("student.dashboard.noUpcomingDeadlines", "No upcoming deadlines")}
-                </div>
+                <p className="text-center text-muted-foreground py-4">{t("student.dashboard.noDeadlines")}</p>
               )}
             </CardContent>
           </Card>

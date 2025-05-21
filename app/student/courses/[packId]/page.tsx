@@ -2,37 +2,71 @@
 
 import type React from "react"
 
-import { DialogFooter } from "@/components/ui/dialog"
-
-import { useState } from "react"
-import { Download, CheckCircle, Clock, Info, Users, BookOpen, ArrowLeft, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, SelectionStatus } from "@/lib/types"
+import { UserRole } from "@/lib/types"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
+import { useDataCache } from "@/lib/data-cache-context"
+import { Skeleton } from "@/components/ui/skeleton"
+import { CheckCircle, Clock, Info, ArrowLeft, Loader2, Users, BookOpen, Download } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useLanguage } from "@/lib/language-context"
+import { uploadStatement } from "@/lib/file-utils"
+import Link from "next/link"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
-import { useLanguage } from "@/lib/language-context"
-import { useToast } from "@/hooks/use-toast"
-import { uploadStatement } from "@/lib/file-utils"
 
-interface ElectivePageProps {
-  params: {
-    packId: string
-  }
+// Define the SelectionStatus enum
+enum SelectionStatus {
+  PENDING = "pending",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+}
+
+interface CourseDetailData {
+  id: string
+  name: string
+  formatted_name: string
+  semester: string
+  year: number
+  max_selections: number
+  status: string
+  start_date: string
+  end_date: string
+  description: string
+  courses: Array<{
+    id: string
+    name: string
+    code: string
+    description: string
+    credits: number
+    max_students: number
+    current_students?: number
+    selected: boolean
+    selection_status: string | null
+    teacher?: string
+  }>
+  selected_courses: Array<{
+    course_id: string
+    status: string
+  }>
+  selected_count: number
 }
 
 // Update the handleFileUpload function to use real file uploads
@@ -73,7 +107,7 @@ const handleFileUpload = async (
       // In a real app, you would save this URL to the database
       // For example:
       // await supabase
-      //   .from('student_selections')
+      //   .from('course_selections')
       //   .update({ statement_url: statementUrl })
       //   .eq('user_id', userId)
       //   .eq('pack_id', packId)
@@ -96,10 +130,17 @@ const handleFileUpload = async (
   }
 }
 
-// Update the component to use the new handleFileUpload function
-export default function ElectivePage({ params }: ElectivePageProps) {
-  const { t } = useLanguage()
+export default function ElectiveCourseDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const packId = params.packId as string
+  const [isLoading, setIsLoading] = useState(true)
+  const [courseData, setCourseData] = useState<CourseDetailData | null>(null)
   const { toast } = useToast()
+  const { getCachedData, setCachedData } = useDataCache()
+  const supabase = getSupabaseBrowserClient()
+  const { t } = useLanguage()
+
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -107,137 +148,92 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
-
-  // Mock user ID - in a real app, you would get this from authentication
-  const userId = "mock-user-id"
-
-  // Mock elective data
-  const electiveData = {
-    id: params.packId,
-    name:
-      params.packId === "fall-2023"
-        ? "Fall 2023"
-        : params.packId === "spring-2024"
-          ? "Spring 2024"
-          : params.packId === "fall-2024"
-            ? "Fall 2024"
-            : "Spring 2025",
-    semester: params.packId.includes("fall") ? "Fall" : "Spring",
-    year: params.packId.includes("2023") ? 2023 : params.packId.includes("2024") ? 2024 : 2025,
-    maxSelections: params.packId === "spring-2024" ? 3 : 2,
-    status: params.packId === "spring-2025" ? "draft" : "published",
-    startDate: params.packId.includes("fall") ? "2023-08-01" : "2024-01-10",
-    endDate: params.packId.includes("fall") ? "2023-08-15" : "2024-01-25",
-  }
-
-  // Mock elective courses data - adjust current students for draft status
-  const electiveCourses = [
-    {
-      id: "1",
-      name: "Business Ethics",
-      description:
-        "Explore ethical principles and moral challenges in business decision-making. This course examines the ethical dimensions of corporate behavior and the responsibilities of businesses to stakeholders. Students will analyze case studies of ethical dilemmas in various business contexts and develop frameworks for ethical decision-making. Topics include corporate social responsibility, whistleblowing, environmental ethics, and global business ethics.",
-      maxStudents: 30,
-      currentStudents: electiveData.status === "draft" ? 0 : 18,
-      teacher: "Dr. Anna Ivanova",
-    },
-    {
-      id: "2",
-      name: "Digital Marketing",
-      description:
-        "Learn modern digital marketing strategies and tools for business growth. This comprehensive course covers social media marketing, search engine optimization, content marketing, email campaigns, and analytics. Students will develop practical skills in creating and implementing digital marketing plans, measuring campaign effectiveness, and optimizing online presence. The course includes hands-on projects with real-world applications and current industry tools.",
-      maxStudents: 25,
-      currentStudents: electiveData.status === "draft" ? 0 : 25,
-      teacher: "Prof. Mikhail Petrov",
-    },
-    {
-      id: "3",
-      name: "Sustainable Business",
-      description:
-        "Study sustainable business practices and their impact on the environment and society. This course explores how businesses can integrate sustainability into their operations, strategy, and culture. Students will learn about circular economy principles, sustainable supply chain management, green marketing, and ESG (Environmental, Social, and Governance) reporting. Case studies of leading sustainable businesses will be analyzed to identify best practices and innovation opportunities.",
-      maxStudents: 35,
-      currentStudents: electiveData.status === "draft" ? 0 : 12,
-      teacher: "Dr. Elena Smirnova",
-    },
-    {
-      id: "4",
-      name: "Project Management",
-      description:
-        "Master the principles and methodologies of effective project management. This course covers the entire project lifecycle from initiation to closure, including planning, scheduling, budgeting, risk management, and stakeholder communication. Students will learn both traditional and agile project management approaches, with emphasis on practical applications. The course includes team-based project simulations and preparation for professional certifications like PMP and CAPM.",
-      maxStudents: 30,
-      currentStudents: electiveData.status === "draft" ? 0 : 28,
-      teacher: "Prof. Sergei Kuznetsov",
-    },
-    {
-      id: "5",
-      name: "International Business Law",
-      description:
-        "Understand legal frameworks governing international business operations. This course examines the legal aspects of conducting business across borders, including international contracts, dispute resolution, intellectual property protection, and trade regulations. Students will analyze the legal implications of global business strategies and learn how to navigate complex regulatory environments. Special attention is given to emerging legal issues in international e-commerce and digital business.",
-      maxStudents: 25,
-      currentStudents: electiveData.status === "draft" ? 0 : 15,
-      teacher: "Dr. Olga Volkova",
-    },
-    {
-      id: "6",
-      name: "Financial Markets",
-      description:
-        "Analyze financial markets, instruments, and investment strategies. This course provides a comprehensive overview of equity markets, fixed income securities, derivatives, and alternative investments. Students will develop skills in portfolio construction, risk assessment, and financial analysis. The course combines theoretical frameworks with practical applications, including market simulations and case studies of investment decisions. Current trends in fintech and sustainable finance are also explored.",
-      maxStudents: 30,
-      currentStudents: electiveData.status === "draft" ? 0 : 22,
-      teacher: "Prof. Dmitry Sokolov",
-    },
-  ]
-
-  // Mock student selection data
-  const existingSelection =
-    params.packId === "fall-2023"
-      ? {
-          packId: params.packId,
-          selectedCourseIds: ["1", "3"],
-          status: SelectionStatus.APPROVED,
-          authorizedBy: "Alex Johnson",
-          createdAt: "2023-08-05",
-        }
-      : params.packId === "spring-2024"
-        ? {
-            packId: params.packId,
-            selectedCourseIds: ["5"],
-            status: SelectionStatus.PENDING,
-            authorizedBy: "Alex Johnson",
-            createdAt: "2024-01-12",
-          }
-        : null
+  const [userId, setUserId] = useState<string | null>(null)
 
   // State for selected courses
-  const [selectedCourses, setSelectedCourses] = useState<string[]>(
-    existingSelection ? existingSelection.selectedCourseIds : [],
-  )
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+
+  useEffect(() => {
+    // Get the current user
+    const getCurrentUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        setUserId(user.id)
+      } else {
+        // Redirect to login if not authenticated
+        router.push("/student/login")
+      }
+    }
+
+    getCurrentUser()
+  }, [supabase, router])
 
   // Handle course selection
   const toggleCourseSelection = (courseId: string) => {
     if (selectedCourses.includes(courseId)) {
       setSelectedCourses(selectedCourses.filter((id) => id !== courseId))
     } else {
-      if (selectedCourses.length < electiveData.maxSelections) {
+      if (courseData && selectedCourses.length < courseData.max_selections) {
         setSelectedCourses([...selectedCourses, courseId])
       }
     }
   }
 
   // Handle submission
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!userId || !courseData) return
+
     setSubmitting(true)
-    // Simulate API call
-    setTimeout(() => {
-      setSubmitting(false)
-      setConfirmDialogOpen(false)
+
+    try {
+      // First, delete any existing selections for this elective course
+      const { error: deleteError } = await supabase
+        .from("course_selections")
+        .delete()
+        .eq("student_id", userId)
+        .eq("elective_course_id", courseData.id)
+
+      if (deleteError) throw deleteError
+
+      // Then insert the new selections
+      const selectionsToInsert = selectedCourses.map((courseId) => ({
+        student_id: userId,
+        course_id: courseId,
+        elective_course_id: courseData.id,
+        status: "pending",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+
+      const { error: insertError } = await supabase.from("course_selections").insert(selectionsToInsert)
+
+      if (insertError) throw insertError
+
       toast({
         title: "Selection submitted",
         description: "Your course selection has been submitted successfully.",
       })
-      // In a real app, you would redirect or show success message
-      window.location.href = "/student/courses"
-    }, 1500)
+
+      // Invalidate cache
+      setCachedData(`electiveCourseDetail-${packId}`, "current", null)
+      setCachedData("studentElectiveCourses", "current", null)
+
+      // Redirect back to courses page
+      router.push("/student/courses")
+    } catch (error) {
+      console.error("Error submitting selections:", error)
+      toast({
+        title: "Submission failed",
+        description: "There was an error submitting your selections. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+      setConfirmDialogOpen(false)
+    }
   }
 
   // Format date helper
@@ -245,75 +241,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
-
-  // Calculate selection progress
-  const selectionProgress = (selectedCourses.length / electiveData.maxSelections) * 100
-
-  // Get status alert
-  const getStatusAlert = () => {
-    if (existingSelection && existingSelection.status === SelectionStatus.APPROVED) {
-      return (
-        <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
-          <CheckCircle className="h-4 w-4" />
-          <AlertTitle>{t("student.courses.selectionApproved")}</AlertTitle>
-          <AlertDescription>{t("student.courses.selectionApprovedDesc")}</AlertDescription>
-        </Alert>
-      )
-    } else if (existingSelection && existingSelection.status === SelectionStatus.PENDING) {
-      return (
-        <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-          <Clock className="h-4 w-4" />
-          <AlertTitle>{t("student.courses.selectionPending")}</AlertTitle>
-          <AlertDescription>{t("student.courses.selectionPendingDesc")}</AlertDescription>
-        </Alert>
-      )
-    } else if (electiveData.status === "draft") {
-      return (
-        <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-          <Info className="h-4 w-4" />
-          <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
-          <AlertDescription>
-            {t("student.courses.comingSoonDesc")} {formatDate(electiveData.startDate)}.
-          </AlertDescription>
-        </Alert>
-      )
-    } else {
-      return (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
-          <AlertDescription>
-            {t("student.courses.selectionPeriodDesc")} {electiveData.maxSelections} {t("student.courses.until")}{" "}
-            {formatDate(electiveData.endDate)}.
-          </AlertDescription>
-        </Alert>
-      )
-    }
-  }
-
-  // Get card style based on selection status
-  const getCardStyle = (courseId: string) => {
-    const isSelected = selectedCourses.includes(courseId)
-    const isFull =
-      electiveCourses.find((c) => c.id === courseId)?.currentStudents >=
-      electiveCourses.find((c) => c.id === courseId)?.maxStudents
-    const isDisabled = !isSelected && (selectedCourses.length >= electiveData.maxSelections || isFull)
-
-    if (isSelected) {
-      if (existingSelection?.status === SelectionStatus.APPROVED) {
-        return "border-green-500 bg-green-50/30 dark:bg-green-950/10"
-      } else if (existingSelection?.status === SelectionStatus.PENDING) {
-        return "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
-      } else {
-        return "border-primary"
-      }
-    } else if (isDisabled) {
-      return "opacity-60"
-    }
-    return ""
-  }
-
-  // Handle file upload
 
   // Handle statement download
   const handleDownloadStatement = () => {
@@ -330,319 +257,532 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     }, 1000)
   }
 
+  useEffect(() => {
+    const fetchCourseDetails = async () => {
+      if (!userId) return
+
+      setIsLoading(true)
+
+      try {
+        // Try to get data from cache first
+        const cacheKey = `electiveCourseDetail-${packId}`
+        const cachedData = getCachedData<CourseDetailData>(cacheKey, "current")
+
+        if (cachedData) {
+          console.log("Using cached elective course detail data")
+          setCourseData(cachedData)
+
+          // Set selected courses from cached data
+          const selectedCourseIds = cachedData.selected_courses.map((sc) => sc.course_id)
+          setSelectedCourses(selectedCourseIds)
+
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch the elective course details
+        const { data: courseDetails, error: courseError } = await supabase
+          .from("elective_courses")
+          .select(`
+            id, 
+            name, 
+            semester,
+            year,
+            max_selections,
+            status,
+            start_date,
+            end_date,
+            courses,
+            description,
+            institution_id
+          `)
+          .eq("id", packId)
+          .single()
+
+        if (courseError) {
+          throw courseError
+        }
+
+        // Get student selections for this course from course_selections table
+        const { data: studentSelections, error: selectionsError } = await supabase
+          .from("course_selections")
+          .select("course_id, status")
+          .eq("student_id", userId)
+          .eq("elective_course_id", packId)
+
+        if (selectionsError) {
+          throw selectionsError
+        }
+
+        // Get course details for the courses in this elective
+        let coursesList = []
+        if (Array.isArray(courseDetails.courses) && courseDetails.courses.length > 0) {
+          const { data: coursesData, error: coursesError } = await supabase
+            .from("courses")
+            .select("id, name, code, description, credits, max_students")
+            .in("id", courseDetails.courses)
+
+          if (coursesError) {
+            throw coursesError
+          }
+
+          // Add selection status to each course
+          coursesList = coursesData.map((course) => {
+            const selection = studentSelections?.find((s) => s.course_id === course.id)
+            return {
+              ...course,
+              selected: !!selection,
+              selection_status: selection?.status || null,
+              // Mock current students for now - in a real app you would get this from the database
+              current_students: Math.floor(Math.random() * course.max_students),
+              teacher: `Dr. ${["Smith", "Johnson", "Williams", "Brown", "Jones"][Math.floor(Math.random() * 5)]}`,
+            }
+          })
+        }
+
+        // Combine all data
+        const formattedData = {
+          ...courseDetails,
+          formatted_name: `${courseDetails.semester.charAt(0).toUpperCase() + courseDetails.semester.slice(1)} ${courseDetails.year}`,
+          courses: coursesList,
+          selected_courses: studentSelections || [],
+          selected_count: studentSelections?.length || 0,
+        }
+
+        // Save to cache
+        setCachedData(cacheKey, "current", formattedData)
+
+        setCourseData(formattedData)
+
+        // Set selected courses
+        const selectedCourseIds = studentSelections?.map((sc) => sc.course_id) || []
+        setSelectedCourses(selectedCourseIds)
+      } catch (error: any) {
+        console.error("Error fetching course details:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load course details. Please try again later.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (packId && userId) {
+      fetchCourseDetails()
+    }
+  }, [packId, userId, supabase, toast, getCachedData, setCachedData])
+
+  // Calculate selection progress
+  const selectionProgress = courseData ? (selectedCourses.length / courseData.max_selections) * 100 : 0
+
+  // Get status alert
+  const getStatusAlert = () => {
+    if (!courseData) return null
+
+    // Check if any selections are approved
+    const hasApprovedSelections = courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED)
+
+    // Check if any selections are pending
+    const hasPendingSelections = courseData.selected_courses.some((sc) => sc.status === SelectionStatus.PENDING)
+
+    if (hasApprovedSelections) {
+      return (
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionApproved")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionApprovedDesc")}</AlertDescription>
+        </Alert>
+      )
+    } else if (hasPendingSelections) {
+      return (
+        <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionPending")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionPendingDesc")}</AlertDescription>
+        </Alert>
+      )
+    } else if (courseData.status === "draft") {
+      return (
+        <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
+          <AlertDescription>
+            {t("student.courses.comingSoonDesc")} {formatDate(courseData.start_date)}.
+          </AlertDescription>
+        </Alert>
+      )
+    } else {
+      return (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
+          <AlertDescription>
+            {t("student.courses.selectionPeriodDesc")} {courseData.max_selections} {t("student.courses.until")}{" "}
+            {formatDate(courseData.end_date)}.
+          </AlertDescription>
+        </Alert>
+      )
+    }
+  }
+
+  // Get card style based on selection status
+  const getCardStyle = (course: any) => {
+    const isSelected = selectedCourses.includes(course.id)
+    const isFull = course.current_students >= course.max_students
+    const isDisabled = !isSelected && (selectedCourses.length >= (courseData?.max_selections || 0) || isFull)
+
+    if (isSelected) {
+      if (course.selection_status === SelectionStatus.APPROVED) {
+        return "border-green-500 bg-green-50/30 dark:bg-green-950/10"
+      } else if (course.selection_status === SelectionStatus.PENDING) {
+        return "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
+      } else {
+        return "border-primary"
+      }
+    } else if (isDisabled) {
+      return "opacity-60"
+    }
+    return ""
+  }
+
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Link href="/student/courses">
-            <div className="flex items-center justify-center h-10 w-10 rounded-md hover:bg-muted">
-              <ArrowLeft className="h-5 w-5" />
+        {isLoading ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-10 w-10 rounded-md" />
+              <div>
+                <Skeleton className="h-8 w-48 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </div>
             </div>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{electiveData.name}</h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <p className="text-sm text-muted-foreground">{t("student.courses.selectCourses")}</p>
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-40 w-full" />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-48" />
+              ))}
             </div>
           </div>
-        </div>
-
-        {getStatusAlert()}
-
-        <Card
-          className={
-            existingSelection
-              ? existingSelection.status === SelectionStatus.APPROVED
-                ? "border-green-200 dark:border-green-800"
-                : "border-yellow-200 dark:border-yellow-800"
-              : ""
-          }
-        >
-          <CardHeader>
-            <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
-            <CardDescription>
-              {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.of")}{" "}
-              {electiveData.maxSelections} {t("student.courses.allowedCourses")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress
-              value={selectionProgress}
-              className={`h-2 ${
-                existingSelection?.status === SelectionStatus.APPROVED
-                  ? "bg-green-100 dark:bg-green-950"
-                  : existingSelection?.status === SelectionStatus.PENDING
-                    ? "bg-yellow-100 dark:bg-yellow-950"
-                    : ""
-              }`}
-              color={
-                existingSelection?.status === SelectionStatus.APPROVED
-                  ? "bg-green-600"
-                  : existingSelection?.status === SelectionStatus.PENDING
-                    ? "bg-yellow-600"
-                    : undefined
-              }
-            />
-            <p className="mt-2 text-sm text-muted-foreground">
-              {selectedCourses.length === electiveData.maxSelections
-                ? t("student.courses.maxSelections")
-                : `${t("student.courses.canSelectMore")} ${electiveData.maxSelections - selectedCourses.length} ${
-                    electiveData.maxSelections - selectedCourses.length === 1
-                      ? t("student.courses.moreCourse")
-                      : t("student.courses.moreCourses")
-                  }`}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Statement Download and Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("student.statement.title")}</CardTitle>
-            <CardDescription>{t("student.statement.description")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 w-full sm:w-[120px] h-10"
-                  onClick={handleDownloadStatement}
-                  disabled={downloadingStatement || electiveData.status === "draft"}
-                >
-                  {downloadingStatement ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span>{t("student.statement.download")}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      <span>{t("student.statement.download")}</span>
-                    </>
-                  )}
-                </Button>
-
-                <div className="relative w-full">
-                  <Input
-                    id="statement-upload"
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) =>
-                      handleFileUpload(e, userId, params.packId, setIsUploading, setUploadedStatement, toast)
-                    }
-                    disabled={
-                      isUploading ||
-                      existingSelection?.status === SelectionStatus.APPROVED ||
-                      electiveData.status === "draft"
-                    }
-                    className="cursor-pointer"
-                  />
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span>{t("student.statement.uploading")}</span>
-                    </div>
-                  )}
+        ) : courseData ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Link href="/student/courses">
+                <div className="flex items-center justify-center h-10 w-10 rounded-md hover:bg-muted">
+                  <ArrowLeft className="h-5 w-5" />
+                </div>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">{courseData.formatted_name}</h1>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <p className="text-sm text-muted-foreground">{t("student.courses.selectCourses")}</p>
                 </div>
               </div>
-              {uploadedStatement && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm">
-                    {t("student.statement.fileUploaded")} <span className="font-medium">{uploadedStatement.name}</span>
-                  </span>
-                </div>
-              )}
             </div>
-          </CardContent>
-        </Card>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {electiveCourses.map((course) => {
-            const isSelected = selectedCourses.includes(course.id)
-            const isFull = course.currentStudents >= course.maxStudents
-            const isDisabled = !isSelected && (selectedCourses.length >= electiveData.maxSelections || isFull)
-            const isApproved = existingSelection?.status === SelectionStatus.APPROVED
+            {getStatusAlert()}
 
-            return (
-              <Card key={course.id} className={`h-full transition-all ${getCardStyle(course.id)}`}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{course.name}</CardTitle>
-                    <Badge variant={isFull ? "destructive" : "secondary"} className="ml-2">
-                      <Users className="h-3 w-3 mr-1" />
-                      {course.currentStudents}/{course.maxStudents}
-                    </Badge>
-                  </div>
-                  <CardDescription>{course.teacher}</CardDescription>
-                </CardHeader>
-                <CardContent className="pb-4 flex-grow flex items-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 h-auto text-primary hover:text-primary/80 hover:bg-transparent"
-                    onClick={() => setViewingCourse(course)}
-                  >
-                    <BookOpen className="h-3.5 w-3.5 mr-1" />
-                    {t("student.courses.viewDescription")}
-                  </Button>
-                </CardContent>
-                <CardFooter className="pt-0 flex justify-between items-center">
-                  {!isApproved && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`course-${course.id}`}
-                        checked={isSelected}
-                        onCheckedChange={() => toggleCourseSelection(course.id)}
-                        disabled={isDisabled || isApproved || electiveData.status === "draft"}
+            <Card
+              className={
+                courseData.selected_courses.length > 0
+                  ? courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED)
+                    ? "border-green-200 dark:border-green-800"
+                    : "border-yellow-200 dark:border-yellow-800"
+                  : ""
+              }
+            >
+              <CardHeader>
+                <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
+                <CardDescription>
+                  {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.of")}{" "}
+                  {courseData.max_selections} {t("student.courses.allowedCourses")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Progress
+                  value={selectionProgress}
+                  className={`h-2 ${
+                    courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED)
+                      ? "bg-green-100 dark:bg-green-950"
+                      : courseData.selected_courses.some((sc) => sc.status === SelectionStatus.PENDING)
+                        ? "bg-yellow-100 dark:bg-yellow-950"
+                        : ""
+                  }`}
+                />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {selectedCourses.length === courseData.max_selections
+                    ? t("student.courses.maxSelections")
+                    : `${t("student.courses.canSelectMore")} ${courseData.max_selections - selectedCourses.length} ${
+                        courseData.max_selections - selectedCourses.length === 1
+                          ? t("student.courses.moreCourse")
+                          : t("student.courses.moreCourses")
+                      }`}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Statement Download and Upload Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("student.statement.title")}</CardTitle>
+                <CardDescription>{t("student.statement.description")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 w-full sm:w-[120px] h-10"
+                      onClick={handleDownloadStatement}
+                      disabled={downloadingStatement || courseData.status === "draft"}
+                    >
+                      {downloadingStatement ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <span>{t("student.statement.download")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          <span>{t("student.statement.download")}</span>
+                        </>
+                      )}
+                    </Button>
+
+                    <div className="relative w-full">
+                      <Input
+                        id="statement-upload"
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) =>
+                          handleFileUpload(e, userId || "", packId, setIsUploading, setUploadedStatement, toast)
+                        }
+                        disabled={
+                          isUploading ||
+                          courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED) ||
+                          courseData.status === "draft"
+                        }
+                        className="cursor-pointer"
                       />
-                      <label
-                        htmlFor={`course-${course.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {isSelected ? t("student.courses.selected") : t("student.courses.select")}
-                      </label>
+                      {isUploading && (
+                        <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <span>{t("student.statement.uploading")}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </CardFooter>
-              </Card>
-            )
-          })}
-        </div>
-
-        {existingSelection?.status !== SelectionStatus.APPROVED && (
-          <div className="flex justify-end">
-            <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  disabled={
-                    selectedCourses.length === 0 ||
-                    selectedCourses.length > electiveData.maxSelections ||
-                    electiveData.status === "draft" ||
-                    !uploadedStatement
-                  }
-                  className="px-8"
-                  onClick={() => {
-                    if (selectedCourses.length > 0 && !uploadedStatement) {
-                      toast({
-                        title: "Statement required",
-                        description: "Please upload your signed statement before confirming your selection.",
-                        variant: "destructive",
-                      })
-                    }
-                  }}
-                >
-                  {existingSelection ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t("student.courses.confirmYourSelection")}</DialogTitle>
-                  <DialogDescription>{t("student.courses.reviewSelection")}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
-                    <ul className="space-y-2">
-                      {selectedCourses.map((courseId) => {
-                        const course = electiveCourses.find((c) => c.id === courseId)
-                        return (
-                          <li key={courseId} className="text-sm flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            {course?.name}
-                          </li>
-                        )
-                      })}
-                    </ul>
                   </div>
-
-                  {/* Statement Information */}
-                  <div className="mt-4 pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-2">Statement:</h4>
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span>
-                        {uploadedStatement?.name} ({Math.round(uploadedStatement?.size / 1024)} KB)
+                  {uploadedStatement && (
+                    <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm">
+                        {t("student.statement.fileUploaded")}{" "}
+                        <span className="font-medium">{uploadedStatement.name}</span>
                       </span>
                     </div>
-                  </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {courseData.courses.map((course) => {
+                const isSelected = selectedCourses.includes(course.id)
+                const isFull = course.current_students >= course.max_students
+                const isDisabled = !isSelected && (selectedCourses.length >= courseData.max_selections || isFull)
+                const isApproved = course.selection_status === SelectionStatus.APPROVED
+
+                return (
+                  <Card key={course.id} className={`h-full transition-all ${getCardStyle(course)}`}>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="text-lg">{course.name}</CardTitle>
+                        <Badge variant={isFull ? "destructive" : "secondary"} className="ml-2">
+                          <Users className="h-3 w-3 mr-1" />
+                          {course.current_students}/{course.max_students}
+                        </Badge>
+                      </div>
+                      <CardDescription>{course.teacher}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-4 flex-grow flex items-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-0 h-auto text-primary hover:text-primary/80 hover:bg-transparent"
+                        onClick={() => setViewingCourse(course)}
+                      >
+                        <BookOpen className="h-3.5 w-3.5 mr-1" />
+                        {t("student.courses.viewDescription")}
+                      </Button>
+                    </CardContent>
+                    <CardFooter className="pt-0 flex justify-between items-center">
+                      {!isApproved && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`course-${course.id}`}
+                            checked={isSelected}
+                            onCheckedChange={() => toggleCourseSelection(course.id)}
+                            disabled={isDisabled || isApproved || courseData.status === "draft"}
+                          />
+                          <label
+                            htmlFor={`course-${course.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            {isSelected ? t("student.courses.selected") : t("student.courses.select")}
+                          </label>
+                        </div>
+                      )}
+                    </CardFooter>
+                  </Card>
+                )
+              })}
+            </div>
+
+            {!courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED) && (
+              <div className="flex justify-end">
+                <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      disabled={
+                        selectedCourses.length === 0 ||
+                        selectedCourses.length > courseData.max_selections ||
+                        courseData.status === "draft" ||
+                        !uploadedStatement
+                      }
+                      className="px-8"
+                      onClick={() => {
+                        if (selectedCourses.length > 0 && !uploadedStatement) {
+                          toast({
+                            title: "Statement required",
+                            description: "Please upload your signed statement before confirming your selection.",
+                            variant: "destructive",
+                          })
+                        }
+                      }}
+                    >
+                      {courseData.selected_courses.length > 0
+                        ? t("student.courses.updateSelection")
+                        : t("student.courses.confirmSelection")}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{t("student.courses.confirmYourSelection")}</DialogTitle>
+                      <DialogDescription>{t("student.courses.reviewSelection")}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
+                        <ul className="space-y-2">
+                          {selectedCourses.map((courseId) => {
+                            const course = courseData.courses.find((c) => c.id === courseId)
+                            return (
+                              <li key={courseId} className="text-sm flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                {course?.name}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+
+                      {/* Statement Information */}
+                      <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-2">Statement:</h4>
+                        <div className="flex items-center gap-2 text-sm">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span>
+                            {uploadedStatement?.name} ({Math.round(uploadedStatement?.size / 1024)} KB)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="student-name">
+                          {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
+                        </Label>
+                        <Input
+                          id="student-name"
+                          value={studentName}
+                          onChange={(e) => setStudentName(e.target.value)}
+                          placeholder={t("student.courses.enterFullName")}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !uploadedStatement}>
+                        {submitting ? t("student.courses.submitting") : t("student.courses.submitSelection")}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+
+            {/* Course Description Dialog */}
+            <Dialog open={!!viewingCourse} onOpenChange={(open) => !open && setViewingCourse(null)}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{viewingCourse?.name}</DialogTitle>
+                  <DialogDescription>{viewingCourse?.teacher}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="student-name">
-                      {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
-                    </Label>
-                    <Input
-                      id="student-name"
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      placeholder={t("student.courses.enterFullName")}
-                    />
+                    <h4 className="text-sm font-medium">{t("student.courses.courseDescription")}</h4>
+                    <p className="text-sm text-muted-foreground">{viewingCourse?.description}</p>
                   </div>
+                  {selectedCourses.includes(viewingCourse?.id) && (
+                    <div className="flex justify-end">
+                      <Badge
+                        variant="outline"
+                        className={
+                          viewingCourse?.selection_status === SelectionStatus.APPROVED
+                            ? "bg-green-100/50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
+                            : viewingCourse?.selection_status === SelectionStatus.PENDING
+                              ? "bg-yellow-100/50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800"
+                              : "bg-primary/10"
+                        }
+                      >
+                        {t("student.courses.selected")}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleSubmit} disabled={!studentName.trim() || submitting || !uploadedStatement}>
-                    {submitting ? t("student.courses.submitting") : t("student.courses.submitSelection")}
+                  <Button variant="outline" onClick={() => setViewingCourse(null)}>
+                    {t("student.courses.close")}
                   </Button>
+                  {!courseData.selected_courses.some((sc) => sc.status === SelectionStatus.APPROVED) &&
+                    courseData.status !== "draft" && (
+                      <Button
+                        onClick={() => {
+                          toggleCourseSelection(viewingCourse.id)
+                          setViewingCourse(null)
+                        }}
+                        disabled={
+                          !viewingCourse ||
+                          (!selectedCourses.includes(viewingCourse.id) &&
+                            selectedCourses.length >= courseData.max_selections)
+                        }
+                      >
+                        {selectedCourses.includes(viewingCourse?.id)
+                          ? t("student.courses.removeSelection")
+                          : t("student.courses.selectCourse")}
+                      </Button>
+                    )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </>
+        ) : (
+          <div className="text-center py-10">
+            <h3 className="text-lg font-medium">Course not found</h3>
+            <p className="text-muted-foreground mt-2">The requested elective course could not be found.</p>
           </div>
         )}
-
-        {/* Course Description Dialog */}
-        <Dialog open={!!viewingCourse} onOpenChange={(open) => !open && setViewingCourse(null)}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{viewingCourse?.name}</DialogTitle>
-              <DialogDescription>{viewingCourse?.teacher}</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("student.courses.courseDescription")}</h4>
-                <p className="text-sm text-muted-foreground">{viewingCourse?.description}</p>
-              </div>
-              {selectedCourses.includes(viewingCourse?.id) && (
-                <div className="flex justify-end">
-                  <Badge
-                    variant="outline"
-                    className={
-                      existingSelection?.status === SelectionStatus.APPROVED
-                        ? "bg-green-100/50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
-                        : existingSelection?.status === SelectionStatus.PENDING
-                          ? "bg-yellow-100/50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800"
-                          : "bg-primary/10"
-                    }
-                  >
-                    {t("student.courses.selected")}
-                  </Badge>
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setViewingCourse(null)}>
-                {t("student.courses.close")}
-              </Button>
-              {!existingSelection?.status === SelectionStatus.APPROVED && electiveData.status !== "draft" && (
-                <Button
-                  onClick={() => {
-                    toggleCourseSelection(viewingCourse.id)
-                    setViewingCourse(null)
-                  }}
-                  disabled={
-                    !viewingCourse ||
-                    (!selectedCourses.includes(viewingCourse.id) &&
-                      selectedCourses.length >= electiveData.maxSelections)
-                  }
-                >
-                  {selectedCourses.includes(viewingCourse?.id)
-                    ? t("student.courses.removeSelection")
-                    : t("student.courses.selectCourse")}
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   )
