@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, type Semester, type SelectionStatus, type FormattedElectiveCourse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -13,39 +13,43 @@ import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useDataCache } from "@/lib/data-cache-context"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatDate } from "@/lib/utils"
+
+// Helper function to format date
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A"
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  } catch (error) {
+    console.error("Invalid date:", dateString)
+    return "Invalid date"
+  }
+}
 
 export default function ElectivesPage() {
   const { t } = useLanguage()
   const [electiveCourses, setElectiveCourses] = useState<FormattedElectiveCourse[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [institutionId, setInstitutionId] = useState<string | null>(null)
   const { toast } = useToast()
   const { getCachedData, setCachedData } = useDataCache()
   const supabase = getSupabaseBrowserClient()
 
+  // Get user and institution ID once
   useEffect(() => {
-    const fetchElectiveCourses = async () => {
-      setIsLoading(true)
-
+    const getCurrentUser = async () => {
       try {
-        // Try to get data from cache first
-        const cachedData = getCachedData<FormattedElectiveCourse[]>("studentElectiveCourses", "current")
-
-        if (cachedData) {
-          console.log("Using cached elective courses data")
-          setElectiveCourses(cachedData)
-          setIsLoading(false)
-          return
-        }
-
-        // Get the current user's institution_id
         const {
           data: { user },
         } = await supabase.auth.getUser()
 
         if (!user) {
-          throw new Error("User not authenticated")
+          console.log("No authenticated user found")
+          return
         }
+
+        setUserId(user.id)
 
         // Get the student profile to get institution_id from the profiles table
         const { data: studentProfile, error: profileError } = await supabase
@@ -55,95 +59,137 @@ export default function ElectivesPage() {
           .single()
 
         if (profileError) {
-          throw profileError
+          console.error("Error fetching profile:", profileError)
+          return
         }
 
-        // Fetch elective courses for this institution
-        const { data: electiveCoursesData, error: electiveCoursesError } = await supabase
-          .from("elective_courses")
-          .select(`
-            id, 
-            name, 
-            name_ru,
-            semester,
-            academic_year,
-            status,
-            deadline,
-            max_selections,
-            syllabus_template_url,
-            courses,
-            institution_id,
-            created_at,
-            updated_at
-          `)
-          .eq("institution_id", studentProfile.institution_id)
-          .order("academic_year", { ascending: false })
-          .order("semester", { ascending: true })
-
-        if (electiveCoursesError) {
-          throw electiveCoursesError
+        if (studentProfile?.institution_id) {
+          setInstitutionId(studentProfile.institution_id)
         }
-
-        // Get student selections for these elective courses from course_selections table
-        const { data: studentSelections, error: selectionsError } = await supabase
-          .from("course_selections")
-          .select("elective_courses_id, status, statement_url")
-          .eq("student_id", user.id)
-          .eq("institution_id", studentProfile.institution_id)
-
-        if (selectionsError) {
-          throw selectionsError
-        }
-
-        // Process and format the data
-        const formattedData = electiveCoursesData.map((course) => {
-          // Find selections for this course
-          const courseSelections =
-            studentSelections?.filter((selection) => selection.elective_courses_id === course.id) || []
-
-          // Calculate if the course has available spaces
-          const hasAvailableSpaces = course.status === "published"
-
-          // Get statement URL if available
-          const statementUrl = courseSelections.length > 0 ? courseSelections[0].statement_url : null
-
-          return {
-            id: course.id,
-            name: course.name,
-            name_ru: course.name_ru,
-            semester: course.semester as Semester,
-            academic_year: course.academic_year,
-            deadline: course.deadline,
-            max_selections: course.max_selections,
-            syllabus_template_url: course.syllabus_template_url,
-            status: course.status,
-            course_count: Array.isArray(course.courses) ? course.courses.length : 0,
-            available_spaces: hasAvailableSpaces,
-            selected: courseSelections.length > 0,
-            selection_status: courseSelections.length > 0 ? (courseSelections[0].status as SelectionStatus) : null,
-            selected_count: courseSelections.length,
-            statement_url: statementUrl,
-          }
-        })
-
-        // Save to cache
-        setCachedData("studentElectiveCourses", "current", formattedData)
-
-        setElectiveCourses(formattedData)
-      } catch (error: any) {
-        console.error("Error fetching elective courses:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load elective courses. Please try again later.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
+      } catch (error) {
+        console.error("Error getting current user:", error)
       }
     }
 
-    fetchElectiveCourses()
-  }, [supabase, toast, getCachedData, setCachedData])
+    getCurrentUser()
+  }, [supabase])
+
+  // Fetch elective courses only when userId and institutionId are available
+  const fetchElectiveCourses = useCallback(async () => {
+    if (!userId || !institutionId) return
+
+    setIsLoading(true)
+
+    try {
+      // Try to get data from cache first
+      const cacheKey = `studentElectiveCourses-${institutionId}`
+      const cachedData = getCachedData<FormattedElectiveCourse[]>(cacheKey, userId)
+
+      if (cachedData) {
+        console.log("Using cached elective courses data")
+        setElectiveCourses(cachedData)
+        setIsLoading(false)
+        return
+      }
+
+      console.log("Fetching elective courses from database")
+
+      // Fetch elective courses for this institution
+      const { data: electiveCoursesData, error: electiveCoursesError } = await supabase
+        .from("elective_courses")
+        .select(`
+          id, 
+          name, 
+          name_ru,
+          semester,
+          academic_year,
+          status,
+          deadline,
+          max_selections,
+          syllabus_template_url,
+          courses,
+          institution_id,
+          created_at,
+          updated_at
+        `)
+        .eq("institution_id", institutionId)
+        .order("academic_year", { ascending: false })
+        .order("semester", { ascending: true })
+
+      if (electiveCoursesError) {
+        throw electiveCoursesError
+      }
+
+      console.log("Fetched elective courses:", electiveCoursesData?.length || 0)
+
+      // Get student selections for these elective courses from course_selections table
+      const { data: studentSelections, error: selectionsError } = await supabase
+        .from("course_selections")
+        .select("elective_courses_id, status, statement_url")
+        .eq("student_id", userId)
+        .eq("institution_id", institutionId)
+
+      if (selectionsError) {
+        throw selectionsError
+      }
+
+      console.log("Fetched student selections:", studentSelections?.length || 0)
+
+      // Process and format the data
+      const formattedData = electiveCoursesData.map((course) => {
+        // Find selections for this course
+        const courseSelections =
+          studentSelections?.filter((selection) => selection.elective_courses_id === course.id) || []
+
+        // Calculate if the course has available spaces
+        const hasAvailableSpaces = course.status === "published"
+
+        // Get statement URL if available
+        const statementUrl = courseSelections.length > 0 ? courseSelections[0].statement_url : null
+
+        return {
+          id: course.id,
+          name: course.name || `${course.semester} ${course.academic_year}`,
+          name_ru: course.name_ru,
+          semester: course.semester as Semester,
+          academic_year: course.academic_year,
+          deadline: course.deadline,
+          max_selections: course.max_selections || 1,
+          syllabus_template_url: course.syllabus_template_url,
+          status: course.status || "draft",
+          course_count: Array.isArray(course.courses) ? course.courses.length : 0,
+          available_spaces: hasAvailableSpaces,
+          selected: courseSelections.length > 0,
+          selection_status: courseSelections.length > 0 ? (courseSelections[0].status as SelectionStatus) : null,
+          selected_count: courseSelections.length,
+          statement_url: statementUrl,
+        }
+      })
+
+      console.log("Formatted data:", formattedData.length)
+
+      // Save to cache
+      setCachedData(cacheKey, userId, formattedData)
+
+      setElectiveCourses(formattedData)
+    } catch (error: any) {
+      console.error("Error fetching elective courses:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load elective courses. Please try again later.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [userId, institutionId, supabase, toast, getCachedData, setCachedData])
+
+  // Only fetch data when userId and institutionId are available
+  useEffect(() => {
+    if (userId && institutionId) {
+      fetchElectiveCourses()
+    }
+  }, [userId, institutionId, fetchElectiveCourses])
 
   // Helper function to get status color
   const getStatusColor = (status: string | null) => {
