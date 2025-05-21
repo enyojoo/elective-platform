@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus } from "lucide-react"
+import { Search, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -16,6 +16,15 @@ import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { formatDate } from "@/lib/utils"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // Cache constants
 const CACHE_KEY = "admin_exchange_programs"
@@ -46,6 +55,9 @@ export default function ExchangeElectivesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [packToDelete, setPackToDelete] = useState<string | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
@@ -87,6 +99,17 @@ export default function ExchangeElectivesPage() {
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData))
     } catch (error) {
       console.error("Error setting cached data:", error)
+    }
+  }
+
+  // Function to clear cache
+  const clearCache = () => {
+    if (typeof window === "undefined") return
+
+    try {
+      localStorage.removeItem(CACHE_KEY)
+    } catch (error) {
+      console.error("Error clearing cache:", error)
     }
   }
 
@@ -217,6 +240,96 @@ export default function ExchangeElectivesPage() {
     }
   }
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase.from("elective_exchange").update({ status: newStatus }).eq("id", id)
+
+      if (error) throw error
+
+      // Update local state
+      const updatedPacks = electivePacks.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack))
+
+      setElectivePacks(updatedPacks)
+
+      // Update cache
+      clearCache()
+      setCachedData(updatedPacks)
+
+      toast({
+        title: t("admin.electives.success", "Success"),
+        description: t("admin.electives.statusUpdated", "Status updated successfully"),
+      })
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast({
+        title: t("admin.electives.error", "Error"),
+        description: t("admin.electives.errorUpdatingStatus", "Failed to update status"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  const openDeleteDialog = (id: string) => {
+    setPackToDelete(id)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!packToDelete) return
+
+    try {
+      setIsDeleting(true)
+
+      // First check if there are any student selections associated with this pack
+      const { count, error: countError } = await supabase
+        .from("student_exchange_selections")
+        .select("*", { count: "exact", head: true })
+        .eq("exchange_pack_id", packToDelete)
+
+      if (countError) throw countError
+
+      if (count && count > 0) {
+        toast({
+          title: t("admin.electives.error", "Error"),
+          description: t(
+            "admin.electives.cannotDeleteWithSelections",
+            "Cannot delete exchange program with student selections",
+          ),
+          variant: "destructive",
+        })
+        return
+      }
+
+      const { error } = await supabase.from("elective_exchange").delete().eq("id", packToDelete)
+
+      if (error) throw error
+
+      // Update local state
+      const updatedPacks = electivePacks.filter((pack) => pack.id !== packToDelete)
+      setElectivePacks(updatedPacks)
+
+      // Update cache
+      clearCache()
+      setCachedData(updatedPacks)
+
+      toast({
+        title: t("admin.electives.success", "Success"),
+        description: t("admin.electives.deleted", "Exchange program deleted successfully"),
+      })
+    } catch (error) {
+      console.error("Error deleting exchange program:", error)
+      toast({
+        title: t("admin.electives.error", "Error"),
+        description: t("admin.electives.errorDeleting", "Failed to delete exchange program"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setIsDeleteDialogOpen(false)
+      setPackToDelete(null)
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -229,12 +342,6 @@ export default function ExchangeElectivesPage() {
               {t("admin.electives.subtitle", "Manage exchange programs for student mobility")}
             </p>
           </div>
-          <Link href="/admin/electives/exchange/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("manager.electives.addExchange", "Add Exchange")}
-            </Button>
-          </Link>
         </div>
 
         <Card>
@@ -277,7 +384,7 @@ export default function ExchangeElectivesPage() {
                       <TableHead>{t("manager.electives.universities", "Universities")}</TableHead>
                       <TableHead>{t("manager.electives.status", "Status")}</TableHead>
                       <TableHead>{t("manager.electives.createdBy", "Created by")}</TableHead>
-                      <TableHead className="text-right">{t("manager.electives.action", "Action")}</TableHead>
+                      <TableHead className="text-right w-[100px]">{t("manager.electives.action", "Action")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -300,11 +407,34 @@ export default function ExchangeElectivesPage() {
                             <span className="text-muted-foreground">{pack.creator_name || "Admin"}</span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Link href={`/admin/electives/exchange/${pack.id}`}>
-                              <Button variant="outline" size="sm">
-                                {t("manager.electives.viewDetails", "View Details")}
-                              </Button>
-                            </Link>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">{t("common.openMenu", "Open menu")}</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/admin/electives/exchange/${pack.id}`}>{t("common.view", "View")}</Link>
+                                </DropdownMenuItem>
+                                {pack.status === "published" ? (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "closed")}>
+                                    {t("common.deactivate", "Deactivate")}
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
+                                    {t("common.activate", "Activate")}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={() => openDeleteDialog(pack.id)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  {t("common.delete", "Delete")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))
@@ -322,6 +452,29 @@ export default function ExchangeElectivesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("admin.electives.confirmDelete", "Confirm Deletion")}</DialogTitle>
+            <DialogDescription>
+              {t(
+                "admin.electives.deleteWarning",
+                "Are you sure you want to delete this exchange program? This action cannot be undone.",
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              {t("common.cancel", "Cancel")}
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? t("common.deleting", "Deleting...") : t("common.delete", "Delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

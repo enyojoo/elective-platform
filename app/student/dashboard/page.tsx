@@ -51,14 +51,10 @@ export default function StudentDashboard() {
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
-    if (!isSubdomainAccess && typeof window !== "undefined") {
-      // Only redirect if we're in the browser and confirmed no subdomain
-      console.log("No subdomain access detected, redirecting to institution-required")
-      const mainDomain = window.location.hostname.includes("localhost") ? "localhost:3000" : "app.electivepro.net"
-      const protocol = window.location.protocol
-      window.location.href = `${protocol}//${mainDomain}/institution-required`
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
     }
-  }, [isSubdomainAccess])
+  }, [isSubdomainAccess, router])
 
   // Mock upcoming deadlines
   const upcomingDeadlines = [
