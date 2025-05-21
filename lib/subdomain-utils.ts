@@ -27,30 +27,49 @@ export function getInstitutionUrl(subdomain: string): string {
   }
 }
 
+// CRITICAL FIX: Add retry logic and better error handling
 export async function isValidSubdomain(subdomain: string, supabase: any): Promise<boolean> {
   if (!subdomain || subdomain.trim() === "") {
     console.log("Invalid subdomain: empty or null")
     return false
   }
 
-  try {
-    console.log(`Checking validity of subdomain: ${subdomain}`)
-    const { data, error } = await supabase
-      .from("institutions")
-      .select("id")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .single()
+  // Try up to 3 times with exponential backoff
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`Checking validity of subdomain (attempt ${attempt}): ${subdomain}`)
+      const { data, error } = await supabase
+        .from("institutions")
+        .select("id")
+        .eq("subdomain", subdomain)
+        .eq("is_active", true)
+        .single()
 
-    if (error) {
-      console.error(`Error checking subdomain ${subdomain}:`, error.message)
-      return false
+      if (error) {
+        console.error(`Error checking subdomain ${subdomain} (attempt ${attempt}):`, error.message)
+
+        // If it's the last attempt, return false
+        if (attempt === 3) return false
+
+        // Otherwise wait and retry
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+        continue
+      }
+
+      const isValid = !!data
+      console.log(`Subdomain ${subdomain} validity result (attempt ${attempt}):`, isValid)
+      return isValid
+    } catch (error) {
+      console.error(`Error checking subdomain validity (attempt ${attempt}):`, error)
+
+      // If it's the last attempt, return false
+      if (attempt === 3) return false
+
+      // Otherwise wait and retry
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
     }
-
-    console.log(`Subdomain ${subdomain} validity result:`, !!data)
-    return !!data
-  } catch (error) {
-    console.error("Error checking subdomain validity:", error)
-    return false
   }
+
+  // If we get here, all attempts failed
+  return false
 }

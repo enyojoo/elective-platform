@@ -81,137 +81,79 @@ export async function middleware(req: NextRequest) {
     console.log(`Middleware: Processing subdomain: ${subdomain}`)
 
     try {
-      // Check if this is a dashboard page reload - we'll be more lenient
-      const isDashboardPage = path.includes("/dashboard") || path.endsWith("/student") || path.endsWith("/manager")
-
-      // Use our special API endpoint to check the subdomain
-      let apiUrl
-      if (isDevelopment) {
-        apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
-      } else {
-        // In production, use the full URL to avoid cross-origin issues
-        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
-      }
-
-      console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
-
-      // Set a longer timeout for dashboard pages to prevent premature failures
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), isDashboardPage ? 5000 : 3000)
-
-      const response = await fetch(apiUrl, {
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeoutId))
-
-      if (!response.ok) {
-        console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
-
-        // For dashboard pages, we'll be more lenient and allow the request to proceed
-        // This prevents redirects on page reloads when the API might be slow
-        if (isDashboardPage) {
-          console.log(`Middleware: Allowing dashboard page despite API error: ${path}`)
-          const requestHeaders = new Headers(req.headers)
-          requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          })
-        }
-
-        // For non-dashboard pages, redirect to institution required page on MAIN domain
-        if (isDevelopment) {
-          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-        } else {
-          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-        }
-      }
-
-      const data = await response.json()
-
-      if (!data.exists) {
-        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main domain institution-required`)
-
-        // For dashboard pages, we'll log but still allow the request if it's a reload
-        if (isDashboardPage && req.headers.get("sec-fetch-mode") === "navigate") {
-          console.log(`Middleware: Allowing dashboard page despite invalid subdomain (likely a reload): ${path}`)
-          const requestHeaders = new Headers(req.headers)
-          requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          })
-        }
-
-        // Redirect to institution required page on MAIN domain
-        if (isDevelopment) {
-          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-        } else {
-          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-        }
-      }
-
-      // Valid subdomain - allow access and add institution info to headers
-      console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
-      const requestHeaders = new Headers(req.headers)
-      requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-      // Only set these headers if we have the data
-      if (data.institution) {
-        if (data.institution.id) {
-          requestHeaders.set("x-institution-id", data.institution.id)
-        }
-        if (data.institution.name) {
-          requestHeaders.set("x-institution-name", data.institution.name)
-        }
-        if (data.institution.favicon_url) {
-          requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
-        }
-        if (data.institution.primary_color) {
-          requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
-        }
-      }
-
-      requestHeaders.set("x-url", req.url)
-
-      // If accessing the root of a subdomain, redirect to student login
-      if (path === "/") {
-        return NextResponse.redirect(new URL("/student/login", req.url))
-      }
-
-      // Redirect /student to /student/login on subdomains
-      if (path === "/student") {
-        return NextResponse.redirect(new URL("/student/login", req.url))
-      }
-
-      // Redirect /manager to /manager/login on subdomains
-      if (path === "/manager") {
-        return NextResponse.redirect(new URL("/manager/login", req.url))
-      }
-
-      // IMPORTANT: Return next response with the updated headers
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      })
-    } catch (err) {
-      console.error("Middleware: Error in subdomain processing:", err)
-
-      // For dashboard pages, we'll be more lenient and allow the request to proceed
-      // This prevents redirects on page reloads when there are temporary errors
-      if (path.includes("/dashboard") || path.endsWith("/student") || path.endsWith("/manager")) {
-        console.log(`Middleware: Allowing dashboard page despite error: ${path}`)
+      // CRITICAL FIX: Always allow access to API routes on subdomains
+      if (path.startsWith("/api/")) {
+        console.log(`Middleware: Allowing API access on subdomain: ${path}`)
         const requestHeaders = new Headers(req.headers)
         requestHeaders.set("x-electivepro-subdomain", subdomain)
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      }
+
+      // CRITICAL FIX: Always allow access to static assets
+      if (path.startsWith("/_next/") || path.includes(".") || path.startsWith("/images/")) {
+        console.log(`Middleware: Allowing static asset access on subdomain: ${path}`)
+        return NextResponse.next()
+      }
+
+      // CRITICAL FIX: Check if this is a page that should always be allowed
+      // This includes dashboard pages, login pages, and other critical paths
+      const criticalPaths = [
+        "/dashboard",
+        "/student/login",
+        "/student/dashboard",
+        "/manager/login",
+        "/manager/dashboard",
+      ]
+
+      const isCriticalPath = criticalPaths.some((criticalPath) => path.includes(criticalPath))
+
+      if (isCriticalPath) {
+        console.log(`Middleware: Critical path detected, bypassing validation: ${path}`)
+        const requestHeaders = new Headers(req.headers)
+        requestHeaders.set("x-electivepro-subdomain", subdomain)
+
+        // Try to get institution info but don't block if it fails
+        try {
+          let apiUrl
+          if (isDevelopment) {
+            apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
+          } else {
+            apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
+          }
+
+          const response = await fetch(apiUrl, {
+            headers: {
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+              Expires: "0",
+            },
+            signal: AbortSignal.timeout(2000), // 2 second timeout for critical paths
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.institution) {
+              if (data.institution.id) {
+                requestHeaders.set("x-institution-id", data.institution.id)
+              }
+              if (data.institution.name) {
+                requestHeaders.set("x-institution-name", data.institution.name)
+              }
+              if (data.institution.favicon_url) {
+                requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
+              }
+              if (data.institution.primary_color) {
+                requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Middleware: Non-blocking error fetching institution data:", err)
+        }
 
         return NextResponse.next({
           request: {
@@ -220,12 +162,129 @@ export async function middleware(req: NextRequest) {
         })
       }
 
-      // Redirect to institution required page on MAIN domain
+      // For non-critical paths, validate the subdomain
+      let apiUrl
       if (isDevelopment) {
-        return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+        apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
       } else {
-        return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
       }
+
+      console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
+
+      // CRITICAL FIX: Increase timeout and add better error handling
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+
+      try {
+        const response = await fetch(apiUrl, {
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId))
+
+        // CRITICAL FIX: If API call fails, assume subdomain is valid to prevent false negatives
+        if (!response.ok) {
+          console.error(`Middleware: API error for subdomain ${subdomain}, assuming valid:`, response.status)
+          const requestHeaders = new Headers(req.headers)
+          requestHeaders.set("x-electivepro-subdomain", subdomain)
+          requestHeaders.set("x-url", req.url)
+
+          return NextResponse.next({
+            request: {
+              headers: requestHeaders,
+            },
+          })
+        }
+
+        const data = await response.json()
+
+        // Only redirect if we're 100% sure the subdomain is invalid
+        if (data.exists === false) {
+          console.log(
+            `Middleware: Confirmed invalid subdomain: ${subdomain}, redirecting to main domain institution-required`,
+          )
+
+          // Redirect to institution required page on MAIN domain
+          if (isDevelopment) {
+            return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+          } else {
+            return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+          }
+        }
+
+        // Valid subdomain - allow access and add institution info to headers
+        console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
+        const requestHeaders = new Headers(req.headers)
+        requestHeaders.set("x-electivepro-subdomain", subdomain)
+
+        // Only set these headers if we have the data
+        if (data.institution) {
+          if (data.institution.id) {
+            requestHeaders.set("x-institution-id", data.institution.id)
+          }
+          if (data.institution.name) {
+            requestHeaders.set("x-institution-name", data.institution.name)
+          }
+          if (data.institution.favicon_url) {
+            requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
+          }
+          if (data.institution.primary_color) {
+            requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
+          }
+        }
+
+        requestHeaders.set("x-url", req.url)
+
+        // If accessing the root of a subdomain, redirect to student login
+        if (path === "/") {
+          return NextResponse.redirect(new URL("/student/login", req.url))
+        }
+
+        // Redirect /student to /student/login on subdomains
+        if (path === "/student") {
+          return NextResponse.redirect(new URL("/student/login", req.url))
+        }
+
+        // Redirect /manager to /manager/login on subdomains
+        if (path === "/manager") {
+          return NextResponse.redirect(new URL("/manager/login", req.url))
+        }
+
+        // IMPORTANT: Return next response with the updated headers
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      } catch (err) {
+        // CRITICAL FIX: If fetch fails, assume subdomain is valid
+        console.error("Middleware: Error in subdomain API call:", err)
+        const requestHeaders = new Headers(req.headers)
+        requestHeaders.set("x-electivepro-subdomain", subdomain)
+        requestHeaders.set("x-url", req.url)
+
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      }
+    } catch (err) {
+      // CRITICAL FIX: If overall processing fails, assume subdomain is valid
+      console.error("Middleware: Critical error in subdomain processing:", err)
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.set("x-electivepro-subdomain", subdomain)
+      requestHeaders.set("x-url", req.url)
+
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      })
     }
   }
 
