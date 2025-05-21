@@ -2,63 +2,54 @@ import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 
 export async function GET(request: Request, { params }: { params: { subdomain: string } }) {
-  const subdomain = params.subdomain
+  const { subdomain } = params
 
-  if (!subdomain) {
-    return NextResponse.json({ error: "Subdomain is required" }, { status: 400 })
+  console.log(`API: Checking subdomain validity: ${subdomain}`)
+
+  if (!subdomain || subdomain.trim() === "") {
+    console.log("API: Invalid subdomain request - empty or null")
+    return NextResponse.json({ exists: false }, { status: 400 })
   }
 
-  console.log(`API: Validating subdomain: ${subdomain}`)
-
   try {
+    // First try to get from cache to speed up response
+    const cacheKey = `subdomain:${subdomain}`
+    const cachedResult = sessionStorage?.getItem(cacheKey)
+
+    if (cachedResult) {
+      console.log(`API: Using cached result for subdomain: ${subdomain}`)
+      return NextResponse.json(JSON.parse(cachedResult))
+    }
+
     // Query the database for the institution with this subdomain
     const { data, error } = await supabase
       .from("institutions")
-      .select("id, name, subdomain, is_active, logo_url, favicon_url, primary_color")
+      .select("id, name, primary_color, favicon_url")
       .eq("subdomain", subdomain)
       .eq("is_active", true)
       .single()
 
     if (error) {
-      // Check if it's a "not found" error (PGRST116)
-      if (error.code === "PGRST116") {
-        // Subdomain is available (not found in database)
-        return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
-      }
-
-      console.error("API: Error fetching institution by subdomain:", error)
-      return NextResponse.json({ error: "Error checking subdomain" }, { status: 500 })
+      console.error(`API: Error checking subdomain ${subdomain}:`, error.message)
+      return NextResponse.json({ exists: false, error: error.message }, { status: 500 })
     }
 
-    if (!data) {
-      // Subdomain is available (not found in database)
-      return NextResponse.json({ exists: false, message: "Subdomain available" }, { status: 404 })
+    const result = {
+      exists: !!data,
+      institution: data || null,
     }
 
-    // Subdomain exists and is in use
-    const institution = {
-      id: data.id,
-      name: data.name,
-      subdomain: data.subdomain,
-      logo_url: data.logo_url,
-      favicon_url: data.favicon_url,
-      primary_color: data.primary_color,
+    // Cache the result for 5 minutes
+    try {
+      sessionStorage?.setItem(cacheKey, JSON.stringify(result))
+    } catch (e) {
+      console.error("API: Error caching subdomain result:", e)
     }
 
-    console.log(`API: Subdomain validation result:`, { exists: !!institution, institution })
-    return NextResponse.json({
-      exists: true,
-      institution: {
-        id: data.id,
-        name: data.name,
-        subdomain: data.subdomain,
-        logo_url: data.logo_url,
-        favicon_url: data.favicon_url,
-        primary_color: data.primary_color,
-      },
-    })
+    console.log(`API: Subdomain ${subdomain} validity result:`, result.exists)
+    return NextResponse.json(result)
   } catch (error) {
-    console.error(`API: Error validating subdomain ${subdomain}:`, error)
-    return NextResponse.json({ exists: false, error: "Internal server error" }, { status: 500 })
+    console.error(`API: Unexpected error checking subdomain ${subdomain}:`, error)
+    return NextResponse.json({ exists: false, error: "Server error" }, { status: 500 })
   }
 }
