@@ -369,7 +369,7 @@ export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourse
   // Function to export all student selections to CSV
   const exportAllSelectionsToCSV = () => {
     // Create CSV header with translated column names
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Эле��тронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"},${language === "ru" ? "Заявление" : "Statement"}\n`
+    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"},${language === "ru" ? "Заявление" : "Statement"}\n`
 
     // Create CSV content with translated status
     const allSelectionsContent = studentSelections
