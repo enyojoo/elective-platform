@@ -1,132 +1,84 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { useState, useEffect } from "react"
+import { useDataCache } from "@/lib/data-cache-context" // Corrected import path
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-
-// Cache constants
-const CACHE_KEY = "managerProfile"
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
-
-// Cache helper functions
-const getCachedData = (userId: string): any | null => {
-  if (typeof window === "undefined") return null
-
-  try {
-    const cachedData = localStorage.getItem(`${CACHE_KEY}_${userId}`)
-    if (!cachedData) return null
-
-    const parsed = JSON.parse(cachedData)
-
-    // Check if cache is expired
-    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(`${CACHE_KEY}_${userId}`)
-      return null
-    }
-
-    return parsed.data
-  } catch (error) {
-    console.error(`Error reading from cache (${CACHE_KEY}):`, error)
-    return null
-  }
-}
-
-const setCachedData = (userId: string, data: any) => {
-  if (typeof window === "undefined") return
-
-  try {
-    const cacheData = {
-      data,
-      timestamp: Date.now(),
-    }
-    localStorage.setItem(`${CACHE_KEY}_${userId}`, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error(`Error writing to cache (${CACHE_KEY}):`, error)
-  }
-}
 
 export function useCachedManagerProfile(userId: string | undefined) {
   const [profile, setProfile] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
-
-  // Use a ref to track if this is the initial mount
-  const isInitialMount = useRef(true)
-
-  // Use a ref to track the last userId we fetched for
-  const lastFetchedUserId = useRef<string | undefined>(undefined)
+  const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
-    // If no userId, we can't fetch anything
+    console.log(`useCachedManagerProfile: Hook triggered. userId: ${userId}`)
     if (!userId) {
+      console.log("useCachedManagerProfile: No userId, returning.")
       setIsLoading(false)
-      return
-    }
-
-    // If we already fetched for this userId and this isn't the initial mount, don't fetch again
-    if (lastFetchedUserId.current === userId && !isInitialMount.current) {
+      setProfile(null) // Ensure profile is null if no userId
       return
     }
 
     const fetchProfile = async () => {
       setIsLoading(true)
       setError(null)
+      console.log(`useCachedManagerProfile: Starting fetch for userId: ${userId}`)
 
+      // Try to get data from cache first
+      const cacheKey = "managerProfile" // Explicitly define cache key
+      const cachedProfile = getCachedData<any>(cacheKey, userId)
+
+      if (cachedProfile) {
+        console.log(`useCachedManagerProfile: Using cached data for ${cacheKey} with id ${userId}`)
+        setProfile(cachedProfile)
+        setIsLoading(false)
+        return
+      }
+
+      // If not in cache, fetch from API
+      console.log(`useCachedManagerProfile: Fetching fresh data for ${cacheKey} from API for userId: ${userId}`)
       try {
-        console.log(`Checking cache for manager profile: ${userId}`)
-        // Try to get data from cache first
-        const cachedProfile = getCachedData(userId)
-
-        if (cachedProfile) {
-          console.log("Using cached manager profile")
-          setProfile(cachedProfile)
-          setIsLoading(false)
-          // Update the last fetched userId
-          lastFetchedUserId.current = userId
-          return
-        }
-
-        // If not in cache, fetch from API
-        console.log("Fetching manager profile from API")
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-        // Fetch profile with related data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*, degrees(*), groups(*)")
+          .select("*, degrees:degree_id(id, name), academic_year:academic_year_id(id, year)")
           .eq("id", userId)
-          .eq("role", "program_manager")
+          .eq("role", "manager") // Ensure fetching manager role
           .single()
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error("useCachedManagerProfile: Supabase error:", profileError)
+          throw profileError
+        }
 
-        // Save to cache
-        setCachedData(userId, profileData)
-
-        // Update state
-        setProfile(profileData)
-
-        // Update the last fetched userId
-        lastFetchedUserId.current = userId
-      } catch (error: any) {
-        console.error("Error fetching manager profile:", error)
-        setError(error.message)
+        if (!profileData) {
+          console.warn(`useCachedManagerProfile: No manager profile found for userId: ${userId}`)
+          setProfile(null)
+        } else {
+          console.log("useCachedManagerProfile: Fetched profile data:", profileData)
+          setProfile(profileData)
+          // Save to cache
+          setCachedData(cacheKey, userId, profileData)
+        }
+      } catch (err: any) {
+        console.error("useCachedManagerProfile: Error fetching manager profile:", err)
+        setError(err.message)
         toast({
           title: "Error",
           description: "Failed to load manager profile",
           variant: "destructive",
         })
+        setProfile(null) // Clear profile on error
       } finally {
         setIsLoading(false)
+        console.log("useCachedManagerProfile: Fetch process finished.")
       }
     }
 
     fetchProfile()
-
-    // Mark that we're no longer on initial mount
-    isInitialMount.current = false
-  }, [userId, toast])
+  }, [userId, supabase, getCachedData, setCachedData, toast]) // Dependencies are correct
 
   return { profile, isLoading, error }
 }

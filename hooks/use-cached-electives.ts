@@ -14,59 +14,73 @@ export function useCachedElectives(institutionId: string | undefined) {
   const { toast } = useToast()
 
   useEffect(() => {
+    console.log(`useCachedElectives: Hook triggered. institutionId: ${institutionId}`)
     if (!institutionId) {
+      console.log("useCachedElectives: No institutionId, returning.")
       setIsLoading(false)
+      setElectives([]) // Ensure electives is empty if no institutionId
       return
     }
 
     const fetchElectives = async () => {
       setIsLoading(true)
       setError(null)
+      console.log(`useCachedElectives: Starting fetch for institutionId: ${institutionId}`)
 
       // Try to get data from cache first
-      const cachedElectives = getCachedData<any[]>("courseElectives", institutionId)
+      const cacheKey = "courseElectives" // Explicitly define cache key
+      const cachedElectives = getCachedData<any[]>(cacheKey, institutionId)
 
       if (cachedElectives) {
-        console.log("Using cached course electives data")
+        console.log(`useCachedElectives: Using cached data for ${cacheKey} with id ${institutionId}`)
         setElectives(cachedElectives)
         setIsLoading(false)
         return
       }
 
       // If not in cache, fetch from API
-      console.log("Fetching course electives data from API")
+      console.log(
+        `useCachedElectives: Fetching fresh data for ${cacheKey} from API for institutionId: ${institutionId}`,
+      )
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
         // Update to fetch from elective_courses table
-        const { data, error } = await supabase
+        const { data, error: dbError } = await supabase
           .from("elective_courses")
-          .select("*, programs(name, code)")
+          .select("*, programs:program_id(name, code)") // Assuming program_id is the foreign key in elective_courses
           .eq("institution_id", institutionId)
 
-        if (error) throw error
+        if (dbError) {
+          console.error("useCachedElectives: Supabase error:", dbError)
+          throw dbError
+        }
+        console.log("useCachedElectives: Fetched data:", data)
 
         // Add course_count based on courses array
-        const formattedData = data.map((item) => ({
+        const formattedData = (data || []).map((item) => ({
           ...item,
           course_count: item.courses && Array.isArray(item.courses) ? item.courses.length : 0,
         }))
+        console.log("useCachedElectives: Formatted data:", formattedData)
 
         // Save to cache
-        setCachedData("courseElectives", institutionId, formattedData)
+        setCachedData(cacheKey, institutionId, formattedData)
 
         // Update state
         setElectives(formattedData)
-      } catch (error: any) {
-        console.error("Error fetching course electives:", error)
-        setError(error.message)
+      } catch (err: any) {
+        console.error("useCachedElectives: Error fetching course electives:", err)
+        setError(err.message)
         toast({
           title: "Error",
           description: "Failed to load course electives data",
           variant: "destructive",
         })
+        setElectives([]) // Clear data on error
       } finally {
         setIsLoading(false)
+        console.log("useCachedElectives: Fetch process finished.")
       }
     }
 
