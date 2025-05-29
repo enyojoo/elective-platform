@@ -110,6 +110,7 @@ export default function ManagerDashboard() {
         }
         if (data?.user) {
           const newUserId = data.user.id
+          console.log("Fetched user ID:", newUserId)
           setUserId(newUserId)
           // Cache the userId
           setCachedData(USER_ID_CACHE_KEY, newUserId)
@@ -127,7 +128,17 @@ export default function ManagerDashboard() {
   }, [supabase, router, userId]) // Added userId to dependency array
 
   // Fetch manager profile using the cached hook
-  const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
+  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedManagerProfile(userId)
+
+  // Log profile data for debugging
+  useEffect(() => {
+    if (profile) {
+      console.log("Manager profile loaded:", profile)
+    }
+    if (profileError) {
+      console.error("Manager profile error:", profileError)
+    }
+  }, [profile, profileError])
 
   // State for deadlines and elective counts
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
@@ -353,6 +364,11 @@ export default function ManagerDashboard() {
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-full" />
                 </div>
+              ) : profileError ? (
+                <div className="py-4 text-center text-muted-foreground">
+                  <p>Unable to load profile information</p>
+                  <p className="text-xs mt-1">{profileError}</p>
+                </div>
               ) : (
                 <dl className="space-y-2">
                   <div className="flex justify-between">
@@ -361,7 +377,7 @@ export default function ManagerDashboard() {
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("manager.dashboard.degree")}:</dt>
-                    <dd>{profile?.degrees?.name || "-"}</dd>
+                    <dd>{profile?.degrees?.name || (profile?.degree_id ? "Degree not found" : "-")}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("manager.dashboard.year")}:</dt>
@@ -370,6 +386,10 @@ export default function ManagerDashboard() {
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("manager.dashboard.email")}:</dt>
                     <dd>{profile?.email || "-"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Role:</dt>
+                    <dd>{profile?.role || "-"}</dd>
                   </div>
                 </dl>
               )}

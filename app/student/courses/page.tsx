@@ -1,78 +1,104 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, Semester } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 
+interface ElectiveCourse {
+  id: string
+  name: string
+  name_ru: string | null
+  status: string
+  deadline: string
+  max_selections: number
+  syllabus_template_url: string | null
+  courses: any[]
+  institution_id: string
+  created_at: string
+  updated_at: string
+}
+
+interface CourseSelection {
+  id: string
+  student_id: string
+  elective_courses_id: string
+  status: string
+  statement_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 export default function ElectivesPage() {
   const { t } = useLanguage()
+  const [electiveCourses, setElectiveCourses] = useState<ElectiveCourse[]>([])
+  const [courseSelections, setCourseSelections] = useState<CourseSelection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
-  // Mock electives data
-  const electivesData = [
-    {
-      id: "fall-2023",
-      name: "Fall 2023",
-      semester: Semester.FALL,
-      year: 2023,
-      maxSelections: 2,
-      status: "published",
-      startDate: "2023-08-01",
-      endDate: "2023-08-15",
-      coursesCount: 6,
-      availableSpaces: true,
-      selected: true,
-      selectionStatus: "approved",
-      selectedCount: 2,
-    },
-    {
-      id: "spring-2024",
-      name: "Spring 2024",
-      semester: Semester.SPRING,
-      year: 2024,
-      maxSelections: 3,
-      status: "published",
-      startDate: "2024-01-10",
-      endDate: "2024-01-25",
-      coursesCount: 8,
-      availableSpaces: true,
-      selected: true,
-      selectionStatus: "pending",
-      selectedCount: 1,
-    },
-    {
-      id: "fall-2024",
-      name: "Fall 2024",
-      semester: Semester.FALL,
-      year: 2024,
-      maxSelections: 2,
-      status: "published",
-      startDate: "2024-08-01",
-      endDate: "2024-08-15",
-      coursesCount: 5,
-      availableSpaces: false,
-      selected: false,
-      selectedCount: 0,
-    },
-    {
-      id: "spring-2025",
-      name: "Spring 2025",
-      semester: Semester.SPRING,
-      year: 2025,
-      maxSelections: 2,
-      status: "draft",
-      startDate: "2025-01-10",
-      endDate: "2025-01-25",
-      coursesCount: 4,
-      availableSpaces: true,
-      selected: false,
-      selectedCount: 0,
-    },
-  ]
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError("User not authenticated")
+        return
+      }
+
+      // Get user's institution
+      const { data: profile } = await supabase.from("profiles").select("institution_id").eq("id", user.id).single()
+
+      if (!profile) {
+        setError("User profile not found")
+        return
+      }
+
+      // Fetch elective courses for the institution
+      const { data: electiveCoursesData, error: electiveCoursesError } = await supabase
+        .from("elective_courses")
+        .select("*")
+        .eq("institution_id", profile.institution_id)
+        .order("created_at", { ascending: false })
+
+      if (electiveCoursesError) {
+        setError(electiveCoursesError.message)
+        return
+      }
+
+      // Fetch user's course selections
+      const { data: selectionsData, error: selectionsError } = await supabase
+        .from("course_selections")
+        .select("*")
+        .eq("student_id", user.id)
+
+      if (selectionsError) {
+        setError(selectionsError.message)
+        return
+      }
+
+      setElectiveCourses(electiveCoursesData || [])
+      setCourseSelections(selectionsData || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Helper function to format date
   const formatDate = (dateString: string) => {
@@ -87,8 +113,8 @@ export default function ElectivesPage() {
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
       case "pending":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case "none":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+      case "rejected":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
     }
@@ -101,11 +127,39 @@ export default function ElectivesPage() {
         return <CheckCircle className="h-4 w-4" />
       case "pending":
         return <Clock className="h-4 w-4" />
-      case "none":
+      case "rejected":
         return <AlertCircle className="h-4 w-4" />
       default:
         return <AlertCircle className="h-4 w-4" />
     }
+  }
+
+  // Get selection for an elective course
+  const getSelectionForElective = (electiveId: string) => {
+    return courseSelections.find((selection) => selection.elective_courses_id === electiveId)
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="text-center text-red-600">
+          <p>Error: {error}</p>
+          <Button onClick={fetchData} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -117,107 +171,114 @@ export default function ElectivesPage() {
         </div>
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-          {electivesData.map((elective) => (
-            <Card
-              key={elective.id}
-              className={`h-full transition-all hover:shadow-md ${
-                elective.selected
-                  ? elective.selectionStatus === "approved"
-                    ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
-                    : "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
-                  : ""
-              }`}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl">{elective.name}</CardTitle>
-                    {elective.selected ? (
-                      <Badge className={getStatusColor(elective.selectionStatus)} variant="secondary">
-                        <span className="flex items-center space-x-1">
-                          {getStatusIcon(elective.selectionStatus)}
-                          <span className="capitalize ml-1">{elective.selectionStatus}</span>
-                        </span>
-                      </Badge>
+          {electiveCourses.map((elective) => {
+            const selection = getSelectionForElective(elective.id)
+            const coursesArray = Array.isArray(elective.courses) ? elective.courses : []
+
+            return (
+              <Card
+                key={elective.id}
+                className={`h-full transition-all hover:shadow-md ${
+                  selection
+                    ? selection.status === "approved"
+                      ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
+                      : selection.status === "pending"
+                        ? "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
+                        : "border-red-500 bg-red-50/30 dark:bg-red-950/10"
+                    : ""
+                }`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <CardTitle className="text-xl">{elective.name}</CardTitle>
+                      {selection ? (
+                        <Badge className={getStatusColor(selection.status)} variant="secondary">
+                          <span className="flex items-center space-x-1">
+                            {getStatusIcon(selection.status)}
+                            <span className="capitalize ml-1">{selection.status}</span>
+                          </span>
+                        </Badge>
+                      ) : (
+                        <Badge className={getStatusColor("none")} variant="secondary">
+                          <span className="flex items-center space-x-1">
+                            {getStatusIcon("none")}
+                            <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
+                          </span>
+                        </Badge>
+                      )}
+                    </div>
+                    {elective.status === "draft" ? (
+                      <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
                     ) : (
-                      <Badge className={getStatusColor("none")} variant="secondary">
-                        <span className="flex items-center space-x-1">
-                          {getStatusIcon("none")}
-                          <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
-                        </span>
-                      </Badge>
+                      <Badge variant="secondary">{t("student.courses.open")}</Badge>
                     )}
                   </div>
-                  {elective.status === "draft" ? (
-                    <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
-                  ) : elective.availableSpaces ? (
-                    <Badge variant="secondary">{t("student.courses.open")}</Badge>
-                  ) : (
-                    <Badge variant="destructive">{t("student.courses.limited")}</Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow"></CardContent>
-              <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
-                <div className="flex flex-col gap-y-2 text-sm w-full">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
-                    <span>{formatDate(elective.endDate)}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
+                </CardHeader>
+                <CardContent className="flex-grow"></CardContent>
+                <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
+                  <div className="flex flex-col gap-y-2 text-sm w-full">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("student.courses.courses")}:</span>
-                      <span>{elective.coursesCount}</span>
+                      <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
+                      <span>{formatDate(elective.deadline)}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
-                      <span>{elective.maxSelections}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{t("student.courses.courses")}:</span>
+                        <span>{coursesArray.length}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
+                        <span>{elective.max_selections}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div
-                  className={`flex items-center justify-between rounded-md p-2 w-full ${
-                    elective.selected
-                      ? elective.selectionStatus === "approved"
-                        ? "bg-green-100/50 dark:bg-green-900/20"
-                        : "bg-yellow-100/50 dark:bg-yellow-900/20"
-                      : "bg-gray-100/50 dark:bg-gray-900/20"
-                  }`}
-                >
-                  <span className="text-sm">
-                    {t("student.courses.selected")}: {elective.selectedCount}/{elective.maxSelections}
-                  </span>
-                  <Link href={`/student/courses/${elective.id}`}>
-                    <Button
-                      size="sm"
-                      variant={
-                        elective.status === "draft"
-                          ? "outline"
-                          : elective.selected
-                            ? elective.selectionStatus === "approved"
-                              ? "outline"
-                              : "secondary"
-                            : "default"
-                      }
-                      className={`h-7 gap-1 ${
-                        elective.selected && elective.selectionStatus === "approved"
-                          ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
-                          : elective.status === "draft"
-                            ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
-                            : ""
-                      }`}
-                    >
-                      <>
-                        <span>{t("student.courses.view")}</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </>
-                    </Button>
-                  </Link>
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
+                  <div
+                    className={`flex items-center justify-between rounded-md p-2 w-full ${
+                      selection
+                        ? selection.status === "approved"
+                          ? "bg-green-100/50 dark:bg-green-900/20"
+                          : selection.status === "pending"
+                            ? "bg-yellow-100/50 dark:bg-yellow-900/20"
+                            : "bg-red-100/50 dark:bg-red-900/20"
+                        : "bg-gray-100/50 dark:bg-gray-900/20"
+                    }`}
+                  >
+                    <span className="text-sm">
+                      {t("student.courses.selected")}: {selection ? "1" : "0"}/{elective.max_selections}
+                    </span>
+                    <Link href={`/student/courses/${elective.id}`}>
+                      <Button
+                        size="sm"
+                        variant={
+                          elective.status === "draft"
+                            ? "outline"
+                            : selection
+                              ? selection.status === "approved"
+                                ? "outline"
+                                : "secondary"
+                              : "default"
+                        }
+                        className={`h-7 gap-1 ${
+                          selection && selection.status === "approved"
+                            ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
+                            : elective.status === "draft"
+                              ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
+                              : ""
+                        }`}
+                      >
+                        <>
+                          <span>{t("student.courses.view")}</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </>
+                      </Button>
+                    </Link>
+                  </div>
+                </CardFooter>
+              </Card>
+            )
+          })}
         </div>
       </div>
     </DashboardLayout>
