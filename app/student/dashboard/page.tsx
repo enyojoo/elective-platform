@@ -91,39 +91,68 @@ export default function StudentDashboard() {
 
   // State for loading
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
+  const [isValidatingRole, setIsValidatingRole] = useState(true)
 
-  // Fetch current user ID only once on mount
+  // Fetch current user ID and validate role
   useEffect(() => {
-    const fetchUserId = async () => {
-      // Skip if we already have a userId from cache
-      if (userId) return
-
+    const fetchAndValidateUser = async () => {
       try {
-        const { data, error } = await supabase.auth.getUser()
+        const { data: authData, error: authError } = await supabase.auth.getUser()
 
-        if (error) {
-          console.error("Auth error:", error)
+        if (authError || !authData?.user) {
+          console.error("Auth error:", authError)
           router.push("/student/login")
           return
         }
 
-        if (data?.user) {
-          const newUserId = data.user.id
-          console.log("Student Dashboard - Fetched user ID:", newUserId)
-          setUserId(newUserId)
-          // Cache the userId
-          setCachedData(USER_ID_CACHE_KEY, newUserId)
-        } else {
-          console.log("No authenticated user found")
+        const currentUserId = authData.user.id
+        console.log("Current authenticated user ID:", currentUserId)
+
+        // Check the user's role in the profiles table
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, role, institution_id")
+          .eq("id", currentUserId)
+          .single()
+
+        if (profileError || !profileData) {
+          console.error("Profile fetch error:", profileError)
           router.push("/student/login")
+          return
         }
+
+        console.log("User profile data:", profileData)
+
+        // IMPORTANT: Check if the user is actually a student
+        if (profileData.role !== "student") {
+          console.log(`User has role '${profileData.role}', not 'student'. Redirecting...`)
+
+          // Clear any cached student data
+          localStorage.removeItem(USER_ID_CACHE_KEY)
+          localStorage.removeItem(DEADLINES_CACHE_KEY)
+
+          // Redirect based on their actual role
+          if (profileData.role === "manager") {
+            router.push("/manager/dashboard")
+          } else if (profileData.role === "admin") {
+            router.push("/admin/dashboard")
+          } else {
+            router.push("/student/login")
+          }
+          return
+        }
+
+        // User is a valid student, proceed
+        setUserId(currentUserId)
+        setCachedData(USER_ID_CACHE_KEY, currentUserId)
+        setIsValidatingRole(false)
       } catch (error) {
-        console.error("Error fetching user ID:", error)
+        console.error("Error validating user:", error)
         router.push("/student/login")
       }
     }
 
-    fetchUserId()
+    fetchAndValidateUser()
   }, [supabase, router])
 
   // Fetch student profile using the cached hook
@@ -142,7 +171,7 @@ export default function StudentDashboard() {
   // Fetch upcoming deadlines with caching
   useEffect(() => {
     const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+      if (!isSubdomainAccess || !institution?.id || isValidatingRole) return
 
       try {
         setIsLoadingDeadlines(true)
@@ -220,7 +249,7 @@ export default function StudentDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language])
+  }, [supabase, isSubdomainAccess, institution?.id, language, isValidatingRole])
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -243,8 +272,8 @@ export default function StudentDashboard() {
 
   // Calculate student data from profile and selections
   const studentData = {
-    name: profile?.full_name || "Loading...",
-    email: profile?.email || "Loading...",
+    name: profile?.full_name || "-",
+    email: profile?.email || "-",
     degree: profile?.degree?.name || "Not specified",
     year: profile?.year || "Not specified",
     group: profile?.group?.name || "Not assigned",
@@ -271,10 +300,15 @@ export default function StudentDashboard() {
     },
   }
 
-  const isLoading = isLoadingProfile || isCourseSelectionsLoading || isExchangeSelectionsLoading || isElectivesLoading
+  const isLoading =
+    isValidatingRole ||
+    isLoadingProfile ||
+    isCourseSelectionsLoading ||
+    isExchangeSelectionsLoading ||
+    isElectivesLoading
 
-  if (!isSubdomainAccess) {
-    return null // Don't render anything while redirecting
+  if (!isSubdomainAccess || isValidatingRole) {
+    return null // Don't render anything while redirecting or validating
   }
 
   return (
