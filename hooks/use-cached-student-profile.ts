@@ -28,6 +28,8 @@ export function useCachedStudentProfile() {
           throw new Error("No authenticated user found")
         }
 
+        console.log("Current user ID:", user.id)
+
         // Try to get data from cache first
         const cachedProfile = getCachedData<any>("studentProfile", user.id)
 
@@ -38,19 +40,13 @@ export function useCachedStudentProfile() {
           return
         }
 
-        // If not in cache, fetch from API
         console.log("Fetching student profile from API")
 
-        // Fetch the profile data with proper relationships
+        // First, let's just get the basic profile without joins
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select(`
-            *,
-            degrees:degree_id(id, name),
-            groups:group_id(id, name)
-          `)
+          .select("*")
           .eq("id", user.id)
-          .eq("role", "student")
           .single()
 
         if (profileError) {
@@ -64,12 +60,34 @@ export function useCachedStudentProfile() {
 
         console.log("Raw profile data:", profileData)
 
+        // Now get degree info if degree_id exists
+        let degreeData = null
+        if (profileData.degree_id) {
+          const { data: degree } = await supabase
+            .from("degrees")
+            .select("id, name")
+            .eq("id", profileData.degree_id)
+            .single()
+          degreeData = degree
+        }
+
+        // Now get group info if group_id exists
+        let groupData = null
+        if (profileData.group_id) {
+          const { data: group } = await supabase
+            .from("groups")
+            .select("id, name")
+            .eq("id", profileData.group_id)
+            .single()
+          groupData = group
+        }
+
         // Process the profile data
         const processedProfile = {
           ...profileData,
           year: profileData.academic_year || "Not specified",
-          degree: profileData.degrees || { name: "Not specified" },
-          group: profileData.groups || { name: "Not assigned" },
+          degree: degreeData || { name: "Not specified" },
+          group: groupData || { name: "Not assigned" },
         }
 
         console.log("Processed profile data:", processedProfile)
@@ -93,7 +111,7 @@ export function useCachedStudentProfile() {
     }
 
     fetchProfile()
-  }, []) // Remove dependencies to prevent infinite loops
+  }, [])
 
   return { profile, isLoading, error }
 }
