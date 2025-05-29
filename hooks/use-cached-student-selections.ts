@@ -235,10 +235,13 @@ export function useCachedStudentElectiveCourses(studentId: string | undefined, i
   const supabase = createClientComponentClient()
 
   const fetchData = useCallback(async () => {
+    console.log("useCachedStudentElectiveCourses: fetchData called with:", { studentId, institutionId })
     if (!studentId || !institutionId) {
-      setIsLoading(false)
+      console.log("useCachedStudentElectiveCourses: studentId or institutionId is undefined. Skipping fetch.")
+      // Ensure state is reset if IDs are missing
       setElectiveCourses([])
       setCourseSelections([])
+      setIsLoading(false) // Set loading to false as we are not fetching
       return
     }
 
@@ -253,50 +256,74 @@ export function useCachedStudentElectiveCourses(studentId: string | undefined, i
     const cachedCourseSelections = getCachedData<any[]>(courseSelectionsKey)
 
     if (cachedElectiveCourses && cachedCourseSelections) {
+      console.log("useCachedStudentElectiveCourses: Using cached data", {
+        electiveCoursesCount: cachedElectiveCourses.length,
+        courseSelectionsCount: cachedCourseSelections.length,
+      })
       setElectiveCourses(cachedElectiveCourses)
       setCourseSelections(cachedCourseSelections)
       setIsLoading(false)
       return
     }
+    console.log("useCachedStudentElectiveCourses: Cache miss or partial miss. Fetching from Supabase.")
 
     try {
       // Fetch elective courses for this institution
+      console.log(`useCachedStudentElectiveCourses: Fetching elective_courses for institution_id: ${institutionId}`)
       const { data: electiveCoursesData, error: electiveCoursesError } = await supabase
         .from("elective_courses")
         .select("*")
         .eq("institution_id", institutionId)
         .order("created_at", { ascending: false })
 
-      if (electiveCoursesError) throw electiveCoursesError
+      if (electiveCoursesError) {
+        console.error("useCachedStudentElectiveCourses: Error fetching elective_courses:", electiveCoursesError)
+        throw electiveCoursesError
+      }
+      console.log("useCachedStudentElectiveCourses: Fetched elective_courses data:", electiveCoursesData)
 
       // Fetch student's course selections
+      console.log(`useCachedStudentElectiveCourses: Fetching course_selections for student_id: ${studentId}`)
       const { data: courseSelectionsData, error: courseSelectionsError } = await supabase
         .from("course_selections")
         .select("*")
         .eq("student_id", studentId)
 
-      if (courseSelectionsError) throw courseSelectionsError
+      if (courseSelectionsError) {
+        console.error("useCachedStudentElectiveCourses: Error fetching course_selections:", courseSelectionsError)
+        throw courseSelectionsError
+      }
+      console.log("useCachedStudentElectiveCourses: Fetched course_selections data:", courseSelectionsData)
 
       // Cache the data
       setCachedData(electiveCoursesKey, electiveCoursesData || [])
       setCachedData(courseSelectionsKey, courseSelectionsData || [])
 
+      console.log("useCachedStudentElectiveCourses: Data cached.")
+
       // Update state
       setElectiveCourses(electiveCoursesData || [])
       setCourseSelections(courseSelectionsData || [])
+
+      console.log("useCachedStudentElectiveCourses: State updated with fetched data.")
     } catch (err: any) {
-      setError(err.message)
+      console.error("useCachedStudentElectiveCourses: Catch block error:", err)
+      setError(err.message) // Ensure error state is set
       toast({
-        title: "Error",
-        description: "Failed to load elective courses",
+        title: "Data Fetch Error", // More specific title
+        description: `Failed to load elective courses data. ${err.message}`, // Include error message
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
+      console.log("useCachedStudentElectiveCourses: fetchData finished.")
     }
   }, [studentId, institutionId, getCachedData, setCachedData, supabase, toast])
 
   useEffect(() => {
+    console.log(
+      "useCachedStudentElectiveCourses: useEffect triggered fetchData due to change in studentId, institutionId, or fetchData itself.",
+    )
     fetchData()
   }, [fetchData])
 

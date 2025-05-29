@@ -45,30 +45,86 @@ export default function StudentCoursesPage() {
 
   const [studentId, setStudentId] = useState<string | undefined>(undefined)
   const [institutionId, setInstitutionId] = useState<string | undefined>(undefined)
+  const [userDataLoading, setUserDataLoading] = useState(true)
 
   useEffect(() => {
     const fetchUserData = async () => {
+      console.log("StudentCoursesPage: Fetching user data...")
+      setUserDataLoading(true)
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser()
+
+      if (userError) {
+        console.error("StudentCoursesPage: Error getting user:", userError)
+        toast({ title: "Auth Error", description: "Could not retrieve user session.", variant: "destructive" })
+        setUserDataLoading(false)
+        return
+      }
+
       if (user) {
+        console.log("StudentCoursesPage: User found:", user.id)
         setStudentId(user.id)
 
-        // Get user's institution
-        const { data: profile } = await supabase.from("profiles").select("institution_id").eq("id", user.id).single()
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id")
+          .eq("id", user.id)
+          .single()
 
-        if (profile) {
+        if (profileError) {
+          console.error("StudentCoursesPage: Error fetching profile:", profileError)
+          toast({ title: "Profile Error", description: "Could not retrieve user profile.", variant: "destructive" })
+        } else if (profile && profile.institution_id) {
+          console.log("StudentCoursesPage: Institution ID found:", profile.institution_id)
           setInstitutionId(profile.institution_id)
+        } else {
+          console.warn("StudentCoursesPage: Institution ID not found in profile.")
+          toast({
+            title: "Configuration Error",
+            description: "Institution ID not set for your profile.",
+            variant: "destructive",
+          })
         }
+      } else {
+        console.log("StudentCoursesPage: No user found.")
+        // It's possible the user is not logged in, or the session is not yet available.
+        // Depending on auth flow, you might redirect or show a login prompt.
+        // For now, we'll show a toast.
+        toast({
+          title: "Authentication Issue",
+          description: "User session not found. Please ensure you are logged in.",
+          variant: "warning",
+        })
       }
+      setUserDataLoading(false)
     }
     fetchUserData()
-  }, [supabase])
+  }, [supabase, toast])
 
-  const { electiveCourses, courseSelections, isLoading, error, refreshData } = useCachedStudentElectiveCourses(
-    studentId,
-    institutionId,
-  )
+  const {
+    electiveCourses,
+    courseSelections,
+    isLoading: coursesLoading,
+    error,
+    refreshData,
+  } = useCachedStudentElectiveCourses(studentId, institutionId)
+
+  const isLoading = userDataLoading || coursesLoading
+
+  useEffect(() => {
+    console.log("StudentCoursesPage: Hook data update:", {
+      studentId,
+      institutionId,
+      electiveCourses: electiveCourses?.length,
+      courseSelections: courseSelections?.length,
+      isCombinedLoading: isLoading,
+      isUserDataLoading: userDataLoading,
+      isCoursesLoading: coursesLoading,
+      error,
+    })
+  }, [studentId, institutionId, electiveCourses, courseSelections, isLoading, userDataLoading, coursesLoading, error])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -142,6 +198,10 @@ export default function StudentCoursesPage() {
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
           </div>
+          {/* More specific loading message */}
+          <p className="text-muted-foreground">
+            {userDataLoading ? "Loading user information..." : "Loading courses..."}
+          </p>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <Card key={i} className="animate-pulse">
