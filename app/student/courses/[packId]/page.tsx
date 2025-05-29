@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { selectElectiveCourse, uploadStatement } from "@/app/actions/student-selections"
 
 interface ElectivePageProps {
@@ -61,7 +61,7 @@ interface CourseSelection {
 export default function ElectivePage({ params }: ElectivePageProps) {
   const { t } = useLanguage()
   const { toast } = useToast()
-  const supabase = getSupabaseBrowserClient()
+  const supabase = createClientComponentClient()
 
   const [electiveCourse, setElectiveCourse] = useState<ElectiveCourse | null>(null)
   const [courseSelection, setCourseSelection] = useState<CourseSelection | null>(null)

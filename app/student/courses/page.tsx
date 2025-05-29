@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface ElectiveCourse {
   id: string
@@ -41,7 +41,7 @@ export default function ElectivesPage() {
   const [courseSelections, setCourseSelections] = useState<CourseSelection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = getSupabaseBrowserClient()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     fetchData()
