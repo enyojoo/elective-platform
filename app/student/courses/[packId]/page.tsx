@@ -28,6 +28,7 @@ import { createClient } from "@supabase/supabase-js"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelCourseSelection } from "@/app/actions/student-selections"
+import { Badge } from "@/components/ui/badge"
 
 interface ElectivePageProps {
   params: {
@@ -79,7 +80,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-      // Fetch elective course data (the "pack")
+      // Fetch elective course pack data
       const { data: ecData, error: ecError } = await supabase
         .from("elective_courses")
         .select("*")
@@ -91,46 +92,71 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       console.log("[packIdPage] elective_courses data:", ecData)
       setElectiveCourseData(ecData)
 
-      let parsedIndividualCourses: any[] = []
+      let parsedPackCourseDefinitions: any[] = []
       if (ecData.courses && typeof ecData.courses === "string") {
         try {
-          parsedIndividualCourses = JSON.parse(ecData.courses)
-          if (!Array.isArray(parsedIndividualCourses)) parsedIndividualCourses = []
+          parsedPackCourseDefinitions = JSON.parse(ecData.courses)
+          if (!Array.isArray(parsedPackCourseDefinitions)) parsedPackCourseDefinitions = []
         } catch (e) {
-          console.error("Error parsing individual courses JSON:", e)
-          parsedIndividualCourses = []
+          console.error("Error parsing elective_courses.courses JSON:", e)
+          parsedPackCourseDefinitions = []
         }
       } else if (Array.isArray(ecData.courses)) {
-        parsedIndividualCourses = ecData.courses // If it's already an array
+        parsedPackCourseDefinitions = ecData.courses
       }
-      console.log("[packIdPage] Parsed individual courses:", parsedIndividualCourses)
-      setIndividualCourses(parsedIndividualCourses)
+      console.log(
+        "[packIdPage] Parsed pack course definitions from elective_courses.courses:",
+        parsedPackCourseDefinitions,
+      )
+
+      if (parsedPackCourseDefinitions.length > 0) {
+        const courseIdsToFetch = parsedPackCourseDefinitions.map((c) => c.id).filter((id) => id != null) // Ensure IDs are not null
+
+        if (courseIdsToFetch.length > 0) {
+          const { data: detailedCoursesData, error: coursesError } = await supabase
+            .from("courses") // Your actual 'courses' table
+            .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
+            .in("id", courseIdsToFetch)
+
+          if (coursesError) throw coursesError
+          console.log("[packIdPage] Fetched detailed course data from 'courses' table:", detailedCoursesData)
+
+          const enrichedIndividualCourses = parsedPackCourseDefinitions.map((packCourseDef) => {
+            const detail = detailedCoursesData?.find((dc) => dc.id === packCourseDef.id)
+            return {
+              ...packCourseDef, // Original data from elective_courses.courses JSON (e.g. order, specific notes for this pack)
+              ...detail, // Detailed data from 'courses' table (name, instructor, desc, max_students)
+            }
+          })
+          setIndividualCourses(enrichedIndividualCourses)
+          console.log("[packIdPage] Enriched individual courses with details:", enrichedIndividualCourses)
+        } else {
+          setIndividualCourses([]) // No valid course IDs to fetch
+        }
+      } else {
+        setIndividualCourses([]) // No courses defined in the pack
+      }
 
       // Fetch existing selection record for this student and this elective_courses pack
       const { data: selectionData, error: selectionError } = await supabase
         .from("course_selections")
-        .select("*")
+        .select("*, selected_ids") // Ensure 'selected_ids' column is fetched
         .eq("student_id", profile.id)
         .eq("elective_courses_id", packId)
-        .maybeSingle() // Use maybeSingle as it might not exist
+        .maybeSingle()
 
       if (selectionError) throw selectionError
       console.log("[packIdPage] course_selections data:", selectionData)
       setExistingSelectionRecord(selectionData)
 
-      // Initialize selectedIndividualCourseIds based on existing selection or parsed courses
-      if (selectionData) {
-        // If a selection record exists, it's the source of truth for what was *submitted*
-        // We need to know how selected courses are stored in `course_selections` or `elective_courses`
-        // Assuming `elective_courses.courses` JSON has a `selected: true` field after submission
-        const initiallySelected = parsedIndividualCourses.filter((c) => c.selected === true).map((c) => c.id)
-        setSelectedIndividualCourseIds(initiallySelected)
-        console.log("[packIdPage] Initial selected IDs from existing selection:", initiallySelected)
-        if (selectionData.statement_url) {
-          // If there's an existing statement, we don't require a new upload unless they change selection
-        }
+      if (selectionData && selectionData.selected_ids && Array.isArray(selectionData.selected_ids)) {
+        setSelectedIndividualCourseIds(selectionData.selected_ids)
+        console.log(
+          "[packIdPage] Initial selected IDs from course_selections.selected_ids:",
+          selectionData.selected_ids,
+        )
       } else {
-        setSelectedIndividualCourseIds([]) // No prior selection
+        setSelectedIndividualCourseIds([]) // No prior selection or no selected_ids field
       }
     } catch (error: any) {
       console.error("[packIdPage] Error fetching data:", error)
@@ -163,7 +189,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       toast({ title: "Missing Information", description: "Profile or statement is missing.", variant: "destructive" })
       return
     }
-    if (selectedIndividualCourseIds.length === 0) {
+    if (selectedIndividualCourseIds.length === 0 && (electiveCourseData?.max_selections || 0) > 0) {
       toast({ title: "No Courses Selected", description: "Please select at least one course.", variant: "destructive" })
       return
     }
@@ -182,64 +208,49 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       let statementUrlToSave = existingSelectionRecord?.statement_url
 
       if (uploadedStatement) {
-        setIsUploadingStatement(true) // Indicate statement upload specifically
+        setIsUploadingStatement(true)
         statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
         setIsUploadingStatement(false)
       }
 
-      if (!statementUrlToSave) {
+      if (!statementUrlToSave && electiveCourseData?.syllabus_template_url) {
+        // Only require statement if template exists
         throw new Error("Statement is required and was not uploaded.")
       }
-
-      // Update the `courses` JSON in `elective_courses` table
-      // This marks which individual courses within the pack are selected by *this* student.
-      // This approach might lead to issues if multiple students select from the same `elective_courses` pack.
-      // A better approach: `course_selections` table should store `selected_individual_course_ids` (e.g., as JSONB array).
-      // For now, following the implication that `elective_courses.courses` JSON is updated.
-      // THIS IS PROBLEMATIC FOR MULTI-STUDENT SCENARIOS.
-      // A student's selection should be in `course_selections`.
-      // Let's assume `course_selections` will store the list of selected course IDs.
-      // The `elective_courses.courses` JSON should remain the definition of available courses.
 
       const selectionPayload = {
         student_id: profile.id,
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
         statement_url: statementUrlToSave,
-        // Add a new column to course_selections, e.g., selected_course_details (JSONB)
-        // For now, we'll rely on the client to reconstruct this from individualCourses and selectedIndividualCourseIds
-        // Or, if `elective_courses.courses` is updated per student, that's different.
-        // Let's assume `course_selections` should store the actual selected course IDs.
-        // We need a field in `course_selections` like `selected_ids: text[]` or `selected_details: jsonb`.
-        // For now, I'll just update status and statement. The actual selected courses are client-side.
-        // This needs database schema adjustment for robust storage of selected courses.
+        selected_ids: selectedIndividualCourseIds, // Store the array of selected course UUIDs
       }
 
       if (existingSelectionRecord) {
         const { error } = await supabase
           .from("course_selections")
           .update({
-            status: SelectionStatus.PENDING, // Reset to pending on new submission
+            status: SelectionStatus.PENDING, // Reset to pending on new submission/update
             statement_url: statementUrlToSave,
-            // selected_ids: selectedIndividualCourseIds // If such a column exists
+            selected_ids: selectedIndividualCourseIds,
           })
           .eq("id", existingSelectionRecord.id)
         if (error) throw error
       } else {
-        const { error } = await supabase
+        const { data: newSelection, error } = await supabase
           .from("course_selections")
-          .insert({
-            ...selectionPayload,
-            // selected_ids: selectedIndividualCourseIds // If such a column exists
-          })
+          .insert(selectionPayload)
           .select()
-          .single() // Get the new record
+          .single()
         if (error) throw error
+        setExistingSelectionRecord(newSelection) // Update state with the new selection record
       }
 
       toast({ title: "Selection submitted", description: "Your course selection has been submitted successfully." })
-      // Consider re-fetching data or navigating
-      window.location.href = "/student/courses" // Or use Next router for client-side nav
+      // Re-fetch data to ensure UI consistency, especially if status or other details change server-side
+      await loadData()
+      // No automatic redirect, let user see the updated status on the page.
+      // window.location.href = "/student/courses" // Or use Next router for client-side nav
     } catch (error: any) {
       console.error("Submission error:", error)
       toast({ title: "Submission failed", description: error.message || "An error occurred.", variant: "destructive" })
@@ -537,12 +548,21 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg">
-                        {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                        {language === "ru" && course.name_ru
+                          ? course.name_ru
+                          : course.name_en || course.name || `Course ID: ${course.id}`}
                       </CardTitle>
-                      {/* Add capacity info if available in course JSON */}
+                      {/* Display capacity if available */}
+                      {typeof course.max_students === "number" && (
+                        <Badge variant="outline" className="text-xs">
+                          {t("student.courses.capacity", "Capacity")}: {course.max_students}
+                        </Badge>
+                      )}
                     </div>
                     <CardDescription>
-                      {language === "ru" && course.teacher_ru ? course.teacher_ru : course.teacher}
+                      {language === "ru" && course.instructor_ru
+                        ? course.instructor_ru
+                        : course.instructor_en || t("student.courses.noInstructor", "N/A")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-4 flex-grow">
@@ -652,7 +672,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                     return (
                       <li key={id} className="text-sm flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        {language === "ru" && course?.name_ru ? course.name_ru : course?.name}
+                        {language === "ru" && course?.name_ru
+                          ? course.name_ru
+                          : course?.name_en || course?.name || `Course ID: ${id}`}
                       </li>
                     )
                   })}
@@ -702,17 +724,23 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>
-                {language === "ru" && viewingCourse?.name_ru ? viewingCourse.name_ru : viewingCourse?.name}
+                {language === "ru" && viewingCourse?.name_ru
+                  ? viewingCourse.name_ru
+                  : viewingCourse?.name_en || viewingCourse?.name}
               </DialogTitle>
               <DialogDescription>
-                {language === "ru" && viewingCourse?.teacher_ru ? viewingCourse.teacher_ru : viewingCourse?.teacher}
+                {language === "ru" && viewingCourse?.instructor_ru
+                  ? viewingCourse.instructor_ru
+                  : viewingCourse?.instructor_en || t("student.courses.noInstructor", "N/A")}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 max-h-[60vh] overflow-y-auto">
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {language === "ru" && viewingCourse?.description_ru
                   ? viewingCourse.description_ru
-                  : viewingCourse?.description}
+                  : viewingCourse?.description_en ||
+                    viewingCourse?.description ||
+                    t("student.courses.noDescription", "No description available.")}
               </p>
             </div>
             <ShadDialogFooter>
