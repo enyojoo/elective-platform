@@ -28,7 +28,7 @@ import {
 
 // Cache constants
 const CACHE_KEY = "managerCourseElectives"
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
 
 // Update the ElectivePack interface to match the elective_courses table structure
 interface ElectivePack {

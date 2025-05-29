@@ -41,6 +41,8 @@ interface ElectivePack {
   university_count?: number
 }
 
+const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
+
 export default function ManagerExchangeElectivesPage() {
   const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
@@ -69,19 +71,12 @@ export default function ManagerExchangeElectivesPage() {
         setIsLoading(true)
 
         // Try to get data from cache first
-        const cachedData = getCachedData<{
-          packs: ElectivePack[]
-          filters: { searchTerm: string; statusFilter: string }
-        }>("exchangePrograms", institution.id)
+        const cachedData = getCachedData<ElectivePack[]>("exchangePrograms", institution.id)
 
-        if (
-          cachedData &&
-          cachedData.filters.searchTerm === searchTerm &&
-          cachedData.filters.statusFilter === statusFilter
-        ) {
+        if (cachedData) {
           console.log("Using cached exchange programs data")
-          setElectivePacks(cachedData.packs)
-          setFilteredPacks(cachedData.packs)
+          setElectivePacks(cachedData)
+          setFilteredPacks(cachedData)
           setIsLoading(false)
           return
         }
@@ -111,10 +106,7 @@ export default function ManagerExchangeElectivesPage() {
         })
 
         // Save to cache
-        setCachedData("exchangePrograms", institution.id, {
-          packs: processedPacks,
-          filters: { searchTerm, statusFilter },
-        })
+        setCachedData("exchangePrograms", institution.id, processedPacks)
 
         setElectivePacks(processedPacks)
         setFilteredPacks(processedPacks)
@@ -131,7 +123,7 @@ export default function ManagerExchangeElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t, searchTerm, statusFilter, getCachedData, setCachedData])
+  }, [supabase, institution?.id, toast, t, getCachedData, setCachedData])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {

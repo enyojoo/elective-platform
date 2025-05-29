@@ -19,7 +19,7 @@ import { formatDate, calculateDaysLeft } from "@/lib/utils"
 const ELECTIVE_COUNTS_CACHE_KEY = "managerDashboardElectiveCounts"
 const DEADLINES_CACHE_KEY = "managerDashboardDeadlines"
 const USER_ID_CACHE_KEY = "managerDashboardUserId"
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
 
 // Cache helper functions
 const getCachedData = (key: string): any | null => {
@@ -100,18 +100,31 @@ export default function ManagerDashboard() {
       // Skip if we already have a userId from cache
       if (userId) return
 
-      const { data } = await supabase.auth.getUser()
-      if (data?.user) {
-        const newUserId = data.user.id
-        setUserId(newUserId)
-        // Cache the userId
-        setCachedData(USER_ID_CACHE_KEY, newUserId)
+      try {
+        const { data, error } = await supabase.auth.getUser()
+
+        if (error) {
+          console.error("Auth error:", error)
+          router.push("/manager/login") // Redirect to manager login if auth error
+          return
+        }
+        if (data?.user) {
+          const newUserId = data.user.id
+          setUserId(newUserId)
+          // Cache the userId
+          setCachedData(USER_ID_CACHE_KEY, newUserId)
+        } else {
+          console.log("No authenticated user found")
+          router.push("/manager/login") // Redirect to manager login if no user
+        }
+      } catch (error) {
+        console.error("Error fetching user ID:", error)
+        router.push("/manager/login") // Redirect to manager login on other errors
       }
     }
 
     fetchUserId()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]) // Only depend on supabase
+  }, [supabase, router, userId]) // Added userId to dependency array
 
   // Fetch manager profile using the cached hook
   const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
@@ -260,7 +273,7 @@ export default function ManagerDashboard() {
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
-    if (!isSubdomainAccess) {
+    if (!isSubdomainAccess && isInitialMount.current === false) {
       router.push("/institution-required")
     }
   }, [isSubdomainAccess, router])
@@ -277,8 +290,8 @@ export default function ManagerDashboard() {
     }
   }, [])
 
-  if (!isSubdomainAccess) {
-    return null // Don't render anything while redirecting
+  if (!isSubdomainAccess && isLoadingProfile) {
+    return null
   }
 
   return (

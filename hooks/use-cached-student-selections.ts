@@ -68,7 +68,7 @@ export function useCachedStudentCourseSelections(userId: string | undefined) {
     }
 
     fetchSelections()
-  }, [userId]) // Removed function dependencies to prevent infinite loops
+  }, [userId, getCachedData, setCachedData, toast])
 
   return { selections, isLoading, error }
 }
@@ -136,13 +136,13 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
     }
 
     fetchSelections()
-  }, [userId]) // Removed function dependencies to prevent infinite loops
+  }, [userId, getCachedData, setCachedData, toast])
 
   return { selections, isLoading, error }
 }
 
 // New hook to fetch available electives for calculating required electives
-export function useCachedAvailableElectives() {
+export function useCachedAvailableElectives(institutionId: string | undefined) {
   const [electives, setElectives] = useState<{ courses: any[]; exchanges: any[] }>({ courses: [], exchanges: [] })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -150,12 +150,17 @@ export function useCachedAvailableElectives() {
   const { toast } = useToast()
 
   useEffect(() => {
+    if (!institutionId) {
+      setIsLoading(false)
+      return
+    }
+
     const fetchElectives = async () => {
       setIsLoading(true)
       setError(null)
 
-      // Try to get data from cache first
-      const cachedElectives = getCachedData<{ courses: any[]; exchanges: any[] }>("availableElectives", "all")
+      // Try to get data from cache first using institutionId as the cache key
+      const cachedElectives = getCachedData<{ courses: any[]; exchanges: any[] }>("courseElectives", institutionId)
 
       if (cachedElectives) {
         console.log("Using cached available electives")
@@ -169,13 +174,21 @@ export function useCachedAvailableElectives() {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch elective courses
-        const { data: coursesData, error: coursesError } = await supabase.from("elective_courses").select("*")
+        // Fetch elective courses for this institution
+        const { data: coursesData, error: coursesError } = await supabase
+          .from("elective_courses")
+          .select("*")
+          .eq("institution_id", institutionId)
+          .eq("status", "published")
 
         if (coursesError) throw coursesError
 
-        // Fetch elective exchanges
-        const { data: exchangesData, error: exchangesError } = await supabase.from("elective_exchange").select("*")
+        // Fetch elective exchanges for this institution
+        const { data: exchangesData, error: exchangesError } = await supabase
+          .from("elective_exchange")
+          .select("*")
+          .eq("institution_id", institutionId)
+          .eq("status", "published")
 
         if (exchangesError) throw exchangesError
 
@@ -186,8 +199,8 @@ export function useCachedAvailableElectives() {
 
         console.log("Available electives data:", electivesData)
 
-        // Save to cache
-        setCachedData("availableElectives", "all", electivesData)
+        // Save to cache using institutionId
+        setCachedData("courseElectives", institutionId, electivesData)
 
         // Update state
         setElectives(electivesData)
@@ -205,7 +218,7 @@ export function useCachedAvailableElectives() {
     }
 
     fetchElectives()
-  }, []) // No dependencies since this fetches all available electives (not user-specific)
+  }, [institutionId, getCachedData, setCachedData, toast])
 
   return { electives, isLoading, error }
 }

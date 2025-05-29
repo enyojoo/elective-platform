@@ -107,7 +107,7 @@ type DataCacheContextType = {
   clearAllCache: () => void
 }
 
-const CACHE_EXPIRY = 60 * 60 * 1000 // 1 hour in milliseconds (changed from 5 minutes)
+const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
 const STORAGE_KEY = "electivepro_data_cache"
 
 const DataCacheContext = createContext<DataCacheContextType | undefined>(undefined)

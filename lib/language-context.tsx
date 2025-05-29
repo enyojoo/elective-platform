@@ -1586,7 +1586,7 @@ const translations: Translations = {
     "manager.courseDetails.withdraw": "Отозвать",
     "manager.exchangeDetails.withdraw": "Отозвать",
     "toast.selection.withdrawn": "Выбор отозван",
-    "toast.selection.withdrawn.description": "Выбор для {0} был отозван.",
+    "toast.selection.withdrawn.description": "Выбор для {0} был от��зван.",
     "toast.selection.approved": "Выбор утвержден",
     "toast.selection.approved.description": "Выбор для {0} был утвержден.",
     "toast.selection.rejected": "Выбор отклонен",
