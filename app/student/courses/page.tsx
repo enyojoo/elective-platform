@@ -13,6 +13,7 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useCachedStudentElectiveCourses } from "@/hooks/use-cached-student-selections"
+import { useRouter } from "next/navigation"
 
 interface ElectiveCourse {
   id: string
@@ -41,67 +42,108 @@ interface CourseSelection {
 export default function StudentCoursesPage() {
   const { t } = useLanguage()
   const { toast } = useToast()
+  const router = useRouter()
   const supabase = createClientComponentClient()
 
   const [studentId, setStudentId] = useState<string | undefined>(undefined)
   const [institutionId, setInstitutionId] = useState<string | undefined>(undefined)
   const [userDataLoading, setUserDataLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchUserData = async () => {
       console.log("StudentCoursesPage: Fetching user data...")
       setUserDataLoading(true)
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
+      setAuthError(null)
 
-      if (userError) {
-        console.error("StudentCoursesPage: Error getting user:", userError)
-        toast({ title: "Auth Error", description: "Could not retrieve user session.", variant: "destructive" })
-        setUserDataLoading(false)
-        return
-      }
+      try {
+        // First check if we have a session
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-      if (user) {
-        console.log("StudentCoursesPage: User found:", user.id)
-        setStudentId(user.id)
+        if (sessionError) {
+          console.error("StudentCoursesPage: Session error:", sessionError)
+          setAuthError("Session error: " + sessionError.message)
+          router.push("/student/login")
+          return
+        }
 
+        if (!session) {
+          console.log("StudentCoursesPage: No session found, redirecting to login")
+          setAuthError("No active session found")
+          router.push("/student/login")
+          return
+        }
+
+        console.log("StudentCoursesPage: Session found for user:", session.user.id)
+        setStudentId(session.user.id)
+
+        // Get user's institution from profile
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("institution_id")
-          .eq("id", user.id)
+          .select("institution_id, role")
+          .eq("id", session.user.id)
           .single()
 
         if (profileError) {
           console.error("StudentCoursesPage: Error fetching profile:", profileError)
-          toast({ title: "Profile Error", description: "Could not retrieve user profile.", variant: "destructive" })
-        } else if (profile && profile.institution_id) {
-          console.log("StudentCoursesPage: Institution ID found:", profile.institution_id)
-          setInstitutionId(profile.institution_id)
-        } else {
-          console.warn("StudentCoursesPage: Institution ID not found in profile.")
-          toast({
-            title: "Configuration Error",
-            description: "Institution ID not set for your profile.",
-            variant: "destructive",
-          })
+          setAuthError("Could not retrieve user profile: " + profileError.message)
+          return
         }
-      } else {
-        console.log("StudentCoursesPage: No user found.")
-        // It's possible the user is not logged in, or the session is not yet available.
-        // Depending on auth flow, you might redirect or show a login prompt.
-        // For now, we'll show a toast.
-        toast({
-          title: "Authentication Issue",
-          description: "User session not found. Please ensure you are logged in.",
-          variant: "warning",
-        })
+
+        if (!profile) {
+          console.error("StudentCoursesPage: No profile found for user")
+          setAuthError("User profile not found")
+          return
+        }
+
+        // Check if user is a student
+        if (profile.role !== "student") {
+          console.error("StudentCoursesPage: User is not a student:", profile.role)
+          setAuthError("Access denied: Student role required")
+          router.push("/student/login")
+          return
+        }
+
+        if (!profile.institution_id) {
+          console.warn("StudentCoursesPage: Institution ID not found in profile")
+          setAuthError("Institution not set for your profile")
+          return
+        }
+
+        console.log("StudentCoursesPage: Institution ID found:", profile.institution_id)
+        setInstitutionId(profile.institution_id)
+      } catch (err) {
+        console.error("StudentCoursesPage: Unexpected error:", err)
+        setAuthError("An unexpected error occurred")
+      } finally {
+        setUserDataLoading(false)
       }
-      setUserDataLoading(false)
     }
+
     fetchUserData()
-  }, [supabase, toast])
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("StudentCoursesPage: Auth state changed:", event, session?.user?.id)
+      if (event === "SIGNED_OUT" || !session) {
+        setStudentId(undefined)
+        setInstitutionId(undefined)
+        router.push("/student/login")
+      } else if (event === "SIGNED_IN" && session) {
+        // Refetch user data when signed in
+        fetchUserData()
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase, router])
 
   const {
     electiveCourses,
@@ -123,8 +165,19 @@ export default function StudentCoursesPage() {
       isUserDataLoading: userDataLoading,
       isCoursesLoading: coursesLoading,
       error,
+      authError,
     })
-  }, [studentId, institutionId, electiveCourses, courseSelections, isLoading, userDataLoading, coursesLoading, error])
+  }, [
+    studentId,
+    institutionId,
+    electiveCourses,
+    courseSelections,
+    isLoading,
+    userDataLoading,
+    coursesLoading,
+    error,
+    authError,
+  ])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -191,6 +244,22 @@ export default function StudentCoursesPage() {
     return ""
   }
 
+  // Show auth error if there's one
+  if (authError) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="space-y-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+          <Button onClick={() => router.push("/student/login")}>Go to Login</Button>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   if (isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
@@ -198,7 +267,6 @@ export default function StudentCoursesPage() {
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
           </div>
-          {/* More specific loading message */}
           <p className="text-muted-foreground">
             {userDataLoading ? "Loading user information..." : "Loading courses..."}
           </p>
@@ -254,6 +322,10 @@ export default function StudentCoursesPage() {
               <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">{t("student.courses.noCoursesTitle")}</h3>
               <p className="text-muted-foreground text-center max-w-md">{t("student.courses.noCoursesDescription")}</p>
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>Student ID: {studentId}</p>
+                <p>Institution ID: {institutionId}</p>
+              </div>
             </CardContent>
           </Card>
         ) : (
