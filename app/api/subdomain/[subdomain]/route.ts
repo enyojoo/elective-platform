@@ -12,15 +12,6 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
   }
 
   try {
-    // First try to get from cache to speed up response
-    const cacheKey = `subdomain:${subdomain}`
-    const cachedResult = sessionStorage?.getItem(cacheKey)
-
-    if (cachedResult) {
-      console.log(`API: Using cached result for subdomain: ${subdomain}`)
-      return NextResponse.json(JSON.parse(cachedResult))
-    }
-
     // Query the database for the institution with this subdomain
     const { data, error } = await supabase
       .from("institutions")
@@ -37,13 +28,6 @@ export async function GET(request: Request, { params }: { params: { subdomain: s
     const result = {
       exists: !!data,
       institution: data || null,
-    }
-
-    // Cache the result for 5 minutes
-    try {
-      sessionStorage?.setItem(cacheKey, JSON.stringify(result))
-    } catch (e) {
-      console.error("API: Error caching subdomain result:", e)
     }
 
     console.log(`API: Subdomain ${subdomain} validity result:`, result.exists)
