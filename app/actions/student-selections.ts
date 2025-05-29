@@ -1,123 +1,72 @@
 "use server"
 
-import { cookies } from "next/headers"
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { cookies } from "next/headers" // To get the Supabase client configured for the user
 
-export async function selectElectiveCourse(formData: FormData) {
-  const supabase = createServerActionClient({ cookies })
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "Unauthorized" }
-  }
-
-  const packId = formData.get("packId") as string
-  const courseId = formData.get("courseId") as string
-
-  if (!packId || !courseId) {
-    return { error: "Pack ID and Course ID are required" }
-  }
-
-  // Get user's institution
-  const { data: profile } = await supabase.from("profiles").select("institution_id").eq("id", user.id).single()
-
-  if (!profile) {
-    return { error: "User profile not found" }
-  }
-
-  // Check if user already has a selection for this pack
-  const { data: existingSelection } = await supabase
-    .from("student_selections")
-    .select("id")
-    .eq("student_id", user.id)
-    .eq("pack_id", packId)
-    .maybeSingle()
-
-  if (existingSelection) {
-    // Update existing selection
-    const { error } = await supabase
-      .from("student_selections")
-      .update({
-        course_id: courseId,
-        exchange_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existingSelection.id)
-
-    if (error) {
-      return { error: error.message }
-    }
-  } else {
-    // Create new selection
-    const { error } = await supabase.from("student_selections").insert({
-      institution_id: profile.institution_id,
-      student_id: user.id,
-      pack_id: packId,
-      course_id: courseId,
-      exchange_id: null,
-      status: "pending",
-    })
-
-    if (error) {
-      return { error: error.message }
-    }
-  }
-
-  revalidatePath(`/student/courses/${packId}`)
-  return { success: true }
+// Helper to get a server-side Supabase client
+// This assumes you have a way to initialize Supabase client on the server,
+// possibly using cookies for auth. Adjust as per your Supabase setup.
+const createSupabaseServerClient = () => {
+  const cookieStore = cookies()
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role for direct DB modification if RLS is restrictive
+    // Or, configure client to use user's session from cookies
+    {
+      global: {
+        headers: {
+          // If you're using user's session:
+          // Authorization: `Bearer ${cookieStore.get('supabase-auth-token')?.value}`,
+        },
+      },
+    },
+  )
 }
 
-export async function uploadStatement(formData: FormData) {
-  const supabase = createServerActionClient({ cookies })
+export async function cancelCourseSelection(formData: FormData) {
+  const studentId = formData.get("studentId") as string
+  const electiveCoursesId = formData.get("electiveCoursesId") as string
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "Unauthorized" }
+  if (!studentId || !electiveCoursesId) {
+    return { success: false, error: "Missing student ID or elective course ID." }
   }
 
-  const packId = formData.get("packId") as string
-  const selectionId = formData.get("selectionId") as string
-  const statement = formData.get("statement") as File
+  const supabase = createSupabaseServerClient() // Or your specific server client creation logic
 
-  if (!packId || !selectionId || !statement) {
-    return { error: "All fields are required" }
+  try {
+    // Option 1: Delete the record entirely
+    const { error: deleteError } = await supabase
+      .from("course_selections")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("elective_courses_id", electiveCoursesId)
+
+    if (deleteError) {
+      console.error("Error deleting course selection:", deleteError)
+      throw deleteError
+    }
+
+    // Option 2: Or, mark as 'cancelled' if you want to keep a record
+    /*
+    const { error: updateError } = await supabase
+      .from("course_selections")
+      .update({ status: "cancelled", selected_ids: [] }) // Assuming 'cancelled' is a valid status
+      .eq("student_id", studentId)
+      .eq("elective_courses_id", electiveCoursesId);
+
+    if (updateError) {
+      console.error("Error cancelling course selection:", updateError);
+      throw updateError;
+    }
+    */
+
+    // Revalidate the path to update the UI
+    revalidatePath(`/student/courses/${electiveCoursesId}`)
+    revalidatePath("/student/courses")
+
+    return { success: true, message: "Course selection has been cancelled." }
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to cancel course selection." }
   }
-
-  // Upload file to storage
-  const fileExt = statement.name.split(".").pop()
-  const fileName = `${user.id}_${packId}_${Date.now()}.${fileExt}`
-  const filePath = `statements/${fileName}`
-
-  const { error: uploadError } = await supabase.storage.from("statements").upload(filePath, statement)
-
-  if (uploadError) {
-    return { error: uploadError.message }
-  }
-
-  // Get public URL
-  const { data: urlData } = await supabase.storage.from("statements").getPublicUrl(filePath)
-
-  // Update selection with statement URL
-  const { error: updateError } = await supabase
-    .from("student_selections")
-    .update({
-      statement_url: urlData.publicUrl,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", selectionId)
-    .eq("student_id", user.id)
-
-  if (updateError) {
-    return { error: updateError.message }
-  }
-
-  revalidatePath(`/student/courses/${packId}`)
-  return { success: true, url: urlData.publicUrl }
 }

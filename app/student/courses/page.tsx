@@ -1,24 +1,24 @@
 "use client"
 
 import { AlertDescription } from "@/components/ui/alert"
-
 import { AlertTitle } from "@/components/ui/alert"
-
 import { Alert } from "@/components/ui/alert"
-
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox, LogIn } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+
+// Create a singleton Supabase client to prevent multiple instances
+const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 export default function ElectivesPage() {
   const { t, language } = useLanguage()
@@ -60,11 +60,9 @@ export default function ElectivesPage() {
       setFetchError(null)
       console.log("ElectivesPage: Starting data fetch for institution:", profile.institution_id)
       try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
         // Fetch elective courses for the institution
         console.log("ElectivesPage: Fetching elective_courses...")
-        const { data: coursesData, error: coursesError } = await supabase
+        const { data: coursesData, error: coursesError } = await supabaseClient
           .from("elective_courses")
           .select("*")
           .eq("institution_id", profile.institution_id)
@@ -79,7 +77,7 @@ export default function ElectivesPage() {
 
         // Fetch student's course selections
         console.log("ElectivesPage: Fetching course_selections for student:", profile.id)
-        const { data: selectionsData, error: selectionsError } = await supabase
+        const { data: selectionsData, error: selectionsError } = await supabaseClient
           .from("course_selections")
           .select("*")
           .eq("student_id", profile.id)
@@ -129,23 +127,6 @@ export default function ElectivesPage() {
     try {
       const coursesInElective = JSON.parse(electiveCourse.courses)
       if (Array.isArray(coursesInElective)) {
-        // Assuming the `courses` JSON in `elective_courses` stores an array of course objects,
-        // and each object might have a property like `id` or `name`.
-        // The `course_selections` table's `selected_course_ids` (if it existed) or similar field would store actual selections.
-        // For now, if `electiveCourse.courses` contains the *selected* courses by the student for this pack,
-        // we need to know its structure.
-        // Let's assume `electiveCourse.courses` (JSON) is an array of course objects, and `selected` property indicates selection.
-        // This part needs clarification on how selected courses *within* an elective_courses entry are stored.
-        // For now, if `course_selections` has an entry, it means the student interacted with this elective_courses pack.
-        // The number of selected items within that pack depends on how `elective_courses.courses` (JSON) is structured and updated.
-        // The `[packId]/page.tsx` handles individual selections within a pack.
-        // This page (`/student/courses`) might just show if *any* selection was made for the pack.
-        // Let's assume `electiveCourse.max_selections` is the total allowed, and `course_selections.selected_count` (hypothetical) would be the actual.
-        // Since `course_selections` doesn't have `selected_count`, we'll infer from `elective_courses.courses` if possible.
-        // This is tricky without knowing the exact structure of `elective_courses.courses` JSON and how it's updated.
-        // For simplicity, if a selection record exists, we'll assume they selected *something*.
-        // A more accurate count would require parsing `elective_courses.courses` based on its structure.
-        // Let's assume `elective_courses.courses` is an array of objects like `{id: "course1", name: "Course 1", selected: true/false}`
         const selected = coursesInElective.filter((c) => c.selected === true)
         return selected.length
       }
@@ -192,6 +173,32 @@ export default function ElectivesPage() {
             <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
           </div>
           <TableSkeleton numberOfRows={3} />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  // If there's no profile and we're not loading, the user might not be logged in
+  if (!profile && !profileLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
+            <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
+          </div>
+
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <LogIn className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">You need to log in to view your courses</p>
+              <div className="mt-4">
+                <Link href="/student/login">
+                  <Button>Log In</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </DashboardLayout>
     )

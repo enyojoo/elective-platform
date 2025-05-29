@@ -27,6 +27,7 @@ import { uploadStatement } from "@/lib/file-utils"
 import { createClient } from "@supabase/supabase-js"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { cancelCourseSelection } from "@/app/actions/student-selections"
 
 interface ElectivePageProps {
   params: {
@@ -48,6 +49,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [downloadingStatement, setDownloadingStatement] = useState(false)
   const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   // Data states
   const [electiveCourseData, setElectiveCourseData] = useState<any>(null) // The main elective_courses record
@@ -387,6 +389,37 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const canSubmit =
     !isDeadlinePassed && electiveCourseData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
 
+  const handleCancelSelection = async () => {
+    if (!profile?.id || !electiveCourseData?.id) {
+      toast({ title: "Error", description: "Cannot cancel selection. Missing information.", variant: "destructive" })
+      return
+    }
+    if (!existingSelectionRecord) {
+      toast({ title: "No Selection", description: "There is no selection to cancel.", variant: "destructive" })
+      return
+    }
+
+    setIsCancelling(true)
+    const formData = new FormData()
+    formData.append("studentId", profile.id)
+    formData.append("electiveCoursesId", electiveCourseData.id)
+
+    const result = await cancelCourseSelection(formData)
+
+    if (result.success) {
+      toast({ title: "Selection Cancelled", description: result.message })
+      // Reset local state or re-fetch data
+      setExistingSelectionRecord(null)
+      setSelectedIndividualCourseIds([])
+      setUploadedStatement(null)
+      // Optionally, trigger a full data reload:
+      // await loadData();
+    } else {
+      toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
+    }
+    setIsCancelling(false)
+  }
+
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6 p-4 md:p-6">
@@ -580,6 +613,27 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {existingSelectionRecord ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
             </Button>
+            {existingSelectionRecord &&
+              canSubmit && ( // Show cancel if a selection exists and can be modified
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Optional: Add a confirmation dialog before cancelling
+                    if (
+                      window.confirm(
+                        "Are you sure you want to cancel your current selection? This action cannot be undone.",
+                      )
+                    ) {
+                      handleCancelSelection()
+                    }
+                  }}
+                  disabled={isCancelling || submitting}
+                  className="ml-2"
+                >
+                  {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {t("student.courses.cancelSelection")}
+                </Button>
+              )}
           </div>
         )}
 
