@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -10,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 interface ElectiveCourse {
   id: string
@@ -41,7 +41,7 @@ export default function ElectivesPage() {
   const [courseSelections, setCourseSelections] = useState<CourseSelection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
     fetchData()
