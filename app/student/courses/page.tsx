@@ -1,10 +1,8 @@
 "use client"
 
-import { AlertDescription } from "@/components/ui/alert"
-
 import { AlertTitle } from "@/components/ui/alert"
 
-import { Alert } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -61,6 +59,12 @@ export default function StudentCoursesListPage() {
 
   useEffect(() => {
     const fetchUserData = async () => {
+      if (!language) {
+        // Wait for language context to be available
+        setUserDataLoading(true) // Keep loading true until language is ready
+        return
+      }
+
       setUserDataLoading(true)
       setAuthError(null)
       try {
@@ -68,12 +72,18 @@ export default function StudentCoursesListPage() {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession()
+
         if (sessionError) throw sessionError
+
         if (!session) {
-          router.push("/student/login")
+          router.push(`/${language}/student/login`) // Ensure language prefix
           return
         }
-        setStudentId(session.user.id)
+
+        // Only set studentId if it has changed to avoid unnecessary re-renders/re-fetches
+        if (studentId !== session.user.id) {
+          setStudentId(session.user.id)
+        }
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -82,36 +92,70 @@ export default function StudentCoursesListPage() {
           .single()
 
         if (profileError) throw profileError
-        if (!profile) throw new Error(t("student.courses.profileNotFound"))
+
+        if (!profile) {
+          setAuthError(t("student.courses.profileNotFound"))
+          router.push(`/${language}/student/login`) // Ensure language prefix
+          return
+        }
+
         if (profile.role !== UserRole.STUDENT) {
           setAuthError(t("student.courses.accessDenied"))
-          router.push(`/${language}/student/login`)
+          router.push(`/${language}/student/login`) // Ensure language prefix
           return
         }
+
         if (!profile.institution_id) {
           setAuthError(t("student.courses.institutionIdNotFound"))
+          // Redirect to a page that tells the user their institution is not set up
+          // The /institution-required page is handled by middleware to be on the main domain.
+          router.push("/institution-required")
           return
         }
-        setInstitutionId(profile.institution_id)
+
+        // Only set institutionId if it has changed
+        if (institutionId !== profile.institution_id) {
+          setInstitutionId(profile.institution_id)
+        }
       } catch (err: any) {
         console.error("Auth or profile fetch error:", err)
         setAuthError(err.message || t("student.courses.failedToLoadUserData"))
+        // Optionally, redirect to login on critical errors, ensuring language prefix
+        // Add a check to prevent redirect loops if the error persists
+        if (!sessionStorage.getItem("studentCoursesErrorRedirect")) {
+          sessionStorage.setItem("studentCoursesErrorRedirect", "true")
+          router.push(`/${language}/student/login`)
+          setTimeout(() => sessionStorage.removeItem("studentCoursesErrorRedirect"), 3000) // Clear flag after a delay
+        }
       } finally {
         setUserDataLoading(false)
       }
     }
-    fetchUserData()
+
+    fetchUserData() // Call fetchUserData
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!language) return // Ensure language is available for redirect paths
+
       if (event === "SIGNED_OUT" || !session) {
+        setStudentId(undefined)
+        setInstitutionId(undefined)
         router.push(`/${language}/student/login`)
-      } else if (session) {
-        fetchUserData() // Re-fetch on auth change if needed
+      } else if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user) {
+        // If user signs in or is updated, re-fetch their data.
+        // Calling fetchUserData directly is fine as long as its dependencies are managed.
+        fetchUserData()
       }
     })
-    return () => subscription.unsubscribe()
-  }, [supabase, router, t, language])
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase, router, t, language, studentId, institutionId]) // Added studentId and institutionId to dependencies
+  // to re-run if they are changed by another source,
+  // though onAuthStateChange should handle most cases.
+  // `language` ensures effect re-runs if language changes.
 
   const {
     electiveCourses, // These are ElectiveCoursePack[]
