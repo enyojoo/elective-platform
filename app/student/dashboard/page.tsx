@@ -12,6 +12,7 @@ import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import {
   useCachedStudentCourseSelections,
   useCachedStudentExchangeSelections,
+  useCachedAvailableElectives,
 } from "@/hooks/use-cached-student-selections"
 import { useSession } from "@supabase/auth-helpers-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -48,6 +49,7 @@ export default function StudentDashboard() {
     useCachedStudentCourseSelections(userId)
   const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
     useCachedStudentExchangeSelections(userId)
+  const { electives: availableElectives, isLoading: isElectivesLoading } = useCachedAvailableElectives()
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -75,12 +77,14 @@ export default function StudentDashboard() {
     name: profile?.full_name || "Loading...",
     email: profile?.email || "Loading...",
     degree: profile?.degree?.name || "Not specified",
-    year: profile?.enrollment_year || "Not specified",
+    year: profile?.academic_year || profile?.year || "Not specified",
     group: profile?.group?.name || "Not assigned",
     requiredElectives: {
-      courses: 2,
-      exchange: 1,
-      total: 3,
+      courses: availableElectives.courses.length || 0,
+      exchange: availableElectives.exchanges.length || 0,
+      get total() {
+        return this.courses + this.exchange
+      },
     },
     selectedElectives: {
       courses: courseSelections?.length || 0,
@@ -98,7 +102,7 @@ export default function StudentDashboard() {
     },
   }
 
-  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading
+  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading || isElectivesLoading
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting

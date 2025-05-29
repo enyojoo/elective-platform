@@ -39,10 +39,15 @@ export function useCachedStudentCourseSelections(userId: string | undefined) {
 
         const { data, error } = await supabase
           .from("course_selections")
-          .select("*, elective_courses(*)")
+          .select(`
+            *,
+            elective_course:elective_courses(*)
+          `)
           .eq("student_id", userId)
 
         if (error) throw error
+
+        console.log("Course selections data:", data)
 
         // Save to cache
         setCachedData("studentCourseSelections", userId, data || [])
@@ -102,10 +107,15 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
 
         const { data, error } = await supabase
           .from("exchange_selections")
-          .select("*, elective_exchange(*)")
+          .select(`
+            *,
+            elective_exchange:elective_exchange(*)
+          `)
           .eq("student_id", userId)
 
         if (error) throw error
+
+        console.log("Exchange selections data:", data)
 
         // Save to cache
         setCachedData("studentExchangeSelections", userId, data || [])
@@ -129,4 +139,73 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
   }, [userId, getCachedData, setCachedData, toast])
 
   return { selections, isLoading, error }
+}
+
+// New hook to fetch available electives for calculating required electives
+export function useCachedAvailableElectives() {
+  const [electives, setElectives] = useState<{ courses: any[]; exchanges: any[] }>({ courses: [], exchanges: [] })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { getCachedData, setCachedData } = useDataCache()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    const fetchElectives = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      // Try to get data from cache first
+      const cachedElectives = getCachedData<{ courses: any[]; exchanges: any[] }>("availableElectives", "all")
+
+      if (cachedElectives) {
+        console.log("Using cached available electives")
+        setElectives(cachedElectives)
+        setIsLoading(false)
+        return
+      }
+
+      // If not in cache, fetch from API
+      console.log("Fetching available electives from API")
+      try {
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Fetch elective courses
+        const { data: coursesData, error: coursesError } = await supabase.from("elective_courses").select("*")
+
+        if (coursesError) throw coursesError
+
+        // Fetch elective exchanges
+        const { data: exchangesData, error: exchangesError } = await supabase.from("elective_exchange").select("*")
+
+        if (exchangesError) throw exchangesError
+
+        const electivesData = {
+          courses: coursesData || [],
+          exchanges: exchangesData || [],
+        }
+
+        console.log("Available electives data:", electivesData)
+
+        // Save to cache
+        setCachedData("availableElectives", "all", electivesData)
+
+        // Update state
+        setElectives(electivesData)
+      } catch (error: any) {
+        console.error("Error fetching available electives:", error)
+        setError(error.message)
+        toast({
+          title: "Error",
+          description: "Failed to load available electives",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchElectives()
+  }, [getCachedData, setCachedData, toast])
+
+  return { electives, isLoading, error }
 }

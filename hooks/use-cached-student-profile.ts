@@ -47,15 +47,20 @@ export function useCachedStudentProfile(userId: string | undefined) {
 
         if (profileError) throw profileError
 
-        // Use the profile data directly - enrollment_year should be in the profiles table
+        console.log("Raw profile data:", profileData)
+
+        // Use the profile data directly
         const processedProfile = {
           ...profileData,
-          // Map academic_year to enrollment_year for backward compatibility
+          // Use academic_year directly as the year
+          year: profileData.academic_year || "Not specified",
           enrollment_year: profileData.academic_year || "Not specified",
           // Add placeholder data for missing relationships if needed
           degree: { name: profileData.degree_name || "Not specified" },
           group: { name: profileData.group_name || "Not assigned" },
         }
+
+        console.log("Processed profile data:", processedProfile)
 
         // Save to cache
         setCachedData("studentProfile", userId, processedProfile)
