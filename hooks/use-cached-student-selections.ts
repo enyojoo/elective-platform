@@ -38,18 +38,17 @@ export function useCachedStudentCourseSelections(userId: string | undefined) {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
         const { data, error } = await supabase
-          .from("student_elective_selections")
-          .select("*, elective_packs(*), elective_courses(*)")
+          .from("course_selections")
+          .select("*, elective_courses(*)")
           .eq("student_id", userId)
-          .eq("type", "course")
 
         if (error) throw error
 
         // Save to cache
-        setCachedData("studentCourseSelections", userId, data)
+        setCachedData("studentCourseSelections", userId, data || [])
 
         // Update state
-        setSelections(data)
+        setSelections(data || [])
       } catch (error: any) {
         console.error("Error fetching student course selections:", error)
         setError(error.message)
@@ -102,18 +101,17 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
         const { data, error } = await supabase
-          .from("student_elective_selections")
-          .select("*, elective_packs(*), exchange_universities(*)")
+          .from("exchange_selections")
+          .select("*, elective_exchange(*)")
           .eq("student_id", userId)
-          .eq("type", "exchange")
 
         if (error) throw error
 
         // Save to cache
-        setCachedData("studentExchangeSelections", userId, data)
+        setCachedData("studentExchangeSelections", userId, data || [])
 
         // Update state
-        setSelections(data)
+        setSelections(data || [])
       } catch (error: any) {
         console.error("Error fetching student exchange selections:", error)
         setError(error.message)

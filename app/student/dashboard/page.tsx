@@ -74,9 +74,9 @@ export default function StudentDashboard() {
   const studentData = {
     name: profile?.full_name || "Loading...",
     email: profile?.email || "Loading...",
-    degree: profile?.degree?.name || "Loading...",
-    year: profile?.enrollment_year || "Loading...",
-    group: profile?.group?.name || "Loading...",
+    degree: profile?.degree?.name || "Not specified",
+    year: profile?.enrollment_year || "Not specified",
+    group: profile?.group?.name || "Not assigned",
     requiredElectives: {
       courses: 2,
       exchange: 1,
