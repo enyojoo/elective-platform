@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 
 // Cache constants
 const CACHE_KEY = "managerProfile"
@@ -70,7 +70,6 @@ export function useCachedManagerProfile(userId: string | undefined) {
     }
     return true
   })
-
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
@@ -121,19 +120,19 @@ export function useCachedManagerProfile(userId: string | undefined) {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(`
-            id,
-            full_name,
-            email,
-            role,
-            degree_id,
-            academic_year,
-            institution_id,
-            degrees (
-              id,
-              name,
-              name_ru
-            )
-          `)
+        id,
+        full_name,
+        email,
+        role,
+        degree_id,
+        academic_year,
+        institution_id,
+        degrees (
+          id,
+          name,
+          name_ru
+        )
+      `)
           .eq("id", userId)
           .single()
 
