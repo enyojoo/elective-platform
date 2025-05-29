@@ -81,7 +81,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId, getCachedData, setCachedData, toast])
+  }, [userId]) // Removed function dependencies to prevent infinite loops
 
   return { profile, isLoading, error }
 }

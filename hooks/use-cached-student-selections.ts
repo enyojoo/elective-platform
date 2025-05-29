@@ -40,9 +40,9 @@ export function useCachedStudentCourseSelections(userId: string | undefined) {
         const { data, error } = await supabase
           .from("course_selections")
           .select(`
-          *,
-          elective_course:elective_courses!course_selections_elective_course_id_fkey(*)
-        `)
+            *,
+            elective_course:elective_courses(*)
+          `)
           .eq("student_id", userId)
 
         if (error) throw error
@@ -68,7 +68,7 @@ export function useCachedStudentCourseSelections(userId: string | undefined) {
     }
 
     fetchSelections()
-  }, [userId, getCachedData, setCachedData, toast])
+  }, [userId]) // Removed function dependencies to prevent infinite loops
 
   return { selections, isLoading, error }
 }
@@ -108,9 +108,9 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
         const { data, error } = await supabase
           .from("exchange_selections")
           .select(`
-          *,
-          elective_exchange:elective_exchange!exchange_selections_elective_exchange_id_fkey(*)
-        `)
+            *,
+            elective_exchange:elective_exchange!exchange_selections_elective_exchange_id_fkey(*)
+          `)
           .eq("student_id", userId)
 
         if (error) throw error
@@ -136,7 +136,7 @@ export function useCachedStudentExchangeSelections(userId: string | undefined) {
     }
 
     fetchSelections()
-  }, [userId, getCachedData, setCachedData, toast])
+  }, [userId]) // Removed function dependencies to prevent infinite loops
 
   return { selections, isLoading, error }
 }
@@ -205,7 +205,7 @@ export function useCachedAvailableElectives() {
     }
 
     fetchElectives()
-  }, [getCachedData, setCachedData, toast])
+  }, []) // No dependencies since this fetches all available electives (not user-specific)
 
   return { electives, isLoading, error }
 }
