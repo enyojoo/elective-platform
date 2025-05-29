@@ -49,6 +49,12 @@ type CacheData = {
     timestamp: number
     institutionId: string
   }
+  institutionElectiveCourses?: {
+    // For elective_courses table scoped by institution
+    data: any[]
+    timestamp: number
+    institutionId: string
+  }
 
   // Manager caches
   managerProfile?: {
@@ -161,7 +167,8 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         key === "degrees" ||
         key === "groups" ||
         key === "courseElectives" ||
-        key === "exchangePrograms") &&
+        key === "exchangePrograms" ||
+        key === "institutionElectiveCourses") &&
       cache.institutionId !== id
     ) {
       return null
@@ -205,7 +212,8 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         key === "degrees" ||
         key === "groups" ||
         key === "courseElectives" ||
-        key === "exchangePrograms"
+        key === "exchangePrograms" ||
+        key === "institutionElectiveCourses"
       ) {
         newCache[key] = {
           data,
@@ -262,7 +270,8 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
           key === "degrees" ||
           key === "groups" ||
           key === "courseElectives" ||
-          key === "exchangePrograms") &&
+          key === "exchangePrograms" ||
+          key === "institutionElectiveCourses") &&
         newCache[key]?.institutionId === id
       ) {
         delete newCache[key]
