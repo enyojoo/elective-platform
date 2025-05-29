@@ -14,7 +14,6 @@ import {
   useCachedStudentExchangeSelections,
   useCachedAvailableElectives,
 } from "@/hooks/use-cached-student-selections"
-import { useSession } from "@supabase/auth-helpers-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
@@ -71,33 +70,16 @@ export default function StudentDashboard() {
   const { t, language } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
-  const session = useSession()
-  const [userId, setUserId] = useState<string | undefined>(undefined)
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
-  useEffect(() => {
-    async function getCurrentUserId() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (user) {
-          setUserId(user.id)
-        }
-      } catch (error) {
-        console.error("Error getting current user:", error)
-      }
-    }
-
-    getCurrentUserId()
-  }, [])
-
-  const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
-  const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
-    useCachedStudentCourseSelections(userId)
-  const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
-    useCachedStudentExchangeSelections(userId)
+  const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile()
+  const { selections: courseSelections, isLoading: isCourseSelectionsLoading } = useCachedStudentCourseSelections(
+    profile?.id,
+  )
+  const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } = useCachedStudentExchangeSelections(
+    profile?.id,
+  )
   const { electives: availableElectives, isLoading: isElectivesLoading } = useCachedAvailableElectives()
 
   // Ensure this page is only accessed via subdomain

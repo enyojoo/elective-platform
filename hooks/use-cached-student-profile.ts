@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
-export function useCachedStudentProfile(userId: string | undefined) {
+export function useCachedStudentProfile() {
   const [profile, setProfile] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -13,53 +13,61 @@ export function useCachedStudentProfile(userId: string | undefined) {
   const { toast } = useToast()
 
   useEffect(() => {
-    if (!userId) {
-      setIsLoading(false)
-      return
-    }
-
     const fetchProfile = async () => {
       setIsLoading(true)
       setError(null)
 
-      // Try to get data from cache first
-      const cachedProfile = getCachedData<any>("studentProfile", userId)
-
-      if (cachedProfile) {
-        console.log("Using cached student profile")
-        setProfile(cachedProfile)
-        setIsLoading(false)
-        return
-      }
-
-      // If not in cache, fetch from API
-      console.log("Fetching student profile from API")
       try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+        // Get current user
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError || !user) {
+          throw new Error("No authenticated user found")
+        }
+
+        // Try to get data from cache first
+        const cachedProfile = getCachedData<any>("studentProfile", user.id)
+
+        if (cachedProfile) {
+          console.log("Using cached student profile")
+          setProfile(cachedProfile)
+          setIsLoading(false)
+          return
+        }
+
+        // If not in cache, fetch from API
+        console.log("Fetching student profile from API")
 
         // Fetch the profile data with proper relationships
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(`
-          *,
-          degrees:degree_id(id, name),
-          groups:group_id(id, name)
-        `)
-          .eq("id", userId)
+            *,
+            degrees:degree_id(id, name),
+            groups:group_id(id, name)
+          `)
+          .eq("id", user.id)
           .eq("role", "student")
           .single()
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error("Profile fetch error:", profileError)
+          throw new Error(`Failed to fetch profile: ${profileError.message}`)
+        }
+
+        if (!profileData) {
+          throw new Error("No profile data found")
+        }
 
         console.log("Raw profile data:", profileData)
 
-        // Use the profile data with proper relationships
+        // Process the profile data
         const processedProfile = {
           ...profileData,
-          // Use academic_year directly as the year
           year: profileData.academic_year || "Not specified",
-          enrollment_year: profileData.academic_year || "Not specified",
-          // Use the proper relationship data
           degree: profileData.degrees || { name: "Not specified" },
           group: profileData.groups || { name: "Not assigned" },
         }
@@ -67,7 +75,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
         console.log("Processed profile data:", processedProfile)
 
         // Save to cache
-        setCachedData("studentProfile", userId, processedProfile)
+        setCachedData("studentProfile", user.id, processedProfile)
 
         // Update state
         setProfile(processedProfile)
@@ -85,7 +93,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId]) // Removed function dependencies to prevent infinite loops
+  }, []) // Remove dependencies to prevent infinite loops
 
   return { profile, isLoading, error }
 }
