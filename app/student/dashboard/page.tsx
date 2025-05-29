@@ -10,11 +10,6 @@ import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { useRouter } from "next/navigation"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
-import {
-  useCachedStudentCourseSelections,
-  useCachedStudentExchangeSelections,
-  useCachedAvailableElectives,
-} from "@/hooks/use-cached-student-selections"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
@@ -23,6 +18,8 @@ import { formatDate, calculateDaysLeft } from "@/lib/utils"
 // Cache constants
 const DEADLINES_CACHE_KEY = "studentDashboardDeadlines"
 const USER_ID_CACHE_KEY = "studentDashboardUserId"
+const ELECTIVE_COUNTS_CACHE_KEY = "studentDashboardElectiveCounts"
+const STUDENT_SELECTIONS_CACHE_KEY = "studentDashboardSelections"
 const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
 // Cache helper functions
@@ -66,6 +63,24 @@ interface DeadlineItem {
   type: "course" | "exchange"
 }
 
+interface ElectiveCounts {
+  required: {
+    courses: number
+    exchange: number
+    total: number
+  }
+  selected: {
+    courses: number
+    exchange: number
+    total: number
+  }
+  pending: {
+    courses: number
+    exchange: number
+    total: number
+  }
+}
+
 export default function StudentDashboard() {
   const { t, language } = useLanguage()
   const { isSubdomainAccess, institution } = useInstitution()
@@ -91,87 +106,140 @@ export default function StudentDashboard() {
 
   // State for loading
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
-  const [isValidatingRole, setIsValidatingRole] = useState(true)
+  const [isLoadingElectiveCounts, setIsLoadingElectiveCounts] = useState(true)
 
-  // Fetch current user ID and validate role
+  // Fetch current user ID only once on mount
   useEffect(() => {
-    const fetchAndValidateUser = async () => {
+    const fetchUserId = async () => {
+      // Skip if we already have a userId from cache
+      if (userId) return
+
       try {
-        const { data: authData, error: authError } = await supabase.auth.getUser()
+        const { data, error } = await supabase.auth.getUser()
 
-        if (authError || !authData?.user) {
-          console.error("Auth error:", authError)
+        if (error) {
+          console.error("Auth error:", error)
           router.push("/student/login")
           return
         }
 
-        const currentUserId = authData.user.id
-        console.log("Current authenticated user ID:", currentUserId)
-
-        // Check the user's role in the profiles table
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, role, institution_id")
-          .eq("id", currentUserId)
-          .single()
-
-        if (profileError || !profileData) {
-          console.error("Profile fetch error:", profileError)
+        if (data?.user) {
+          const newUserId = data.user.id
+          console.log("Student Dashboard - Fetched user ID:", newUserId)
+          setUserId(newUserId)
+          // Cache the userId
+          setCachedData(USER_ID_CACHE_KEY, newUserId)
+        } else {
+          console.log("No authenticated user found")
           router.push("/student/login")
-          return
         }
-
-        console.log("User profile data:", profileData)
-
-        // IMPORTANT: Check if the user is actually a student
-        if (profileData.role !== "student") {
-          console.log(`User has role '${profileData.role}', not 'student'. Redirecting...`)
-
-          // Clear any cached student data
-          localStorage.removeItem(USER_ID_CACHE_KEY)
-          localStorage.removeItem(DEADLINES_CACHE_KEY)
-
-          // Redirect based on their actual role
-          if (profileData.role === "manager") {
-            router.push("/manager/dashboard")
-          } else if (profileData.role === "admin") {
-            router.push("/admin/dashboard")
-          } else {
-            router.push("/student/login")
-          }
-          return
-        }
-
-        // User is a valid student, proceed
-        setUserId(currentUserId)
-        setCachedData(USER_ID_CACHE_KEY, currentUserId)
-        setIsValidatingRole(false)
       } catch (error) {
-        console.error("Error validating user:", error)
+        console.error("Error fetching user ID:", error)
         router.push("/student/login")
       }
     }
 
-    fetchAndValidateUser()
+    fetchUserId()
   }, [supabase, router])
 
   // Fetch student profile using the cached hook
   const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile(userId)
 
-  // Fetch student selections
-  const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
-    useCachedStudentCourseSelections(userId)
-  const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
-    useCachedStudentExchangeSelections(userId)
-  const { electives: availableElectives, isLoading: isElectivesLoading } = useCachedAvailableElectives()
-
-  // State for deadlines
+  // State for elective counts and deadlines
+  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({
+    required: { courses: 0, exchange: 0, total: 0 },
+    selected: { courses: 0, exchange: 0, total: 0 },
+    pending: { courses: 0, exchange: 0, total: 0 },
+  })
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
+
+  // Fetch elective counts and selections with caching
+  useEffect(() => {
+    const fetchElectiveCounts = async () => {
+      if (!isSubdomainAccess || !institution?.id || !userId) return
+
+      try {
+        setIsLoadingElectiveCounts(true)
+
+        // Check for cached data
+        const cachedCounts = getCachedData(ELECTIVE_COUNTS_CACHE_KEY)
+        if (cachedCounts) {
+          console.log("Using cached elective counts data")
+          setElectiveCounts(cachedCounts)
+          setIsLoadingElectiveCounts(false)
+          return
+        }
+
+        console.log("Fetching fresh elective counts data")
+
+        // Fetch available electives (required)
+        const { count: availableCoursesCount, error: availableCoursesError } = await supabase
+          .from("elective_courses")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+
+        const { count: availableExchangeCount, error: availableExchangeError } = await supabase
+          .from("elective_exchange")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+
+        // Fetch student's course selections
+        const { data: courseSelections, error: courseSelectionsError } = await supabase
+          .from("course_selections")
+          .select("*")
+          .eq("student_id", userId)
+
+        // Fetch student's exchange selections
+        const { data: exchangeSelections, error: exchangeSelectionsError } = await supabase
+          .from("exchange_selections")
+          .select("*")
+          .eq("student_id", userId)
+
+        if (!availableCoursesError && !availableExchangeError && !courseSelectionsError && !exchangeSelectionsError) {
+          const selectedCourses = courseSelections?.length || 0
+          const selectedExchange = exchangeSelections?.length || 0
+          const pendingCourses = courseSelections?.filter((s) => s.status === "pending")?.length || 0
+          const pendingExchange = exchangeSelections?.filter((s) => s.status === "pending")?.length || 0
+
+          const counts: ElectiveCounts = {
+            required: {
+              courses: availableCoursesCount || 0,
+              exchange: availableExchangeCount || 0,
+              total: (availableCoursesCount || 0) + (availableExchangeCount || 0),
+            },
+            selected: {
+              courses: selectedCourses,
+              exchange: selectedExchange,
+              total: selectedCourses + selectedExchange,
+            },
+            pending: {
+              courses: pendingCourses,
+              exchange: pendingExchange,
+              total: pendingCourses + pendingExchange,
+            },
+          }
+
+          setElectiveCounts(counts)
+
+          // Cache the data
+          setCachedData(ELECTIVE_COUNTS_CACHE_KEY, counts)
+        }
+      } catch (error) {
+        console.error("Error fetching elective counts:", error)
+      } finally {
+        setIsLoadingElectiveCounts(false)
+      }
+    }
+
+    fetchElectiveCounts()
+  }, [supabase, isSubdomainAccess, institution?.id, userId])
 
   // Fetch upcoming deadlines with caching
   useEffect(() => {
     const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id || isValidatingRole) return
+      if (!isSubdomainAccess || !institution?.id) return
 
       try {
         setIsLoadingDeadlines(true)
@@ -249,7 +317,7 @@ export default function StudentDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language, isValidatingRole])
+  }, [supabase, isSubdomainAccess, institution?.id, language])
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -270,45 +338,8 @@ export default function StudentDashboard() {
     }
   }, [])
 
-  // Calculate student data from profile and selections
-  const studentData = {
-    name: profile?.full_name || "-",
-    email: profile?.email || "-",
-    degree: profile?.degree?.name || "Not specified",
-    year: profile?.year || "Not specified",
-    group: profile?.group?.name || "Not assigned",
-    requiredElectives: {
-      courses: availableElectives.courses.length || 0,
-      exchange: availableElectives.exchanges.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-    selectedElectives: {
-      courses: courseSelections?.length || 0,
-      exchange: exchangeSelections?.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-    pendingSelections: {
-      courses: courseSelections?.filter((s) => s.status === "pending")?.length || 0,
-      exchange: exchangeSelections?.filter((s) => s.status === "pending")?.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-  }
-
-  const isLoading =
-    isValidatingRole ||
-    isLoadingProfile ||
-    isCourseSelectionsLoading ||
-    isExchangeSelectionsLoading ||
-    isElectivesLoading
-
-  if (!isSubdomainAccess || isValidatingRole) {
-    return null // Don't render anything while redirecting or validating
+  if (!isSubdomainAccess) {
+    return null // Don't render anything while redirecting
   }
 
   return (
@@ -336,14 +367,14 @@ export default function StudentDashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoadingElectiveCounts ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
+                <div className="text-2xl font-bold">{electiveCounts.required.total}</div>
               )}
               <p className="text-xs text-muted-foreground">
-                {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
+                {electiveCounts.required.courses} {t("student.dashboard.courses")}, {electiveCounts.required.exchange}{" "}
+                {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
@@ -354,14 +385,14 @@ export default function StudentDashboard() {
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoadingElectiveCounts ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
+                <div className="text-2xl font-bold">{electiveCounts.selected.total}</div>
               )}
               <p className="text-xs text-muted-foreground">
-                {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
+                {electiveCounts.selected.courses} {t("student.dashboard.courses")}, {electiveCounts.selected.exchange}{" "}
+                {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
@@ -372,14 +403,14 @@ export default function StudentDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoadingElectiveCounts ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
+                <div className="text-2xl font-bold">{electiveCounts.pending.total}</div>
               )}
               <p className="text-xs text-muted-foreground">
-                {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
-                {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
+                {electiveCounts.pending.courses} {t("student.dashboard.courses")}, {electiveCounts.pending.exchange}{" "}
+                {t("student.dashboard.exchange")}
               </p>
             </CardContent>
           </Card>
@@ -404,23 +435,23 @@ export default function StudentDashboard() {
                 <dl className="space-y-2">
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.name")}:</dt>
-                    <dd>{studentData.name}</dd>
+                    <dd>{profile?.full_name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.degree")}:</dt>
-                    <dd>{studentData.degree}</dd>
+                    <dd>{profile?.degree?.name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.year")}:</dt>
-                    <dd>{studentData.year}</dd>
+                    <dd>{profile?.year || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.group")}:</dt>
-                    <dd>{studentData.group}</dd>
+                    <dd>{profile?.group?.name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.email")}:</dt>
-                    <dd>{studentData.email}</dd>
+                    <dd>{profile?.email || "-"}</dd>
                   </div>
                 </dl>
               )}
