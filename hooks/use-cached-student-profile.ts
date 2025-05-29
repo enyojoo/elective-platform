@@ -13,27 +13,33 @@ export function useCachedStudentProfile(userId: string | undefined) {
   const { toast } = useToast()
 
   useEffect(() => {
+    // If userId is not yet available, set loading to false and wait.
     if (!userId) {
-      setIsLoading(false)
+      console.log("useCachedStudentProfile: userId is undefined, waiting.")
+      setIsLoading(false) // Not loading if no userId to fetch for
+      setProfile(null) // Ensure profile is null if no userId
+      setError(null)
       return
     }
 
     const fetchProfile = async () => {
+      console.log(`useCachedStudentProfile: Starting fetch for userId: ${userId}`)
       setIsLoading(true)
       setError(null)
+      setProfile(null) // Reset profile before fetching
 
       // Try to get data from cache first
-      const cachedProfile = getCachedData<any>("studentProfile", userId)
+      const cacheKey = `studentProfile-${userId}`
+      const cachedProfile = getCachedData<any>(cacheKey) // Use a more specific cache key
 
       if (cachedProfile) {
-        console.log("Using cached student profile")
+        console.log(`useCachedStudentProfile: Found cached profile for userId: ${userId}`, cachedProfile)
         setProfile(cachedProfile)
         setIsLoading(false)
         return
       }
 
-      // If not in cache, fetch from API
-      console.log("Fetching student profile from API for userId:", userId)
+      console.log(`useCachedStudentProfile: No cache found for userId: ${userId}. Fetching from API.`)
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -42,76 +48,101 @@ export function useCachedStudentProfile(userId: string | undefined) {
           .from("profiles")
           .select("*")
           .eq("id", userId)
-          .single()
+          .single() // This expects exactly one row
 
         if (profileError) {
-          console.error("Profile error:", profileError)
-          throw profileError
+          // This block will be hit if .single() finds 0 or more than 1 row.
+          console.error(`useCachedStudentProfile: Supabase error fetching profile for userId ${userId}:`, profileError)
+          throw new Error(
+            `Profile query failed for user ${userId}: ${profileError.message} (Hint: ${profileError.hint}, Code: ${profileError.code})`,
+          )
         }
 
-        console.log("Raw profile data:", profileData)
+        if (!profileData) {
+          // This case should ideally be caught by profileError with .single(),
+          // but as a safeguard:
+          console.error(
+            `useCachedStudentProfile: No profile data returned for userId ${userId}, though no explicit Supabase error.`,
+          )
+          throw new Error(`No profile data found for user ${userId}.`)
+        }
+
+        console.log(`useCachedStudentProfile: Raw profile data for userId ${userId}:`, profileData)
 
         // Fetch degree data if degree_id exists
         let degreeData = null
         if (profileData.degree_id) {
-          console.log("Fetching degree for degree_id:", profileData.degree_id)
+          console.log(`useCachedStudentProfile: Fetching degree for degree_id: ${profileData.degree_id}`)
           const { data: degree, error: degreeError } = await supabase
             .from("degrees")
             .select("id, name")
             .eq("id", profileData.degree_id)
             .single()
 
-          if (!degreeError && degree) {
+          if (degreeError) {
+            console.warn(
+              `useCachedStudentProfile: Could not fetch degree for id ${profileData.degree_id}: ${degreeError.message}`,
+            )
+            // Not throwing an error, just means degree info will be missing
+          } else if (degree) {
             degreeData = degree
-            console.log("Fetched degree data:", degreeData)
+            console.log(`useCachedStudentProfile: Fetched degree data:`, degreeData)
           }
         }
 
         // Fetch group data if group_id exists
         let groupData = null
         if (profileData.group_id) {
-          console.log("Fetching group for group_id:", profileData.group_id)
+          console.log(`useCachedStudentProfile: Fetching group for group_id: ${profileData.group_id}`)
           const { data: group, error: groupError } = await supabase
             .from("groups")
             .select("id, name")
             .eq("id", profileData.group_id)
             .single()
 
-          if (!groupError && group) {
+          if (groupError) {
+            console.warn(
+              `useCachedStudentProfile: Could not fetch group for id ${profileData.group_id}: ${groupError.message}`,
+            )
+            // Not throwing an error, just means group info will be missing
+          } else if (group) {
             groupData = group
-            console.log("Fetched group data:", groupData)
+            console.log(`useCachedStudentProfile: Fetched group data:`, groupData)
           }
         }
 
         // Construct the final profile object
         const finalProfileData = {
           ...profileData,
-          degrees: degreeData,
-          groups: groupData,
+          degrees: degreeData, // Will be null if not found/error
+          groups: groupData, // Will be null if not found/error
         }
 
-        console.log("Final profile data:", finalProfileData)
+        console.log(`useCachedStudentProfile: Final profile data for userId ${userId}:`, finalProfileData)
 
         // Save to cache
-        setCachedData("studentProfile", userId, finalProfileData)
+        setCachedData(cacheKey, finalProfileData)
 
         // Update state
         setProfile(finalProfileData)
       } catch (error: any) {
-        console.error("Error fetching student profile:", error)
-        setError(error.message)
+        console.error(`useCachedStudentProfile: Catch block error for userId ${userId}:`, error.message)
+        setError(error.message) // Set the error state
         toast({
-          title: "Error",
+          title: "Profile Error",
           description: `Failed to load profile: ${error.message}`,
           variant: "destructive",
         })
       } finally {
         setIsLoading(false)
+        console.log(`useCachedStudentProfile: Fetch finished for userId: ${userId}. Loading: ${false}`)
       }
     }
 
     fetchProfile()
-  }, [userId])
+  }, [userId, getCachedData, setCachedData, toast]) // Added getCachedData, setCachedData, toast as they are used.
+  // If these functions from context are not memoized, this could still cause loops.
+  // Assuming they are stable or memoized.
 
   return { profile, isLoading, error }
 }
