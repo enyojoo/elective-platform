@@ -15,75 +15,60 @@ export async function selectElectiveCourse(formData: FormData) {
     return { error: "Unauthorized" }
   }
 
-  const electiveCourseId = formData.get("electiveCourseId") as string
-  const selectedCourses = formData.getAll("selectedCourses") as string[]
+  const packId = formData.get("packId") as string
+  const courseId = formData.get("courseId") as string
 
-  if (!electiveCourseId || selectedCourses.length === 0) {
-    return { error: "Elective course ID and selected courses are required" }
+  if (!packId || !courseId) {
+    return { error: "Pack ID and Course ID are required" }
   }
 
-  try {
-    // Get the elective course details to validate selection
-    const { data: electiveCourse, error: courseError } = await supabase
-      .from("elective_courses")
-      .select("*")
-      .eq("id", electiveCourseId)
-      .single()
+  // Get user's institution
+  const { data: profile } = await supabase.from("profiles").select("institution_id").eq("id", user.id).single()
 
-    if (courseError) throw courseError
+  if (!profile) {
+    return { error: "User profile not found" }
+  }
 
-    // Validate that selected courses are within the allowed courses
-    const allowedCourses = electiveCourse.courses || []
-    const invalidCourses = selectedCourses.filter((course) => !allowedCourses.includes(course))
+  // Check if user already has a selection for this pack
+  const { data: existingSelection } = await supabase
+    .from("student_selections")
+    .select("id")
+    .eq("student_id", user.id)
+    .eq("pack_id", packId)
+    .maybeSingle()
 
-    if (invalidCourses.length > 0) {
-      return { error: "Invalid course selection" }
-    }
-
-    // Check if selection count is within limits
-    if (selectedCourses.length > electiveCourse.max_selections) {
-      return { error: `You can only select up to ${electiveCourse.max_selections} courses` }
-    }
-
-    // Check if user already has a selection for this elective course
-    const { data: existingSelection } = await supabase
-      .from("course_selections")
-      .select("id")
-      .eq("student_id", user.id)
-      .eq("elective_courses_id", electiveCourseId)
-      .maybeSingle()
-
-    if (existingSelection) {
-      // Update existing selection
-      const { error: updateError } = await supabase
-        .from("course_selections")
-        .update({
-          courses: selectedCourses,
-          status: "pending",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingSelection.id)
-
-      if (updateError) throw updateError
-    } else {
-      // Create new selection
-      const { error: insertError } = await supabase.from("course_selections").insert({
-        student_id: user.id,
-        elective_courses_id: electiveCourseId,
-        courses: selectedCourses,
-        status: "pending",
+  if (existingSelection) {
+    // Update existing selection
+    const { error } = await supabase
+      .from("student_selections")
+      .update({
+        course_id: courseId,
+        exchange_id: null,
+        updated_at: new Date().toISOString(),
       })
+      .eq("id", existingSelection.id)
 
-      if (insertError) throw insertError
+    if (error) {
+      return { error: error.message }
     }
+  } else {
+    // Create new selection
+    const { error } = await supabase.from("student_selections").insert({
+      institution_id: profile.institution_id,
+      student_id: user.id,
+      pack_id: packId,
+      course_id: courseId,
+      exchange_id: null,
+      status: "pending",
+    })
 
-    revalidatePath(`/student/courses/${electiveCourseId}`)
-    revalidatePath("/student/courses")
-    return { success: true }
-  } catch (error: any) {
-    console.error("Error selecting elective course:", error)
-    return { error: error.message || "Failed to save selection" }
+    if (error) {
+      return { error: error.message }
+    }
   }
+
+  revalidatePath(`/student/courses/${packId}`)
+  return { success: true }
 }
 
 export async function uploadStatement(formData: FormData) {
@@ -97,53 +82,42 @@ export async function uploadStatement(formData: FormData) {
     return { error: "Unauthorized" }
   }
 
-  const electiveCourseId = formData.get("electiveCourseId") as string
+  const packId = formData.get("packId") as string
+  const selectionId = formData.get("selectionId") as string
   const statement = formData.get("statement") as File
 
-  if (!electiveCourseId || !statement) {
-    return { error: "Elective course ID and statement file are required" }
+  if (!packId || !selectionId || !statement) {
+    return { error: "All fields are required" }
   }
 
-  try {
-    // Check if user has a selection for this elective course
-    const { data: selection, error: selectionError } = await supabase
-      .from("course_selections")
-      .select("id")
-      .eq("student_id", user.id)
-      .eq("elective_courses_id", electiveCourseId)
-      .single()
+  // Upload file to storage
+  const fileExt = statement.name.split(".").pop()
+  const fileName = `${user.id}_${packId}_${Date.now()}.${fileExt}`
+  const filePath = `statements/${fileName}`
 
-    if (selectionError) {
-      return { error: "You must select courses before uploading a statement" }
-    }
+  const { error: uploadError } = await supabase.storage.from("statements").upload(filePath, statement)
 
-    // Upload file to storage
-    const fileExt = statement.name.split(".").pop()
-    const fileName = `${user.id}_${electiveCourseId}_${Date.now()}.${fileExt}`
-    const filePath = `statements/${fileName}`
-
-    const { error: uploadError } = await supabase.storage.from("statements").upload(filePath, statement)
-
-    if (uploadError) throw uploadError
-
-    // Get public URL
-    const { data: urlData } = await supabase.storage.from("statements").getPublicUrl(filePath)
-
-    // Update selection with statement URL
-    const { error: updateError } = await supabase
-      .from("course_selections")
-      .update({
-        statement_url: urlData.publicUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", selection.id)
-
-    if (updateError) throw updateError
-
-    revalidatePath(`/student/courses/${electiveCourseId}`)
-    return { success: true, url: urlData.publicUrl }
-  } catch (error: any) {
-    console.error("Error uploading statement:", error)
-    return { error: error.message || "Failed to upload statement" }
+  if (uploadError) {
+    return { error: uploadError.message }
   }
+
+  // Get public URL
+  const { data: urlData } = await supabase.storage.from("statements").getPublicUrl(filePath)
+
+  // Update selection with statement URL
+  const { error: updateError } = await supabase
+    .from("student_selections")
+    .update({
+      statement_url: urlData.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", selectionId)
+    .eq("student_id", user.id)
+
+  if (updateError) {
+    return { error: updateError.message }
+  }
+
+  revalidatePath(`/student/courses/${packId}`)
+  return { success: true, url: urlData.publicUrl }
 }
