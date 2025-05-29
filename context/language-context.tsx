@@ -13,8 +13,6 @@ interface Translations {
 
 const translations: Translations = {
   // Existing translations...
-
-  // Exchange universities
   exchange_universities: {
     en: "Exchange Universities",
     ru: "Университеты по обмену",
@@ -191,8 +189,6 @@ const translations: Translations = {
     en: "No universities found",
     ru: "Университеты не найдены",
   },
-
-  // Student exchange selection
   exchange_university_selection: {
     en: "Exchange University Selection",
     ru: "Выбор университета по обмену",
@@ -267,110 +263,35 @@ const translations: Translations = {
   },
   manager: {
     exchangeBuilder: {
-      programInfo: {
-        en: "Program Information",
-        ru: "Информация о программе",
-      },
-      addUniversities: {
-        en: "Add Universities",
-        ru: "Добавить университеты",
-      },
-      programDetails: {
-        en: "Review & Publish",
-        ru: "Просмотр и публикация",
-      },
-      title: {
-        en: "Create Exchange Program",
-        ru: "Создать программу обмена",
-      },
-      draft: {
-        en: "Draft",
-        ru: "Черновик",
-      },
-      step: {
-        en: "Step",
-        ru: "Шаг",
-      },
-      of: {
-        en: "of",
-        ru: "из",
-      },
-      semester: {
-        en: "Semester",
-        ru: "Семестр",
-      },
-      selectSemester: {
-        en: "Select semester",
-        ru: "Выберите семестр",
-      },
-      year: {
-        en: "Year",
-        ru: "Год",
-      },
-      selectYear: {
-        en: "Select year",
-        ru: "Выберите год",
-      },
-      namePreview: {
-        en: "Program Name Preview",
-        ru: "Предпросмотр названия программы",
-      },
-      selectionRules: {
-        en: "Selection Rules",
-        ru: "Правила выбора",
-      },
-      maxSelections: {
-        en: "Maximum Selections",
-        ru: "Максимальное количество выборов",
-      },
-      universitiesPerStudent: {
-        en: "universities per student",
-        ru: "университетов на студента",
-      },
-      deadline: {
-        en: "Deadline",
-        ru: "Крайний срок",
-      },
-      statementUpload: {
-        en: "Statement Upload",
-        ru: "Загрузка заявления",
-      },
+      programInfo: { en: "Program Information", ru: "Информация о программе" },
+      addUniversities: { en: "Add Universities", ru: "Добавить университеты" },
+      programDetails: { en: "Review & Publish", ru: "Просмотр и публикация" },
+      title: { en: "Create Exchange Program", ru: "Создать программу обмена" },
+      draft: { en: "Draft", ru: "Черновик" },
+      step: { en: "Step", ru: "Шаг" },
+      of: { en: "of", ru: "из" },
+      semester: { en: "Semester", ru: "Семестр" },
+      selectSemester: { en: "Select semester", ru: "Выберите семестр" },
+      year: { en: "Year", ru: "Год" },
+      selectYear: { en: "Select year", ru: "Выберите год" },
+      namePreview: { en: "Program Name Preview", ru: "Предпросмотр названия программы" },
+      selectionRules: { en: "Selection Rules", ru: "Правила выбора" },
+      maxSelections: { en: "Maximum Selections", ru: "Максимальное количество выборов" },
+      universitiesPerStudent: { en: "universities per student", ru: "университетов на студента" },
+      deadline: { en: "Deadline", ru: "Крайний срок" },
+      statementUpload: { en: "Statement Upload", ru: "Загрузка заявления" },
       statementDescription: {
         en: "Upload a blank statement file that students will download, sign, and re-upload.",
         ru: "Загрузите пустой файл заявления, который студенты скачают, подпишут и загрузят обратно.",
       },
-      uploadStatementFile: {
-        en: "Upload Statement File (PDF)",
-        ru: "Загрузить файл заявления (PDF)",
-      },
-      next: {
-        en: "Next",
-        ru: "Далее",
-      },
-      searchUniversities: {
-        en: "Search universities...",
-        ru: "Поиск университетов...",
-      },
-      universitiesSelected: {
-        en: "universities selected",
-        ru: "выбрано университетов",
-      },
-      name: {
-        en: "Name",
-        ru: "Название",
-      },
-      country: {
-        en: "Country",
-        ru: "Страна",
-      },
-      city: {
-        en: "City",
-        ru: "Город",
-      },
-      maxStudents: {
-        en: "Max Students",
-        ru: "Макс. студентов",
-      },
+      uploadStatementFile: { en: "Upload Statement File (PDF)", ru: "Загрузить файл заявления (PDF)" },
+      next: { en: "Next", ru: "Далее" },
+      searchUniversities: { en: "Search universities...", ru: "Поиск университетов..." },
+      universitiesSelected: { en: "universities selected", ru: "выбрано университетов" },
+      name: { en: "Name", ru: "Название" },
+      country: { en: "Country", ru: "Страна" },
+      city: { en: "City", ru: "Город" },
+      maxStudents: { en: "Max Students", ru: "Макс. студентов" },
       noUniversitiesAvailable: {
         en: "No universities available. Please add universities first.",
         ru: "Нет доступных университетов. Пожалуйста, сначала добавьте университеты.",
@@ -379,106 +300,196 @@ const translations: Translations = {
         en: "No universities found matching your search.",
         ru: "Не найдено университетов, соответствующих вашему запросу.",
       },
-      back: {
-        en: "Back",
-        ru: "Назад",
-      },
-      programName: {
-        en: "Program Name",
-        ru: "Название программы",
-      },
-      maxSelectionsLabel: {
-        en: "Max Selections",
-        ru: "Макс. выборов",
-      },
-      selectedUniversities: {
-        en: "Selected Universities",
-        ru: "Выбранные университеты",
-      },
-      noUniversitiesSelected: {
-        en: "No Universities Selected",
-        ru: "Университеты не выбраны",
-      },
+      back: { en: "Back", ru: "Назад" },
+      programName: { en: "Program Name", ru: "Название программы" },
+      maxSelectionsLabel: { en: "Max Selections", ru: "Макс. выборов" },
+      selectedUniversities: { en: "Selected Universities", ru: "Выбранные университеты" },
+      noUniversitiesSelected: { en: "No Universities Selected", ru: "Университеты не выбраны" },
       goBackToAdd: {
         en: "Go back to add universities to this exchange program.",
         ru: "Вернитесь назад, чтобы добавить университеты в эту программу обмена.",
       },
-      saving: {
-        en: "Saving...",
-        ru: "Сохранение...",
-      },
-      saveAsDraft: {
-        en: "Save as Draft",
-        ru: "Сохранить как черновик",
-      },
-      publishing: {
-        en: "Publishing...",
-        ru: "Публикация...",
-      },
-      publishProgram: {
-        en: "Publish Program",
-        ru: "Опубликовать программу",
-      },
-      error: {
-        en: "Error",
-        ru: "Ошибка",
-      },
-      errorFetchingData: {
-        en: "Failed to fetch data",
-        ru: "Не удалось получить данные",
-      },
-      errorFetchingUniversities: {
-        en: "Failed to fetch universities",
-        ru: "Не удалось получить список университетов",
-      },
-      uploadSuccess: {
-        en: "File uploaded",
-        ru: "Файл загружен",
-      },
-      uploadError: {
-        en: "Upload failed",
-        ru: "Ошибка загрузки",
-      },
-      uploadErrorDesc: {
-        en: "Failed to upload file",
-        ru: "Не удалось загрузить файл",
-      },
-      missingInfo: {
-        en: "Missing Information",
-        ru: "Отсутствует информация",
-      },
-      requiredFields: {
-        en: "Please fill in all required fields",
-        ru: "Пожалуйста, заполните все обязательные поля",
-      },
+      saving: { en: "Saving...", ru: "Сохранение..." },
+      saveAsDraft: { en: "Save as Draft", ru: "Сохранить как черновик" },
+      publishing: { en: "Publishing...", ru: "Публикация..." },
+      publishProgram: { en: "Publish Program", ru: "Опубликовать программу" },
+      error: { en: "Error", ru: "Ошибка" },
+      errorFetchingData: { en: "Failed to fetch data", ru: "Не удалось получить данные" },
+      errorFetchingUniversities: { en: "Failed to fetch universities", ru: "Не удалось получить список университетов" },
+      uploadSuccess: { en: "File uploaded", ru: "Файл загружен" },
+      uploadError: { en: "Upload failed", ru: "Ошибка загрузки" },
+      uploadErrorDesc: { en: "Failed to upload file", ru: "Не удалось загрузить файл" },
+      missingInfo: { en: "Missing Information", ru: "Отсутствует информация" },
+      requiredFields: { en: "Please fill in all required fields", ru: "Пожалуйста, заполните все обязательные поля" },
       universityRequired: {
         en: "At least one university must be selected",
         ru: "Необходимо выбрать хотя бы один университет",
       },
-      draftSaved: {
-        en: "Draft Saved",
-        ru: "Черновик сохранен",
-      },
-      programPublished: {
-        en: "Program Published",
-        ru: "Программа опубликована",
-      },
-      successDesc: {
-        en: "Exchange program has been created successfully",
-        ru: "Программа обмена успешно создана",
-      },
-      errorCreating: {
-        en: "Failed to create exchange program",
-        ru: "Не удалось создать программу обмена",
-      },
+      draftSaved: { en: "Draft Saved", ru: "Черновик сохранен" },
+      programPublished: { en: "Program Published", ru: "Программа опубликована" },
+      successDesc: { en: "Exchange program has been created successfully", ru: "Программа обмена успешно создана" },
+      errorCreating: { en: "Failed to create exchange program", ru: "Не удалось создать программу обмена" },
     },
   },
+  // New keys for student course selection page
+  "student.courses.maxStudentsLabel": { en: "Max Students", ru: "Макс. студентов" },
+  "student.courses.unnamedCourse": { en: "Unnamed Course", ru: "Курс без названия" },
+  "student.courses.noInstructor": { en: "Instructor N/A", ru: "Преподаватель не указан" },
+  "student.courses.noDescriptionAvailable": { en: "No description available.", ru: "Описание отсутствует." },
+  "student.courses.packNotFound": { en: "Elective course pack not found.", ru: "Пакет элективных курсов не найден." },
+  "student.courses.selectIndividualCoursesHelpText": {
+    en: "Select your preferred courses from the list below.",
+    ru: "Выберите предпочитаемые курсы из списка ниже.",
+  },
+  "student.courses.noIndividualCoursesInPack": {
+    en: "No courses available in this pack.",
+    ru: "В этом пакете нет доступных курсов.",
+  },
+  "student.courses.cancelConfirm": {
+    en: "Are you sure you want to cancel your current selection? This action cannot be undone.",
+    ru: "Вы уверены, что хотите отменить текущий выбор? Это действие нельзя будет отменить.",
+  },
+  "student.courses.selectionCancelledTitle": { en: "Selection Cancelled", ru: "Выбор отменен" },
+  "student.courses.cancellationFailedTitle": { en: "Cancellation Failed", ru: "Ошибка отмены" },
+  "student.courses.selectMinOneCourseTitle": { en: "No Courses Selected", ru: "Курсы не выбраны" },
+  "student.courses.selectMinOneCourseDesc": {
+    en: "Please select at least one course.",
+    ru: "Пожалуйста, выберите хотя бы один курс.",
+  },
+  "student.courses.tooManyCoursesTitle": { en: "Too Many Courses", ru: "Слишком много курсов" },
+  "student.courses.tooManyCoursesDesc": {
+    en: "You can select at most {count} courses.",
+    ru: "Вы можете выбрать не более {count} курсов.",
+  }, // Assuming you'll pass count
+  "student.courses.authorizationRequiredTitle": { en: "Authorization Required", ru: "Требуется авторизация" },
+  "student.courses.enterFullNameDesc": {
+    en: "Please enter your full name to authorize.",
+    ru: "Пожалуйста, введите ваше полное имя для авторизации.",
+  },
+  "student.courses.selectionSubmittedTitle": { en: "Selection Submitted", ru: "Выбор отправлен" },
+  "student.courses.selectionSubmittedDesc": {
+    en: "Your course selection has been submitted successfully.",
+    ru: "Ваш выбор курсов успешно отправлен.",
+  },
+  "student.courses.submissionError": {
+    en: "An error occurred during submission.",
+    ru: "Произошла ошибка при отправке.",
+  },
+  "student.statement.downloading": { en: "Downloading...", ru: "Загрузка..." },
+  "student.statement.downloadTemplate": { en: "Download Template", ru: "Скачать шаблон" },
+  "student.statement.fileReady": { en: "File ready:", ru: "Файл готов:" },
+  "student.statement.previouslyUploaded": {
+    en: "Previously uploaded statement will be used unless a new one is provided.",
+    ru: "Ранее загруженное заявление будет использовано, если не будет предоставлено новое.",
+  },
+  "student.statement.uploadError": {
+    en: "Statement is required and was not uploaded or found.",
+    ru: "Заявление обязательно и не было загружено или найдено.",
+  },
+  "student.statement.noTemplateTitle": { en: "No Template", ru: "Нет шаблона" },
+  "student.statement.noTemplateDesc": {
+    en: "Statement template is not available.",
+    ru: "Шаблон заявления недоступен.",
+  },
+  "student.statement.downloadFailedTitle": { en: "Download Failed", ru: "Ошибка загрузки" },
+  "student.statement.downloadFailedDesc": {
+    en: "Could not open the statement template.",
+    ru: "Не удалось открыть шаблон заявления.",
+  },
+  "student.statement.invalidFileTypeTitle": { en: "Invalid File Type", ru: "Неверный тип файла" },
+  "student.statement.invalidFileTypeDesc": { en: "Please upload a PDF file.", ru: "Пожалуйста, загрузите PDF файл." },
+  "student.statement.fileTooLargeTitle": { en: "File Too Large", ru: "Файл слишком большой" },
+  "student.statement.fileTooLargeDesc": {
+    en: "Please upload a file smaller than 5MB.",
+    ru: "Пожалуйста, загрузите файл размером менее 5МБ.",
+  },
+  "student.statement.fileSelectedTitle": { en: "File Selected", ru: "Файл выбран" },
+  "student.statement.fileSelectedDesc": {
+    en: '"{fileName}" ready for upload.',
+    ru: 'Файл "{fileName}" готов к загрузке.',
+  }, // Assuming fileName param
+  "student.courses.maxSelectionsReachedTitle": {
+    en: "Maximum Selections Reached",
+    ru: "Достигнуто максимальное количество выборов",
+  },
+  "student.courses.maxSelectionsReachedDesc": {
+    en: "You can only select up to {count} courses.",
+    ru: "Вы можете выбрать не более {count} курсов.",
+  }, // Assuming count param
+  "student.profileMissing": { en: "Student profile is missing.", ru: "Профиль студента отсутствует." },
+  "student.courses.selectionRejected": { en: "Selection Rejected", ru: "Выбор отклонен" },
+  "student.courses.selectionRejectedDesc": {
+    en: "Your course selection has been rejected. Please contact support.",
+    ru: "Ваш выбор курсов отклонен. Пожалуйста, свяжитесь со службой поддержки.",
+  },
+  "student.courses.deadlinePassed": { en: "Deadline Passed", ru: "Срок истек" },
+  "student.courses.deadlinePassedDesc": {
+    en: "The deadline for this selection has passed.",
+    ru: "Срок подачи заявок на этот выбор истек.",
+  },
+  "student.courses.unlimited": { en: "unlimited", ru: "неограниченно" },
+  "student.courses.reviewSelectionAndAuthorize": {
+    en: "Please review your selection and enter your full name to authorize this submission.",
+    ru: "Пожалуйста, просмотрите свой выбор и введите ваше полное имя для авторизации этой заявки.",
+  },
+  "student.courses.enterFullNamePlaceholder": { en: "Enter your full name", ru: "Введите ваше полное имя" },
+  errorLoadingPageTitle: { en: "Error Loading Page", ru: "Ошибка загрузки страницы" },
+  "student.courses.cancelErrorMissingInfo": {
+    en: "Cannot cancel selection. Missing information.",
+    ru: "Невозможно отменить выбор. Отсутствует информация.",
+  },
+  "student.courses.noSelectionToCancelTitle": { en: "No Selection to Cancel", ru: "Нет выбора для отмены" },
+  "student.courses.noSelectionToCancelDesc": {
+    en: "There is no active selection to cancel.",
+    ru: "Нет активного выбора для отмены.",
+  },
+  "student.courses.selectIndividualCourses": {
+    en: "Select Individual Courses",
+    ru: "Выберите отдельные курсы",
+  },
+  "student.courses.notFound": {
+    en: "Elective course pack not found.",
+    ru: "Пакет элективных курсов не найден.",
+  },
+  "student.courses.selectionPeriodActive": {
+    en: "Selection Period Active",
+    ru: "Период выбора активен",
+  },
+  "student.courses.selectionPeriodDesc": {
+    en: "You can select up to",
+    ru: "Вы можете выбрать до",
+  },
+  "student.courses.until": {
+    en: "until",
+    ru: "до",
+  },
+  "student.courses.of": {
+    en: "of",
+    ru: "из",
+  },
+  "student.statement.requiredTitle": {
+    en: "Statement Required",
+    ru: "Требуется заявление",
+  },
+  "student.statement.requiredDesc": {
+    en: "Please upload your signed statement.",
+    ru: "Пожалуйста, загрузите подписанное заявление.",
+  },
+  "student.courses.close": {
+    en: "Close",
+    ru: "Закрыть",
+  },
+  "student.courses.cancelSelection": {
+    en: "Cancel Selection",
+    ru: "Отменить выбор",
+  },
+  // ... other existing translations
 }
 
 interface LanguageContextType {
   language: Language
   setLanguage: (language: Language) => void
-  t: (key: string, params?: Record<string, any>) => string
+  t: (key: string, params?: Record<string, any>) => string // Added params here
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
@@ -487,18 +498,31 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("en")
 
   const t = (key: string, params?: Record<string, any>) => {
-    // Handle nested keys like "manager.exchangeBuilder.addUniversities"
     const keys = key.split(".")
-    let translation: any = translations
+    let translationBranch: any = translations
 
-    // Navigate through the nested structure
     for (const k of keys) {
-      translation = translation[k]
-      if (!translation) break
+      translationBranch = translationBranch?.[k]
+      if (!translationBranch) {
+        // If a nested key is not found, return the original key
+        // console.warn(`Translation key not found: ${key}`)
+        // return key
+        break
+      }
     }
 
-    // Get the final translation based on current language
-    const finalTranslation = translation?.[language] || key
+    let finalTranslation = translationBranch?.[language]
+
+    if (typeof finalTranslation !== "string") {
+      // Fallback to English if translation for current language is missing or not a string
+      finalTranslation = translationBranch?.en
+    }
+
+    if (typeof finalTranslation !== "string") {
+      // If English is also missing or not a string, return the original key
+      // console.warn(`Translation key not found for '${key}' in any language.`);
+      return key
+    }
 
     if (params) {
       return Object.entries(params).reduce((acc, [paramKey, value]) => {
