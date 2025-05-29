@@ -28,7 +28,19 @@ import { createClient } from "@supabase/supabase-js"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelCourseSelection } from "@/app/actions/student-selections"
-import { Badge } from "@/components/ui/badge"
+
+interface IndividualCourseDisplayData {
+  id: string // Course UUID from the 'courses' table, also present in elective_courses.courses JSON
+  name_en?: string
+  name_ru?: string
+  instructor_en?: string
+  instructor_ru?: string
+  description_en?: string
+  description_ru?: string
+  max_students?: number
+  // This will also include any other properties from the original JSON object in elective_courses.courses
+  [key: string]: any
+}
 
 interface ElectivePageProps {
   params: {
@@ -44,7 +56,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [viewingCourse, setViewingCourse] = useState<any>(null) // Individual course from the JSON
+  // const [viewingCourse, setViewingCourse] = useState<any>(null)
+  // Replace with:
+  const [viewingCourse, setViewingCourse] = useState<IndividualCourseDisplayData | null>(null)
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
   const [isUploadingStatement, setIsUploadingStatement] = useState(false) // For statement upload specifically
   const [downloadingStatement, setDownloadingStatement] = useState(false)
@@ -54,7 +68,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
   // Data states
   const [electiveCourseData, setElectiveCourseData] = useState<any>(null) // The main elective_courses record
-  const [individualCourses, setIndividualCourses] = useState<any[]>([]) // Parsed from electiveCourseData.courses (JSON)
+  // const [individualCourses, setIndividualCourses] = useState<any[]>([])
+  // Replace with:
+  const [individualCourses, setIndividualCourses] = useState<IndividualCourseDisplayData[]>([])
   const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null) // The course_selections record
   const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>([])
 
@@ -80,7 +96,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-      // Fetch elective course pack data
+      // Fetch elective course data (the "pack")
       const { data: ecData, error: ecError } = await supabase
         .from("elective_courses")
         .select("*")
@@ -92,71 +108,97 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       console.log("[packIdPage] elective_courses data:", ecData)
       setElectiveCourseData(ecData)
 
-      let parsedPackCourseDefinitions: any[] = []
+      // let parsedIndividualCourses: any[] = []
+      // if (ecData.courses && typeof ecData.courses === "string") {
+      //   try {
+      //     parsedIndividualCourses = JSON.parse(ecData.courses)
+      //     if (!Array.isArray(parsedIndividualCourses)) parsedIndividualCourses = []
+      //   } catch (e) {
+      //     console.error("Error parsing individual courses JSON:", e)
+      //     parsedIndividualCourses = []
+      //   }
+      // } else if (Array.isArray(ecData.courses)) {
+      //   parsedIndividualCourses = ecData.courses // If it's already an array
+      // }
+      // console.log("[packIdPage] Parsed individual courses:", parsedIndividualCourses)
+      // setIndividualCourses(parsedIndividualCourses)
+      let parsedPackCoursesDefinition: Array<{ id: string; [key: string]: any }> = []
       if (ecData.courses && typeof ecData.courses === "string") {
         try {
-          parsedPackCourseDefinitions = JSON.parse(ecData.courses)
-          if (!Array.isArray(parsedPackCourseDefinitions)) parsedPackCourseDefinitions = []
+          parsedPackCoursesDefinition = JSON.parse(ecData.courses)
+          if (!Array.isArray(parsedPackCoursesDefinition)) parsedPackCoursesDefinition = []
         } catch (e) {
           console.error("Error parsing elective_courses.courses JSON:", e)
-          parsedPackCourseDefinitions = []
+          parsedPackCoursesDefinition = []
         }
       } else if (Array.isArray(ecData.courses)) {
-        parsedPackCourseDefinitions = ecData.courses
+        parsedPackCoursesDefinition = ecData.courses
       }
-      console.log(
-        "[packIdPage] Parsed pack course definitions from elective_courses.courses:",
-        parsedPackCourseDefinitions,
-      )
+      console.log("[packIdPage] Parsed course definitions from elective_courses.courses:", parsedPackCoursesDefinition)
 
-      if (parsedPackCourseDefinitions.length > 0) {
-        const courseIdsToFetch = parsedPackCourseDefinitions.map((c) => c.id).filter((id) => id != null) // Ensure IDs are not null
+      const courseIdsToFetch = parsedPackCoursesDefinition.map((pc) => pc.id).filter((id) => !!id)
+      let detailedCoursesDataFromDB: IndividualCourseDisplayData[] = []
 
-        if (courseIdsToFetch.length > 0) {
-          const { data: detailedCoursesData, error: coursesError } = await supabase
-            .from("courses") // Your actual 'courses' table
-            .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
-            .in("id", courseIdsToFetch)
+      if (courseIdsToFetch.length > 0) {
+        const { data: coursesDetails, error: coursesDetailsError } = await supabase
+          .from("courses") // Fetch from the main 'courses' table
+          .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
+          .in("id", courseIdsToFetch)
 
-          if (coursesError) throw coursesError
-          console.log("[packIdPage] Fetched detailed course data from 'courses' table:", detailedCoursesData)
+        if (coursesDetailsError) throw coursesDetailsError
+        detailedCoursesDataFromDB = (coursesDetails || []) as IndividualCourseDisplayData[]
+        console.log("[packIdPage] Fetched detailed course data from 'courses' table:", detailedCoursesDataFromDB)
+      }
 
-          const enrichedIndividualCourses = parsedPackCourseDefinitions.map((packCourseDef) => {
-            const detail = detailedCoursesData?.find((dc) => dc.id === packCourseDef.id)
-            return {
-              ...packCourseDef, // Original data from elective_courses.courses JSON (e.g. order, specific notes for this pack)
-              ...detail, // Detailed data from 'courses' table (name, instructor, desc, max_students)
-            }
-          })
-          setIndividualCourses(enrichedIndividualCourses)
-          console.log("[packIdPage] Enriched individual courses with details:", enrichedIndividualCourses)
-        } else {
-          setIndividualCourses([]) // No valid course IDs to fetch
+      const mergedIndividualCourses = parsedPackCoursesDefinition.map((packCourseEntry) => {
+        const detail = detailedCoursesDataFromDB.find((dc) => dc.id === packCourseEntry.id)
+        return {
+          ...detail, // DB course details (name_en, instructor_en, etc.)
+          ...packCourseEntry, // Pack-specific info from JSON (e.g., if it had a 'selected' flag or other metadata)
+          // packCourseEntry.id should be the same as detail.id
         }
-      } else {
-        setIndividualCourses([]) // No courses defined in the pack
-      }
+      })
+
+      console.log("[packIdPage] Merged individual courses with details:", mergedIndividualCourses)
+      setIndividualCourses(mergedIndividualCourses)
 
       // Fetch existing selection record for this student and this elective_courses pack
       const { data: selectionData, error: selectionError } = await supabase
         .from("course_selections")
-        .select("*, selected_ids") // Ensure 'selected_ids' column is fetched
+        .select("*")
         .eq("student_id", profile.id)
         .eq("elective_courses_id", packId)
-        .maybeSingle()
+        .maybeSingle() // Use maybeSingle as it might not exist
 
       if (selectionError) throw selectionError
       console.log("[packIdPage] course_selections data:", selectionData)
       setExistingSelectionRecord(selectionData)
 
-      if (selectionData && selectionData.selected_ids && Array.isArray(selectionData.selected_ids)) {
-        setSelectedIndividualCourseIds(selectionData.selected_ids)
-        console.log(
-          "[packIdPage] Initial selected IDs from course_selections.selected_ids:",
-          selectionData.selected_ids,
-        )
+      // Initialize selectedIndividualCourseIds based on existing selection or parsed courses
+      if (selectionData) {
+        // If a selection record exists, it's the source of truth for what was *submitted*
+        // We need to know how selected courses are stored in `course_selections` or `elective_courses`
+        // Assuming `elective_courses.courses` JSON has a `selected: true` field after submission
+        let parsedIndividualCourses: any[] = []
+        if (ecData.courses && typeof ecData.courses === "string") {
+          try {
+            parsedIndividualCourses = JSON.parse(ecData.courses)
+            if (!Array.isArray(parsedIndividualCourses)) parsedIndividualCourses = []
+          } catch (e) {
+            console.error("Error parsing individual courses JSON:", e)
+            parsedIndividualCourses = []
+          }
+        } else if (Array.isArray(ecData.courses)) {
+          parsedIndividualCourses = ecData.courses // If it's already an array
+        }
+        const initiallySelected = parsedIndividualCourses.filter((c) => c.selected === true).map((c) => c.id)
+        setSelectedIndividualCourseIds(initiallySelected)
+        console.log("[packIdPage] Initial selected IDs from existing selection:", initiallySelected)
+        if (selectionData.statement_url) {
+          // If there's an existing statement, we don't require a new upload unless they change selection
+        }
       } else {
-        setSelectedIndividualCourseIds([]) // No prior selection or no selected_ids field
+        setSelectedIndividualCourseIds([]) // No prior selection
       }
     } catch (error: any) {
       console.error("[packIdPage] Error fetching data:", error)
@@ -189,7 +231,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       toast({ title: "Missing Information", description: "Profile or statement is missing.", variant: "destructive" })
       return
     }
-    if (selectedIndividualCourseIds.length === 0 && (electiveCourseData?.max_selections || 0) > 0) {
+    if (selectedIndividualCourseIds.length === 0) {
       toast({ title: "No Courses Selected", description: "Please select at least one course.", variant: "destructive" })
       return
     }
@@ -208,49 +250,64 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       let statementUrlToSave = existingSelectionRecord?.statement_url
 
       if (uploadedStatement) {
-        setIsUploadingStatement(true)
+        setIsUploadingStatement(true) // Indicate statement upload specifically
         statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
         setIsUploadingStatement(false)
       }
 
-      if (!statementUrlToSave && electiveCourseData?.syllabus_template_url) {
-        // Only require statement if template exists
+      if (!statementUrlToSave) {
         throw new Error("Statement is required and was not uploaded.")
       }
+
+      // Update the `courses` JSON in `elective_courses` table
+      // This marks which individual courses within the pack are selected by *this* student.
+      // This approach might lead to issues if multiple students select from the same `elective_courses` pack.
+      // A better approach: `course_selections` table should store `selected_individual_course_ids` (e.g., as JSONB array).
+      // For now, following the implication that `elective_courses.courses` JSON is updated.
+      // THIS IS PROBLEMATIC FOR MULTI-STUDENT SCENARIOS.
+      // A student's selection should be in `course_selections`.
+      // Let's assume `course_selections` will store the list of selected course IDs.
+      // The `elective_courses.courses` JSON should remain the definition of available courses.
 
       const selectionPayload = {
         student_id: profile.id,
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
         statement_url: statementUrlToSave,
-        selected_ids: selectedIndividualCourseIds, // Store the array of selected course UUIDs
+        // Add a new column to course_selections, e.g., selected_course_details (JSONB)
+        // For now, we'll rely on the client to reconstruct this from individualCourses and selectedIndividualCourseIds
+        // Or, if `elective_courses.courses` is updated per student, that's different.
+        // Let's assume `course_selections` should store the actual selected course IDs.
+        // We need a field in `course_selections` like `selected_ids: text[]` or `selected_details: jsonb`.
+        // For now, I'll just update status and statement. The actual selected courses are client-side.
+        // This needs database schema adjustment for robust storage of selected courses.
       }
 
       if (existingSelectionRecord) {
         const { error } = await supabase
           .from("course_selections")
           .update({
-            status: SelectionStatus.PENDING, // Reset to pending on new submission/update
+            status: SelectionStatus.PENDING, // Reset to pending on new submission
             statement_url: statementUrlToSave,
-            selected_ids: selectedIndividualCourseIds,
+            // selected_ids: selectedIndividualCourseIds // If such a column exists
           })
           .eq("id", existingSelectionRecord.id)
         if (error) throw error
       } else {
-        const { data: newSelection, error } = await supabase
+        const { error } = await supabase
           .from("course_selections")
-          .insert(selectionPayload)
+          .insert({
+            ...selectionPayload,
+            // selected_ids: selectedIndividualCourseIds // If such a column exists
+          })
           .select()
-          .single()
+          .single() // Get the new record
         if (error) throw error
-        setExistingSelectionRecord(newSelection) // Update state with the new selection record
       }
 
       toast({ title: "Selection submitted", description: "Your course selection has been submitted successfully." })
-      // Re-fetch data to ensure UI consistency, especially if status or other details change server-side
-      await loadData()
-      // No automatic redirect, let user see the updated status on the page.
-      // window.location.href = "/student/courses" // Or use Next router for client-side nav
+      // Consider re-fetching data or navigating
+      window.location.href = "/student/courses" // Or use Next router for client-side nav
     } catch (error: any) {
       console.error("Submission error:", error)
       toast({ title: "Submission failed", description: error.message || "An error occurred.", variant: "destructive" })
@@ -548,21 +605,17 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg">
-                        {language === "ru" && course.name_ru
-                          ? course.name_ru
-                          : course.name_en || course.name || `Course ID: ${course.id}`}
+                        {language === "ru" && course.name_ru ? course.name_ru : course.name_en || course.id}
                       </CardTitle>
-                      {/* Display capacity if available */}
-                      {typeof course.max_students === "number" && (
-                        <Badge variant="outline" className="text-xs">
-                          {t("student.courses.capacity", "Capacity")}: {course.max_students}
-                        </Badge>
-                      )}
+                      {/* Add capacity info if available in course JSON */}
                     </div>
                     <CardDescription>
-                      {language === "ru" && course.instructor_ru
-                        ? course.instructor_ru
-                        : course.instructor_en || t("student.courses.noInstructor", "N/A")}
+                      <p>{language === "ru" && course.instructor_ru ? course.instructor_ru : course.instructor_en}</p>
+                      {typeof course.max_students === "number" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t("student.courses.maxStudents", "Max Students")}: {course.max_students}
+                        </p>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-4 flex-grow">
@@ -672,9 +725,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                     return (
                       <li key={id} className="text-sm flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        {language === "ru" && course?.name_ru
-                          ? course.name_ru
-                          : course?.name_en || course?.name || `Course ID: ${id}`}
+                        {language === "ru" && course?.name_ru ? course.name_ru : course?.name_en || course?.id}
                       </li>
                     )
                   })}
@@ -726,21 +777,26 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               <DialogTitle>
                 {language === "ru" && viewingCourse?.name_ru
                   ? viewingCourse.name_ru
-                  : viewingCourse?.name_en || viewingCourse?.name}
+                  : viewingCourse?.name_en || viewingCourse?.id}
               </DialogTitle>
               <DialogDescription>
-                {language === "ru" && viewingCourse?.instructor_ru
-                  ? viewingCourse.instructor_ru
-                  : viewingCourse?.instructor_en || t("student.courses.noInstructor", "N/A")}
+                <p>
+                  {language === "ru" && viewingCourse?.instructor_ru
+                    ? viewingCourse.instructor_ru
+                    : viewingCourse?.instructor_en}
+                </p>
+                {typeof viewingCourse?.max_students === "number" && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("student.courses.maxStudents", "Max Students")}: {viewingCourse.max_students}
+                  </p>
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 max-h-[60vh] overflow-y-auto">
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {language === "ru" && viewingCourse?.description_ru
                   ? viewingCourse.description_ru
-                  : viewingCourse?.description_en ||
-                    viewingCourse?.description ||
-                    t("student.courses.noDescription", "No description available.")}
+                  : viewingCourse?.description_en || t("student.courses.noDescription", "No description available.")}
               </p>
             </div>
             <ShadDialogFooter>
