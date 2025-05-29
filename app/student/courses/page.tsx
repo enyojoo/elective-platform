@@ -1,111 +1,248 @@
 "use client"
 
+import { AlertDescription } from "@/components/ui/alert"
+
+import { AlertTitle } from "@/components/ui/alert"
+
+import { Alert } from "@/components/ui/alert"
+
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, Semester } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Info, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
+import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useCachedStudentElectiveCoursesPageData } from "@/hooks/use-cached-student-selections"
+import { useRouter } from "next/navigation"
 
-export default function ElectivesPage() {
-  const { t } = useLanguage()
+// Interfaces for data structures based on Supabase schema
+interface ElectiveCoursePack {
+  // Represents a record from 'elective_courses' table
+  id: string
+  name: string
+  name_ru?: string | null
+  status: "draft" | "published" | "closed" | "archived"
+  deadline: string // ISO date string
+  max_selections: number // Max sub-courses a student can pick from this pack's 'courses' JSONB
+  syllabus_template_url?: string | null
+  courses: any[] // JSONB array of actual course items within the pack
+  institution_id: string
+  created_at: string
+  updated_at: string
+}
 
-  // Mock electives data
-  const electivesData = [
-    {
-      id: "fall-2023",
-      name: "Fall 2023",
-      semester: Semester.FALL,
-      year: 2023,
-      maxSelections: 2,
-      status: "published",
-      startDate: "2023-08-01",
-      endDate: "2023-08-15",
-      coursesCount: 6,
-      availableSpaces: true,
-      selected: true,
-      selectionStatus: "approved",
-      selectedCount: 2,
-    },
-    {
-      id: "spring-2024",
-      name: "Spring 2024",
-      semester: Semester.SPRING,
-      year: 2024,
-      maxSelections: 3,
-      status: "published",
-      startDate: "2024-01-10",
-      endDate: "2024-01-25",
-      coursesCount: 8,
-      availableSpaces: true,
-      selected: true,
-      selectionStatus: "pending",
-      selectedCount: 1,
-    },
-    {
-      id: "fall-2024",
-      name: "Fall 2024",
-      semester: Semester.FALL,
-      year: 2024,
-      maxSelections: 2,
-      status: "published",
-      startDate: "2024-08-01",
-      endDate: "2024-08-15",
-      coursesCount: 5,
-      availableSpaces: false,
-      selected: false,
-      selectedCount: 0,
-    },
-    {
-      id: "spring-2025",
-      name: "Spring 2025",
-      semester: Semester.SPRING,
-      year: 2025,
-      maxSelections: 2,
-      status: "draft",
-      startDate: "2025-01-10",
-      endDate: "2025-01-25",
-      coursesCount: 4,
-      availableSpaces: true,
-      selected: false,
-      selectedCount: 0,
-    },
-  ]
+interface StudentCourseSelection {
+  // Represents a record from 'course_selections' table
+  id: string
+  student_id: string
+  elective_courses_id: string // Foreign Key to ElectiveCoursePack.id
+  status: "pending" | "approved" | "rejected"
+  statement_url?: string | null
+  selected_courses?: any[] // JSONB array of selected sub-course IDs or objects from the pack's 'courses'
+  created_at: string
+  updated_at: string
+}
 
-  // Helper function to format date
+export default function StudentCoursesListPage() {
+  const { t, language } = useLanguage()
+  const { toast } = useToast()
+  const router = useRouter()
+  const supabase = createClientComponentClient()
+
+  const [studentId, setStudentId] = useState<string | undefined>(undefined)
+  const [institutionId, setInstitutionId] = useState<string | undefined>(undefined)
+  const [userDataLoading, setUserDataLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      setUserDataLoading(true)
+      setAuthError(null)
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+        if (sessionError) throw sessionError
+        if (!session) {
+          router.push("/student/login")
+          return
+        }
+        setStudentId(session.user.id)
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("institution_id, role")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError) throw profileError
+        if (!profile) throw new Error(t("student.courses.profileNotFound"))
+        if (profile.role !== UserRole.STUDENT) {
+          setAuthError(t("student.courses.accessDenied"))
+          router.push(`/${language}/student/login`)
+          return
+        }
+        if (!profile.institution_id) {
+          setAuthError(t("student.courses.institutionIdNotFound"))
+          return
+        }
+        setInstitutionId(profile.institution_id)
+      } catch (err: any) {
+        console.error("Auth or profile fetch error:", err)
+        setAuthError(err.message || t("student.courses.failedToLoadUserData"))
+      } finally {
+        setUserDataLoading(false)
+      }
+    }
+    fetchUserData()
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        router.push(`/${language}/student/login`)
+      } else if (session) {
+        fetchUserData() // Re-fetch on auth change if needed
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [supabase, router, t, language])
+
+  const {
+    electiveCourses, // These are ElectiveCoursePack[]
+    courseSelections, // These are StudentCourseSelection[]
+    isLoading: dataLoading,
+    error: dataError,
+  } = useCachedStudentElectiveCoursesPageData(studentId, institutionId)
+
+  const isLoading = userDataLoading || dataLoading
+
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-  }
-
-  // Helper function to get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case "none":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+    try {
+      return new Date(dateString).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    } catch (e) {
+      return "Invalid Date"
     }
   }
 
-  // Helper function to get status icon
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <CheckCircle className="h-4 w-4" />
-      case "pending":
-        return <Clock className="h-4 w-4" />
-      case "none":
-        return <AlertCircle className="h-4 w-4" />
-      default:
-        return <AlertCircle className="h-4 w-4" />
+  const getStudentSelectionForPack = (packId: string): StudentCourseSelection | undefined => {
+    return courseSelections.find((sel) => sel.elective_courses_id === packId)
+  }
+
+  const getSelectedSubCoursesCount = (selection: StudentCourseSelection | undefined): number => {
+    if (!selection || !selection.selected_courses) return 0
+    return Array.isArray(selection.selected_courses) ? selection.selected_courses.length : 0
+  }
+
+  const getPackDisplayStatus = (pack: ElectiveCoursePack) => {
+    const studentSelection = getStudentSelectionForPack(pack.id)
+    const now = new Date()
+    const deadlineDate = new Date(pack.deadline)
+
+    if (studentSelection) {
+      switch (studentSelection.status) {
+        case "approved":
+          return {
+            text: t("student.courses.statusApproved"),
+            Icon: CheckCircle,
+            color: "text-green-600",
+            badgeClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+          }
+        case "pending":
+          return {
+            text: t("student.courses.statusPending"),
+            Icon: Clock,
+            color: "text-yellow-600",
+            badgeClass: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+          }
+        case "rejected":
+          return {
+            text: t("student.courses.statusRejected"),
+            Icon: AlertCircle,
+            color: "text-red-600",
+            badgeClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+          }
+      }
     }
+    if (pack.status === "draft")
+      return {
+        text: t("student.courses.comingSoon"),
+        Icon: Info,
+        color: "text-gray-500",
+        badgeClass: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+      }
+    if (pack.status === "closed" || (pack.status !== "draft" && now > deadlineDate))
+      return {
+        text: t("student.courses.statusClosed"),
+        Icon: AlertCircle,
+        color: "text-red-500",
+        badgeClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+      }
+    if (pack.status === "published" && now <= deadlineDate)
+      return {
+        text: t("student.courses.statusOpen"),
+        Icon: CheckCircle,
+        color: "text-blue-600",
+        badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+      }
+
+    return {
+      text: t("student.courses.statusUnknown"),
+      Icon: Info,
+      color: "text-gray-500",
+      badgeClass: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+    }
+  }
+
+  const getCardBorderClass = (pack: ElectiveCoursePack) => {
+    const studentSelection = getStudentSelectionForPack(pack.id)
+    if (studentSelection) {
+      if (studentSelection.status === "approved") return "border-green-500 bg-green-50/30 dark:bg-green-950/10"
+      if (studentSelection.status === "pending") return "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
+      if (studentSelection.status === "rejected") return "border-red-500 bg-red-50/30 dark:bg-red-950/10"
+    }
+    return "border-gray-200 dark:border-gray-700 hover:shadow-lg"
+  }
+
+  const isPackActionable = (pack: ElectiveCoursePack) => {
+    const studentSelection = getStudentSelectionForPack(pack.id)
+    if (studentSelection?.status === "approved" || studentSelection?.status === "rejected") return false
+    if (pack.status === "draft" || pack.status === "closed" || new Date() > new Date(pack.deadline)) return false
+    return true
+  }
+
+  if (isLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="flex justify-center items-center h-screen">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+  if (authError) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="text-center text-red-500 py-10">{authError}</div>
+      </DashboardLayout>
+    )
+  }
+  if (dataError && !electiveCourses?.length) {
+    // Show data error only if no data is displayed
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="text-center text-red-500 py-10">{dataError}</div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -115,110 +252,76 @@ export default function ElectivesPage() {
           <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
           <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
         </div>
+        {dataError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{t("student.courses.error")}</AlertTitle>
+            <AlertDescription>{dataError}</AlertDescription>
+          </Alert>
+        )}
 
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-          {electivesData.map((elective) => (
-            <Card
-              key={elective.id}
-              className={`h-full transition-all hover:shadow-md ${
-                elective.selected
-                  ? elective.selectionStatus === "approved"
-                    ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
-                    : "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
-                  : ""
-              }`}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl">{elective.name}</CardTitle>
-                    {elective.selected ? (
-                      <Badge className={getStatusColor(elective.selectionStatus)} variant="secondary">
-                        <span className="flex items-center space-x-1">
-                          {getStatusIcon(elective.selectionStatus)}
-                          <span className="capitalize ml-1">{elective.selectionStatus}</span>
-                        </span>
-                      </Badge>
-                    ) : (
-                      <Badge className={getStatusColor("none")} variant="secondary">
-                        <span className="flex items-center space-x-1">
-                          {getStatusIcon("none")}
-                          <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
-                        </span>
-                      </Badge>
-                    )}
-                  </div>
-                  {elective.status === "draft" ? (
-                    <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
-                  ) : elective.availableSpaces ? (
-                    <Badge variant="secondary">{t("student.courses.open")}</Badge>
-                  ) : (
-                    <Badge variant="destructive">{t("student.courses.limited")}</Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow"></CardContent>
-              <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
-                <div className="flex flex-col gap-y-2 text-sm w-full">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
-                    <span>{formatDate(elective.endDate)}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("student.courses.courses")}:</span>
-                      <span>{elective.coursesCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
-                      <span>{elective.maxSelections}</span>
-                    </div>
-                  </div>
-                </div>
+        {electiveCourses && electiveCourses.length > 0 ? (
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+            {electiveCourses.map((pack) => {
+              const { text, Icon, color, badgeClass } = getPackDisplayStatus(pack)
+              const borderClass = getCardBorderClass(pack)
+              const studentSelection = getStudentSelectionForPack(pack.id)
+              const selectedCount = getSelectedSubCoursesCount(studentSelection)
+              const actionable = isPackActionable(pack)
 
-                <div
-                  className={`flex items-center justify-between rounded-md p-2 w-full ${
-                    elective.selected
-                      ? elective.selectionStatus === "approved"
-                        ? "bg-green-100/50 dark:bg-green-900/20"
-                        : "bg-yellow-100/50 dark:bg-yellow-900/20"
-                      : "bg-gray-100/50 dark:bg-gray-900/20"
-                  }`}
-                >
-                  <span className="text-sm">
-                    {t("student.courses.selected")}: {elective.selectedCount}/{elective.maxSelections}
-                  </span>
-                  <Link href={`/student/courses/${elective.id}`}>
-                    <Button
-                      size="sm"
-                      variant={
-                        elective.status === "draft"
-                          ? "outline"
-                          : elective.selected
-                            ? elective.selectionStatus === "approved"
-                              ? "outline"
-                              : "secondary"
-                            : "default"
-                      }
-                      className={`h-7 gap-1 ${
-                        elective.selected && elective.selectionStatus === "approved"
-                          ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
-                          : elective.status === "draft"
-                            ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
-                            : ""
-                      }`}
+              return (
+                <Card key={pack.id} className={`h-full transition-all ${borderClass}`}>
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-xl">
+                        {language === "ru" && pack.name_ru ? pack.name_ru : pack.name}
+                      </CardTitle>
+                      <Badge className={`${badgeClass} whitespace-nowrap`} variant="secondary">
+                        <Icon className={`w-3.5 h-3.5 mr-1.5 ${color}`} />
+                        {text}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow pb-2">
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>
+                        {t("student.courses.deadline")}: {formatDate(pack.deadline)}
+                      </p>
+                      <p>
+                        {t("student.courses.maxSelections")}: {pack.max_selections}
+                      </p>
+                      <p>
+                        {t("student.courses.totalSubCourses")}: {pack.courses?.length || 0}
+                      </p>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex flex-col pt-0 pb-4 gap-3">
+                    <div
+                      className={`flex items-center justify-between rounded-md p-2 w-full text-sm ${studentSelection ? (studentSelection.status === "approved" ? "bg-green-50 dark:bg-green-900/30" : studentSelection.status === "pending" ? "bg-yellow-50 dark:bg-yellow-900/30" : "bg-red-50 dark:bg-red-900/30") : "bg-gray-100 dark:bg-gray-800/30"}`}
                     >
-                      <>
-                        <span>{t("student.courses.view")}</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </>
-                    </Button>
-                  </Link>
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                      <span>
+                        {t("student.courses.selected")}: {selectedCount}/{pack.max_selections}
+                      </span>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant={actionable ? "default" : "outline"}
+                        className={!actionable ? "cursor-not-allowed" : ""}
+                      >
+                        <Link href={`/${language}/student/courses/${pack.id}`}>
+                          {actionable ? t("student.courses.manageSelection") : t("student.courses.viewDetails")}
+                          <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          !isLoading && <div className="text-center py-10 text-muted-foreground">{t("student.courses.noCourses")}</div>
+        )}
       </div>
     </DashboardLayout>
   )
