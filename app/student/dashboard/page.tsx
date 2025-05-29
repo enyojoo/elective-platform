@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole } from "@/lib/types"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { BookOpen, Calendar, ClipboardList, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
 import { useRouter } from "next/navigation"
@@ -14,16 +15,14 @@ import {
   useCachedStudentExchangeSelections,
   useCachedAvailableElectives,
 } from "@/hooks/use-cached-student-selections"
-import { useSession } from "@supabase/auth-helpers-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { supabase } from "@/lib/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { formatDate, calculateDaysLeft } from "@/lib/utils"
-import Link from "next/link"
 
 // Cache constants
 const DEADLINES_CACHE_KEY = "studentDashboardDeadlines"
+const USER_ID_CACHE_KEY = "studentDashboardUserId"
 const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
 
 // Cache helper functions
@@ -69,69 +68,76 @@ interface DeadlineItem {
 
 export default function StudentDashboard() {
   const { t, language } = useLanguage()
-  const { institution, isSubdomainAccess } = useInstitution()
+  const { isSubdomainAccess, institution } = useInstitution()
   const router = useRouter()
-  const session = useSession()
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
+  const supabase = getSupabaseBrowserClient()
+
+  // Use a ref to track if this is the initial mount
+  const isInitialMount = useRef(true)
+
+  // State for user ID with caching
+  const [userId, setUserId] = useState<string | undefined>(() => {
+    // Try to get userId from cache on initial render
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUserId = getCachedData(USER_ID_CACHE_KEY)
+        return cachedUserId || undefined
+      } catch (e) {
+        return undefined
+      }
+    }
+    return undefined
+  })
+
+  // State for loading
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
+  // Fetch current user ID only once on mount
   useEffect(() => {
-    async function getCurrentUserId() {
+    const fetchUserId = async () => {
+      // Skip if we already have a userId from cache
+      if (userId) return
+
       try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser()
+        const { data, error } = await supabase.auth.getUser()
 
         if (error) {
-          console.error("Error getting current user:", error)
+          console.error("Auth error:", error)
           router.push("/student/login")
           return
         }
 
-        if (user) {
-          console.log("Current user ID:", user.id)
-          setUserId(user.id)
+        if (data?.user) {
+          const newUserId = data.user.id
+          console.log("Student Dashboard - Fetched user ID:", newUserId)
+          setUserId(newUserId)
+          // Cache the userId
+          setCachedData(USER_ID_CACHE_KEY, newUserId)
         } else {
           console.log("No authenticated user found")
           router.push("/student/login")
         }
       } catch (error) {
-        console.error("Error getting current user:", error)
+        console.error("Error fetching user ID:", error)
         router.push("/student/login")
       }
     }
 
-    getCurrentUserId()
-  }, [router])
+    fetchUserId()
+  }, [supabase, router])
 
-  const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
+  // Fetch student profile using the cached hook
+  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile(userId)
 
-  // Add debugging useEffect
-  useEffect(() => {
-    if (userId) {
-      console.log("Student Dashboard - User ID:", userId)
-    }
-    if (profile) {
-      console.log("Student Dashboard - Profile data:", profile)
-    }
-    if (profileError) {
-      console.log("Student Dashboard - Profile error:", profileError)
-    }
-  }, [userId, profile, profileError])
+  // Fetch student selections
   const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
     useCachedStudentCourseSelections(userId)
   const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
     useCachedStudentExchangeSelections(userId)
   const { electives: availableElectives, isLoading: isElectivesLoading } = useCachedAvailableElectives()
 
-  // Ensure this page is only accessed via subdomain
-  useEffect(() => {
-    if (!isSubdomainAccess) {
-      router.push("/institution-required")
-    }
-  }, [isSubdomainAccess, router])
+  // State for deadlines
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
 
   // Fetch upcoming deadlines with caching
   useEffect(() => {
@@ -214,15 +220,34 @@ export default function StudentDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [isSubdomainAccess, institution?.id, language])
+  }, [supabase, isSubdomainAccess, institution?.id, language])
+
+  // Ensure this page is only accessed via subdomain
+  useEffect(() => {
+    if (!isSubdomainAccess) {
+      router.push("/institution-required")
+    }
+  }, [isSubdomainAccess, router])
+
+  // Log when component mounts/unmounts to track re-renders
+  useEffect(() => {
+    console.log("Student Dashboard mounted")
+
+    // Mark that we're no longer on initial mount
+    isInitialMount.current = false
+
+    return () => {
+      console.log("Student Dashboard unmounted")
+    }
+  }, [])
 
   // Calculate student data from profile and selections
   const studentData = {
     name: profile?.full_name || "Loading...",
     email: profile?.email || "Loading...",
-    degree: profile?.degree?.name || "Not specified", // Correctly access name from the degree object
-    year: profile?.year || "Not specified", // 'year' is already processed in the hook from academic_year
-    group: profile?.group?.name || "Not assigned", // Correctly access name from the group object
+    degree: profile?.degree?.name || "Not specified",
+    year: profile?.year || "Not specified",
+    group: profile?.group?.name || "Not assigned",
     requiredElectives: {
       courses: availableElectives.courses.length || 0,
       exchange: availableElectives.exchanges.length || 0,
@@ -246,29 +271,22 @@ export default function StudentDashboard() {
     },
   }
 
-  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading || isElectivesLoading
+  const isLoading = isLoadingProfile || isCourseSelectionsLoading || isExchangeSelectionsLoading || isElectivesLoading
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting
   }
 
-  if (isProfileLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <PageSkeleton type="dashboard" />
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="flex flex-col gap-6">
+      <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             {t("student.dashboard.welcome", { name: profile?.full_name || t("student.dashboard.student") })}
           </h1>
           <p className="text-muted-foreground">{t("student.dashboard.subtitle")}</p>
         </div>
+
         {profileError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -285,18 +303,17 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-8 w-16" />
               ) : (
-                <>
-                  <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
-                  </p>
-                </>
+                <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
               )}
+              <p className="text-xs text-muted-foreground">
+                {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
+              </p>
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t("student.dashboard.selectedElectives")}</CardTitle>
@@ -304,18 +321,17 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-8 w-16" />
               ) : (
-                <>
-                  <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
-                  </p>
-                </>
+                <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
               )}
+              <p className="text-xs text-muted-foreground">
+                {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
+              </p>
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t("student.dashboard.pendingSelections")}</CardTitle>
@@ -323,16 +339,14 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-8 w-16" />
               ) : (
-                <>
-                  <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
-                  </p>
-                </>
+                <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
               )}
+              <p className="text-xs text-muted-foreground">
+                {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
+                {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -344,11 +358,13 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.academicDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-6 w-full" />
-                  ))}
+              {isLoadingProfile ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
                 </div>
               ) : (
                 <dl className="space-y-2">

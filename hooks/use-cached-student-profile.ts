@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useDataCache } from "@/lib/data-cache-context"
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export function useCachedStudentProfile(userId: string | undefined) {
@@ -11,6 +11,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const { getCachedData, setCachedData } = useDataCache()
   const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
     if (!userId) {
@@ -35,39 +36,35 @@ export function useCachedStudentProfile(userId: string | undefined) {
       // If not in cache, fetch from API
       console.log("Fetching student profile from API for user:", userId)
       try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-        // First, let's check if the user exists in profiles table
-        const { data: profileCheck, error: checkError } = await supabase
-          .from("profiles")
-          .select("id, role")
-          .eq("id", userId)
-
-        console.log("Profile check result:", profileCheck, "Error:", checkError)
-
-        // Fetch the profile data with proper relationships
+        // Fetch the profile data with proper relationships and explicit role filter
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(`
-        *,
-        degrees:degree_id(id, name),
-        groups:group_id(id, name)
-      `)
+            *,
+            degrees:degree_id(id, name),
+            groups:group_id(id, name)
+          `)
           .eq("id", userId)
+          .eq("role", "student") // Explicitly filter for student role
           .single()
 
-        console.log("Profile query result:", profileData, "Error:", profileError)
+        console.log("Student profile query result:", profileData, "Error:", profileError)
 
         if (profileError) {
-          console.error("Profile fetch error:", profileError)
+          console.error("Student profile fetch error:", profileError)
           throw profileError
         }
 
         if (!profileData) {
-          throw new Error("No profile data found for user")
+          throw new Error("No student profile data found for user")
         }
 
-        console.log("Raw profile data:", profileData)
+        // Verify this is actually a student profile
+        if (profileData.role !== "student") {
+          throw new Error(`Expected student role, but got: ${profileData.role}`)
+        }
+
+        console.log("Raw student profile data:", profileData)
 
         // Use the profile data with proper relationships
         const processedProfile = {
@@ -80,7 +77,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
           group: profileData.groups || { name: "Not assigned" },
         }
 
-        console.log("Processed profile data:", processedProfile)
+        console.log("Processed student profile data:", processedProfile)
 
         // Save to cache
         setCachedData("studentProfile", userId, processedProfile)
@@ -101,7 +98,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId]) // Removed function dependencies to prevent infinite loops
+  }, [userId, supabase, getCachedData, setCachedData, toast])
 
   return { profile, isLoading, error }
 }
