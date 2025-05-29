@@ -53,24 +53,27 @@ export function useCachedStudentProfile(userId: string | undefined) {
 
         console.log("Raw profile data:", profileData)
 
-        // Use the profile data with proper relationships
-        const processedProfile = {
+        // profileData already contains 'degrees' and 'groups' as fetched objects
+        // due to the select query: degrees:degree_id(id, name), groups:group_id(id, name)
+        // We just need to ensure they exist or provide a fallback if they are null.
+
+        const finalProfileData = {
           ...profileData,
+          // Ensure degrees and groups objects exist, even if empty, to prevent access errors
+          degrees: profileData.degrees || { id: null, name: "Not specified" },
+          groups: profileData.groups || { id: null, name: "Not assigned" },
           // Use academic_year directly as the year
           year: profileData.academic_year || "Not specified",
-          enrollment_year: profileData.academic_year || "Not specified",
-          // Use the proper relationship data
-          degree: profileData.degrees || { name: "Not specified" },
-          group: profileData.groups || { name: "Not assigned" },
+          enrollment_year: profileData.academic_year || "Not specified", // Retained for any other potential use
         }
 
-        console.log("Processed profile data:", processedProfile)
+        console.log("Final profile data to be cached and set:", finalProfileData)
 
         // Save to cache
-        setCachedData("studentProfile", userId, processedProfile)
+        setCachedData("studentProfile", userId, finalProfileData)
 
         // Update state
-        setProfile(processedProfile)
+        setProfile(finalProfileData)
       } catch (error: any) {
         console.error("Error fetching student profile:", error)
         setError(error.message)

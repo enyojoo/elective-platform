@@ -19,13 +19,62 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { supabase } from "@/lib/supabase"
+import { formatDate, calculateDaysLeft } from "@/lib/utils"
+import Link from "next/link"
+
+// Cache constants
+const DEADLINES_CACHE_KEY = "studentDashboardDeadlines"
+const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+
+// Cache helper functions
+const getCachedData = (key: string): any | null => {
+  try {
+    const cachedData = localStorage.getItem(key)
+    if (!cachedData) return null
+
+    const parsed = JSON.parse(cachedData)
+
+    // Check if cache is expired
+    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return parsed.data
+  } catch (error) {
+    console.error(`Error reading from cache (${key}):`, error)
+    return null
+  }
+}
+
+const setCachedData = (key: string, data: any) => {
+  try {
+    const cacheData = {
+      data,
+      timestamp: Date.now(),
+    }
+    localStorage.setItem(key, JSON.stringify(cacheData))
+  } catch (error) {
+    console.error(`Error writing to cache (${key}):`, error)
+  }
+}
+
+interface DeadlineItem {
+  id: string
+  title: string
+  date: string
+  daysLeft: number
+  type: "course" | "exchange"
+}
 
 export default function StudentDashboard() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
   const session = useSession()
   const [userId, setUserId] = useState<string | undefined>(undefined)
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
   useEffect(() => {
     async function getCurrentUserId() {
@@ -58,27 +107,96 @@ export default function StudentDashboard() {
     }
   }, [isSubdomainAccess, router])
 
-  // Mock upcoming deadlines
-  const upcomingDeadlines = [
-    {
-      title: "Fall 2025",
-      date: "2025-08-15",
-      daysLeft: 14,
-    },
-    {
-      title: "Spring 2025",
-      date: "2025-12-01",
-      daysLeft: 122,
-    },
-  ]
+  // Fetch upcoming deadlines with caching
+  useEffect(() => {
+    const fetchUpcomingDeadlines = async () => {
+      if (!isSubdomainAccess || !institution?.id) return
+
+      try {
+        setIsLoadingDeadlines(true)
+
+        // Check for cached data
+        const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
+        if (cachedDeadlines) {
+          console.log("Using cached deadlines data")
+          setUpcomingDeadlines(cachedDeadlines)
+          setIsLoadingDeadlines(false)
+          return
+        }
+
+        console.log("Fetching fresh deadlines data")
+
+        // Get current date
+        const now = new Date()
+
+        // Fetch course electives with deadlines
+        const { data: courseElectives, error: courseError } = await supabase
+          .from("elective_courses")
+          .select("id, name, name_ru, deadline, status")
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+          .not("deadline", "is", null)
+          .gte("deadline", now.toISOString())
+          .order("deadline", { ascending: true })
+          .limit(5)
+
+        // Fetch exchange programs with deadlines
+        const { data: exchangePrograms, error: exchangeError } = await supabase
+          .from("elective_exchange")
+          .select("id, name, name_ru, deadline, status")
+          .eq("institution_id", institution.id)
+          .eq("status", "published")
+          .not("deadline", "is", null)
+          .gte("deadline", now.toISOString())
+          .order("deadline", { ascending: true })
+          .limit(5)
+
+        if (!courseError && !exchangeError) {
+          // Process course electives
+          const courseDeadlines = (courseElectives || []).map((item) => ({
+            id: item.id,
+            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+            date: item.deadline,
+            daysLeft: calculateDaysLeft(item.deadline),
+            type: "course" as const,
+          }))
+
+          // Process exchange programs
+          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
+            id: item.id,
+            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+            date: item.deadline,
+            daysLeft: calculateDaysLeft(item.deadline),
+            type: "exchange" as const,
+          }))
+
+          // Combine and sort by closest deadline
+          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
+            .sort((a, b) => a.daysLeft - b.daysLeft)
+            .slice(0, 5) // Take top 5 closest deadlines
+
+          setUpcomingDeadlines(allDeadlines)
+
+          // Cache the data
+          setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
+        }
+      } catch (error) {
+        console.error("Error fetching upcoming deadlines:", error)
+      } finally {
+        setIsLoadingDeadlines(false)
+      }
+    }
+
+    fetchUpcomingDeadlines()
+  }, [isSubdomainAccess, institution?.id, language])
 
   // Calculate student data from profile and selections
   const studentData = {
     name: profile?.full_name || "Loading...",
     email: profile?.email || "Loading...",
-    degree: profile?.degree?.name || "Not specified",
+    degree: profile?.degrees?.name || "Not specified",
     year: profile?.academic_year || profile?.year || "Not specified",
-    group: profile?.group?.name || "Not assigned",
+    group: profile?.groups?.name || "Not assigned",
     requiredElectives: {
       courses: availableElectives.courses.length || 0,
       exchange: availableElectives.exchanges.length || 0,
@@ -239,27 +357,47 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.importantDates")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {upcomingDeadlines.map((deadline, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{deadline.title}</p>
-                      <p className="text-sm text-muted-foreground">{deadline.date}</p>
+              {isLoadingDeadlines ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : upcomingDeadlines.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingDeadlines.map((deadline) => (
+                    <div key={deadline.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{deadline.title}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(deadline.date)}</p>
+                      </div>
+                      <Link
+                        href={
+                          deadline.type === "course"
+                            ? `/student/courses/${deadline.id}`
+                            : `/student/exchange/${deadline.id}`
+                        }
+                      >
+                        <div
+                          className={`px-2 py-1 rounded-md text-xs font-medium cursor-pointer ${
+                            deadline.daysLeft < 7
+                              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              : deadline.daysLeft < 30
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          }`}
+                        >
+                          {deadline.daysLeft} {t("student.dashboard.daysLeft")}
+                        </div>
+                      </Link>
                     </div>
-                    <div
-                      className={`px-2 py-1 rounded-md text-xs font-medium ${
-                        deadline.daysLeft < 7
-                          ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                          : deadline.daysLeft < 30
-                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                            : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      }`}
-                    >
-                      {deadline.daysLeft} {t("student.dashboard.daysLeft")}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  {t("student.dashboard.noUpcomingDeadlines", "No upcoming deadlines")}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
