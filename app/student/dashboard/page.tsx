@@ -13,6 +13,7 @@ import {
   useCachedStudentCourseSelections,
   useCachedStudentExchangeSelections,
 } from "@/hooks/use-cached-student-selections"
+import { useSession } from "@supabase/auth-helpers-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
@@ -22,6 +23,7 @@ export default function StudentDashboard() {
   const { t } = useLanguage()
   const { institution, isSubdomainAccess } = useInstitution()
   const router = useRouter()
+  const session = useSession()
   const [userId, setUserId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -32,9 +34,6 @@ export default function StudentDashboard() {
         } = await supabase.auth.getUser()
         if (user) {
           setUserId(user.id)
-        } else {
-          // If no user is found, redirect to login
-          router.push("/student/login")
         }
       } catch (error) {
         console.error("Error getting current user:", error)
@@ -42,7 +41,7 @@ export default function StudentDashboard() {
     }
 
     getCurrentUserId()
-  }, [router])
+  }, [])
 
   const { profile, isLoading: isProfileLoading, error: profileError } = useCachedStudentProfile(userId)
   const { selections: courseSelections, isLoading: isCourseSelectionsLoading } =
@@ -57,64 +56,31 @@ export default function StudentDashboard() {
     }
   }, [isSubdomainAccess, router])
 
-  // Get upcoming deadlines from elective packs
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([])
-  const [isDeadlinesLoading, setIsDeadlinesLoading] = useState(true)
-
-  useEffect(() => {
-    async function fetchDeadlines() {
-      if (!institution?.id) return
-
-      try {
-        const { data, error } = await supabase
-          .from("elective_packs")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .eq("status", "published")
-          .order("deadline", { ascending: true })
-          .limit(3)
-
-        if (error) throw error
-
-        // Calculate days left for each deadline
-        const deadlinesWithDaysLeft = data.map((pack) => {
-          const deadlineDate = new Date(pack.deadline)
-          const today = new Date()
-          const diffTime = deadlineDate.getTime() - today.getTime()
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-          return {
-            title: pack.name,
-            date: pack.deadline,
-            daysLeft: diffDays > 0 ? diffDays : 0,
-          }
-        })
-
-        setUpcomingDeadlines(deadlinesWithDaysLeft)
-      } catch (error) {
-        console.error("Error fetching deadlines:", error)
-      } finally {
-        setIsDeadlinesLoading(false)
-      }
-    }
-
-    fetchDeadlines()
-  }, [institution?.id])
+  // Mock upcoming deadlines
+  const upcomingDeadlines = [
+    {
+      title: "Fall 2025",
+      date: "2025-08-15",
+      daysLeft: 14,
+    },
+    {
+      title: "Spring 2025",
+      date: "2025-12-01",
+      daysLeft: 122,
+    },
+  ]
 
   // Calculate student data from profile and selections
   const studentData = {
     name: profile?.full_name || "Loading...",
     email: profile?.email || "Loading...",
-    degree: profile?.studentDetails?.groups?.programs?.degrees?.name || "Loading...",
-    program: profile?.studentDetails?.groups?.programs?.name || "Loading...",
-    year: profile?.studentDetails?.enrollment_year || "Loading...",
-    group: profile?.studentDetails?.groups?.name || "Loading...",
+    degree: profile?.degree?.name || "Loading...",
+    year: profile?.enrollment_year || "Loading...",
+    group: profile?.group?.name || "Loading...",
     requiredElectives: {
-      courses: profile?.studentDetails?.groups?.required_course_electives || 0,
-      exchange: profile?.studentDetails?.groups?.required_exchange_electives || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
+      courses: 2,
+      exchange: 1,
+      total: 3,
     },
     selectedElectives: {
       courses: courseSelections?.length || 0,
@@ -132,7 +98,7 @@ export default function StudentDashboard() {
     },
   }
 
-  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading || isDeadlinesLoading
+  const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading
 
   if (!isSubdomainAccess) {
     return null // Don't render anything while redirecting
@@ -232,7 +198,7 @@ export default function StudentDashboard() {
             <CardContent>
               {isLoading ? (
                 <div className="space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
+                  {Array.from({ length: 6 }).map((_, i) => (
                     <Skeleton key={i} className="h-6 w-full" />
                   ))}
                 </div>
@@ -269,43 +235,27 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.importantDates")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {isDeadlinesLoading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Skeleton className="h-5 w-32" />
-                        <Skeleton className="h-4 w-24" />
-                      </div>
-                      <Skeleton className="h-8 w-16" />
+              <div className="space-y-4">
+                {upcomingDeadlines.map((deadline, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{deadline.title}</p>
+                      <p className="text-sm text-muted-foreground">{deadline.date}</p>
                     </div>
-                  ))}
-                </div>
-              ) : upcomingDeadlines.length > 0 ? (
-                <div className="space-y-4">
-                  {upcomingDeadlines.map((deadline, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{deadline.title}</p>
-                        <p className="text-sm text-muted-foreground">{new Date(deadline.date).toLocaleDateString()}</p>
-                      </div>
-                      <div
-                        className={`px-2 py-1 rounded-md text-xs font-medium ${
-                          deadline.daysLeft < 7
-                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            : deadline.daysLeft < 30
-                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                              : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        }`}
-                      >
-                        {deadline.daysLeft} {t("student.dashboard.daysLeft")}
-                      </div>
+                    <div
+                      className={`px-2 py-1 rounded-md text-xs font-medium ${
+                        deadline.daysLeft < 7
+                          ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                          : deadline.daysLeft < 30
+                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                            : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      }`}
+                    >
+                      {deadline.daysLeft} {t("student.dashboard.daysLeft")}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-4">{t("student.dashboard.noDeadlines")}</p>
-              )}
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
