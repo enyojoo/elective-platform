@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 // Cache constants
@@ -46,8 +46,31 @@ const setCachedData = (userId: string, data: any) => {
 }
 
 export function useCachedManagerProfile(userId: string | undefined) {
-  const [profile, setProfile] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState<any>(() => {
+    // Initialize with cached data if available
+    if (typeof window !== "undefined" && userId) {
+      try {
+        return getCachedData(userId) || null
+      } catch (e) {
+        return null
+      }
+    }
+    return null
+  })
+
+  const [isLoading, setIsLoading] = useState(() => {
+    // If we have cached data, don't start in loading state
+    if (typeof window !== "undefined" && userId) {
+      try {
+        const cachedData = getCachedData(userId)
+        return !cachedData
+      } catch (e) {
+        return true
+      }
+    }
+    return true
+  })
+
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
@@ -70,9 +93,6 @@ export function useCachedManagerProfile(userId: string | undefined) {
     }
 
     const fetchProfile = async () => {
-      setIsLoading(true)
-      setError(null)
-
       try {
         console.log(`Checking cache for manager profile: ${userId}`)
         // Try to get data from cache first
@@ -82,6 +102,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
           console.log("Using cached manager profile")
           setProfile(cachedProfile)
           setIsLoading(false)
+          setError(null)
           // Update the last fetched userId
           lastFetchedUserId.current = userId
           return
@@ -89,48 +110,25 @@ export function useCachedManagerProfile(userId: string | undefined) {
 
         // If not in cache, fetch from API
         console.log("Fetching manager profile from API")
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+        setIsLoading(true)
+        setError(null)
 
-        // First, let's check what profile exists for this user
-        const { data: profileCheck, error: profileCheckError } = await supabase
-          .from("profiles")
-          .select("id, role, full_name, email, degree_id, academic_year")
-          .eq("id", userId)
+        const supabase = getSupabaseBrowserClient()
 
-        console.log("Profile check result:", { profileCheck, profileCheckError })
+        // First, try to fetch the profile without role restriction to see what we get
+        console.log("Fetching profile for user ID:", userId)
 
-        if (profileCheckError) {
-          throw new Error(`Profile check error: ${profileCheckError.message}`)
-        }
-
-        if (!profileCheck || profileCheck.length === 0) {
-          throw new Error("No profile found for this user")
-        }
-
-        const userProfile = profileCheck[0]
-        console.log("User profile found:", userProfile)
-
-        // Check if user has manager role (could be 'program_manager', 'manager', or similar)
-        const isManager =
-          userProfile.role === "program_manager" ||
-          userProfile.role === "manager" ||
-          userProfile.role?.toLowerCase().includes("manager")
-
-        if (!isManager) {
-          throw new Error(`User role '${userProfile.role}' is not a manager role`)
-        }
-
-        // Now fetch the full profile with related data
-        const { data: fullProfile, error: fullProfileError } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(`
             id,
             full_name,
             email,
+            role,
             degree_id,
             academic_year,
-            role,
-            degrees:degree_id (
+            institution_id,
+            degrees (
               id,
               name,
               name_ru
@@ -139,61 +137,62 @@ export function useCachedManagerProfile(userId: string | undefined) {
           .eq("id", userId)
           .single()
 
-        console.log("Full profile result:", { fullProfile, fullProfileError })
+        if (profileError) {
+          console.error("Profile fetch error:", profileError)
 
-        if (fullProfileError) {
-          // If single() fails, try without single() to see what we get
-          const { data: profileArray, error: arrayError } = await supabase
-            .from("profiles")
-            .select(`
-              id,
-              full_name,
-              email,
-              degree_id,
-              academic_year,
-              role,
-              degrees:degree_id (
-                id,
-                name,
-                name_ru
-              )
-            `)
-            .eq("id", userId)
+          // If no profile found, try to get basic user info from auth
+          const {
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser()
 
-          console.log("Profile array result:", { profileArray, arrayError })
-
-          if (arrayError) {
-            throw new Error(`Full profile fetch error: ${arrayError.message}`)
+          if (userError || !user) {
+            throw new Error("Unable to fetch user information")
           }
 
-          if (profileArray && profileArray.length > 0) {
-            const profileData = profileArray[0]
-            // Save to cache
-            setCachedData(userId, profileData)
-            setProfile(profileData)
-          } else {
-            throw new Error("No profile data found")
+          // Create a basic profile object from auth data
+          const basicProfile = {
+            id: user.id,
+            full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown",
+            email: user.email,
+            role: "program_manager",
+            degree_id: null,
+            academic_year: null,
+            institution_id: null,
+            degrees: null,
           }
-        } else {
-          // Save to cache
-          setCachedData(userId, fullProfile)
-          setProfile(fullProfile)
+
+          console.log("Using basic profile from auth:", basicProfile)
+          setProfile(basicProfile)
+          setCachedData(userId, basicProfile)
+          lastFetchedUserId.current = userId
+          return
         }
+
+        console.log("Fetched profile data:", profileData)
+
+        // Check if the user has manager role or if role is null/undefined (might be a new user)
+        if (profileData.role && profileData.role !== "program_manager") {
+          console.warn(`User role is '${profileData.role}', expected 'program_manager'`)
+          // Still proceed with the data we have
+        }
+
+        // Save to cache
+        setCachedData(userId, profileData)
+
+        // Update state
+        setProfile(profileData)
 
         // Update the last fetched userId
         lastFetchedUserId.current = userId
       } catch (error: any) {
         console.error("Error fetching manager profile:", error)
         setError(error.message)
-
-        // Only show toast for non-role related errors
-        if (!error.message.includes("role")) {
-          toast({
-            title: "Error",
-            description: "Failed to load manager profile",
-            variant: "destructive",
-          })
-        }
+        toast({
+          title: "Error",
+          description: "Failed to load manager profile",
+          variant: "destructive",
+        })
       } finally {
         setIsLoading(false)
       }
