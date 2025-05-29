@@ -22,102 +22,61 @@ export function useCachedStudentProfile(userId: string | undefined) {
       setIsLoading(true)
       setError(null)
 
+      // Try to get data from cache first
       const cachedProfile = getCachedData<any>("studentProfile", userId)
+
       if (cachedProfile) {
-        console.log("Using cached student profile:", cachedProfile)
+        console.log("Using cached student profile")
         setProfile(cachedProfile)
         setIsLoading(false)
         return
       }
 
-      console.log("Fetching student profile from API for userId:", userId)
+      // If not in cache, fetch from API
+      console.log("Fetching student profile from API")
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // This query attempts to embed related degree and group information.
-        // It assumes 'profiles' has 'degree_id' and 'group_id' foreign keys.
-        // It also assumes 'degrees' and 'groups' tables have a 'name' column for the display text.
-        // If your FK columns or display name columns are different, this query will need adjustment.
+        // Fetch the profile data with proper relationships
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(`
             *,
-            degree:degrees!inner(id, name), 
-            group:groups!inner(id, name)
+            degrees:degree_id(id, name),
+            groups:group_id(id, name)
           `)
-          // Using !inner to ensure that if a degree_id or group_id is present but doesn't match,
-          // the profile itself might not be returned, or the embedded field will be null.
-          // If you want profiles even without a degree/group, remove !inner or use !left.
-          // For this to work, 'degree_id' in 'profiles' must point to 'degrees(id)'
-          // and 'group_id' in 'profiles' must point to 'groups(id)'.
-          // Supabase might infer this if FKs are named 'degree_id' and 'group_id'.
-          // If not, you might need to specify the FK like: degrees!profiles_degree_id_fkey(id, name)
           .eq("id", userId)
           .eq("role", "student")
           .single()
 
-        if (profileError) {
-          console.error("Supabase error fetching profile with embedded data:", profileError)
-          // Fallback to fetching profile without embedding if the join fails
-          console.log("Falling back to fetching profile without embedded data...")
-          const { data: plainProfileData, error: plainProfileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .eq("role", "student")
-            .single()
+        if (profileError) throw profileError
 
-          if (plainProfileError) {
-            console.error("Supabase error fetching plain profile data:", plainProfileError)
-            throw plainProfileError
-          }
-          if (!plainProfileData) throw new Error("Student profile not found (fallback).")
+        console.log("Raw profile data:", profileData)
 
-          console.log("Plain profile data (fallback):", plainProfileData)
-          // If using fallback, degree and group names will be default
-          const processedFallbackProfile = {
-            ...plainProfileData,
-            year: plainProfileData.academic_year || "Not specified",
-            enrollment_year: plainProfileData.academic_year || "Not specified",
-            degree: { name: "Not specified (fallback)" },
-            group: { name: "Not assigned (fallback)" },
-          }
-          setCachedData("studentProfile", userId, processedFallbackProfile)
-          setProfile(processedFallbackProfile)
-          toast({
-            title: "Partial Profile Data",
-            description: "Could not load full degree/group details. Displaying basic profile.",
-            variant: "default",
-          })
-          setIsLoading(false)
-          return
-        }
-
-        console.log("Raw profile data with embedded degree/group from Supabase:", profileData)
-
-        if (!profileData) {
-          throw new Error("Student profile not found.")
-        }
-
-        // The embedded data will be under profileData.degree and profileData.group
+        // Use the profile data with proper relationships
         const processedProfile = {
           ...profileData,
+          // Use academic_year directly as the year
           year: profileData.academic_year || "Not specified",
           enrollment_year: profileData.academic_year || "Not specified",
-          degree: { name: profileData.degree?.name || "Not specified" },
-          group: { name: profileData.group?.name || "Not assigned" },
+          // Use the proper relationship data
+          degree: profileData.degrees || { name: "Not specified" },
+          group: profileData.groups || { name: "Not assigned" },
         }
 
-        console.log("Processed profile data for caching (with embedding):", processedProfile)
+        console.log("Processed profile data:", processedProfile)
 
+        // Save to cache
         setCachedData("studentProfile", userId, processedProfile)
+
+        // Update state
         setProfile(processedProfile)
       } catch (error: any) {
-        console.error("Error in fetchProfile:", error.message)
+        console.error("Error fetching student profile:", error)
         setError(error.message)
         toast({
           title: "Error",
-          description: "Failed to load student profile. " + error.message,
+          description: "Failed to load student profile",
           variant: "destructive",
         })
       } finally {
@@ -126,7 +85,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId])
+  }, [userId]) // Removed function dependencies to prevent infinite loops
 
   return { profile, isLoading, error }
 }
