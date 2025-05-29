@@ -33,54 +33,64 @@ export function useCachedStudentProfile(userId: string | undefined) {
       }
 
       // If not in cache, fetch from API
-      console.log("Fetching student profile from API")
+      console.log("Fetching student profile from API for userId:", userId)
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // First fetch the profile data
+        // Fetch the profile data for the logged-in user
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", userId)
-          .eq("role", "student")
           .single()
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error("Profile error:", profileError)
+          throw profileError
+        }
 
         console.log("Raw profile data:", profileData)
 
         // Fetch degree data if degree_id exists
         let degreeData = null
         if (profileData.degree_id) {
-          const { data: degree } = await supabase
+          console.log("Fetching degree for degree_id:", profileData.degree_id)
+          const { data: degree, error: degreeError } = await supabase
             .from("degrees")
             .select("id, name")
             .eq("id", profileData.degree_id)
             .single()
 
-          degreeData = degree
+          if (!degreeError && degree) {
+            degreeData = degree
+            console.log("Fetched degree data:", degreeData)
+          }
         }
 
         // Fetch group data if group_id exists
         let groupData = null
         if (profileData.group_id) {
-          const { data: group } = await supabase
+          console.log("Fetching group for group_id:", profileData.group_id)
+          const { data: group, error: groupError } = await supabase
             .from("groups")
             .select("id, name")
             .eq("id", profileData.group_id)
             .single()
 
-          groupData = group
+          if (!groupError && group) {
+            groupData = group
+            console.log("Fetched group data:", groupData)
+          }
         }
 
-        // Construct the final profile object similar to manager profile structure
+        // Construct the final profile object
         const finalProfileData = {
           ...profileData,
           degrees: degreeData,
           groups: groupData,
         }
 
-        console.log("Final profile data with relationships:", finalProfileData)
+        console.log("Final profile data:", finalProfileData)
 
         // Save to cache
         setCachedData("studentProfile", userId, finalProfileData)
@@ -92,7 +102,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
         setError(error.message)
         toast({
           title: "Error",
-          description: "Failed to load student profile",
+          description: `Failed to load profile: ${error.message}`,
           variant: "destructive",
         })
       } finally {
@@ -101,7 +111,7 @@ export function useCachedStudentProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId]) // Removed function dependencies to prevent infinite loops
+  }, [userId])
 
   return { profile, isLoading, error }
 }

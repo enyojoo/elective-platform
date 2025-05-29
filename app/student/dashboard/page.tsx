@@ -82,8 +82,12 @@ export default function StudentDashboard() {
         const {
           data: { user },
         } = await supabase.auth.getUser()
+        console.log("Current user from auth:", user)
         if (user) {
           setUserId(user.id)
+          console.log("Set userId to:", user.id)
+        } else {
+          console.log("No authenticated user found")
         }
       } catch (error) {
         console.error("Error getting current user:", error)
@@ -99,6 +103,13 @@ export default function StudentDashboard() {
   const { selections: exchangeSelections, isLoading: isExchangeSelectionsLoading } =
     useCachedStudentExchangeSelections(userId)
   const { electives: availableElectives, isLoading: isElectivesLoading } = useCachedAvailableElectives()
+
+  // Debug logging
+  useEffect(() => {
+    console.log("Profile state:", profile)
+    console.log("Profile loading:", isProfileLoading)
+    console.log("Profile error:", profileError)
+  }, [profile, isProfileLoading, profileError])
 
   // Ensure this page is only accessed via subdomain
   useEffect(() => {
@@ -190,36 +201,6 @@ export default function StudentDashboard() {
     fetchUpcomingDeadlines()
   }, [isSubdomainAccess, institution?.id, language])
 
-  // Calculate student data from profile and selections
-  const studentData = {
-    name: profile?.full_name || "-",
-    email: profile?.email || "-",
-    degree: profile?.degrees?.name || "-",
-    year: profile?.academic_year || "-",
-    group: profile?.groups?.name || "-",
-    requiredElectives: {
-      courses: availableElectives.courses.length || 0,
-      exchange: availableElectives.exchanges.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-    selectedElectives: {
-      courses: courseSelections?.length || 0,
-      exchange: exchangeSelections?.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-    pendingSelections: {
-      courses: courseSelections?.filter((s) => s.status === "pending")?.length || 0,
-      exchange: exchangeSelections?.filter((s) => s.status === "pending")?.length || 0,
-      get total() {
-        return this.courses + this.exchange
-      },
-    },
-  }
-
   const isLoading = isProfileLoading || isCourseSelectionsLoading || isExchangeSelectionsLoading || isElectivesLoading
 
   if (!isSubdomainAccess) {
@@ -262,10 +243,12 @@ export default function StudentDashboard() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{studentData.requiredElectives.total}</div>
+                  <div className="text-2xl font-bold">
+                    {availableElectives.courses.length + availableElectives.exchanges.length}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {studentData.requiredElectives.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.requiredElectives.exchange} {t("student.dashboard.exchange")}
+                    {availableElectives.courses.length} {t("student.dashboard.courses")},{" "}
+                    {availableElectives.exchanges.length} {t("student.dashboard.exchange")}
                   </p>
                 </>
               )}
@@ -281,10 +264,12 @@ export default function StudentDashboard() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{studentData.selectedElectives.total}</div>
+                  <div className="text-2xl font-bold">
+                    {(courseSelections?.length || 0) + (exchangeSelections?.length || 0)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {studentData.selectedElectives.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.selectedElectives.exchange} {t("student.dashboard.exchange")}
+                    {courseSelections?.length || 0} {t("student.dashboard.courses")}, {exchangeSelections?.length || 0}{" "}
+                    {t("student.dashboard.exchange")}
                   </p>
                 </>
               )}
@@ -300,10 +285,15 @@ export default function StudentDashboard() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{studentData.pendingSelections.total}</div>
+                  <div className="text-2xl font-bold">
+                    {(courseSelections?.filter((s) => s.status === "pending")?.length || 0) +
+                      (exchangeSelections?.filter((s) => s.status === "pending")?.length || 0)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {studentData.pendingSelections.courses} {t("student.dashboard.courses")},{" "}
-                    {studentData.pendingSelections.exchange} {t("student.dashboard.exchange")}
+                    {courseSelections?.filter((s) => s.status === "pending")?.length || 0}{" "}
+                    {t("student.dashboard.courses")},{" "}
+                    {exchangeSelections?.filter((s) => s.status === "pending")?.length || 0}{" "}
+                    {t("student.dashboard.exchange")}
                   </p>
                 </>
               )}
