@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 
 // Cache constants
 const CACHE_KEY = "managerProfile"
-const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
 
 // Cache helper functions
 const getCachedData = (userId: string): any | null => {
@@ -91,32 +91,109 @@ export function useCachedManagerProfile(userId: string | undefined) {
         console.log("Fetching manager profile from API")
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch profile with related data
-        const { data: profileData, error: profileError } = await supabase
+        // First, let's check what profile exists for this user
+        const { data: profileCheck, error: profileCheckError } = await supabase
           .from("profiles")
-          .select("*, degrees(*), groups(*)")
+          .select("id, role, full_name, email, degree_id, academic_year")
           .eq("id", userId)
-          .eq("role", "program_manager")
+
+        console.log("Profile check result:", { profileCheck, profileCheckError })
+
+        if (profileCheckError) {
+          throw new Error(`Profile check error: ${profileCheckError.message}`)
+        }
+
+        if (!profileCheck || profileCheck.length === 0) {
+          throw new Error("No profile found for this user")
+        }
+
+        const userProfile = profileCheck[0]
+        console.log("User profile found:", userProfile)
+
+        // Check if user has manager role (could be 'program_manager', 'manager', or similar)
+        const isManager =
+          userProfile.role === "program_manager" ||
+          userProfile.role === "manager" ||
+          userProfile.role?.toLowerCase().includes("manager")
+
+        if (!isManager) {
+          throw new Error(`User role '${userProfile.role}' is not a manager role`)
+        }
+
+        // Now fetch the full profile with related data
+        const { data: fullProfile, error: fullProfileError } = await supabase
+          .from("profiles")
+          .select(`
+            id,
+            full_name,
+            email,
+            degree_id,
+            academic_year,
+            role,
+            degrees:degree_id (
+              id,
+              name,
+              name_ru
+            )
+          `)
+          .eq("id", userId)
           .single()
 
-        if (profileError) throw profileError
+        console.log("Full profile result:", { fullProfile, fullProfileError })
 
-        // Save to cache
-        setCachedData(userId, profileData)
+        if (fullProfileError) {
+          // If single() fails, try without single() to see what we get
+          const { data: profileArray, error: arrayError } = await supabase
+            .from("profiles")
+            .select(`
+              id,
+              full_name,
+              email,
+              degree_id,
+              academic_year,
+              role,
+              degrees:degree_id (
+                id,
+                name,
+                name_ru
+              )
+            `)
+            .eq("id", userId)
 
-        // Update state
-        setProfile(profileData)
+          console.log("Profile array result:", { profileArray, arrayError })
+
+          if (arrayError) {
+            throw new Error(`Full profile fetch error: ${arrayError.message}`)
+          }
+
+          if (profileArray && profileArray.length > 0) {
+            const profileData = profileArray[0]
+            // Save to cache
+            setCachedData(userId, profileData)
+            setProfile(profileData)
+          } else {
+            throw new Error("No profile data found")
+          }
+        } else {
+          // Save to cache
+          setCachedData(userId, fullProfile)
+          setProfile(fullProfile)
+        }
 
         // Update the last fetched userId
         lastFetchedUserId.current = userId
       } catch (error: any) {
         console.error("Error fetching manager profile:", error)
         setError(error.message)
-        toast({
-          title: "Error",
-          description: "Failed to load manager profile",
-          variant: "destructive",
-        })
+
+        // Only show toast for non-role related errors
+        if (!error.message.includes("role")) {
+          toast({
+            title: "Error",
+            description: "Failed to load manager profile",
+            variant: "destructive",
+          })
+        }
       } finally {
         setIsLoading(false)
       }
