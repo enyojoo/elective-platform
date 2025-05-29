@@ -1,137 +1,123 @@
 "use server"
 
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { revalidatePath } from "next/cache"
-
-export async function uploadStatement(formData: FormData) {
-  const supabase = createServerActionClient({ cookies })
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "User not authenticated" }
-  }
-
-  const electiveCoursesId = formData.get("electiveCoursesId") as string
-  const statementFile = formData.get("statement") as File
-
-  if (!electiveCoursesId || !statementFile) {
-    return { error: "Missing electiveCoursesId or statement file" }
-  }
-
-  const filePath = `student_statements/${user.id}/${electiveCoursesId}/${statementFile.name}`
-
-  const { error: uploadError, data: uploadData } = await supabase.storage
-    .from("statements") // Ensure this bucket exists and has correct policies
-    .upload(filePath, statementFile, {
-      cacheControl: "3600",
-      upsert: true, // Overwrite if exists
-    })
-
-  if (uploadError) {
-    console.error("Storage upload error:", uploadError)
-    return { error: `Storage error: ${uploadError.message}` }
-  }
-
-  const { data: publicUrlData } = supabase.storage.from("statements").getPublicUrl(filePath)
-  const statementUrl = publicUrlData.publicUrl
-
-  // Upsert into course_selections table
-  const { data: selectionData, error: upsertError } = await supabase
-    .from("course_selections")
-    .upsert(
-      {
-        student_id: user.id,
-        elective_courses_id: electiveCoursesId,
-        statement_url: statementUrl,
-        // status will be updated when courses are selected, or defaults if new
-        // If inserting, selected_course_ids remains null until selection
-      },
-      {
-        onConflict: "student_id, elective_courses_id",
-        // ignoreDuplicates: false, // default is false, upsert will update
-      },
-    )
-    .select()
-    .single()
-
-  if (upsertError) {
-    console.error("Upsert course_selections error:", upsertError)
-    return { error: `Database error: ${upsertError.message}` }
-  }
-
-  revalidatePath(`/student/courses/${electiveCoursesId}`)
-  return { success: true, statementUrl: statementUrl, selection: selectionData }
-}
 
 export async function selectElectiveCourse(formData: FormData) {
   const supabase = createServerActionClient({ cookies })
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { error: "User not authenticated" }
+    return { error: "Unauthorized" }
   }
 
-  const electiveCoursesId = formData.get("electiveCoursesId") as string
-  const selectedCourseIdsString = formData.get("selectedCourseIds") as string
+  const packId = formData.get("packId") as string
+  const courseId = formData.get("courseId") as string
 
-  if (!electiveCoursesId || !selectedCourseIdsString) {
-    return { error: "Missing electiveCoursesId or selectedCourseIds" }
+  if (!packId || !courseId) {
+    return { error: "Pack ID and Course ID are required" }
   }
 
-  let selectedCourseIds: string[]
-  try {
-    selectedCourseIds = JSON.parse(selectedCourseIdsString)
-    if (!Array.isArray(selectedCourseIds)) throw new Error("selectedCourseIds is not an array")
-  } catch (e) {
-    return { error: "Invalid format for selectedCourseIds" }
+  // Get user's institution
+  const { data: profile } = await supabase.from("profiles").select("institution_id").eq("id", user.id).single()
+
+  if (!profile) {
+    return { error: "User profile not found" }
   }
 
-  // Fetch existing selection to preserve statement_url if it exists
-  const { data: existingSelection, error: fetchError } = await supabase
-    .from("course_selections")
-    .select("statement_url")
+  // Check if user already has a selection for this pack
+  const { data: existingSelection } = await supabase
+    .from("student_selections")
+    .select("id")
     .eq("student_id", user.id)
-    .eq("elective_courses_id", electiveCoursesId)
+    .eq("pack_id", packId)
     .maybeSingle()
 
-  if (fetchError && fetchError.code !== "PGRST116") {
-    // PGRST116: 0 rows, which is fine
-    console.error("Error fetching existing selection:", fetchError)
-    return { error: `Database error: ${fetchError.message}` }
+  if (existingSelection) {
+    // Update existing selection
+    const { error } = await supabase
+      .from("student_selections")
+      .update({
+        course_id: courseId,
+        exchange_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingSelection.id)
+
+    if (error) {
+      return { error: error.message }
+    }
+  } else {
+    // Create new selection
+    const { error } = await supabase.from("student_selections").insert({
+      institution_id: profile.institution_id,
+      student_id: user.id,
+      pack_id: packId,
+      course_id: courseId,
+      exchange_id: null,
+      status: "pending",
+    })
+
+    if (error) {
+      return { error: error.message }
+    }
   }
 
-  if (!existingSelection?.statement_url) {
-    return { error: "Statement must be uploaded before selecting courses." }
+  revalidatePath(`/student/courses/${packId}`)
+  return { success: true }
+}
+
+export async function uploadStatement(formData: FormData) {
+  const supabase = createServerActionClient({ cookies })
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Unauthorized" }
   }
 
-  const { data, error } = await supabase
-    .from("course_selections")
-    .upsert(
-      {
-        student_id: user.id,
-        elective_courses_id: electiveCoursesId,
-        selected_course_ids: selectedCourseIds,
-        status: "pending", // Set status to pending on submission/update
-        statement_url: existingSelection.statement_url, // Preserve existing statement_url
-      },
-      {
-        onConflict: "student_id, elective_courses_id",
-        // ignoreDuplicates: false,
-      },
-    )
-    .select()
-    .single()
+  const packId = formData.get("packId") as string
+  const selectionId = formData.get("selectionId") as string
+  const statement = formData.get("statement") as File
 
-  if (error) {
-    console.error("Upsert course_selections error for select:", error)
-    return { error: `Database error: ${error.message}` }
+  if (!packId || !selectionId || !statement) {
+    return { error: "All fields are required" }
   }
 
-  revalidatePath(`/student/courses/${electiveCoursesId}`)
-  return { success: true, selection: data }
+  // Upload file to storage
+  const fileExt = statement.name.split(".").pop()
+  const fileName = `${user.id}_${packId}_${Date.now()}.${fileExt}`
+  const filePath = `statements/${fileName}`
+
+  const { error: uploadError } = await supabase.storage.from("statements").upload(filePath, statement)
+
+  if (uploadError) {
+    return { error: uploadError.message }
+  }
+
+  // Get public URL
+  const { data: urlData } = await supabase.storage.from("statements").getPublicUrl(filePath)
+
+  // Update selection with statement URL
+  const { error: updateError } = await supabase
+    .from("student_selections")
+    .update({
+      statement_url: urlData.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", selectionId)
+    .eq("student_id", user.id)
+
+  if (updateError) {
+    return { error: updateError.message }
+  }
+
+  revalidatePath(`/student/courses/${packId}`)
+  return { success: true, url: urlData.publicUrl }
 }
