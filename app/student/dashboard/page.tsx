@@ -192,11 +192,11 @@ export default function StudentDashboard() {
 
   // Calculate student data from profile and selections
   const studentData = {
-    name: profile?.full_name || "Loading...",
-    email: profile?.email || "Loading...",
-    degree: profile?.degrees?.name || "Not specified",
-    year: profile?.academic_year || profile?.year || "Not specified",
-    group: profile?.groups?.name || "Not assigned",
+    name: profile?.full_name || "-",
+    email: profile?.email || "-",
+    degree: profile?.degrees?.name || "-",
+    year: profile?.academic_year || "-",
+    group: profile?.groups?.name || "-",
     requiredElectives: {
       courses: availableElectives.courses.length || 0,
       exchange: availableElectives.exchanges.length || 0,
@@ -318,33 +318,35 @@ export default function StudentDashboard() {
               <CardDescription>{t("student.dashboard.academicDetails")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-6 w-full" />
-                  ))}
+              {isProfileLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
                 </div>
               ) : (
                 <dl className="space-y-2">
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.name")}:</dt>
-                    <dd>{studentData.name}</dd>
+                    <dd>{profile?.full_name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.degree")}:</dt>
-                    <dd>{studentData.degree}</dd>
+                    <dd>{profile?.degrees?.name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.year")}:</dt>
-                    <dd>{studentData.year}</dd>
+                    <dd>{profile?.academic_year || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.group")}:</dt>
-                    <dd>{studentData.group}</dd>
+                    <dd>{profile?.groups?.name || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("student.dashboard.email")}:</dt>
-                    <dd>{studentData.email}</dd>
+                    <dd>{profile?.email || "-"}</dd>
                   </div>
                 </dl>
               )}

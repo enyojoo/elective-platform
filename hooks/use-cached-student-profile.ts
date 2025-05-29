@@ -37,14 +37,10 @@ export function useCachedStudentProfile(userId: string | undefined) {
       try {
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-        // Fetch the profile data with proper relationships
+        // First fetch the profile data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select(`
-            *,
-            degrees:degree_id(id, name),
-            groups:group_id(id, name)
-          `)
+          .select("*")
           .eq("id", userId)
           .eq("role", "student")
           .single()
@@ -53,21 +49,38 @@ export function useCachedStudentProfile(userId: string | undefined) {
 
         console.log("Raw profile data:", profileData)
 
-        // profileData already contains 'degrees' and 'groups' as fetched objects
-        // due to the select query: degrees:degree_id(id, name), groups:group_id(id, name)
-        // We just need to ensure they exist or provide a fallback if they are null.
+        // Fetch degree data if degree_id exists
+        let degreeData = null
+        if (profileData.degree_id) {
+          const { data: degree } = await supabase
+            .from("degrees")
+            .select("id, name")
+            .eq("id", profileData.degree_id)
+            .single()
 
-        const finalProfileData = {
-          ...profileData,
-          // Ensure degrees and groups objects exist, even if empty, to prevent access errors
-          degrees: profileData.degrees || { id: null, name: "Not specified" },
-          groups: profileData.groups || { id: null, name: "Not assigned" },
-          // Use academic_year directly as the year
-          year: profileData.academic_year || "Not specified",
-          enrollment_year: profileData.academic_year || "Not specified", // Retained for any other potential use
+          degreeData = degree
         }
 
-        console.log("Final profile data to be cached and set:", finalProfileData)
+        // Fetch group data if group_id exists
+        let groupData = null
+        if (profileData.group_id) {
+          const { data: group } = await supabase
+            .from("groups")
+            .select("id, name")
+            .eq("id", profileData.group_id)
+            .single()
+
+          groupData = group
+        }
+
+        // Construct the final profile object similar to manager profile structure
+        const finalProfileData = {
+          ...profileData,
+          degrees: degreeData,
+          groups: groupData,
+        }
+
+        console.log("Final profile data with relationships:", finalProfileData)
 
         // Save to cache
         setCachedData("studentProfile", userId, finalProfileData)
