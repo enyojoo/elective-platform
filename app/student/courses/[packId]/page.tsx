@@ -91,46 +91,39 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       console.log("[packIdPage] elective_courses data:", ecData)
       setElectiveCourseData(ecData)
 
-      let parsedCoursesFromPackJson: any[] = []
+      let courseUuids: string[] = []
       if (ecData.courses && typeof ecData.courses === "string") {
         try {
-          parsedCoursesFromPackJson = JSON.parse(ecData.courses)
-          if (!Array.isArray(parsedCoursesFromPackJson)) parsedCoursesFromPackJson = []
+          const parsed = JSON.parse(ecData.courses)
+          if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+            courseUuids = parsed
+          } else {
+            console.warn("[packIdPage] Parsed 'courses' from elective_courses is not an array of strings:", parsed)
+          }
         } catch (e) {
-          console.error("Error parsing individual courses JSON:", e)
-          parsedCoursesFromPackJson = []
+          console.error("Error parsing 'courses' JSON from elective_courses:", e)
         }
-      } else if (Array.isArray(ecData.courses)) {
-        parsedCoursesFromPackJson = ecData.courses
+      } else if (Array.isArray(ecData.courses) && ecData.courses.every((item: any) => typeof item === "string")) {
+        // Handle if it's already an array of strings (less likely based on description but good to cover)
+        courseUuids = ecData.courses
       }
-      console.log("[packIdPage] Parsed individual courses from pack JSON:", parsedCoursesFromPackJson)
+      console.log("[packIdPage] Parsed course UUIDs from elective_courses.courses:", courseUuids)
 
-      if (parsedCoursesFromPackJson.length > 0) {
-        const courseIds = parsedCoursesFromPackJson.map((c: any) => c.id).filter((id) => id != null)
-        if (courseIds.length > 0) {
-          const { data: fullCoursesData, error: fullCoursesError } = await supabase
-            .from("courses")
-            .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
-            .in("id", courseIds)
+      if (courseUuids.length > 0) {
+        const { data: fetchedCourses, error: coursesError } = await supabase
+          .from("courses")
+          .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
+          .in("id", courseUuids)
 
-          if (fullCoursesError) throw fullCoursesError
+        if (coursesError) throw coursesError
 
-          const fullCoursesMap = new Map(fullCoursesData?.map((fc: any) => [fc.id, fc]) || [])
-
-          const enrichedIndividualCourses = parsedCoursesFromPackJson.map((packCourse: any) => {
-            const fullCourseDetail = fullCoursesMap.get(packCourse.id)
-            return {
-              ...packCourse, // Original data from elective_courses.courses JSON
-              ...(fullCourseDetail || {}), // Overwrite/add with data from courses table
-            }
-          })
-          console.log("[packIdPage] Enriched individual courses:", enrichedIndividualCourses)
-          setIndividualCourses(enrichedIndividualCourses)
-        } else {
-          setIndividualCourses(parsedCoursesFromPackJson) // No valid IDs to fetch
-        }
+        // The order from .in() is not guaranteed, so if you need to maintain the order from elective_courses.courses,
+        // you might need to re-order fetchedCourses based on courseUuids.
+        // For now, we'll use the order returned by Supabase.
+        console.log("[packIdPage] Fetched full course details from 'courses' table:", fetchedCourses)
+        setIndividualCourses(fetchedCourses || [])
       } else {
-        setIndividualCourses([]) // No courses in the pack JSON
+        setIndividualCourses([]) // No valid UUIDs to fetch
       }
 
       // Fetch existing selection record for this student and this elective_courses pack
@@ -145,17 +138,22 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       console.log("[packIdPage] course_selections data:", selectionData)
       setExistingSelectionRecord(selectionData)
 
-      // Initialize selectedIndividualCourseIds based on existing selection or parsed courses
+      // Initialize selectedIndividualCourseIds based on existing selection
       if (selectionData) {
-        // If a selection record exists, it's the source of truth for what was *submitted*
-        // We need to know how selected courses are stored in `course_selections` or `elective_courses`
-        // Assuming `elective_courses.courses` JSON has a `selected: true` field after submission
-        const initiallySelected = parsedCoursesFromPackJson.filter((c) => c.selected === true).map((c) => c.id)
-        setSelectedIndividualCourseIds(initiallySelected)
-        console.log("[packIdPage] Initial selected IDs from existing selection:", initiallySelected)
-        if (selectionData.statement_url) {
-          // If there's an existing statement, we don't require a new upload unless they change selection
-        }
+        // If course_selections had a column like 'selected_ids: TEXT[]' or 'selected_details: JSONB'
+        // you would parse it here. For example:
+        // if (selectionData.selected_ids && Array.isArray(selectionData.selected_ids)) {
+        //   setSelectedIndividualCourseIds(selectionData.selected_ids);
+        // } else {
+        //   setSelectedIndividualCourseIds([]); // No specific selected IDs found in the record
+        // }
+        // For now, as the schema doesn't specify where selected IDs are stored in course_selections,
+        // we'll initialize as empty. The student will have to re-select if they are editing.
+        // This is a placeholder and might need adjustment based on actual selection storage.
+        setSelectedIndividualCourseIds([])
+        console.log(
+          "[packIdPage] Existing selection record found, but specific selected courses not pre-filled from it (schema dependent).",
+        )
       } else {
         setSelectedIndividualCourseIds([]) // No prior selection
       }
