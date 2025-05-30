@@ -251,6 +251,14 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       toast({ title: "Missing Information", description: "Profile not loaded.", variant: "destructive" })
       return
     }
+    if (!profile?.institution_id) {
+      toast({
+        title: "Missing Information",
+        description: "Institution ID not found in profile.",
+        variant: "destructive",
+      })
+      return
+    }
     if (statementRequired && !uploadedStatement && !existingSelectionRecord?.statement_url) {
       toast({ title: "Missing Information", description: "Statement is required.", variant: "destructive" })
       return
@@ -288,6 +296,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
         selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
+        institution_id: profile.institution_id, // Add this line
       }
       if (statementUrlToSave) {
         selectionPayload.statement_url = statementUrlToSave
