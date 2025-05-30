@@ -104,7 +104,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           console.error("Error parsing 'courses' JSON from elective_courses:", e)
         }
       } else if (Array.isArray(ecData.courses) && ecData.courses.every((item: any) => typeof item === "string")) {
-        // Handle if it's already an array of strings (less likely based on description but good to cover)
         courseUuids = ecData.courses
       }
       console.log("[packIdPage] Parsed course UUIDs from elective_courses.courses:", courseUuids)
@@ -117,46 +116,38 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
         if (coursesError) throw coursesError
 
-        // The order from .in() is not guaranteed, so if you need to maintain the order from elective_courses.courses,
-        // you might need to re-order fetchedCourses based on courseUuids.
-        // For now, we'll use the order returned by Supabase.
-        console.log("[packIdPage] Fetched full course details from 'courses' table:", fetchedCourses)
-        setIndividualCourses(fetchedCourses || [])
+        // Create a map for quick lookups and preserve order from courseUuids
+        const fetchedCoursesMap = new Map(fetchedCourses?.map((fc) => [fc.id, fc]))
+        const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
+
+        console.log("[packIdPage] Fetched full course details from 'courses' table (ordered):", orderedFetchedCourses)
+        setIndividualCourses(orderedFetchedCourses || [])
       } else {
-        setIndividualCourses([]) // No valid UUIDs to fetch
+        setIndividualCourses([])
       }
 
-      // Fetch existing selection record for this student and this elective_courses pack
       const { data: selectionData, error: selectionError } = await supabase
         .from("course_selections")
         .select("*")
         .eq("student_id", profile.id)
         .eq("elective_courses_id", packId)
-        .maybeSingle() // Use maybeSingle as it might not exist
+        .maybeSingle()
 
       if (selectionError) throw selectionError
       console.log("[packIdPage] course_selections data:", selectionData)
       setExistingSelectionRecord(selectionData)
 
-      // Initialize selectedIndividualCourseIds based on existing selection
-      if (selectionData) {
-        // If course_selections had a column like 'selected_ids: TEXT[]' or 'selected_details: JSONB'
-        // you would parse it here. For example:
-        // if (selectionData.selected_ids && Array.isArray(selectionData.selected_ids)) {
-        //   setSelectedIndividualCourseIds(selectionData.selected_ids);
-        // } else {
-        //   setSelectedIndividualCourseIds([]); // No specific selected IDs found in the record
-        // }
-        // For now, as the schema doesn't specify where selected IDs are stored in course_selections,
-        // we'll initialize as empty. The student will have to re-select if they are editing.
-        // This is a placeholder and might need adjustment based on actual selection storage.
-        setSelectedIndividualCourseIds([])
-        console.log(
-          "[packIdPage] Existing selection record found, but specific selected courses not pre-filled from it (schema dependent).",
-        )
-      } else {
-        setSelectedIndividualCourseIds([]) // No prior selection
-      }
+      // If there's an existing selection, try to populate selectedIndividualCourseIds
+      // This part depends on how selected courses are stored in `course_selections`
+      // Assuming `course_selections` might have a `selected_course_ids` (TEXT[]) column in the future.
+      // For now, if `elective_courses.courses` was the source of truth for selected state (which is problematic),
+      // we might try to infer it, but it's better to rely on `course_selections` for this.
+      // Let's assume for now that if a selection record exists, we don't pre-fill selections
+      // unless `course_selections` explicitly lists them.
+      // The current schema doesn't specify this, so we'll keep it simple.
+      // If you add a `selected_course_ids: string[]` to `course_selections`, you'd use it here:
+      // setSelectedIndividualCourseIds(selectionData?.selected_course_ids || []);
+      setSelectedIndividualCourseIds([]) // Default to empty, student re-selects if editing.
     } catch (error: any) {
       console.error("[packIdPage] Error fetching data:", error)
       setFetchError(error.message || "Failed to load elective course details.")
@@ -175,20 +166,31 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       if (prevSelected.includes(individualCourseId)) {
         return prevSelected.filter((id) => id !== individualCourseId)
       } else {
-        if (prevSelected.length < (electiveCourseData?.max_selections || 0)) {
+        if (prevSelected.length < (electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
           return [...prevSelected, individualCourseId]
         }
+        toast({
+          title: t("student.courses.maxSelectionsReached"),
+          description: t("student.courses.maxSelectionsReachedDesc", { count: electiveCourseData?.max_selections }),
+          variant: "warning",
+        })
         return prevSelected // Max selections reached
       }
     })
   }
 
   const handleSubmit = async () => {
-    if (!profile?.id || (!uploadedStatement && !existingSelectionRecord?.statement_url)) {
-      toast({ title: "Missing Information", description: "Profile or statement is missing.", variant: "destructive" })
+    const statementRequired = !!electiveCourseData?.syllabus_template_url
+
+    if (!profile?.id) {
+      toast({ title: "Missing Information", description: "Profile not loaded.", variant: "destructive" })
       return
     }
-    if (selectedIndividualCourseIds.length === 0) {
+    if (statementRequired && !uploadedStatement && !existingSelectionRecord?.statement_url) {
+      toast({ title: "Missing Information", description: "Statement is required.", variant: "destructive" })
+      return
+    }
+    if (selectedIndividualCourseIds.length === 0 && (electiveCourseData?.max_selections || 0) > 0) {
       toast({ title: "No Courses Selected", description: "Please select at least one course.", variant: "destructive" })
       return
     }
@@ -207,64 +209,39 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       let statementUrlToSave = existingSelectionRecord?.statement_url
 
       if (uploadedStatement) {
-        setIsUploadingStatement(true) // Indicate statement upload specifically
+        setIsUploadingStatement(true)
         statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
         setIsUploadingStatement(false)
       }
 
-      if (!statementUrlToSave) {
+      if (statementRequired && !statementUrlToSave) {
         throw new Error("Statement is required and was not uploaded.")
       }
 
-      // Update the `courses` JSON in `elective_courses` table
-      // This marks which individual courses within the pack are selected by *this* student.
-      // This approach might lead to issues if multiple students select from the same `elective_courses` pack.
-      // A better approach: `course_selections` table should store `selected_individual_course_ids` (e.g., as JSONB array).
-      // For now, following the implication that `elective_courses.courses` JSON is updated.
-      // THIS IS PROBLEMATIC FOR MULTI-STUDENT SCENARIOS.
-      // A student's selection should be in `course_selections`.
-      // Let's assume `course_selections` will store the list of selected course IDs.
-      // The `elective_courses.courses` JSON should remain the definition of available courses.
-
-      const selectionPayload = {
+      const selectionPayload: any = {
         student_id: profile.id,
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
-        statement_url: statementUrlToSave,
-        // Add a new column to course_selections, e.g., selected_course_details (JSONB)
-        // For now, we'll rely on the client to reconstruct this from individualCourses and selectedIndividualCourseIds
-        // Or, if `elective_courses.courses` is updated per student, that's different.
-        // Let's assume `course_selections` should store the actual selected course IDs.
-        // We need a field in `course_selections` like `selected_ids: text[]` or `selected_details: jsonb`.
-        // For now, I'll just update status and statement. The actual selected courses are client-side.
-        // This needs database schema adjustment for robust storage of selected courses.
+        // Add selected_individual_course_ids to your Supabase table `course_selections` as TEXT[] or JSONB
+        // For example: selected_individual_course_ids: selectedIndividualCourseIds
+      }
+      if (statementUrlToSave) {
+        selectionPayload.statement_url = statementUrlToSave
       }
 
       if (existingSelectionRecord) {
         const { error } = await supabase
           .from("course_selections")
-          .update({
-            status: SelectionStatus.PENDING, // Reset to pending on new submission
-            statement_url: statementUrlToSave,
-            // selected_ids: selectedIndividualCourseIds // If such a column exists
-          })
+          .update(selectionPayload)
           .eq("id", existingSelectionRecord.id)
         if (error) throw error
       } else {
-        const { error } = await supabase
-          .from("course_selections")
-          .insert({
-            ...selectionPayload,
-            // selected_ids: selectedIndividualCourseIds // If such a column exists
-          })
-          .select()
-          .single() // Get the new record
+        const { error } = await supabase.from("course_selections").insert(selectionPayload).select().single()
         if (error) throw error
       }
 
       toast({ title: "Selection submitted", description: "Your course selection has been submitted successfully." })
-      // Consider re-fetching data or navigating
-      window.location.href = "/student/courses" // Or use Next router for client-side nav
+      window.location.href = "/student/courses"
     } catch (error: any) {
       console.error("Submission error:", error)
       toast({ title: "Submission failed", description: error.message || "An error occurred.", variant: "destructive" })
@@ -316,9 +293,10 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     })
   }
 
-  const selectionProgress = electiveCourseData?.max_selections
-    ? (selectedIndividualCourseIds.length / electiveCourseData.max_selections) * 100
-    : 0
+  const selectionProgress =
+    electiveCourseData?.max_selections && electiveCourseData.max_selections > 0
+      ? (selectedIndividualCourseIds.length / electiveCourseData.max_selections) * 100
+      : 0
 
   const isDeadlinePassed = electiveCourseData?.deadline ? new Date(electiveCourseData.deadline) < new Date() : false
   const currentSelectionStatus = existingSelectionRecord?.status as SelectionStatus | undefined
@@ -433,17 +411,20 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
     if (result.success) {
       toast({ title: "Selection Cancelled", description: result.message })
-      // Reset local state or re-fetch data
       setExistingSelectionRecord(null)
       setSelectedIndividualCourseIds([])
       setUploadedStatement(null)
-      // Optionally, trigger a full data reload:
-      // await loadData();
+      // await loadData(); // Optionally reload all data
     } else {
       toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
     }
     setIsCancelling(false)
   }
+
+  const statementRequiredForPack = !!electiveCourseData?.syllabus_template_url
+  const isStatementHandled =
+    !statementRequiredForPack || !!uploadedStatement || !!existingSelectionRecord?.statement_url
+  const areCoursesSelected = selectedIndividualCourseIds.length > 0 || (electiveCourseData?.max_selections || 0) === 0
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
@@ -473,7 +454,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
             <CardDescription>
               {t("student.courses.selectedOutOf")} {selectedIndividualCourseIds.length} {t("student.courses.of")}{" "}
-              {electiveCourseData.max_selections} {t("student.courses.allowedCourses")}
+              {electiveCourseData.max_selections || 0} {t("student.courses.allowedCourses")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -488,15 +469,18 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                     : undefined
               }
             />
-            <p className="mt-2 text-sm text-muted-foreground">
-              {selectedIndividualCourseIds.length === electiveCourseData.max_selections
-                ? t("student.courses.maxSelections")
-                : `${t("student.courses.canSelectMore")} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
-            </p>
+            {(electiveCourseData.max_selections || 0) > 0 && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {selectedIndividualCourseIds.length === electiveCourseData.max_selections
+                  ? t("student.courses.maxSelections")
+                  : `${t("student.courses.canSelectMore")} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        {electiveCourseData.syllabus_template_url && (
+        {/* Statement Section Restored */}
+        {statementRequiredForPack && (
           <Card>
             <CardHeader>
               <CardTitle>{t("student.statement.title")}</CardTitle>
@@ -508,7 +492,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   variant="outline"
                   className="w-full sm:w-auto"
                   onClick={handleDownloadStatementTemplate}
-                  disabled={downloadingStatement || electiveCourseData.status === "draft"}
+                  disabled={
+                    downloadingStatement ||
+                    electiveCourseData.status === "draft" ||
+                    !electiveCourseData.syllabus_template_url
+                  }
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
@@ -553,7 +541,8 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             {individualCourses.map((course) => {
               const isSelected = selectedIndividualCourseIds.includes(course.id)
               const isDisabledByMax =
-                !isSelected && selectedIndividualCourseIds.length >= electiveCourseData.max_selections
+                !isSelected &&
+                selectedIndividualCourseIds.length >= (electiveCourseData.max_selections || Number.POSITIVE_INFINITY)
               return (
                 <Card
                   key={course.id}
@@ -562,9 +551,12 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg">
-                        {language === "ru" && course.name_ru ? course.name_ru : course.name_en || course.name}
+                        {
+                          language === "ru" && course.name_ru
+                            ? course.name_ru
+                            : course.name_en || course.name /* Fallback to original name if localized not present */
+                        }
                       </CardTitle>
-                      {/* Display max_students if available */}
                       {course.max_students !== null && course.max_students !== undefined && (
                         <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
                           {t("student.courses.maxStudents")}: {course.max_students}
@@ -572,9 +564,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                       )}
                     </div>
                     <CardDescription>
-                      {language === "ru" && course.instructor_ru
-                        ? course.instructor_ru
-                        : course.instructor_en || course.teacher}
+                      {
+                        language === "ru" && course.instructor_ru
+                          ? course.instructor_ru
+                          : course.instructor_en || course.teacher /* Fallback */
+                      }
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-4 flex-grow">
@@ -622,50 +616,43 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           <div className="flex justify-end mt-6">
             <Button
               onClick={() => {
-                if (!uploadedStatement && !existingSelectionRecord?.statement_url) {
+                if (!areCoursesSelected && (electiveCourseData?.max_selections || 0) > 0) {
+                  toast({ title: t("student.courses.selectMinOneCourse"), variant: "destructive" })
+                } else if (!isStatementHandled) {
                   toast({
                     title: t("student.statement.requiredTitle"),
                     description: t("student.statement.requiredDesc"),
                     variant: "destructive",
                   })
-                } else if (selectedIndividualCourseIds.length === 0) {
-                  toast({ title: t("student.courses.selectMinOneCourse"), variant: "destructive" })
                 } else {
                   setConfirmDialogOpen(true)
                 }
               }}
-              disabled={
-                submitting ||
-                isUploadingStatement ||
-                (selectedIndividualCourseIds.length === 0 && electiveCourseData.max_selections > 0) ||
-                (!uploadedStatement && !existingSelectionRecord?.statement_url)
-              }
+              disabled={submitting || isUploadingStatement || !areCoursesSelected || !isStatementHandled}
               className="px-8"
             >
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {existingSelectionRecord ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
             </Button>
-            {existingSelectionRecord &&
-              canSubmit && ( // Show cancel if a selection exists and can be modified
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    // Optional: Add a confirmation dialog before cancelling
-                    if (
-                      window.confirm(
-                        "Are you sure you want to cancel your current selection? This action cannot be undone.",
-                      )
-                    ) {
-                      handleCancelSelection()
-                    }
-                  }}
-                  disabled={isCancelling || submitting}
-                  className="ml-2"
-                >
-                  {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  {t("student.courses.cancelSelection")}
-                </Button>
-              )}
+            {existingSelectionRecord && canSubmit && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to cancel your current selection? This action cannot be undone.",
+                    )
+                  ) {
+                    handleCancelSelection()
+                  }
+                }}
+                disabled={isCancelling || submitting}
+                className="ml-2"
+              >
+                {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {t("student.courses.cancelSelection")}
+              </Button>
+            )}
           </div>
         )}
 
@@ -678,29 +665,35 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             <div className="space-y-4 py-4">
               <div>
                 <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
-                <ul className="space-y-1">
-                  {selectedIndividualCourseIds.map((id) => {
-                    const course = individualCourses.find((c) => c.id === id)
-                    return (
-                      <li key={id} className="text-sm flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        {language === "ru" && course?.name_ru ? course.name_ru : course?.name}
-                      </li>
-                    )
-                  })}
-                </ul>
+                {selectedIndividualCourseIds.length > 0 ? (
+                  <ul className="space-y-1">
+                    {selectedIndividualCourseIds.map((id) => {
+                      const course = individualCourses.find((c) => c.id === id)
+                      return (
+                        <li key={id} className="text-sm flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          {language === "ru" && course?.name_ru ? course.name_ru : course?.name_en || course?.name}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("student.courses.noCoursesSelectedYet")}</p>
+                )}
               </div>
-              <div className="mt-4 pt-4 border-t">
-                <h4 className="text-sm font-medium mb-2">{t("student.statement.title")}:</h4>
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span>
-                    {uploadedStatement
-                      ? `${uploadedStatement.name} (${Math.round(uploadedStatement.size / 1024)} KB)`
-                      : t("student.statement.previouslyUploadedWillBeUsed")}
-                  </span>
+              {statementRequiredForPack && (
+                <div className="mt-4 pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-2">{t("student.statement.title")}:</h4>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>
+                      {uploadedStatement
+                        ? `${uploadedStatement.name} (${Math.round(uploadedStatement.size / 1024)} KB)`
+                        : t("student.statement.previouslyUploadedWillBeUsed")}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="student-name">
                   {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
@@ -720,7 +713,8 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   !studentName.trim() ||
                   submitting ||
                   isUploadingStatement ||
-                  (!uploadedStatement && !existingSelectionRecord?.statement_url)
+                  !areCoursesSelected || // Ensure courses are selected
+                  !isStatementHandled // Ensure statement is handled if required
                 }
               >
                 {submitting || isUploadingStatement ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}

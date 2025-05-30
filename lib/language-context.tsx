@@ -1110,6 +1110,10 @@ const translations: Translations = {
     "admin.courses.maxStudents": "Max Students",
     "admin.editCourse.maxStudents": "Max Students",
     "admin.editCourse.maxStudentsPlaceholder": "Enter maximum number of students",
+    "student.courses.maxSelectionsReached": "Maximum Selections Reached",
+    "student.courses.maxSelectionsReachedDesc":
+      "You have already selected the maximum number of courses allowed for this pack.",
+    "student.courses.noCoursesSelectedYet": "No courses selected yet. Please select at least one course if required.",
   },
   ru: {
     "home.title": "ElectivePRO",
@@ -1586,7 +1590,7 @@ const translations: Translations = {
     "manager.courseDetails.withdraw": "Отозвать",
     "manager.exchangeDetails.withdraw": "Отозвать",
     "toast.selection.withdrawn": "Выбор отозван",
-    "toast.selection.withdrawn.description": "Выбор для {0} был от��зван.",
+    "toast.selection.withdrawn.description": "Выбор для {0} был отзван.",
     "toast.selection.approved": "Выбор утвержден",
     "toast.selection.approved.description": "Выбор для {0} был утвержден.",
     "toast.selection.rejected": "Выбор отклонен",
@@ -1941,6 +1945,14 @@ const translations: Translations = {
     "manager.electives.addExchange": "Добавить обмен",
     "admin.universities.maxStudents": "Макс. студентов",
     "admin.newUniversity.maxStudents": "Макс. студентов",
+    "admin.courses.maxStudents": "Макс. студентов",
+    "admin.editCourse.maxStudents": "Макс. студентов",
+    "admin.editCourse.maxStudentsPlaceholder": "Введите максимальное количество студентов",
+    "student.courses.maxSelectionsReached": "Достигнуто максимальное количество выборов",
+    "student.courses.maxSelectionsReachedDesc":
+      "Вы уже выбрали максимальное количество курсов, разрешенное для этого пакета.",
+    "student.courses.noCoursesSelectedYet":
+      "Курсы еще не выбраны. Пожалуйста, выберите хотя бы один курс, если это необходимо.",
   },
 }
 
