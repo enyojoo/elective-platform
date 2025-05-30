@@ -2,7 +2,19 @@
 
 import type React from "react"
 import { useEffect, useState, useCallback } from "react"
-import { Download, CheckCircle, Clock, Info, BookOpen, ArrowLeft, Loader2, AlertTriangle } from "lucide-react"
+import {
+  Download,
+  CheckCircle,
+  Clock,
+  Info,
+  BookOpen,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  FileText,
+  UploadCloud,
+  Users,
+} from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -16,7 +28,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter as ShadDialogFooter, // Renamed to avoid conflict
+  DialogFooter as ShadDialogFooter,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,7 +43,7 @@ import { cancelCourseSelection } from "@/app/actions/student-selections"
 
 interface ElectivePageProps {
   params: {
-    packId: string // This is the ID of the elective_courses record
+    packId: string
   }
 }
 
@@ -43,18 +55,17 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [viewingCourse, setViewingCourse] = useState<any>(null) // Individual course from the JSON
+  const [viewingCourse, setViewingCourse] = useState<any>(null)
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
-  const [isUploadingStatement, setIsUploadingStatement] = useState(false) // For statement upload specifically
+  const [isUploadingStatement, setIsUploadingStatement] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
   const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
 
-  // Data states
-  const [electiveCourseData, setElectiveCourseData] = useState<any>(null) // The main elective_courses record
-  const [individualCourses, setIndividualCourses] = useState<any[]>([]) // Parsed from electiveCourseData.courses (JSON)
-  const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null) // The course_selections record
+  const [electiveCourseData, setElectiveCourseData] = useState<any>(null)
+  const [individualCourses, setIndividualCourses] = useState<any[]>([])
+  const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null)
   const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>([])
 
   const packId = params.packId
@@ -74,12 +85,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
     setIsLoadingPage(true)
     setFetchError(null)
-    console.log(`[packIdPage] Fetching data for packId: ${packId}, studentId: ${profile.id}`)
 
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      // Fetch elective course data (the "pack")
       const { data: ecData, error: ecError } = await supabase
         .from("elective_courses")
         .select("*")
@@ -88,7 +96,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
       if (ecError) throw ecError
       if (!ecData) throw new Error("Elective course pack not found.")
-      console.log("[packIdPage] elective_courses data:", ecData)
       setElectiveCourseData(ecData)
 
       let courseUuids: string[] = []
@@ -97,8 +104,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           const parsed = JSON.parse(ecData.courses)
           if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
             courseUuids = parsed
-          } else {
-            console.warn("[packIdPage] Parsed 'courses' from elective_courses is not an array of strings:", parsed)
           }
         } catch (e) {
           console.error("Error parsing 'courses' JSON from elective_courses:", e)
@@ -106,21 +111,19 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       } else if (Array.isArray(ecData.courses) && ecData.courses.every((item: any) => typeof item === "string")) {
         courseUuids = ecData.courses
       }
-      console.log("[packIdPage] Parsed course UUIDs from elective_courses.courses:", courseUuids)
 
       if (courseUuids.length > 0) {
         const { data: fetchedCourses, error: coursesError } = await supabase
           .from("courses")
-          .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
+          .select(
+            "id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students, current_students",
+          )
           .in("id", courseUuids)
 
         if (coursesError) throw coursesError
 
-        // Create a map for quick lookups and preserve order from courseUuids
         const fetchedCoursesMap = new Map(fetchedCourses?.map((fc) => [fc.id, fc]))
         const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
-
-        console.log("[packIdPage] Fetched full course details from 'courses' table (ordered):", orderedFetchedCourses)
         setIndividualCourses(orderedFetchedCourses || [])
       } else {
         setIndividualCourses([])
@@ -134,22 +137,13 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         .maybeSingle()
 
       if (selectionError) throw selectionError
-      console.log("[packIdPage] course_selections data:", selectionData)
       setExistingSelectionRecord(selectionData)
 
-      // If there's an existing selection, try to populate selectedIndividualCourseIds
-      // This part depends on how selected courses are stored in `course_selections`
-      // Assuming `course_selections` might have a `selected_course_ids` (TEXT[]) column in the future.
-      // For now, if `elective_courses.courses` was the source of truth for selected state (which is problematic),
-      // we might try to infer it, but it's better to rely on `course_selections` for this.
-      // Let's assume for now that if a selection record exists, we don't pre-fill selections
-      // unless `course_selections` explicitly lists them.
-      // The current schema doesn't specify this, so we'll keep it simple.
-      // If you add a `selected_course_ids: string[]` to `course_selections`, you'd use it here:
+      // Example: If 'course_selections' table has a 'selected_course_ids' (TEXT[]) column
       // setSelectedIndividualCourseIds(selectionData?.selected_course_ids || []);
-      setSelectedIndividualCourseIds([]) // Default to empty, student re-selects if editing.
+      // For now, keeping it simple as the schema detail for this is pending
+      setSelectedIndividualCourseIds(selectionData?.selected_course_ids || [])
     } catch (error: any) {
-      console.error("[packIdPage] Error fetching data:", error)
       setFetchError(error.message || "Failed to load elective course details.")
       toast({ title: "Error", description: error.message, variant: "destructive" })
     } finally {
@@ -174,7 +168,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           description: t("student.courses.maxSelectionsReachedDesc", { count: electiveCourseData?.max_selections }),
           variant: "warning",
         })
-        return prevSelected // Max selections reached
+        return prevSelected
       }
     })
   }
@@ -222,8 +216,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         student_id: profile.id,
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
-        // Add selected_individual_course_ids to your Supabase table `course_selections` as TEXT[] or JSONB
-        // For example: selected_individual_course_ids: selectedIndividualCourseIds
+        selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
       }
       if (statementUrlToSave) {
         selectionPayload.statement_url = statementUrlToSave
@@ -428,10 +421,12 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6 p-4 md:p-6">
-        <div className="flex items-center gap-2">
-          <Link href="/student/courses" className="p-2 rounded-md hover:bg-muted">
-            <ArrowLeft className="h-5 w-5" />
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <div className="flex items-center gap-3">
+          <Link href="/student/courses" passHref>
+            <Button variant="outline" size="icon" aria-label={t("student.courses.backToCourses")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
           </Link>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{electivePackName}</h1>
@@ -460,17 +455,10 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           <CardContent>
             <Progress
               value={selectionProgress}
-              className={`h-2 ${currentSelectionStatus === SelectionStatus.APPROVED ? "bg-green-100 dark:bg-green-950" : currentSelectionStatus === SelectionStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-950" : ""}`}
-              color={
-                currentSelectionStatus === SelectionStatus.APPROVED
-                  ? "bg-green-600"
-                  : currentSelectionStatus === SelectionStatus.PENDING
-                    ? "bg-yellow-600"
-                    : undefined
-              }
+              className={`h-3 ${currentSelectionStatus === SelectionStatus.APPROVED ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600" : currentSelectionStatus === SelectionStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-500" : "[&>*]:bg-primary"}`}
             />
             {(electiveCourseData.max_selections || 0) > 0 && (
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-2.5 text-sm text-muted-foreground">
                 {selectedIndividualCourseIds.length === electiveCourseData.max_selections
                   ? t("student.courses.maxSelections")
                   : `${t("student.courses.canSelectMore")} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
@@ -479,65 +467,80 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           </CardContent>
         </Card>
 
-        {/* Statement Section Restored */}
         {statementRequiredForPack && (
           <Card>
             <CardHeader>
-              <CardTitle>{t("student.statement.title")}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                {t("student.statement.title")}
+              </CardTitle>
               <CardDescription>{t("student.statement.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
+              {electiveCourseData.syllabus_template_url && (
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto"
                   onClick={handleDownloadStatementTemplate}
-                  disabled={
-                    downloadingStatement ||
-                    electiveCourseData.status === "draft" ||
-                    !electiveCourseData.syllabus_template_url
-                  }
+                  disabled={downloadingStatement || electiveCourseData.status === "draft"}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
                 </Button>
-                <div className="relative w-full">
+              )}
+              <div className="relative">
+                <Label
+                  htmlFor="statement-upload"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="mb-1 text-sm text-muted-foreground">
+                      <span className="font-semibold">{t("student.statement.clickToUpload")}</span>{" "}
+                      {t("student.statement.orDragAndDrop")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t("student.statement.pdfOnly")}</p>
+                  </div>
                   <Input
                     id="statement-upload"
                     type="file"
                     accept=".pdf"
                     onChange={handleFileUpload}
                     disabled={isUploadingStatement || !canSubmit}
-                    className="cursor-pointer"
+                    className="sr-only"
                   />
-                  {isUploadingStatement && (
-                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {t("student.statement.uploading")}
-                    </div>
-                  )}
-                </div>
+                </Label>
+                {isUploadingStatement && (
+                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    {t("student.statement.uploading")}
+                  </div>
+                )}
               </div>
+
               {uploadedStatement && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md">
+                <Alert variant="success">
                   <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm">
-                    {t("student.statement.fileReady")} <span className="font-medium">{uploadedStatement.name}</span>
-                  </span>
-                </div>
+                  <AlertTitle>{t("student.statement.fileReadyTitle")}</AlertTitle>
+                  <AlertDescription>
+                    {t("student.statement.fileReadyDesc", { fileName: uploadedStatement.name })}
+                  </AlertDescription>
+                </Alert>
               )}
               {existingSelectionRecord?.statement_url && !uploadedStatement && (
-                <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm">{t("student.statement.previouslyUploaded")}</span>
-                </div>
+                <Alert variant="info">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>{t("student.statement.previouslyUploadedTitle")}</AlertTitle>
+                  <AlertDescription>{t("student.statement.previouslyUploadedDesc")}</AlertDescription>
+                  {/* Optionally, add a button to view/download the existing statement if URL is directly accessible */}
+                </Alert>
               )}
             </CardContent>
           </Card>
         )}
 
         {individualCourses.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {individualCourses.map((course) => {
               const isSelected = selectedIndividualCourseIds.includes(course.id)
               const isDisabledByMax =
@@ -546,54 +549,57 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               return (
                 <Card
                   key={course.id}
-                  className={`h-full transition-all ${isSelected ? (currentSelectionStatus === SelectionStatus.APPROVED ? "border-green-500" : currentSelectionStatus === SelectionStatus.PENDING ? "border-yellow-500" : "border-primary") : isDisabledByMax ? "opacity-60" : ""}`}
+                  className={`flex flex-col h-full transition-all hover:shadow-md ${isSelected ? (currentSelectionStatus === SelectionStatus.APPROVED ? "border-green-500 ring-2 ring-green-500/50" : currentSelectionStatus === SelectionStatus.PENDING ? "border-yellow-500 ring-2 ring-yellow-500/50" : "border-primary ring-2 ring-primary/50") : "border-border"} ${isDisabledByMax ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">
-                        {
-                          language === "ru" && course.name_ru
-                            ? course.name_ru
-                            : course.name_en || course.name /* Fallback to original name if localized not present */
-                        }
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-lg leading-tight">
+                        {language === "ru" && course.name_ru ? course.name_ru : course.name_en || course.name}
                       </CardTitle>
                       {course.max_students !== null && course.max_students !== undefined && (
-                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
-                          {t("student.courses.maxStudents")}: {course.max_students}
+                        <span className="text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {typeof course.current_students === "number" ? course.current_students : "?"}/
+                          {course.max_students}
                         </span>
                       )}
                     </div>
-                    <CardDescription>
-                      {
-                        language === "ru" && course.instructor_ru
-                          ? course.instructor_ru
-                          : course.instructor_en || course.teacher /* Fallback */
-                      }
+                    <CardDescription className="text-xs">
+                      {language === "ru" && course.instructor_ru
+                        ? course.instructor_ru
+                        : course.instructor_en || course.teacher}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pb-4 flex-grow">
+                  <CardContent className="flex-grow pb-3">
                     <Button
-                      variant="ghost"
+                      variant="link"
                       size="sm"
-                      className="p-0 h-auto text-primary hover:text-primary/80"
+                      className="p-0 h-auto text-sm text-primary hover:text-primary/80"
                       onClick={() => setViewingCourse(course)}
                     >
-                      <BookOpen className="h-3.5 w-3.5 mr-1" />
+                      <BookOpen className="h-3.5 w-3.5 mr-1.5" />
                       {t("student.courses.viewDescription")}
                     </Button>
                   </CardContent>
                   {canSubmit && (
-                    <CardFooter className="pt-0">
-                      <div className="flex items-center space-x-2">
+                    <CardFooter className="pt-0 border-t mt-auto pt-3">
+                      <div className="flex items-center space-x-2 w-full">
                         <Checkbox
                           id={`course-${course.id}`}
                           checked={isSelected}
                           onCheckedChange={() => toggleCourseSelection(course.id)}
                           disabled={isDisabledByMax || !canSubmit}
+                          aria-label={t(
+                            isSelected ? "student.courses.deselectCourse" : "student.courses.selectCourse",
+                            {
+                              courseName:
+                                language === "ru" && course.name_ru ? course.name_ru : course.name_en || course.name,
+                            },
+                          )}
                         />
                         <Label
                           htmlFor={`course-${course.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          className={`text-sm font-medium leading-none ${isDisabledByMax || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                         >
                           {isSelected ? t("student.courses.selected") : t("student.courses.select")}
                         </Label>
@@ -606,14 +612,30 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           </div>
         ) : (
           <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              {t("student.courses.noIndividualCourses")}
+            <CardContent className="py-10 text-center">
+              <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">{t("student.courses.noIndividualCourses")}</p>
             </CardContent>
           </Card>
         )}
 
         {canSubmit && (
-          <div className="flex justify-end mt-6">
+          <div className="flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
+            {existingSelectionRecord && canSubmit && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (window.confirm(t("student.courses.confirmCancelSelection"))) {
+                    handleCancelSelection()
+                  }
+                }}
+                disabled={isCancelling || submitting}
+                className="w-full sm:w-auto"
+              >
+                {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {t("student.courses.cancelSelection")}
+              </Button>
+            )}
             <Button
               onClick={() => {
                 if (!areCoursesSelected && (electiveCourseData?.max_selections || 0) > 0) {
@@ -629,30 +651,12 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                 }
               }}
               disabled={submitting || isUploadingStatement || !areCoursesSelected || !isStatementHandled}
-              className="px-8"
+              className="w-full sm:w-auto px-8 py-3 text-base"
+              size="lg"
             >
-              {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {submitting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
               {existingSelectionRecord ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
             </Button>
-            {existingSelectionRecord && canSubmit && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Are you sure you want to cancel your current selection? This action cannot be undone.",
-                    )
-                  ) {
-                    handleCancelSelection()
-                  }
-                }}
-                disabled={isCancelling || submitting}
-                className="ml-2"
-              >
-                {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                {t("student.courses.cancelSelection")}
-              </Button>
-            )}
           </div>
         )}
 
@@ -666,12 +670,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               <div>
                 <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
                 {selectedIndividualCourseIds.length > 0 ? (
-                  <ul className="space-y-1">
+                  <ul className="space-y-1 list-disc list-inside pl-1">
                     {selectedIndividualCourseIds.map((id) => {
                       const course = individualCourses.find((c) => c.id === id)
                       return (
-                        <li key={id} className="text-sm flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        <li key={id} className="text-sm">
                           {language === "ru" && course?.name_ru ? course.name_ru : course?.name_en || course?.name}
                         </li>
                       )
@@ -685,16 +688,19 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="text-sm font-medium mb-2">{t("student.statement.title")}:</h4>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                     <span>
                       {uploadedStatement
-                        ? `${uploadedStatement.name} (${Math.round(uploadedStatement.size / 1024)} KB)`
+                        ? t("student.statement.fileReadyToSubmit", {
+                            fileName: uploadedStatement.name,
+                            fileSize: Math.round(uploadedStatement.size / 1024),
+                          })
                         : t("student.statement.previouslyUploadedWillBeUsed")}
                     </span>
                   </div>
                 </div>
               )}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-4 border-t mt-4">
                 <Label htmlFor="student-name">
                   {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
                 </Label>
@@ -703,18 +709,22 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
                   placeholder={t("student.courses.enterFullName")}
+                  aria-required="true"
                 />
               </div>
             </div>
             <ShadDialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+                {t("common.cancel")}
+              </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={
                   !studentName.trim() ||
                   submitting ||
                   isUploadingStatement ||
-                  !areCoursesSelected || // Ensure courses are selected
-                  !isStatementHandled // Ensure statement is handled if required
+                  !areCoursesSelected ||
+                  !isStatementHandled
                 }
               >
                 {submitting || isUploadingStatement ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
@@ -727,7 +737,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         <Dialog open={!!viewingCourse} onOpenChange={(open) => !open && setViewingCourse(null)}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl">
                 {language === "ru" && viewingCourse?.name_ru
                   ? viewingCourse.name_ru
                   : viewingCourse?.name_en || viewingCourse?.name}
@@ -738,17 +748,19 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   : viewingCourse?.instructor_en || viewingCourse?.teacher}
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4 max-h-[60vh] overflow-y-auto">
+            <div className="py-4 max-h-[60vh] overflow-y-auto prose prose-sm dark:prose-invert">
               {viewingCourse && selectedIndividualCourseIds.includes(viewingCourse.id) && (
-                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200 rounded-md text-sm flex items-center">
-                  <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-                  {t("student.courses.currentlySelected")}
-                </div>
+                <Alert variant="info" className="mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>{t("student.courses.currentlySelected")}</AlertDescription>
+                </Alert>
               )}
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              <p className="whitespace-pre-wrap">
                 {language === "ru" && viewingCourse?.description_ru
                   ? viewingCourse.description_ru
-                  : viewingCourse?.description_en || viewingCourse?.description}
+                  : viewingCourse?.description_en ||
+                    viewingCourse?.description ||
+                    t("student.courses.noDescriptionAvailable")}
               </p>
             </div>
             <ShadDialogFooter>
