@@ -1,442 +1,818 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { Download, CheckCircle, Info, ArrowLeft, Loader2, AlertTriangle, FileText, Check } from "lucide-react"
+import React from "react"
+import { useEffect, useState, useCallback } from "react"
+import {
+  Download,
+  CheckCircle,
+  Clock,
+  Info,
+  BookOpen,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  FileText,
+  UploadCloud,
+  Users,
+} from "lucide-react"
+import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter as ShadDialogFooter,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
-import { useParams, useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { uploadStatement } from "@/lib/file-utils"
+import { createClient } from "@supabase/supabase-js"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { cancelCourseSelection } from "@/app/actions/student-selections"
+import { TriangleAlert } from "lucide-react"
 
-import type { Database } from "@/lib/database.types" // Adjust if your path is different
-// Assuming you have these types defined, potentially generated from your Supabase schema
-type ElectiveCourse = Database["public"]["Tables"]["elective_courses"]["Row"]
-type Course = Database["public"]["Tables"]["courses"]["Row"]
-type CourseSelection = Database["public"]["Tables"]["course_selections"]["Row"]
-type Profile = Database["public"]["Tables"]["profiles"]["Row"]
+import { createClient as createSupabaseClient } from "@/utils/supabase/client" // Assuming you have this utility
+
+// Assuming these types/enums are defined elsewhere and passed as props or imported
+// For example:
+// import { ElectivePack, Course, CourseSelection, UserProfile, SelectionStatus } from '@/types';
+// import { useTranslation } from 'react-i18next'; // Or your i18n solution
+
+// Mock types for demonstration if not available
 // enum SelectionStatus {
 //   DRAFT = "draft",
 //   PENDING = "pending",
 //   APPROVED = "approved",
 //   REJECTED = "rejected",
 // }
-// enum UserRole { // Assuming UserRole enum exists
-//   STUDENT = "student",
-//   ADMIN = "admin",
-//   PROGRAM_MANAGER = "program_manager",
-// }
 
-// import { Button } from "@/components/ui/button"
-// import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Input } from "@/components/ui/input"
-// import { Progress } from "@/components/ui/progress"
-// import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-// import { useToast } from "@/components/ui/use-toast"
-// import { DashboardLayout } from "@/components/dashboard-layout" // Assuming this component exists
-// import { useTranslation } from 'react-i18next'; // Assuming you use i18n
-
-// Mock t function if not using i18next, or replace with your actual translation hook
-const t_mock = (key: string, options?: any) => {
-  const translations: Record<string, string> = {
-    "student.courses.selectCourses": "Select your courses for this elective pack.",
-    "student.courses.selectionProgress": "Selection Progress",
-    "student.courses.selectedOutOf": "You have selected",
-    "student.courses.of": "of",
-    "student.courses.allowedCourses": "allowed courses.",
-    "student.courses.maxSelections": "You have reached the maximum number of selections.",
-    "student.courses.canSelectMore": "You can select",
-    "student.courses.moreCourse": "more course.",
-    "student.courses.moreCourses": "more courses.",
-    "student.statement.title": "Statement Form",
-    "student.statement.description": "Download the statement, sign it, and upload the completed form (PDF only).",
-    "student.statement.download": "Download",
-    "student.statement.uploading": "Uploading...",
-    "student.statement.fileUploaded": "File uploaded:",
-    "student.statement.error.templateMissingTitle": "Template Missing",
-    "student.statement.error.templateMissingDescription": "The statement template is not available for download.",
-    "student.statement.downloadSuccessTitle": "Download Started",
-    "student.statement.downloadSuccessDescription": "The statement template is downloading.",
-    "student.statement.error.downloadFailedTitle": "Download Failed",
-    "student.statement.error.downloadFailedDescription": "Could not download the statement template.",
-    "student.statement.error.invalidFileTypeTitle": "Invalid File Type",
-    "student.statement.error.invalidFileTypeDescription": "Please upload a PDF file.",
-    "student.statement.uploadSuccessTitle": "Statement Uploaded",
-    "student.statement.uploadSuccessDescription": `File "{{fileName}}" uploaded successfully.`,
-    "student.statement.error.uploadFailedTitle": "Upload Failed",
-    "student.statement.error.uploadFailedDescription": "Could not upload the statement.",
-    "student.courses.statusAlert.pending.title": "Selection Submitted",
-    "student.courses.statusAlert.pending.description":
-      "Your course selection is pending approval. You can still modify your selection until it's approved or the deadline passes.",
-    "student.courses.statusAlert.approved.title": "Selection Approved!",
-    "student.courses.statusAlert.approved.description":
-      "Your course selection has been approved. No further changes can be made.",
-    "student.courses.statusAlert.rejected.title": "Selection Needs Revision",
-    "student.courses.statusAlert.rejected.description":
-      "Your course selection needs revision. Please review the comments and update your selection.",
-    "student.courses.statusAlert.draft.title": "Draft Selection",
-    "student.courses.statusAlert.draft.description":
-      "Your course selection is currently a draft. Don't forget to submit it before the deadline.",
-    "student.courses.noCoursesAvailable": "No courses are currently available for this elective pack or your group.",
-    "student.courses.loading": "Loading courses...",
-    "student.courses.error": "Failed to load course data. Please try again.",
-    "student.courses.saveSelection": "Save Selection",
-    "student.courses.submitSelection": "Submit Selection",
-    "student.courses.saving": "Saving...",
-    "student.courses.submitting": "Submitting...",
-    "student.courses.selectionSaved": "Selection saved successfully!",
-    "student.courses.selectionSubmitted": "Selection submitted for approval!",
-    "student.courses.errorSaving": "Failed to save selection.",
-    "student.courses.errorSubmitting": "Failed to submit selection.",
-    "student.courses.confirmLeave": "You have unsaved changes. Are you sure you want to leave?",
-    "student.courses.maxCapacityReached": "Max capacity reached",
-  }
-  let translation = translations[key] || key
-  if (options && typeof options === "object") {
-    Object.keys(options).forEach((optionKey) => {
-      translation = translation.replace(`{{${optionKey}}}`, options[optionKey])
-    })
-  }
-  return translation
+type ElectivePack = {
+  id: string
+  name: string
+  max_selections: number
+  status: "draft" | "published" | "archived" // Assuming status for the pack itself
+  syllabus_template_url?: string | null // Path to template in Supabase storage
+  // ... other properties
 }
 
-// interface ElectivePageProps {
-//   params: {
-//     packId: string
-//   }
-// }
+type Course = {
+  id: string
+  name: string
+  name_en: string
+  name_ru: string
+  instructor_en: string
+  instructor_ru: string
+  description_en: string
+  description_ru: string
+  max_students: number | null | undefined
+  current_students: number | null | undefined
+  teacher: string
+  // ... other properties
+}
 
-// export default function ElectivePage({ params }: ElectivePageProps) {
-export default function ElectivePackPage() {
-  const params = useParams()
-  const packId = params.packId as string
-  const router = useRouter()
-  const supabase = createClientComponentClient<Database>()
+type CourseSelection = {
+  id: string
+  student_id: string
+  elective_courses_id: string
+  selected_course_ids: string[]
+  status: SelectionStatus
+  statement_url?: string | null // Path to student's uploaded statement in Supabase storage
+  // ... other properties
+}
+
+type UserProfile = {
+  id: string
+  // ... other properties
+}
+
+interface ElectivePageProps {
+  params: {
+    packId: string
+  }
+}
+
+interface ElectivePackPageClientProps {
+  electiveData: ElectivePack
+  courses: Course[] // Assuming courses are also passed if needed for other parts
+  existingSelection: CourseSelection | null
+  profile: UserProfile // Student's profile
+  // packId: string // Already in electiveData.id
+}
+
+// Utility to get filename from a path
+const getFileNameFromPath = (path: string | null | undefined): string | null => {
+  if (!path) return null
+  const name = path.substring(path.lastIndexOf("/") + 1)
+  try {
+    return decodeURIComponent(name)
+  } catch (e) {
+    return name // Fallback if decoding fails
+  }
+}
+
+export default function ElectivePage({ params }: ElectivePageProps) {
+  const { t, language } = useLanguage()
   const { toast } = useToast()
-  const t = t_mock // Replace with actual useTranslation hook if available
+  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
 
-  const [electiveData, setElectiveData] = useState<ElectiveCourse | null>(null)
-  const [courses, setCourses] = useState<Course[]>([])
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
-  const [existingSelection, setExistingSelection] = useState<CourseSelection | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [isSaving, setIsSaving] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Statement-related state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [studentName, setStudentName] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [viewingCourse, setViewingCourse] = useState<any>(null)
+  const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
+  const [isUploadingStatement, setIsUploadingStatement] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [persistedStatementFileName, setPersistedStatementFileName] = useState<string | null>(null)
-  const [newlySelectedFileForUpload, setNewlySelectedFileForUpload] = useState<File | null>(null)
+  const [isLoadingPage, setIsLoadingPage] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true)
-      setError(null)
+  const [electiveCourseData, setElectiveCourseData] = useState<any>(null)
+  const [individualCourses, setIndividualCourses] = useState<any[]>([])
+  const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null)
+  const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>([])
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session?.user) {
-        router.push("/auth/login") // Redirect if not logged in
-        return
-      }
+  const packId = params.packId
 
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single()
+  const loadData = useCallback(async () => {
+    if (profileLoading) return
+    if (profileError) {
+      setFetchError(`Failed to load profile: ${profileError}`)
+      setIsLoadingPage(false)
+      return
+    }
+    if (!profile?.id) {
+      setFetchError("Student profile not loaded or incomplete.")
+      setIsLoadingPage(false)
+      return
+    }
 
-      if (profileError || !profileData) {
-        setError(t("student.courses.error") + (profileError?.message || ""))
-        setIsLoading(false)
-        return
-      }
-      setProfile(profileData)
+    setIsLoadingPage(true)
+    setFetchError(null)
 
-      // Fetch elective pack data
-      const { data: pack, error: packError } = await supabase
+    try {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+      const { data: ecData, error: ecError } = await supabase
         .from("elective_courses")
         .select("*")
         .eq("id", packId)
         .single()
 
-      if (packError || !pack) {
-        setError(t("student.courses.error") + (packError?.message || ""))
-        setIsLoading(false)
-        return
-      }
-      setElectiveData(pack)
+      if (ecError) throw ecError
+      if (!ecData) throw new Error("Elective course pack not found.")
+      setElectiveCourseData(ecData)
 
-      // Fetch existing selection
-      const { data: selection, error: selectionError } = await supabase
+      let courseUuids: string[] = []
+      if (ecData.courses && typeof ecData.courses === "string") {
+        try {
+          const parsed = JSON.parse(ecData.courses)
+          if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+            courseUuids = parsed
+          }
+        } catch (e) {
+          console.error("Error parsing 'courses' JSON from elective_courses:", e)
+        }
+      } else if (Array.isArray(ecData.courses) && ecData.courses.every((item: any) => typeof item === "string")) {
+        courseUuids = ecData.courses
+      }
+
+      if (courseUuids.length > 0) {
+        const { data: fetchedCourses, error: coursesError } = await supabase
+          .from("courses")
+          .select(
+            "id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students, current_students",
+          )
+          .in("id", courseUuids)
+
+        if (coursesError) throw coursesError
+
+        const fetchedCoursesMap = new Map(fetchedCourses?.map((fc) => [fc.id, fc]))
+        const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
+        setIndividualCourses(orderedFetchedCourses || [])
+      } else {
+        setIndividualCourses([])
+      }
+
+      const { data: selectionData, error: selectionError } = await supabase
         .from("course_selections")
         .select("*")
-        .eq("student_id", session.user.id)
-        .eq("elective_course_id", packId)
-        .single()
+        .eq("student_id", profile.id)
+        .eq("elective_courses_id", packId)
+        .maybeSingle()
 
-      if (selection) {
-        setExistingSelection(selection)
-        setSelectedCourses(selection.selected_course_ids || [])
-      }
-      if (selectionError && selectionError.code !== "PGRST116") {
-        // Ignore 'single row not found'
-        setError(t("student.courses.error") + (selectionError?.message || ""))
-      }
+      if (selectionError) throw selectionError
+      setExistingSelectionRecord(selectionData)
 
-      // Fetch courses for the pack, filtered by student's group if applicable
-      const query = supabase.from("courses").select("*").eq("elective_course_id", packId)
-      if (pack.group_id && profileData.group_id && pack.group_id !== profileData.group_id) {
-        // This pack is for a specific group, and student is not in it or in a different one.
-        // This logic might be too simple, depends on how group_id on elective_courses is used.
-        // For now, if pack.group_id is set, we assume courses are also implicitly filtered or this check is sufficient.
-        // The prompt mentioned filtering elective_courses by group_id on the listing page.
-        // Here, we assume courses under this packId are relevant if the student can see the pack.
-        // If courses themselves have group_id, that would be a more direct filter.
-      } else if (profileData.group_id) {
-        // If courses have a group_id field and should be filtered:
-        // query = query.eq('group_id', profileData.group_id);
-        // For now, assuming courses under packId are generally available or filtered by pack's group_id access.
-      }
-
-      const { data: courseData, error: courseError } = await query
-
-      if (courseError) {
-        setError(t("student.courses.error") + (courseError?.message || ""))
-      } else {
-        setCourses(courseData || [])
-      }
-      setIsLoading(false)
+      // Example: If 'course_selections' table has a 'selected_course_ids' (TEXT[]) column
+      // setSelectedIndividualCourseIds(selectionData?.selected_course_ids || []);
+      // For now, keeping it simple as the schema detail for this is pending
+      setSelectedIndividualCourseIds(selectionData?.selected_course_ids || [])
+    } catch (error: any) {
+      setFetchError(error.message || "Failed to load elective course details.")
+      toast({ title: "Error", description: error.message, variant: "destructive" })
+    } finally {
+      setIsLoadingPage(false)
     }
-    fetchData()
-  }, [packId, supabase, router])
+  }, [profile, profileLoading, profileError, packId, toast])
 
   useEffect(() => {
-    if (existingSelection?.statement_url) {
-      try {
-        const urlPath = new URL(existingSelection.statement_url).pathname
-        const segments = urlPath.split("/")
-        const fileName = decodeURIComponent(segments[segments.length - 1])
-        setPersistedStatementFileName(fileName)
-        setNewlySelectedFileForUpload(null)
-      } catch (e) {
-        console.error("Failed to parse statement URL:", e)
-        setPersistedStatementFileName("File uploaded")
-      }
-    } else {
-      setPersistedStatementFileName(null)
-    }
-  }, [existingSelection?.statement_url])
+    loadData()
+  }, [loadData])
 
-  const handleDownloadStatement = async () => {
-    if (!electiveData?.syllabus_template_url) {
+  const toggleCourseSelection = (individualCourseId: string) => {
+    setSelectedIndividualCourseIds((prevSelected) => {
+      if (prevSelected.includes(individualCourseId)) {
+        return prevSelected.filter((id) => id !== individualCourseId)
+      } else {
+        if (prevSelected.length < (electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
+          return [...prevSelected, individualCourseId]
+        }
+        toast({
+          title: t("student.courses.maxSelectionsReached"),
+          description: t("student.courses.maxSelectionsReachedDesc", { count: electiveCourseData?.max_selections }),
+          variant: "warning",
+        })
+        return prevSelected
+      }
+    })
+  }
+
+  const handleSubmit = async () => {
+    const statementRequired = !!electiveCourseData?.syllabus_template_url
+
+    if (!profile?.id) {
+      toast({ title: "Missing Information", description: "Profile not loaded.", variant: "destructive" })
+      return
+    }
+    if (statementRequired && !uploadedStatement && !existingSelectionRecord?.statement_url) {
+      toast({ title: "Missing Information", description: "Statement is required.", variant: "destructive" })
+      return
+    }
+    if (selectedIndividualCourseIds.length === 0 && (electiveCourseData?.max_selections || 0) > 0) {
+      toast({ title: "No Courses Selected", description: "Please select at least one course.", variant: "destructive" })
+      return
+    }
+    if (selectedIndividualCourseIds.length > (electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
       toast({
-        title: t("student.statement.error.templateMissingTitle"),
-        description: t("student.statement.error.templateMissingDescription"),
+        title: "Too Many Courses",
+        description: `You can select at most ${electiveCourseData?.max_selections} courses.`,
         variant: "destructive",
       })
       return
     }
 
+    setSubmitting(true)
+    try {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+      let statementUrlToSave = existingSelectionRecord?.statement_url
+
+      if (uploadedStatement) {
+        setIsUploadingStatement(true)
+        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
+        setIsUploadingStatement(false)
+      }
+
+      if (statementRequired && !statementUrlToSave) {
+        throw new Error("Statement is required and was not uploaded.")
+      }
+
+      const selectionPayload: any = {
+        student_id: profile.id,
+        elective_courses_id: packId,
+        status: SelectionStatus.PENDING,
+        selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
+      }
+      if (statementUrlToSave) {
+        selectionPayload.statement_url = statementUrlToSave
+      }
+
+      if (existingSelectionRecord) {
+        const { error } = await supabase
+          .from("course_selections")
+          .update(selectionPayload)
+          .eq("id", existingSelectionRecord.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("course_selections").insert(selectionPayload).select().single()
+        if (error) throw error
+      }
+
+      toast({ title: "Selection submitted", description: "Your course selection has been submitted successfully." })
+      window.location.href = "/student/courses"
+    } catch (error: any) {
+      console.error("Submission error:", error)
+      toast({ title: "Submission failed", description: error.message || "An error occurred.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+      setIsUploadingStatement(false)
+      setConfirmDialogOpen(false)
+    }
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.type !== "application/pdf") {
+        toast({ title: "Invalid file type", description: "Please upload a PDF file", variant: "destructive" })
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB
+        toast({ title: "File too large", description: "Please upload a file smaller than 5MB", variant: "destructive" })
+        return
+      }
+      setUploadedStatement(file)
+      toast({ title: "File selected", description: `"${file.name}" ready for upload.` })
+    }
+  }
+
+  const handleDownloadStatementTemplate = async () => {
+    if (!electiveCourseData?.syllabus_template_url) {
+      toast({ title: "No template", description: "Statement template is not available.", variant: "destructive" })
+      return
+    }
     setDownloadingStatement(true)
     try {
-      window.open(electiveData.syllabus_template_url, "_blank")
-      toast({
-        title: t("student.statement.downloadSuccessTitle"),
-        description: t("student.statement.downloadSuccessDescription"),
-      })
+      window.open(electiveCourseData.syllabus_template_url, "_blank")
     } catch (error) {
-      console.error("Error downloading statement:", error)
-      toast({
-        title: t("student.statement.error.downloadFailedTitle"),
-        description: (error as Error).message || t("student.statement.error.downloadFailedDescription"),
-        variant: "destructive",
-      })
+      toast({ title: "Download failed", variant: "destructive" })
     } finally {
       setDownloadingStatement(false)
     }
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (file.type !== "application/pdf") {
-      toast({
-        title: t("student.statement.error.invalidFileTypeTitle"),
-        description: t("student.statement.error.invalidFileTypeDescription"),
-        variant: "destructive",
-      })
-      e.target.value = ""
-      return
-    }
-
-    if (!profile?.id) {
-      toast({ title: "Error", description: "User profile not loaded.", variant: "destructive" })
-      e.target.value = ""
-      return
-    }
-    if (!existingSelection?.id) {
-      // A selection record must exist to attach the statement
-      toast({
-        title: "Error",
-        description: "Please save your course selection before uploading a statement.",
-        variant: "destructive",
-      })
-      e.target.value = ""
-      return
-    }
-
-    setIsUploading(true)
-    setNewlySelectedFileForUpload(file)
-
-    try {
-      const filePath = `student_statements/${profile.id}/${packId}/${Date.now()}_${file.name}`
-
-      const { error: uploadError } = await supabase.storage.from("student-statements").upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: true,
-      })
-
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage.from("student-statements").getPublicUrl(filePath)
-
-      if (!publicUrlData?.publicUrl) {
-        throw new Error("Failed to get public URL for the uploaded statement.")
-      }
-
-      const { error: dbError } = await supabase
-        .from("course_selections")
-        .update({ statement_url: publicUrlData.publicUrl })
-        .eq("id", existingSelection.id)
-
-      if (dbError) throw dbError
-
-      setExistingSelection((prev) => (prev ? { ...prev, statement_url: publicUrlData.publicUrl } : null))
-      // The useEffect for persistedStatementFileName will update the display via existingSelection update.
-      setNewlySelectedFileForUpload(null)
-
-      toast({
-        title: t("student.statement.uploadSuccessTitle"),
-        description: t("student.statement.uploadSuccessDescription", { fileName: file.name }),
-      })
-    } catch (error) {
-      console.error("Error uploading statement:", error)
-      toast({
-        title: t("student.statement.error.uploadFailedTitle"),
-        description: (error as Error).message || t("student.statement.error.uploadFailedDescription"),
-        variant: "destructive",
-      })
-      setNewlySelectedFileForUpload(null)
-      // Restore persisted file name if it was cleared optimistically by newlySelectedFileForUpload
-      if (existingSelection?.statement_url && !newlySelectedFileForUpload) {
-        try {
-          const urlPath = new URL(existingSelection.statement_url).pathname
-          const segments = urlPath.split("/")
-          setPersistedStatementFileName(decodeURIComponent(segments[segments.length - 1]))
-        } catch (err) {
-          /* already handled */
-        }
-      } else if (!existingSelection?.statement_url) {
-        setPersistedStatementFileName(null)
-      }
-    } finally {
-      setIsUploading(false)
-      e.target.value = ""
-    }
-  }
-
-  // Placeholder for getStatusAlert, assuming it's defined elsewhere or similar to below
-  const getStatusAlert = () => {
-    if (!existingSelection || !existingSelection.status) return null
-    switch (existingSelection.status) {
-      case SelectionStatus.PENDING:
-        return (
-          <Alert
-            variant="default"
-            className="bg-yellow-50 border-yellow-200 dark:bg-yellow-900/30 dark:border-yellow-700"
-          >
-            <Info className="h-4 w-4 !text-yellow-600 dark:!text-yellow-400" />
-            <AlertTitle>{t("student.courses.statusAlert.pending.title")}</AlertTitle>
-            <AlertDescription>{t("student.courses.statusAlert.pending.description")}</AlertDescription>
-          </Alert>
-        )
-      case SelectionStatus.APPROVED:
-        return (
-          <Alert variant="default" className="bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-700">
-            <Check className="h-4 w-4 !text-green-600 dark:!text-green-400" />
-            <AlertTitle>{t("student.courses.statusAlert.approved.title")}</AlertTitle>
-            <AlertDescription>{t("student.courses.statusAlert.approved.description")}</AlertDescription>
-          </Alert>
-        )
-      case SelectionStatus.REJECTED:
-        return (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("student.courses.statusAlert.rejected.title")}</AlertTitle>
-            <AlertDescription>{t("student.courses.statusAlert.rejected.description")}</AlertDescription>
-          </Alert>
-        )
-      default: // DRAFT or other
-        return (
-          <Alert variant="default" className="bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700">
-            <Info className="h-4 w-4 !text-blue-600 dark:!text-blue-400" />
-            <AlertTitle>{t("student.courses.statusAlert.draft.title")}</AlertTitle>
-            <AlertDescription>{t("student.courses.statusAlert.draft.description")}</AlertDescription>
-          </Alert>
-        )
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" /> <span className="ml-2">{t("student.courses.loading")}</span>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>{t("student.courses.error")}</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (!electiveData) {
-    return (
-      <Alert variant="destructive">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>{t("student.courses.error")}</AlertTitle>
-        <AlertDescription>Elective pack not found.</AlertDescription>
-      </Alert>
-    )
+  const formatDateDisplay = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   const selectionProgress =
-    electiveData.max_selections > 0 ? (selectedCourses.length / electiveData.max_selections) * 100 : 0
+    electiveCourseData?.max_selections && electiveCourseData.max_selections > 0
+      ? (selectedIndividualCourseIds.length / electiveCourseData.max_selections) * 100
+      : 0
 
-  // Mock DashboardLayout if not available
-  const MockDashboardLayout = ({ children }: { children: React.ReactNode; userRole: UserRole }) => (
-    <div className="p-4 md:p-8 mx-auto max-w-4xl">{children}</div>
-  )
-  const DashboardLayout = MockDashboardLayout // Replace with actual import if available
+  const isDeadlinePassed = electiveCourseData?.deadline ? new Date(electiveCourseData.deadline) < new Date() : false
+  const currentSelectionStatus = existingSelectionRecord?.status as SelectionStatus | undefined
 
+  const getStatusAlert = () => {
+    if (currentSelectionStatus === SelectionStatus.APPROVED) {
+      return (
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionApproved")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionApprovedDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+    if (currentSelectionStatus === SelectionStatus.PENDING) {
+      return (
+        <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionPending")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionPendingDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+    if (currentSelectionStatus === SelectionStatus.REJECTED) {
+      return (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionRejected")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionRejectedDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+    if (electiveCourseData?.status === "draft") {
+      return (
+        <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
+          <AlertDescription>{t("student.courses.comingSoonDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+    if (isDeadlinePassed) {
+      return (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.deadlinePassed")}</AlertTitle>
+          <AlertDescription>{t("student.courses.deadlinePassedDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+    return (
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
+        <AlertDescription>
+          {t("student.courses.selectionPeriodDesc")} {electiveCourseData?.max_selections} {t("student.courses.until")}{" "}
+          {electiveCourseData?.deadline && formatDateDisplay(electiveCourseData.deadline)}.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (profileLoading || isLoadingPage) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+  if (fetchError) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Page</AlertTitle>
+            <AlertDescription>{fetchError}</AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    )
+  }
+  if (!electiveCourseData) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4 text-center">{t("student.courses.notFound")}</div>
+      </DashboardLayout>
+    )
+  }
+
+  const electivePackName =
+    language === "ru" && electiveCourseData.name_ru ? electiveCourseData.name_ru : electiveCourseData.name
+  const canSubmit =
+    !isDeadlinePassed && electiveCourseData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
+
+  const handleCancelSelection = async () => {
+    if (!profile?.id || !electiveCourseData?.id) {
+      toast({ title: "Error", description: "Cannot cancel selection. Missing information.", variant: "destructive" })
+      return
+    }
+    if (!existingSelectionRecord) {
+      toast({ title: "No Selection", description: "There is no selection to cancel.", variant: "destructive" })
+      return
+    }
+
+    setIsCancelling(true)
+    const formData = new FormData()
+    formData.append("studentId", profile.id)
+    formData.append("electiveCoursesId", electiveCourseData.id)
+
+    const result = await cancelCourseSelection(formData)
+
+    if (result.success) {
+      toast({ title: "Selection Cancelled", description: result.message })
+      setExistingSelectionRecord(null)
+      setSelectedIndividualCourseIds([])
+      setUploadedStatement(null)
+      // await loadData(); // Optionally reload all data
+    } else {
+      toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
+    }
+    setIsCancelling(false)
+  }
+
+  const statementRequiredForPack = !!electiveCourseData?.syllabus_template_url
+  const isStatementHandled =
+    !statementRequiredForPack || !!uploadedStatement || !!existingSelectionRecord?.statement_url
+  const areCoursesSelected = selectedIndividualCourseIds.length > 0 || (electiveCourseData?.max_selections || 0) === 0
+
+  const ElectivePackPageClient = ({
+    electiveData,
+    // courses, // courses might not be directly used in this snippet but likely in full page
+    existingSelection,
+    profile,
+  }: ElectivePackPageClientProps) => {
+    const { t } = ({ t: (key: string) => key } as any) // Replace with your actual i18n hook e.g. useTranslation()
+    const { toast } = useToast()
+    const supabase = createSupabaseClient()
+
+    // If packId is needed from URL and not in electiveData.id for some reason
+    // const params = useParams();
+    // const packId = electiveData.id || params.packId as string;
+    const packId = electiveData.id;
+
+
+    const [selectedCourses, setSelectedCourses] = React.useState<Course[]>(() => {
+      // Logic to map existingSelection.selected_course_ids to Course objects if needed
+      // For this snippet, we focus on statement, so this might be simplified
+      return existingSelection?.selected_course_ids.map(id => ({ id, name: `Course ${id}` } as Course)) || []
+    })
+
+    const [uploadedStatementFile, setUploadedStatementFile] = React.useState<File | null>(null)
+    const [isUploading, setIsUploading] = React.useState(false)
+    const [downloadingStatement, setDownloadingStatement] = React.useState(false)
+
+    const [currentStatementPath, setCurrentStatementPath] = React.useState<string | null>(
+      existingSelection?.statement_url || null
+    )
+
+    React.useEffect(() => {
+      setCurrentStatementPath(existingSelection?.statement_url || null)
+    }, [existingSelection?.statement_url])
+
+    const selectionProgress = electiveData.max_selections > 0
+      ? (selectedCourses.length / electiveData.max_selections) * 100
+      : 0
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (file) {
+        if (file.type !== "application/pdf") {
+          toast({
+            title: t("student.statement.invalidFileTypeTitle"),
+            description: t("student.statement.invalidFileTypeDesc"),
+            variant: "destructive",
+          })
+          e.target.value = "" // Reset file input
+          return
+        }
+
+        setUploadedStatementFile(file) // Show selected file name immediately
+        setIsUploading(true)
+
+        if (!profile?.id) {
+          toast({ title: t("student.error.title"), description: t("student.error.userNotFound"), variant: "destructive" })
+          setIsUploading(false)
+          e.target.value = ""
+          setUploadedStatementFile(null)
+          return
+        }
+
+        const filePath = `student_submissions/${profile.id}/${packId}/${file.name}`
+
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from("student_submissions")
+            .upload(filePath, file, { upsert: true })
+
+          if (uploadError) throw uploadError
+
+          if (existingSelection?.id) {
+            const { error: dbError } = await supabase
+              .from("course_selections")
+              .update({ statement_url: filePath })
+              .eq("id", existingSelection.id)
+
+            if (dbError) throw dbError
+
+            setCurrentStatementPath(filePath) // Update state reflecting DB
+            // Optionally, trigger a re-fetch of existingSelection or update it locally
+            if (existingSelection) existingSelection.statement_url = filePath;
+
+            toast({
+              title: t("student.statement.uploadSuccessTitle"),
+              description: t("student.statement.uploadSuccessDesc", { fileName: file.name }),
+            })
+          } else {
+            // This case implies a statement is uploaded before a selection record is formally created or known.
+            // This might require saving the filePath temporarily and associating it when the main selection is saved.
+            // For now, we'll assume existingSelection.id is usually present.
+            toast({
+              title: t("student.statement.uploadWarningTitle"),
+              description: t("student.statement.uploadWarningDesc"), // "File uploaded to storage, but not yet linked to a selection record."
+              variant: "default",
+            })
+            // To handle this properly, you might need to integrate statement upload with the main save/submit logic
+            // or ensure a selection record is created (even if draft) before allowing statement upload.
+          }
+        } catch (error: any) {
+          toast({ title: t("student.statement.uploadFailTitle"), description: error.message, variant: "destructive" })
+          setUploadedStatementFile(null) // Clear optimistic UI on failure
+          e.target.value = ""
+        } finally {
+          setIsUploading(false)
+        }
+      }
+    }
+
+    const handleDownloadStatement = async () => {
+      if (!electiveData?.syllabus_template_url) {
+        toast({
+          title: t("student.statement.noTemplateTitle"),
+          description: t("student.statement.noTemplateDesc"),
+          variant: "destructive",
+        })
+        return
+      }
+      setDownloadingStatement(true)
+      try {
+        const { data, error } = await supabase.storage
+          .from("course_files") // Bucket for admin-uploaded templates
+          .download(electiveData.syllabus_template_url)
+
+        if (error) throw error
+        if (data) {
+          const link = document.createElement('a')
+          link.href = URL.createObjectURL(data)
+          const fileName = getFileNameFromPath(electiveData.syllabus_template_url) || 'statement-template.pdf';
+          link.download = fileName;
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(link.href)
+          toast({
+            title: t("student.statement.downloadSuccessTitle"),
+            description: t("student.statement.downloadSuccessDesc"),
+          })
+        }
+      } catch (error: any) {
+        toast({ title: t("student.statement.downloadFailTitle"), description: error.message, variant: "destructive" })
+      } finally {
+        setDownloadingStatement(false)
+      }
+    }
+
+    const getStatusAlert = () => {
+      if (!existingSelection) return null;
+      switch (existingSelection.status) {
+        case SelectionStatus.APPROVED:
+          return (
+            <Alert variant="success"> {/* Assuming you have a 'success' variant or use default */}
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>{t("student.status.approvedTitle")}</AlertTitle>
+              <AlertDescription>{t("student.status.approvedDesc")}</AlertDescription>
+            </Alert>
+          );
+        case SelectionStatus.PENDING:
+          return (
+            <Alert variant="warning"> {/* Assuming you have a 'warning' variant */}
+              <Info className="h-4 w-4" />
+              <AlertTitle>{t("student.status.pendingTitle")}</AlertTitle>
+              <AlertDescription>{t("student.status.pendingDesc")}</AlertDescription>
+            </Alert>
+          );
+        case SelectionStatus.REJECTED:
+          return (
+            <Alert variant="destructive">
+              <TriangleAlert className="h-4 w-4" />
+              <AlertTitle>{t("student.status.rejectedTitle")}</AlertTitle>
+              <AlertDescription>{t("student.status.rejectedDesc")}</AlertDescription>
+            </Alert>
+          );
+        default:
+          return null;
+      }
+    };
+
+    const displayedStatementFileName = uploadedStatementFile
+      ? uploadedStatementFile.name
+      : getFileNameFromPath(currentStatementPath);
+
+    const isElectivePackDraft = electiveData.status === "draft";
+    const isSelectionApproved = existingSelection?.status === SelectionStatus.APPROVED;
+
+
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="space-y-6 p-4 md:p-6"> {/* Added padding for better layout */}
+          <div className="flex items-center gap-2">
+            <Link href="/student/courses" passHref>
+              <Button variant="ghost" size="icon" aria-label={t("student.backToCourses")}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{electiveData.name}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <p className="text-sm text-muted-foreground">{t("student.courses.selectCourses")}</p>
+              </div>
+            </div>
+          </div>
+
+          {getStatusAlert()}
+
+          <Card
+            className={
+              existingSelection
+                ? existingSelection.status === SelectionStatus.APPROVED
+                  ? "border-green-200 dark:border-green-800"
+                  : existingSelection.status === SelectionStatus.PENDING
+                    ? "border-yellow-200 dark:border-yellow-800"
+                    : ""
+                : ""
+            }
+          >
+            <CardHeader>
+              <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
+              <CardDescription>
+                {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.of")}{" "}
+                {electiveData.max_selections} {t("student.courses.allowedCourses")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress
+                value={selectionProgress}
+                className={`h-2 ${
+                  existingSelection?.status === SelectionStatus.APPROVED
+                    ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600" // Tailwind JIT might need this for dynamic class
+                    : existingSelection?.status === SelectionStatus.PENDING
+                      ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-600"
+                      : "[&>*]:bg-primary" // Default progress bar color
+                }`}
+              />
+              <p className="mt-2 text-sm text-muted-foreground">
+                {selectedCourses.length === electiveData.max_selections
+                  ? t("student.courses.maxSelections")
+                  : `${t("student.courses.canSelectMore")} ${electiveData.max_selections - selectedCourses.length} ${
+                      electiveData.max_selections - selectedCourses.length === 1
+                        ? t("student.courses.moreCourse")
+                        : t("student.courses.moreCourses")
+                    }`}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Statement Download and Upload Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("student.statement.title")}</CardTitle>
+              <CardDescription>{t("student.statement.description")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 w-full sm:w-auto" // Adjusted width
+                    onClick={handleDownloadStatementTemplate}
+                    disabled={downloadingStatement || isElectivePackDraft || !electiveData.syllabus_template_url}
+                  >
+                    {downloadingStatement ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    <span>{t("student.statement.download")}</span>
+                  </Button>
+
+                  <div className="relative w-full">
+                    <Input
+                      id="statement-upload"
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileUpload}
+                      disabled={isUploading || isSelectionApproved || isElectivePackDraft}
+                      className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {isUploading && ( // Visual cue during upload, can be inside or outside input styling
+                      <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-md">
+                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                        <span className="ml-2 text-sm">{t("student.statement.uploading")}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {displayedStatementFileName && !isUploading && (
+                  <div className="flex items-center gap-2 p-3 bg-muted text-muted-foreground rounded-md border">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-sm">
+                      {uploadedStatementFile ? t("student.statement.fileSelected") : t("student.statement.currentFile")}:{" "}
+                      <span className="font-medium">{displayedStatementFileName}</span>
+                    </span>
+                  </div>
+                )}
+                {!electiveData.syllabus_template_url && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("student.statement.noTemplateAvailable")}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Course List and Save Button would go here */}
+          {/* ... */}
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  const statementRequiredForPackClient = !!electiveCourseData?.syllabus_template_url
+  const isStatementHandledClient =
+    !statementRequiredForPackClient || !!uploadedStatement || !!existingSelectionRecord?.statement_url
+  const areCoursesSelectedClient = selectedIndividualCourseIds.length > 0 || (electiveCourseData?.max_selections || 0) === 0
+
+  return (
+    <DashboardLayout userRole={UserRole.STUDENT}>
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <div className="flex items-center gap-3">
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
@@ -447,7 +823,7 @@ export default function ElectivePackPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{electiveData.name}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{electivePackName}</h1>
             <p className="text-sm text-muted-foreground">{t("student.courses.selectIndividualCourses")}</p>
           </div>
         </div>
@@ -456,127 +832,108 @@ export default function ElectivePackPage() {
 
         <Card
           className={
-            existingSelection
-              ? existingSelection.status === SelectionStatus.APPROVED
-                ? "border-green-200 dark:border-green-800"
-                : existingSelection.status === SelectionStatus.PENDING || existingSelection.status === SelectionStatus.REJECTED
+            currentSelectionStatus === SelectionStatus.APPROVED
+              ? "border-green-200 dark:border-green-800"
+              : currentSelectionStatus === SelectionStatus.PENDING
                 ? "border-yellow-200 dark:border-yellow-800"
                 : ""
-              : ""
           }
         >
           <CardHeader>
             <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
             <CardDescription>
-              {t("student.courses.selectedOutOf")} {selectedCourses.length} {t("student.courses.of")}{" "}
-              {electiveData.max_selections} {t("student.courses.allowedCourses")}
+              {t("student.courses.selectedOutOf")} {selectedIndividualCourseIds.length} {t("student.courses.of")}{" "}
+              {electiveCourseData.max_selections || 0} {t("student.courses.allowedCourses")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Progress
               value={selectionProgress}
-              className={`h-3 ${
-                existingSelection?.status === SelectionStatus.APPROVED
-                  ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600"
-                  : existingSelection?.status === SelectionStatus.PENDING || existingSelection?.status === SelectionStatus.REJECTED
-                    ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-500"
-                    : "[&>*]:bg-primary"
-              }`}
+              className={`h-3 ${currentSelectionStatus === SelectionStatus.APPROVED ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600" : currentSelectionStatus === SelectionStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-500" : "[&>*]:bg-primary"}`}
             />
-            {(electiveData.max_selections || 0) > 0 && (
+            {(electiveCourseData.max_selections || 0) > 0 && (
               <p className="mt-2.5 text-sm text-muted-foreground">
-                {selectedCourses.length === electiveData.max_selections
+                {selectedIndividualCourseIds.length === electiveCourseData.max_selections
                   ? t("student.courses.maxSelections")
-                  : `${t("student.courses.canSelectMore")} ${electiveData.max_selections - selectedCourses.length} ${electiveData.max_selections - selectedCourses.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
+                  : `${t("student.courses.canSelectMore")} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
               </p>
             )}
           </CardContent>
         </Card>
 
-        {/* Statement Download and Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              {t("student.statement.title")}
-            </CardTitle>
-            <CardDescription>{t("student.statement.description")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
+        {statementRequiredForPack && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                {t("student.statement.title")}
+              </CardTitle>
+              <CardDescription>{t("student.statement.description")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {electiveCourseData.syllabus_template_url && (
                 <Button
                   variant="outline"
-                  className="flex items-center gap-2 w-full sm:w-auto" // Adjusted width
-                  onClick={handleDownloadStatement}
-                  disabled={downloadingStatement || electiveData.status === "draft" || !electiveData.syllabus_template_url}
+                  className="w-full sm:w-auto"
+                  onClick={handleDownloadStatementTemplate}
+                  disabled={downloadingStatement || electiveCourseData.status === "draft"}
                 >
-                  {downloadingStatement ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  <span>{t("student.statement.download")}</span>
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
                 </Button>
-
-                <div className="relative w-full">
+              )}
+              <div className="relative">
+                <Label
+                  htmlFor="statement-upload"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="mb-1 text-sm text-muted-foreground">
+                      <span className="font-semibold">{t("student.statement.clickToUpload")}</span>{" "}
+                      {t("student.statement.orDragAndDrop")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t("student.statement.pdfOnly")}</p>
+                  </div>
                   <Input
                     id="statement-upload"
                     type="file"
                     accept=".pdf"
                     onChange={handleFileUpload}
-                    disabled={
-                      isUploading ||
-                      !existingSelection?.id || // Disable if no selection record exists
-                      existingSelection?.status === SelectionStatus.APPROVED ||
-                      electiveData.status === "draft"
-                    }
-                    className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                    disabled={isUploadingStatement || !canSubmit}
+                    className="sr-only"
                   />
-                   {isUploading && (
-                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-md">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span>{t("student.statement.uploading")}</span>
-                    </div>
-                  )}
-                </div>
+                </Label>
+                {isUploadingStatement && (
+                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    {t("student.statement.uploading")}
+                  </div>
+                )}
               </div>
-              {(newlySelectedFileForUpload || persistedStatementFileName) && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md text-sm">
-                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>
-                    {t("student.statement.fileUploaded")}{" "}
-                    <span className="font-medium break-all">
-                      {newlySelectedFileForUpload ? newlySelectedFileForUpload.name : persistedStatementFileName}
-                    </span>
-                  </span>
-                </div>
+
+              {uploadedStatement && (
+                <Alert variant="success">
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>{t("student.statement.fileReadyTitle")}</AlertTitle>
+                  <AlertDescription>
+                    {t("student.statement.fileReadyDesc", { fileName: uploadedStatement.name })}
+                  </AlertDescription>
+                </Alert>
               )}
-            </div>
-          </CardContent>
-        </Card>
+              {existingSelectionRecord?.statement_url && !uploadedStatement && (
+                <Alert variant="info">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>{t("student.statement.previouslyUploadedTitle")}</AlertTitle>
+                  <AlertDescription>{t("student.statement.previouslyUploadedDesc")}</AlertDescription>
+                  {/* Optionally, add a button to view/download the existing statement if URL is directly accessible */}
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Course List and selection logic would go here - This part is not in the scope of current request */}
-        {/* ... */}
-         <div className="mt-6 flex gap-2">
-            <Button 
-                onClick={() => {/* handleSaveSelection logic */}} 
-                disabled={isSaving || isSubmitting || existingSelection?.status === SelectionStatus.APPROVED}
-            >
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {t("student.courses.saveSelection")}
-            </Button>
-            <Button 
-                onClick={() => {/* handleSubmitSelection logic */}}
-                disabled={isSaving || isSubmitting || selectedCourses.length === 0 || selectedCourses.length > electiveData.max_selections || !persistedStatementFileName && !newlySelectedFileForUpload && electiveData.is_statement_required || existingSelection?.status === SelectionStatus.APPROVED}
-                variant="default"
-            >
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {t("student.courses.submitSelection")}
-            </Button>
-        </div>
-
-        {/* {individualCourses.length > 0 ? (
+        {individualCourses.length > 0 ? (
           <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {individualCourses.map((course) => {
               const isSelected = selectedIndividualCourseIds.includes(course.id)
@@ -706,35 +1063,38 @@ export default function ElectivePackPage() {
             <div className="space-y-4 py-4">
               <div>
                 <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
-                {selectedCourses.length > 0 ? (
+                {selectedIndividualCourseIds.length > 0 ? (
                   <ul className="space-y-1 list-disc list-inside pl-1">
-                    {courses.filter(course => selectedCourses.includes(course.id)).map((course) => (
-                      <li key={course.id} className="text-sm">
-                        {course.name}
-                      </li>
-                    ))}
+                    {selectedIndividualCourseIds.map((id) => {
+                      const course = individualCourses.find((c) => c.id === id)
+                      return (
+                        <li key={id} className="text-sm">
+                          {language === "ru" && course?.name_ru ? course.name_ru : course?.name_en || course?.name}
+                        </li>
+                      )
+                    })}
                   </ul>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("student.courses.noCoursesSelectedYet")}</p>
                 )}
               </div>
-              {electiveData.is_statement_required && (
+              {statementRequiredForPack && (
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="text-sm font-medium mb-2">{t("student.statement.title")}:</h4>
                   <div className="flex items-center gap-2 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                     <span>
-                      {newlySelectedFileForUpload
+                      {uploadedStatement
                         ? t("student.statement.fileReadyToSubmit", {
-                            fileName: newlySelectedFileForUpload.name,
-                            fileSize: Math.round(newlySelectedFileForUpload.size / 1024),
+                            fileName: uploadedStatement.name,
+                            fileSize: Math.round(uploadedStatement.size / 1024),
                           })
                         : t("student.statement.previouslyUploadedWillBeUsed")}
                     </span>
                   </div>
                 </div>
               )}
-              {/* <div className="space-y-2 pt-4 border-t mt-4">
+              <div className="space-y-2 pt-4 border-t mt-4">
                 <Label htmlFor="student-name">
                   {t("student.courses.yourFullName")} ({t("student.courses.toAuthorize")})
                 </Label>
@@ -745,9 +1105,9 @@ export default function ElectivePackPage() {
                   placeholder={t("student.courses.enterFullName")}
                   aria-required="true"
                 />
-              </div> */}
+              </div>
             </div>
-            {/* <ShadDialogFooter>
+            <ShadDialogFooter>
               <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
                 {t("common.cancel")}
               </Button>
@@ -764,8 +1124,8 @@ export default function ElectivePackPage() {
                 {submitting || isUploadingStatement ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                 {t("student.courses.submitSelection")}
               </Button>
-            </ShadDialogFooter> */}
-          {/* </DialogContent>
+            </ShadDialogFooter>
+          </DialogContent>
         </Dialog>
 
         <Dialog open={!!viewingCourse} onOpenChange={(open) => !open && setViewingCourse(null)}>
@@ -803,8 +1163,8 @@ export default function ElectivePackPage() {
               </Button>
             </ShadDialogFooter>
           </DialogContent>
-        </Dialog> */}
+        </Dialog>
       </div>
-  </DashboardLayout>
+    </DashboardLayout>
   )
 }
