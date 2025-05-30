@@ -44,11 +44,13 @@ export default function ElectivesPage() {
       return
     }
 
-    if (!profile?.id || !profile?.institution_id) {
-      console.log("ElectivesPage: Profile ID or Institution ID missing.", profile)
-      setFetchError("Student profile information is incomplete.")
+    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
+      console.log("ElectivesPage: Profile ID, Institution ID, or Group ID missing.", profile)
+      setFetchError(
+        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific electives.",
+      )
       setIsLoading(false)
-      setElectiveCourses([]) // Clear any stale data
+      setElectiveCourses([])
       setCourseSelections([])
       return
     }
@@ -58,7 +60,12 @@ export default function ElectivesPage() {
     const fetchData = async () => {
       setIsLoading(true)
       setFetchError(null)
-      console.log("ElectivesPage: Starting data fetch for institution:", profile.institution_id)
+      console.log(
+        "ElectivesPage: Starting data fetch for institution:",
+        profile.institution_id,
+        "and group:",
+        profile.group.id,
+      )
       try {
         // Fetch elective courses for the institution
         console.log("ElectivesPage: Fetching elective_courses...")
@@ -66,6 +73,7 @@ export default function ElectivesPage() {
           .from("elective_courses")
           .select("*")
           .eq("institution_id", profile.institution_id)
+          .eq("group_id", profile.group.id) // Added group_id filter
           .order("deadline", { ascending: false })
 
         if (coursesError) {
