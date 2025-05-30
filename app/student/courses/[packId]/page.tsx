@@ -104,20 +104,31 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     setIsLoading(true)
     setError(null)
     try {
+      console.log("ElectivePage: Attempting to get Supabase session...")
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-      if (userError || !user) {
-        throw new Error(userError?.message || "User not authenticated.")
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error("ElectivePage: Supabase getSession error:", sessionError)
+        throw new Error(`Failed to retrieve session: ${sessionError.message}`)
       }
+
+      if (!session) {
+        console.warn("ElectivePage: No active Supabase session found by getSession().")
+        throw new Error("Auth session missing! No active session available to the client.")
+      }
+      console.log("ElectivePage: Active session found. User ID:", session.user.id)
+      const user = session.user // Use user from the validated session
 
       // Fetch User Profile (including group_id)
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("id, full_name, group_id")
-        .eq("id", user.id)
+        .eq("id", user.id) // Use user.id from the session
         .single()
+
       if (profileError) throw new Error(`Failed to fetch profile: ${profileError.message}`)
       if (!profileData) throw new Error("Profile not found.")
       setUserProfile(profileData)
@@ -166,9 +177,13 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         setUploadedStatementUrl(selectionData.statement_url || null)
       }
     } catch (err: any) {
-      console.error("Error fetching page data:", err)
-      setError(err.message || "An unexpected error occurred.")
-      toast({ title: "Error", description: err.message, variant: "destructive" })
+      console.error("ElectivePage: Error fetching page data:", err)
+      setError(err.message || "An unexpected error occurred while fetching page data.")
+      toast({
+        title: "Error Loading Page",
+        description: err.message || "Could not load page data.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
