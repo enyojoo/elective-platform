@@ -473,6 +473,158 @@ const translations: Translations = {
       },
     },
   },
+  "student.courses.maxStudentsLabel": { en: "Max Students", ru: "Макс. студентов" },
+  "student.courses.unnamedCourse": { en: "Unnamed Course", ru: "Курс без названия" },
+  "student.courses.noInstructor": { en: "Instructor N/A", ru: "Преподаватель не указан" },
+  "student.courses.noDescriptionAvailable": { en: "No description available.", ru: "Описание отсутствует." },
+  "student.courses.packNotFound": { en: "Elective course pack not found.", ru: "Пакет элективных курсов не найден." },
+  "student.courses.selectIndividualCoursesHelpText": {
+    en: "Select your preferred courses from the list below.",
+    ru: "Выберите предпочитаемые курсы из списка ниже.",
+  },
+  "student.courses.noIndividualCoursesInPack": {
+    en: "No courses available in this pack.",
+    ru: "В этом пакете нет доступных курсов.",
+  },
+  "student.courses.cancelConfirm": {
+    en: "Are you sure you want to cancel your current selection? This action cannot be undone.",
+    ru: "Вы уверены, что хотите отменить текущий выбор? Это действие нельзя будет отменить.",
+  },
+  "student.courses.selectionCancelledTitle": { en: "Selection Cancelled", ru: "Выбор отменен" },
+  "student.courses.cancellationFailedTitle": { en: "Cancellation Failed", ru: "Ошибка отмены" },
+  "student.courses.selectMinOneCourseTitle": { en: "No Courses Selected", ru: "Курсы не выбраны" },
+  "student.courses.selectMinOneCourseDesc": {
+    en: "Please select at least one course.",
+    ru: "Пожалуйста, выберите хотя бы один курс.",
+  },
+  "student.courses.tooManyCoursesTitle": { en: "Too Many Courses", ru: "Слишком много курсов" },
+  "student.courses.tooManyCoursesDesc": {
+    en: "You can select at most {count} courses.",
+    ru: "Вы можете выбрать не более {count} курсов.",
+  }, // Assuming you'll pass count
+  "student.courses.authorizationRequiredTitle": { en: "Authorization Required", ru: "Требуется авторизация" },
+  "student.courses.enterFullNameDesc": {
+    en: "Please enter your full name to authorize.",
+    ru: "Пожалуйста, введите ваше полное имя для авторизации.",
+  },
+  "student.courses.selectionSubmittedTitle": { en: "Selection Submitted", ru: "Выбор отправлен" },
+  "student.courses.selectionSubmittedDesc": {
+    en: "Your course selection has been submitted successfully.",
+    ru: "Ваш выбор курсов успешно отправлен.",
+  },
+  "student.courses.submissionError": {
+    en: "An error occurred during submission.",
+    ru: "Произошла ошибка при отправке.",
+  },
+  "student.statement.downloading": { en: "Downloading...", ru: "Загрузка..." },
+  "student.statement.downloadTemplate": { en: "Download Template", ru: "Скачать шаблон" },
+  "student.statement.fileReady": { en: "File ready:", ru: "Файл готов:" },
+  "student.statement.previouslyUploaded": {
+    en: "Previously uploaded statement will be used unless a new one is provided.",
+    ru: "Ранее загруженное заявление будет использовано, если не будет предоставлено новое.",
+  },
+  "student.statement.uploadError": {
+    en: "Statement is required and was not uploaded or found.",
+    ru: "Заявление обязательно и не было загружено или найдено.",
+  },
+  "student.statement.noTemplateTitle": { en: "No Template", ru: "Нет шаблона" },
+  "student.statement.noTemplateDesc": {
+    en: "Statement template is not available.",
+    ru: "Шаблон заявления недоступен.",
+  },
+  "student.statement.downloadFailedTitle": { en: "Download Failed", ru: "Ошибка загрузки" },
+  "student.statement.downloadFailedDesc": {
+    en: "Could not open the statement template.",
+    ru: "Не удалось открыть шаблон заявления.",
+  },
+  "student.statement.invalidFileTypeTitle": { en: "Invalid File Type", ru: "Неверный тип файла" },
+  "student.statement.invalidFileTypeDesc": { en: "Please upload a PDF file.", ru: "Пожалуйста, загрузите PDF файл." },
+  "student.statement.fileTooLargeTitle": { en: "File Too Large", ru: "Файл слишком большой" },
+  "student.statement.fileTooLargeDesc": {
+    en: "Please upload a file smaller than 5MB.",
+    ru: "Пожалуйста, загрузите файл размером менее 5МБ.",
+  },
+  "student.statement.fileSelectedTitle": { en: "File Selected", ru: "Файл выбран" },
+  "student.statement.fileSelectedDesc": {
+    en: '"{fileName}" ready for upload.',
+    ru: 'Файл "{fileName}" готов к загрузке.',
+  }, // Assuming fileName param
+  "student.courses.maxSelectionsReachedTitle": {
+    en: "Maximum Selections Reached",
+    ru: "Достигнуто максимальное количество выборов",
+  },
+  "student.courses.maxSelectionsReachedDesc": {
+    en: "You can only select up to {count} courses.",
+    ru: "Вы можете выбрать не более {count} курсов.",
+  }, // Assuming count param
+  "student.profileMissing": { en: "Student profile is missing.", ru: "Профиль студента отсутствует." },
+  "student.courses.selectionRejected": { en: "Selection Rejected", ru: "Выбор отклонен" },
+  "student.courses.selectionRejectedDesc": {
+    en: "Your course selection has been rejected. Please contact support.",
+    ru: "Ваш выбор курсов отклонен. Пожалуйста, свяжитесь со службой поддержки.",
+  },
+  "student.courses.deadlinePassed": { en: "Deadline Passed", ru: "Срок истек" },
+  "student.courses.deadlinePassedDesc": {
+    en: "The deadline for this selection has passed.",
+    ru: "Срок подачи заявок на этот выбор истек.",
+  },
+  "student.courses.unlimited": { en: "unlimited", ru: "неограниченно" },
+  "student.courses.reviewSelectionAndAuthorize": {
+    en: "Please review your selection and enter your full name to authorize this submission.",
+    ru: "Пожалуйста, просмотрите свой выбор и введите ваше полное имя для авторизации этой заявки.",
+  },
+  "student.courses.enterFullNamePlaceholder": { en: "Enter your full name", ru: "Введите ваше полное имя" },
+  errorLoadingPageTitle: { en: "Error Loading Page", ru: "Ошибка загрузки страницы" },
+  "student.courses.cancelErrorMissingInfo": {
+    en: "Cannot cancel selection. Missing information.",
+    ru: "Невозможно отменить выбор. Отсутствует информация.",
+  },
+  "student.courses.noSelectionToCancelTitle": { en: "No Selection to Cancel", ru: "Нет выбора для отмены" },
+  "student.courses.noSelectionToCancelDesc": {
+    en: "There is no active selection to cancel.",
+    ru: "Нет активного выбора для отмены.",
+  },
+  // Ensure these common ones are also present or add them
+  "student.courses.selectIndividualCourses": {
+    en: "Select Individual Courses",
+    ru: "Выберите отдельные курсы",
+  },
+  "student.courses.notFound": {
+    en: "Elective course pack not found.",
+    ru: "Пакет элективных курсов не найден.",
+  },
+  "student.courses.selectionPeriodActive": {
+    en: "Selection Period Active",
+    ru: "Период выбора активен",
+  },
+  "student.courses.selectionPeriodDesc": {
+    en: "You can select up to",
+    ru: "Вы можете выбрать до",
+  },
+  "student.courses.until": {
+    en: "until",
+    ru: "до",
+  },
+  "student.courses.of": {
+    en: "of",
+    ru: "из",
+  },
+  "student.statement.requiredTitle": {
+    en: "Statement Required",
+    ru: "Требуется заявление",
+  },
+  "student.statement.requiredDesc": {
+    en: "Please upload your signed statement.",
+    ru: "Пожалуйста, загрузите подписанное заявление.",
+  },
+  "student.courses.close": {
+    en: "Close",
+    ru: "Закрыть",
+  },
+  "student.courses.cancelSelection": {
+    en: "Cancel Selection",
+    ru: "Отменить выбор",
+  },
 }
 
 interface LanguageContextType {
@@ -487,18 +639,31 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("en")
 
   const t = (key: string, params?: Record<string, any>) => {
-    // Handle nested keys like "manager.exchangeBuilder.addUniversities"
     const keys = key.split(".")
-    let translation: any = translations
+    let translationBranch: any = translations
 
-    // Navigate through the nested structure
     for (const k of keys) {
-      translation = translation[k]
-      if (!translation) break
+      translationBranch = translationBranch?.[k]
+      if (!translationBranch) {
+        // If a nested key is not found, return the original key
+        // console.warn(`Translation key not found: ${key}`)
+        // return key
+        break
+      }
     }
 
-    // Get the final translation based on current language
-    const finalTranslation = translation?.[language] || key
+    let finalTranslation = translationBranch?.[language]
+
+    if (typeof finalTranslation !== "string") {
+      // Fallback to English if translation for current language is missing or not a string
+      finalTranslation = translationBranch?.en
+    }
+
+    if (typeof finalTranslation !== "string") {
+      // If English is also missing or not a string, return the original key
+      // console.warn(`Translation key not found for '${key}' in any language.`);
+      return key
+    }
 
     if (params) {
       return Object.entries(params).reduce((acc, [paramKey, value]) => {
