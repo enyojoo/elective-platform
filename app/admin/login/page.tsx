@@ -12,9 +12,9 @@ import Link from "next/link"
 import Image from "next/image"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context" // Keep for potential future use, though admin is main domain
+import { useInstitution } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
-// import { useToast } from "@/hooks/use-toast" // Toast on successful login might be removed due to redirect
+import { useToast } from "@/hooks/use-toast"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function InstitutionLoginPage() {
@@ -25,24 +25,27 @@ export default function InstitutionLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  // const { toast } = useToast() // Toasts on login page might be lost due to refresh/redirect
-  const { isSubdomainAccess } = useInstitution()
+  const { toast } = useToast()
+  const { isSubdomainAccess, defaultLogoUrl } = useInstitution()
 
+  // Ensure this page is only accessed via main domain
   useEffect(() => {
     if (isSubdomainAccess) {
-      // This should ideally be caught by middleware, but as a fallback
-      window.location.href = window.location.href.replace("/admin/login", "/student/login") // Or redirect to main domain admin login
+      // If accessed via subdomain, redirect to student login
+      window.location.href = window.location.href.replace("/admin/login", "/student/login")
     }
   }, [isSubdomainAccess])
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
+  // Update the handleSubmit function to use the admin API endpoint
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     try {
+      // Sign in with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -50,29 +53,49 @@ export default function InstitutionLoginPage() {
 
       if (authError) {
         setError(authError.message)
-        setIsLoading(false)
         return
       }
 
       if (authData.session) {
-        // Successfully signed in with Supabase.
-        // Refresh the page. Middleware will handle redirect to dashboard.
-        router.refresh()
-        // setIsLoading(false) // No need to set loading to false, page will refresh/redirect
-      } else {
-        // Fallback if no session and no error (should be rare)
-        setError("Login failed. Please try again.")
-        setIsLoading(false)
+        // Use a server API endpoint to check the role instead of direct query
+        const response = await fetch("/api/auth/check-role", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authData.session.access_token}`,
+          },
+          body: JSON.stringify({ userId: authData.session.user.id }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to verify user role")
+        }
+
+        const { role } = await response.json()
+
+        if (role !== "admin") {
+          await supabase.auth.signOut()
+          setError("You do not have admin access")
+          return
+        }
+
+        toast({
+          title: t("auth.login.success"),
+          description: t("auth.login.welcomeBack"),
+        })
+        router.push("/admin/dashboard")
       }
     } catch (err) {
       console.error("Login error:", err)
-      setError("Login failed. Please try again.") // More generic error
+      setError("Login failed. Please try again.")
+    } finally {
       setIsLoading(false)
     }
   }
 
   if (isSubdomainAccess) {
-    return null
+    return null // Don't render anything while redirecting
   }
 
   return (
@@ -103,7 +126,6 @@ export default function InstitutionLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@example.com"
                   required
-                  autoComplete="email"
                 />
               </div>
 
@@ -117,13 +139,11 @@ export default function InstitutionLoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>

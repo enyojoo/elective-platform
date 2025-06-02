@@ -10,18 +10,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-// import { useToast } from "@/components/ui/use-toast" // Toast on successful login might be removed due to redirect
+import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
-import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context" // Ensure DEFAULT_LOGO_URL is exported
+import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context"
 import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
-  // const { toast } = useToast()
-  const { institution, isLoading: institutionLoading } = useInstitution() // Removed isSubdomainAccess
+  const { toast } = useToast()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -35,46 +35,68 @@ export default function ManagerLoginPage() {
     setShowPassword(!showPassword)
   }
 
+  // Update the handleLogin function to use the admin API endpoint
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (authError) {
-        setError(authError.message)
-        setIsLoading(false)
+      if (error) {
+        setError(error.message)
         return
       }
 
       if (data.session) {
-        // Successfully signed in with Supabase.
-        // Refresh the page. Middleware will handle redirect to dashboard.
-        router.refresh()
-        // setIsLoading(false) // No need to set loading to false, page will refresh/redirect
-      } else {
-        setError("Login failed. Please try again.")
-        setIsLoading(false)
+        // Use a server API endpoint to check the role instead of direct query
+        const response = await fetch("/api/auth/check-role", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ userId: data.session.user.id }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to verify user role")
+        }
+
+        const { role, institutionId } = await response.json()
+
+        if (role === "program_manager") {
+          // If accessed via subdomain, check if manager belongs to this institution
+          if (isSubdomainAccess && institution && institutionId !== institution.id) {
+            await supabase.auth.signOut()
+            setError("You don't have access to this institution")
+          } else {
+            toast({
+              title: "Login successful",
+              description: "Welcome to the manager dashboard",
+            })
+            router.push("/manager/dashboard")
+          }
+        } else {
+          // User is authenticated but not a manager
+          await supabase.auth.signOut()
+          setError("You do not have manager access")
+        }
       }
     } catch (err) {
       console.error("Login error:", err)
-      setError("Login failed. Please try again.") // More generic error
+      setError("Login failed. Please try again.")
+    } finally {
       setIsLoading(false)
     }
   }
 
-  if (institutionLoading && typeof window !== "undefined" && window.location.hostname !== "localhost") {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-        <div>Loading institution details...</div>
-      </div>
-    )
-  }
+  // Remove loading indicator - render the page immediately
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
@@ -83,7 +105,7 @@ export default function ManagerLoginPage() {
           {institution?.logo_url ? (
             <Image
               src={institution.logo_url || "/placeholder.svg"}
-              alt={`${institution.name || "Institution"} Logo`}
+              alt={`${institution.name} Logo`}
               width={160}
               height={45}
               className="h-10 w-auto"
@@ -91,7 +113,7 @@ export default function ManagerLoginPage() {
             />
           ) : (
             <Image
-              src={DEFAULT_LOGO_URL || "/placeholder.svg"} // Ensure DEFAULT_LOGO_URL is defined and exported
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
               alt="Elective Pro Logo"
               width={160}
               height={45}
@@ -121,7 +143,6 @@ export default function ManagerLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  autoComplete="email"
                 />
               </div>
               <div className="space-y-2">
@@ -139,13 +160,11 @@ export default function ManagerLoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -155,7 +174,7 @@ export default function ManagerLoginPage() {
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading || institutionLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t("auth.login.loggingIn") : t("auth.login.login")}
               </Button>
               <div className="text-center text-sm">
