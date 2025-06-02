@@ -43,7 +43,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
       try {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*, degrees:degree_id(id, name), academic_year:academic_year_id(id, year)")
+          .select("*, degrees:degree_id(id, name), academic_year:academic_year(id, year)")
           .eq("id", userId)
           .eq("role", "manager") // Ensure fetching manager role
           .single()
