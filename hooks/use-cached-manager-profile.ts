@@ -39,10 +39,9 @@ export function useCachedManagerProfile(userId: string | undefined) {
 
       console.log(`useCachedManagerProfile: Fetching fresh data for ${cacheKey} from API for userId: ${userId}`)
       try {
-        // Fetch academic_year directly as a column from profiles
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*, degrees:degree_id(id, name), academic_year") // Changed here
+          .select("*, degrees:degree_id(id, name), academic_year") // Corrected: select academic_year directly
           .eq("id", userId)
           .eq("role", "manager")
           .single()
@@ -65,7 +64,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
         setError(err.message)
         toast({
           title: "Error",
-          description: "Failed to load manager profile: " + err.message, // Include actual error message
+          description: "Failed to load manager profile",
           variant: "destructive",
         })
         setProfile(null)

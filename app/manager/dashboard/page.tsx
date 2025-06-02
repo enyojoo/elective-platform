@@ -365,7 +365,6 @@ export default function ManagerDashboard() {
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">{t("manager.dashboard.year")}:</dt>
-                    {/* Display academic_year directly */}
                     <dd>{profile?.academic_year || "-"}</dd>
                   </div>
                   <div className="flex justify-between">
