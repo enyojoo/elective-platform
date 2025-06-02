@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useDataCache } from "@/lib/data-cache-context"
+import { useDataCache } from "@/lib/data-cache-context" // Corrected import path
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
@@ -18,7 +18,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
     if (!userId) {
       console.log("useCachedManagerProfile: No userId, returning.")
       setIsLoading(false)
-      setProfile(null)
+      setProfile(null) // Ensure profile is null if no userId
       return
     }
 
@@ -27,7 +27,8 @@ export function useCachedManagerProfile(userId: string | undefined) {
       setError(null)
       console.log(`useCachedManagerProfile: Starting fetch for userId: ${userId}`)
 
-      const cacheKey = "managerProfile"
+      // Try to get data from cache first
+      const cacheKey = "managerProfile" // Explicitly define cache key
       const cachedProfile = getCachedData<any>(cacheKey, userId)
 
       if (cachedProfile) {
@@ -37,13 +38,14 @@ export function useCachedManagerProfile(userId: string | undefined) {
         return
       }
 
+      // If not in cache, fetch from API
       console.log(`useCachedManagerProfile: Fetching fresh data for ${cacheKey} from API for userId: ${userId}`)
       try {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("*, degrees:degree_id(id, name), academic_year") // Corrected: select academic_year directly
+          .select("*, degrees:degree_id(id, name), academic_year") // Select academic_year directly
           .eq("id", userId)
-          .eq("role", "manager")
+          .eq("role", "program_manager") // Use correct role "program_manager"
           .single()
 
         if (profileError) {
@@ -52,11 +54,12 @@ export function useCachedManagerProfile(userId: string | undefined) {
         }
 
         if (!profileData) {
-          console.warn(`useCachedManagerProfile: No manager profile found for userId: ${userId}`)
+          console.warn(`useCachedManagerProfile: No program_manager profile found for userId: ${userId}`)
           setProfile(null)
         } else {
           console.log("useCachedManagerProfile: Fetched profile data:", profileData)
           setProfile(profileData)
+          // Save to cache
           setCachedData(cacheKey, userId, profileData)
         }
       } catch (err: any) {
@@ -64,10 +67,10 @@ export function useCachedManagerProfile(userId: string | undefined) {
         setError(err.message)
         toast({
           title: "Error",
-          description: "Failed to load manager profile",
+          description: "Failed to load program manager profile",
           variant: "destructive",
         })
-        setProfile(null)
+        setProfile(null) // Clear profile on error
       } finally {
         setIsLoading(false)
         console.log("useCachedManagerProfile: Fetch process finished.")
@@ -75,7 +78,7 @@ export function useCachedManagerProfile(userId: string | undefined) {
     }
 
     fetchProfile()
-  }, [userId, supabase, getCachedData, setCachedData, toast])
+  }, [userId, supabase, getCachedData, setCachedData, toast]) // Dependencies are correct
 
   return { profile, isLoading, error }
 }
