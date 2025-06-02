@@ -154,27 +154,10 @@ export async function signUp(formData: FormData) {
   }
 }
 
-export async function signOut(formData: FormData) {
+export async function signOut() {
   const supabase = createServerActionClient({ cookies })
   await supabase.auth.signOut()
-
-  const userRoleContext = formData.get("userRoleContext") as string | null
-
-  if (userRoleContext === "student") {
-    redirect("/student/login")
-  } else if (userRoleContext === "manager") {
-    redirect("/manager/login")
-  } else if (userRoleContext === "admin") {
-    redirect("/admin/login")
-  } else if (userRoleContext === "super_admin") {
-    redirect("/super-admin/login")
-  } else {
-    // Fallback: if no context or unknown context, redirect to root.
-    // Middleware will then handle further redirection.
-    // On main domain, / -> /admin/login
-    // On subdomain, / -> /student/login (this is the less ideal fallback for subdomains if context is missing)
-    redirect("/")
-  }
+  redirect("/")
 }
 
 // Add a new function to ensure a user profile exists
