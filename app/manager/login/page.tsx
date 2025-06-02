@@ -10,18 +10,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
+// import { useToast } from "@/components/ui/use-toast" // Toast on successful login might be removed due to redirect
 import { useLanguage } from "@/lib/language-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
-import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context"
+import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context" // Ensure DEFAULT_LOGO_URL is exported
 import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerLoginPage() {
   const { t } = useLanguage()
   const router = useRouter()
-  const { toast } = useToast()
-  const { institution, isLoading: institutionLoading, isSubdomainAccess } = useInstitution()
+  // const { toast } = useToast()
+  const { institution, isLoading: institutionLoading } = useInstitution() // Removed isSubdomainAccess
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -35,94 +35,46 @@ export default function ManagerLoginPage() {
     setShowPassword(!showPassword)
   }
 
-  // Update the handleLogin function to use the admin API endpoint
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
-    console.log("Manager Login: Attempting login...")
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (authError) {
-        console.error("Manager Login: Supabase auth error:", authError.message)
         setError(authError.message)
         setIsLoading(false)
         return
       }
 
-      if (authData.session && authData.user) {
-        console.log("Manager Login: Supabase auth successful, session created for user:", authData.user.id)
-
-        const response = await fetch("/api/auth/check-role", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.session.access_token}`,
-          },
-          body: JSON.stringify({ userId: authData.user.id }),
-        })
-
-        console.log("Manager Login: Role check API response status:", response.status)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse role check error response" }))
-          console.error("Manager Login: Role check API error:", errorData)
-          setError(errorData.error || "Failed to verify user role. Please try again.")
-          await supabase.auth.signOut()
-          setIsLoading(false)
-          return
-        }
-
-        const { role, institutionId: userInstitutionId } = await response.json()
-        console.log("Manager Login: Role received from API:", role, "Institution ID:", userInstitutionId)
-
-        // IMPORTANT: Use "program_manager" as per your earlier comment
-        if (role !== "program_manager") {
-          console.error("Manager Login: Role mismatch. Expected 'program_manager', got:", role)
-          setError("You do not have program manager access.")
-          await supabase.auth.signOut()
-          setIsLoading(false)
-          return
-        }
-
-        // If accessed via subdomain, check if manager belongs to this institution
-        if (isSubdomainAccess && institution && userInstitutionId !== institution.id) {
-          console.error(
-            "Manager Login: Institution mismatch. Subdomain institution:",
-            institution.id,
-            "User's institution:",
-            userInstitutionId,
-          )
-          setError("You don't have access to this institution's manager portal.")
-          await supabase.auth.signOut()
-          setIsLoading(false)
-          return
-        }
-
-        toast({
-          title: "Login successful",
-          description: "Welcome to the manager dashboard",
-        })
-        console.log("Manager Login: Redirecting to /manager/dashboard...")
-        router.push("/manager/dashboard")
+      if (data.session) {
+        // Successfully signed in with Supabase.
+        // Refresh the page. Middleware will handle redirect to dashboard.
+        router.refresh()
+        // setIsLoading(false) // No need to set loading to false, page will refresh/redirect
       } else {
-        console.error("Manager Login: Supabase auth returned no error, but no session or user data.")
-        setError("Login failed: Could not establish a session. Please try again.")
+        setError("Login failed. Please try again.")
         setIsLoading(false)
       }
-    } catch (err: any) {
-      console.error("Manager Login: An unexpected error occurred during login:", err)
-      setError(err.message || "An unexpected error occurred. Please try again.")
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("Login failed. Please try again.") // More generic error
       setIsLoading(false)
     }
   }
 
-  // Remove loading indicator - render the page immediately
+  if (institutionLoading && typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
+        <div>Loading institution details...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
@@ -131,7 +83,7 @@ export default function ManagerLoginPage() {
           {institution?.logo_url ? (
             <Image
               src={institution.logo_url || "/placeholder.svg"}
-              alt={`${institution.name} Logo`}
+              alt={`${institution.name || "Institution"} Logo`}
               width={160}
               height={45}
               className="h-10 w-auto"
@@ -139,7 +91,7 @@ export default function ManagerLoginPage() {
             />
           ) : (
             <Image
-              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
+              src={DEFAULT_LOGO_URL || "/placeholder.svg"} // Ensure DEFAULT_LOGO_URL is defined and exported
               alt="Elective Pro Logo"
               width={160}
               height={45}
@@ -169,6 +121,7 @@ export default function ManagerLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
               <div className="space-y-2">
@@ -186,11 +139,13 @@ export default function ManagerLoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -200,7 +155,7 @@ export default function ManagerLoginPage() {
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || institutionLoading}>
                 {isLoading ? t("auth.login.loggingIn") : t("auth.login.login")}
               </Button>
               <div className="text-center text-sm">

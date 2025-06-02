@@ -12,9 +12,9 @@ import Link from "next/link"
 import Image from "next/image"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
+import { useInstitution } from "@/lib/institution-context" // Keep for potential future use, though admin is main domain
 import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
+// import { useToast } from "@/hooks/use-toast" // Toast on successful login might be removed due to redirect
 import { Eye, EyeOff } from "lucide-react"
 
 export default function InstitutionLoginPage() {
@@ -25,25 +25,22 @@ export default function InstitutionLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  const { toast } = useToast()
-  const { isSubdomainAccess, defaultLogoUrl } = useInstitution()
+  // const { toast } = useToast() // Toasts on login page might be lost due to refresh/redirect
+  const { isSubdomainAccess } = useInstitution()
 
-  // Ensure this page is only accessed via main domain
   useEffect(() => {
     if (isSubdomainAccess) {
-      // If accessed via subdomain, redirect to student login
-      window.location.href = window.location.href.replace("/admin/login", "/student/login")
+      // This should ideally be caught by middleware, but as a fallback
+      window.location.href = window.location.href.replace("/admin/login", "/student/login") // Or redirect to main domain admin login
     }
   }, [isSubdomainAccess])
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  // Update the handleSubmit function to use the admin API endpoint
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
-    console.log("Admin Login: Attempting login...")
 
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -52,67 +49,30 @@ export default function InstitutionLoginPage() {
       })
 
       if (authError) {
-        console.error("Admin Login: Supabase auth error:", authError.message)
         setError(authError.message)
         setIsLoading(false)
         return
       }
 
-      if (authData.session && authData.user) {
-        console.log("Admin Login: Supabase auth successful, session created for user:", authData.user.id)
-
-        const response = await fetch("/api/auth/check-role", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.session.access_token}`,
-          },
-          body: JSON.stringify({ userId: authData.user.id }),
-        })
-
-        console.log("Admin Login: Role check API response status:", response.status)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse role check error response" }))
-          console.error("Admin Login: Role check API error:", errorData)
-          setError(errorData.error || "Failed to verify user role. Please try again.")
-          await supabase.auth.signOut()
-          setIsLoading(false)
-          return
-        }
-
-        const { role } = await response.json()
-        console.log("Admin Login: Role received from API:", role)
-
-        if (role !== "admin") {
-          console.error("Admin Login: Role mismatch. Expected 'admin', got:", role)
-          setError("You do not have admin access.")
-          await supabase.auth.signOut()
-          setIsLoading(false)
-          return
-        }
-
-        toast({
-          title: t("auth.login.success"),
-          description: t("auth.login.welcomeBack"),
-        })
-        console.log("Admin Login: Redirecting to /admin/dashboard...")
-        router.push("/admin/dashboard")
-        // No need to setIsLoading(false) here as the component will unmount
+      if (authData.session) {
+        // Successfully signed in with Supabase.
+        // Refresh the page. Middleware will handle redirect to dashboard.
+        router.refresh()
+        // setIsLoading(false) // No need to set loading to false, page will refresh/redirect
       } else {
-        console.error("Admin Login: Supabase auth returned no error, but no session or user data.")
-        setError("Login failed: Could not establish a session. Please try again.")
+        // Fallback if no session and no error (should be rare)
+        setError("Login failed. Please try again.")
         setIsLoading(false)
       }
-    } catch (err: any) {
-      console.error("Admin Login: An unexpected error occurred during login:", err)
-      setError(err.message || "An unexpected error occurred. Please try again.")
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("Login failed. Please try again.") // More generic error
       setIsLoading(false)
     }
   }
 
   if (isSubdomainAccess) {
-    return null // Don't render anything while redirecting
+    return null
   }
 
   return (
@@ -143,6 +103,7 @@ export default function InstitutionLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@example.com"
                   required
+                  autoComplete="email"
                 />
               </div>
 
@@ -156,11 +117,13 @@ export default function InstitutionLoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>

@@ -8,11 +8,9 @@ export async function middleware(req: NextRequest) {
 
   console.log(`Middleware: Processing ${method} request for hostname: ${hostname}, path: ${originalPath}`)
 
-  // This response object will be used by Supabase to set cookies
-  // and will be the base for our final response.
   const response = NextResponse.next({
     request: {
-      headers: req.headers, // Pass original headers to the request for the next layer
+      headers: req.headers,
     },
   })
 
@@ -34,7 +32,6 @@ export async function middleware(req: NextRequest) {
     },
   )
 
-  // Fetch the session. This also refreshes the session if needed.
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -61,7 +58,6 @@ export async function middleware(req: NextRequest) {
   const isMainDomainAccess =
     hostname === "app.electivepro.net" || hostname === "electivepro.net" || (isDevelopment && !subdomain)
 
-  // Define public paths (accessible without authentication) for each role
   const publicAdminPaths = ["/admin/login", "/admin/signup", "/admin/forgot-password", "/admin/reset-password"]
   const publicStudentPaths = [
     "/student/login",
@@ -75,23 +71,20 @@ export async function middleware(req: NextRequest) {
     "/manager/forgot-password",
     "/manager/reset-password",
   ]
-  const publicSuperAdminPaths = ["/super-admin/login"] // For completeness
+  const publicSuperAdminPaths = ["/super-admin/login", "/super-admin/reset-password", "/super-admin/forgot-password"]
 
-  // Helper to create a redirect response while preserving cookies set by Supabase
   const createRedirect = (url: string | URL) => {
     const redirectResponse = NextResponse.redirect(url)
     response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
     return redirectResponse
   }
 
-  // Helper to create a rewrite response while preserving cookies
   const createRewrite = (url: URL, requestHeaders?: Headers) => {
     const rewriteResponse = NextResponse.rewrite(url, { request: { headers: requestHeaders || req.headers } })
     response.cookies.getAll().forEach((cookie) => rewriteResponse.cookies.set(cookie))
     return rewriteResponse
   }
 
-  // Helper to create a next response (proceeding) while preserving cookies and allowing new request headers
   const createNextResponse = (updatedRequestHeaders?: Headers) => {
     const nextResponse = NextResponse.next({
       request: {
@@ -101,8 +94,6 @@ export async function middleware(req: NextRequest) {
     response.cookies.getAll().forEach((cookie) => nextResponse.cookies.set(cookie))
     return nextResponse
   }
-
-  // --- Routing and Authentication Logic ---
 
   if (originalPath === "/institution-required" && subdomain) {
     console.log(`Middleware: Redirecting /institution-required from subdomain to main domain`)
@@ -114,7 +105,6 @@ export async function middleware(req: NextRequest) {
   const isAdminRoute = originalPath.startsWith("/admin/")
   const isSuperAdminRoute = originalPath.startsWith("/super-admin/")
 
-  // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
   if ((isStudentRoute || isManagerRoute) && !subdomain) {
     console.log(
       `Middleware: Student/manager route ${originalPath} on main domain. Redirecting to /institution-required.`,
@@ -122,33 +112,46 @@ export async function middleware(req: NextRequest) {
     return createRedirect(new URL(`/institution-required`, mainDomainUrlBase))
   }
 
-  // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
   if ((isAdminRoute || isSuperAdminRoute) && subdomain) {
     console.log(`Middleware: Admin/super-admin route ${originalPath} on subdomain. Redirecting to main domain.`)
     return createRedirect(new URL(originalPath, mainDomainUrlBase))
   }
 
-  // Authentication Checks
+  // Authentication and Post-Login Redirects
   if (isAdminRoute && isMainDomainAccess) {
+    if (session && publicAdminPaths.includes(originalPath)) {
+      console.log(`Middleware: Admin logged in, on public admin page ${originalPath}. Redirecting to dashboard.`)
+      return createRedirect(new URL("/admin/dashboard", mainDomainUrlBase))
+    }
     if (!session && !publicAdminPaths.includes(originalPath)) {
       console.log(`Middleware: No session for protected admin route ${originalPath}. Redirecting to /admin/login.`)
       return createRedirect(new URL("/admin/login", mainDomainUrlBase))
     }
   } else if (isStudentRoute && subdomain) {
+    if (session && publicStudentPaths.includes(originalPath)) {
+      console.log(`Middleware: Student logged in, on public student page ${originalPath}. Redirecting to dashboard.`)
+      return createRedirect(new URL("/student/dashboard", req.url))
+    }
     if (!session && !publicStudentPaths.includes(originalPath)) {
-      console.log(
-        `Middleware: No session for protected student route ${originalPath} on subdomain ${subdomain}. Redirecting to /student/login.`,
-      )
-      return createRedirect(new URL("/student/login", req.url)) // req.url preserves subdomain
+      console.log(`Middleware: No session for protected student route ${originalPath}. Redirecting to /student/login.`)
+      return createRedirect(new URL("/student/login", req.url))
     }
   } else if (isManagerRoute && subdomain) {
+    if (session && publicManagerPaths.includes(originalPath)) {
+      console.log(`Middleware: Manager logged in, on public manager page ${originalPath}. Redirecting to dashboard.`)
+      return createRedirect(new URL("/manager/dashboard", req.url))
+    }
     if (!session && !publicManagerPaths.includes(originalPath)) {
-      console.log(
-        `Middleware: No session for protected manager route ${originalPath} on subdomain ${subdomain}. Redirecting to /manager/login.`,
-      )
-      return createRedirect(new URL("/manager/login", req.url)) // req.url preserves subdomain
+      console.log(`Middleware: No session for protected manager route ${originalPath}. Redirecting to /manager/login.`)
+      return createRedirect(new URL("/manager/login", req.url))
     }
   } else if (isSuperAdminRoute && isMainDomainAccess) {
+    if (session && publicSuperAdminPaths.includes(originalPath)) {
+      console.log(
+        `Middleware: Super Admin logged in, on public super admin page ${originalPath}. Redirecting to dashboard.`,
+      )
+      return createRedirect(new URL("/super-admin/dashboard", mainDomainUrlBase))
+    }
     if (!session && !publicSuperAdminPaths.includes(originalPath)) {
       console.log(
         `Middleware: No session for protected super-admin route ${originalPath}. Redirecting to /super-admin/login.`,
@@ -157,7 +160,6 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Subdomain specific logic (validation and header injection)
   if (subdomain) {
     console.log(`Middleware: Processing subdomain specific logic for: ${subdomain}`)
     try {
@@ -167,7 +169,7 @@ export async function middleware(req: NextRequest) {
       if (isDevelopment) {
         apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
       } else {
-        apiUrl = `https://${hostname}/api/subdomain/${subdomain}` // Use actual hostname in prod
+        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
       }
       console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
 
@@ -179,7 +181,7 @@ export async function middleware(req: NextRequest) {
         signal: controller.signal,
       }).finally(() => clearTimeout(timeoutId))
 
-      const requestHeaders = new Headers(req.headers) // Start with original request headers
+      const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
       requestHeaders.set("x-url", req.url)
 
@@ -213,14 +215,17 @@ export async function middleware(req: NextRequest) {
           requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
       }
 
+      // Rewrite base paths on subdomains if not already handled by auth redirects
       if (originalPath === "/") {
-        return createRewrite(new URL("/student/login", req.url), requestHeaders)
+        // If already authenticated, auth redirect to dashboard would have happened.
+        // If not authenticated, redirect to login.
+        return createRewrite(new URL(session ? "/student/dashboard" : "/student/login", req.url), requestHeaders)
       }
-      if (originalPath === "/student") {
-        return createRewrite(new URL("/student/login", req.url), requestHeaders)
+      if (originalPath === "/student" && !originalPath.includes("login") && !originalPath.includes("signup")) {
+        return createRewrite(new URL(session ? "/student/dashboard" : "/student/login", req.url), requestHeaders)
       }
-      if (originalPath === "/manager") {
-        return createRewrite(new URL("/manager/login", req.url), requestHeaders)
+      if (originalPath === "/manager" && !originalPath.includes("login") && !originalPath.includes("signup")) {
+        return createRewrite(new URL(session ? "/manager/dashboard" : "/manager/login", req.url), requestHeaders)
       }
 
       return createNextResponse(requestHeaders)
@@ -233,24 +238,20 @@ export async function middleware(req: NextRequest) {
       ) {
         console.log(`Middleware: Allowing dashboard page ${originalPath} despite error.`)
         const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain) // Assuming subdomain is available
+        if (subdomain) requestHeaders.set("x-electivepro-subdomain", subdomain)
         return createNextResponse(requestHeaders)
       }
       return createRedirect(new URL(`/institution-required`, mainDomainUrlBase))
     }
   }
 
-  // Main domain specific redirects for base paths
   if (isMainDomainAccess) {
     if (originalPath === "/") {
-      return createRedirect(new URL("/admin/login", mainDomainUrlBase))
+      return createRedirect(new URL(session ? "/admin/dashboard" : "/admin/login", mainDomainUrlBase))
     }
     if (originalPath === "/admin" || originalPath === "/admin/") {
-      return createRedirect(new URL("/admin/login", mainDomainUrlBase))
+      return createRedirect(new URL(session ? "/admin/dashboard" : "/admin/login", mainDomainUrlBase))
     }
-    // Student/Manager base paths on main domain should be caught by RULE 1 (subdomain required)
-    // and redirected to /institution-required.
-    // If they somehow reach here, it's an anomaly.
     if (originalPath === "/student" || originalPath === "/student/") {
       return createRedirect(new URL("/institution-required", mainDomainUrlBase))
     }
@@ -258,13 +259,11 @@ export async function middleware(req: NextRequest) {
       return createRedirect(new URL("/institution-required", mainDomainUrlBase))
     }
     if (originalPath === "/super-admin" || originalPath === "/super-admin/") {
-      return createRedirect(new URL("/super-admin/login", mainDomainUrlBase))
+      return createRedirect(new URL(session ? "/super-admin/dashboard" : "/super-admin/login", mainDomainUrlBase))
     }
   }
 
-  // If no other specific response was returned, proceed with the original plan (NextResponse.next())
-  // but ensure cookies from Supabase are included.
-  return response // This `response` object was initialized as NextResponse.next() and potentially had cookies added by Supabase.
+  return response
 }
 
 export const config = {
