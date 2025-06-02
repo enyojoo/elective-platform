@@ -1,31 +1,23 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Users, BookOpen, Globe, Layers, Building } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { Skeleton } from "@/components/ui/skeleton" // Keep for individual stat loading
-import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
-import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
+import { supabase } from "@/lib/supabase"
 import { useDataCache } from "@/lib/data-cache-context"
 import { useToast } from "@/hooks/use-toast"
-import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
+import { useInstitutionContext } from "@/lib/institution-context"
 
 export default function AdminDashboard() {
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
+  const { institution } = useInstitutionContext()
   const { getCachedData, setCachedData } = useDataCache()
-
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-  const router = useRouter()
-  const supabase = getSupabaseBrowserClient()
 
   const [dashboardStats, setDashboardStats] = useState({
     users: { count: 0, isLoading: true },
@@ -38,174 +30,111 @@ export default function AdminDashboard() {
   })
 
   useEffect(() => {
-    let isMounted = true
-    async function fetchUserId() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (isMounted) {
-        if (user) {
-          setUserId(user.id)
-        } else {
-          setComponentState("error") // Should be caught by middleware/layout
-          toast({
-            title: "Authentication Error",
-            description: "User not found. Redirecting to login.",
-            variant: "destructive",
-          })
-          router.push("/admin/login")
+    if (!institution?.id) return
+
+    const fetchDashboardStats = async () => {
+      try {
+        // Try to get stats from cache
+        const cachedStats = getCachedData<typeof dashboardStats>("dashboardStats", institution.id)
+
+        if (cachedStats) {
+          setDashboardStats(cachedStats)
+          return
         }
-      }
-    }
-    fetchUserId()
-    return () => {
-      isMounted = false
-    }
-  }, [supabase, router, toast])
 
-  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
-  // isLoadingInstitution from context is named isLoadingInstitutionOriginal to avoid conflict
-  const isLoadingInstitution = isLoadingInstitutionOriginal
+        // Fetch users count
+        const { count: usersCount, error: usersError } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-  useEffect(() => {
-    if (!userId || isLoadingProfile || isLoadingInstitution) {
-      setComponentState("loading")
-      return
-    }
+        if (usersError) throw usersError
 
-    if (profileError || !adminProfile || !institution) {
-      setComponentState("error") // Layout will redirect or handle
-      // toast({ title: "Error", description: "Failed to load critical admin data.", variant: "destructive" })
-      return
-    }
+        // Fetch programs count
+        const { count: programsCount, error: programsError } = await supabase
+          .from("programs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-    setComponentState("ready")
-  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError, toast, router])
+        if (programsError) throw programsError
 
-  const fetchDashboardStats = useCallback(async () => {
-    try {
-      // Try to get stats from cache
-      const cachedStats = getCachedData<typeof dashboardStats>("dashboardStats", institution.id)
+        // Fetch courses count
+        const { count: coursesCount, error: coursesError } = await supabase
+          .from("courses")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-      if (cachedStats) {
-        setDashboardStats(cachedStats)
-        return
-      }
+        if (coursesError) throw coursesError
 
-      // Fetch users count
-      const { count: usersCount, error: usersError } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
+        // Fetch groups count
+        const { count: groupsCount, error: groupsError } = await supabase
+          .from("groups")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-      if (usersError) throw usersError
+        if (groupsError) throw groupsError
 
-      // Fetch programs count
-      const { count: programsCount, error: programsError } = await supabase
-        .from("programs")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
+        // Fetch course electives count
+        const { count: electivesCount, error: electivesError } = await supabase
+          .from("elective_packs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("type", "course")
 
-      if (programsError) throw programsError
+        if (electivesError) throw electivesError
 
-      // Fetch courses count
-      const { count: coursesCount, error: coursesError } = await supabase
-        .from("courses")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
+        // Fetch exchange programs count
+        const { count: exchangeCount, error: exchangeError } = await supabase
+          .from("elective_packs")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
+          .eq("type", "exchange")
 
-      if (coursesError) throw coursesError
+        if (exchangeError) throw exchangeError
 
-      // Fetch groups count
-      const { count: groupsCount, error: groupsError } = await supabase
-        .from("groups")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
+        // Fetch universities count
+        const { count: universitiesCount, error: universitiesError } = await supabase
+          .from("universities")
+          .select("*", { count: "exact", head: true })
+          .eq("institution_id", institution.id)
 
-      if (groupsError) throw groupsError
+        if (universitiesError) throw universitiesError
 
-      // Fetch course electives count
-      const { count: electivesCount, error: electivesError } = await supabase
-        .from("elective_packs")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
-        .eq("type", "course")
+        const newStats = {
+          users: { count: usersCount || 0, isLoading: false },
+          programs: { count: programsCount || 0, isLoading: false },
+          courses: { count: coursesCount || 0, isLoading: false },
+          groups: { count: groupsCount || 0, isLoading: false },
+          courseElectives: { count: electivesCount || 0, isLoading: false },
+          exchangePrograms: { count: exchangeCount || 0, isLoading: false },
+          universities: { count: universitiesCount || 0, isLoading: false },
+        }
 
-      if (electivesError) throw electivesError
+        setDashboardStats(newStats)
 
-      // Fetch exchange programs count
-      const { count: exchangeCount, error: exchangeError } = await supabase
-        .from("elective_packs")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
-        .eq("type", "exchange")
-
-      if (exchangeError) throw exchangeError
-
-      // Fetch universities count
-      const { count: universitiesCount, error: universitiesError } = await supabase
-        .from("universities")
-        .select("*", { count: "exact", head: true })
-        .eq("institution_id", institution.id)
-
-      if (universitiesError) throw universitiesError
-
-      const newStats = {
-        users: { count: usersCount || 0, isLoading: false },
-        programs: { count: programsCount || 0, isLoading: false },
-        courses: { count: coursesCount || 0, isLoading: false },
-        groups: { count: groupsCount || 0, isLoading: false },
-        courseElectives: { count: electivesCount || 0, isLoading: false },
-        exchangePrograms: { count: exchangeCount || 0, isLoading: false },
-        universities: { count: universitiesCount || 0, isLoading: false },
-      }
-
-      setDashboardStats(newStats)
-
-      // Cache the stats
-      setCachedData("dashboardStats", institution.id, newStats)
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard statistics",
-        variant: "destructive",
-      })
-
-      // Set all loading states to false even on error
-      setDashboardStats((prev) => {
-        const updated = { ...prev }
-        Object.keys(updated).forEach((key) => {
-          updated[key as keyof typeof updated].isLoading = false
+        // Cache the stats
+        setCachedData("dashboardStats", institution.id, newStats)
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard statistics",
+          variant: "destructive",
         })
-        return updated
-      })
-    }
-  }, [getCachedData, institution?.id, setCachedData, supabase, toast])
-  // Fetch stats only when component is ready and necessary data is available
-  useEffect(() => {
-    if (componentState === "ready" && institution?.id && adminProfile?.id) {
-      fetchDashboardStats()
-    }
-  }, [componentState, institution?.id, adminProfile?.id, fetchDashboardStats])
 
-  if (componentState === "loading") {
-    return (
-      <DashboardLayout userRole="admin">
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
+        // Set all loading states to false even on error
+        setDashboardStats((prev) => {
+          const updated = { ...prev }
+          Object.keys(updated).forEach((key) => {
+            updated[key as keyof typeof updated].isLoading = false
+          })
+          return updated
+        })
+      }
+    }
 
-  if (componentState === "error") {
-    return (
-      <DashboardLayout userRole="admin">
-        <div className="flex items-center justify-center h-full p-4 text-destructive">
-          Error loading dashboard. You might be redirected.
-        </div>
-      </DashboardLayout>
-    )
-  }
+    fetchDashboardStats()
+  }, [institution?.id, getCachedData, setCachedData, toast])
 
   return (
     <DashboardLayout userRole="admin">

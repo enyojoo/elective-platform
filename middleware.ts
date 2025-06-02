@@ -182,62 +182,22 @@ export async function middleware(req: NextRequest) {
 
       requestHeaders.set("x-url", req.url)
 
-      // --- START: AUTHENTICATION LOGIC FOR PROTECTED SUBDOMAIN ROUTES ---
-      const isStudentPath = path.startsWith("/student/")
-      const isManagerPath = path.startsWith("/manager/")
-
-      const publicStudentRoutes = [
-        "/student/login",
-        "/student/signup",
-        "/student/forgot-password",
-        "/student/reset-password",
-      ]
-      const publicManagerRoutes = [
-        "/manager/login",
-        "/manager/signup",
-        "/manager/forgot-password",
-        "/manager/reset-password",
-      ]
-
-      const isProtectedStudentRoute =
-        isStudentPath && !publicStudentRoutes.some((publicPath) => path.startsWith(publicPath))
-      const isProtectedManagerRoute =
-        isManagerPath && !publicManagerRoutes.some((publicPath) => path.startsWith(publicPath))
-
-      if (isProtectedStudentRoute || isProtectedManagerRoute) {
-        // Verify the actual name of your Supabase auth cookie.
-        // It might be 'sb-access-token' or 'sb-[YOUR_PROJECT_REF]-auth-token'.
-        const supabaseAuthCookieName = Object.keys(req.cookies.getAll()).find(
-          (name) => name.startsWith("sb-") && name.endsWith("-auth-token"),
-        )
-        const supabaseAuthCookie = supabaseAuthCookieName ? req.cookies.get(supabaseAuthCookieName) : undefined
-
-        if (!supabaseAuthCookie) {
-          let loginUrlPath = "/student/login" // Default
-          if (isProtectedManagerRoute) {
-            loginUrlPath = "/manager/login"
-          }
-          console.log(
-            `Middleware: Unauthenticated access to ${path} on subdomain ${subdomain}, redirecting to ${loginUrlPath}`,
-          )
-          const loginUrl = new URL(loginUrlPath, req.url)
-          return NextResponse.redirect(loginUrl)
-        }
-        console.log(`Middleware: Authenticated access to ${path} on subdomain ${subdomain} (cookie found).`)
-      }
-      // --- END: AUTHENTICATION LOGIC ---
-
-      // Original logic for redirecting root of subdomain, /student, /manager
+      // If accessing the root of a subdomain, redirect to student login
       if (path === "/") {
         return NextResponse.redirect(new URL("/student/login", req.url))
       }
+
+      // Redirect /student to /student/login on subdomains
       if (path === "/student") {
         return NextResponse.redirect(new URL("/student/login", req.url))
       }
+
+      // Redirect /manager to /manager/login on subdomains
       if (path === "/manager") {
         return NextResponse.redirect(new URL("/manager/login", req.url))
       }
 
+      // IMPORTANT: Return next response with the updated headers
       return NextResponse.next({
         request: {
           headers: requestHeaders,
@@ -246,6 +206,8 @@ export async function middleware(req: NextRequest) {
     } catch (err) {
       console.error("Middleware: Error in subdomain processing:", err)
 
+      // For dashboard pages, we'll be more lenient and allow the request to proceed
+      // This prevents redirects on page reloads when there are temporary errors
       if (path.includes("/dashboard") || path.endsWith("/student") || path.endsWith("/manager")) {
         console.log(`Middleware: Allowing dashboard page despite error: ${path}`)
         const requestHeaders = new Headers(req.headers)
@@ -258,6 +220,7 @@ export async function middleware(req: NextRequest) {
         })
       }
 
+      // Redirect to institution required page on MAIN domain
       if (isDevelopment) {
         return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
       } else {
@@ -271,11 +234,20 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", req.url))
   }
 
-  // Redirect base role paths to their login pages (for main domain access)
-  if ((path === "/admin" || path === "/admin/") && isMainDomain) {
+  // Redirect base role paths to their login pages
+  if (path === "/admin" || path === "/admin/") {
     return NextResponse.redirect(new URL("/admin/login", req.url))
   }
-  if ((path === "/super-admin" || path === "/super-admin/") && isMainDomain) {
+
+  if (path === "/student" || path === "/student/") {
+    return NextResponse.redirect(new URL("/student/login", req.url))
+  }
+
+  if (path === "/manager" || path === "/manager/") {
+    return NextResponse.redirect(new URL("/manager/login", req.url))
+  }
+
+  if (path === "/super-admin" || path === "/super-admin/") {
     return NextResponse.redirect(new URL("/super-admin/login", req.url))
   }
 

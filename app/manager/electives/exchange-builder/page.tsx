@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -22,8 +22,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
-import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface University {
   id: string
@@ -41,9 +39,7 @@ export default function ExchangeBuilderPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
-  const { institution, isLoading: institutionLoading } = useInstitution()
-  const { profile, loading: profileLoading } = useCachedManagerProfile()
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
+  const { institution } = useInstitution()
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1)
@@ -77,26 +73,8 @@ export default function ExchangeBuilderPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  useEffect(() => {
-    if (institutionLoading || profileLoading) {
-      setComponentState("loading")
-      return
-    }
-    if (!institution) {
-      setComponentState("redirecting")
-      return
-    }
-    if (!profile) {
-      setComponentState("redirecting")
-      return
-    }
-    setComponentState("ready")
-  }, [institution, institutionLoading, profile, profileLoading])
-
   // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
-    if (componentState !== "ready") return
-
     const fetchData = async () => {
       setIsLoading(true)
       try {
@@ -137,43 +115,14 @@ export default function ExchangeBuilderPage() {
     }
 
     fetchData()
-  }, [componentState, toast, t])
+  }, [toast, t])
 
   // Fetch universities when entering step 2
-  const fetchUniversities = useCallback(async () => {
-    if (!institution?.id) return
-
-    setIsLoadingUniversities(true)
-    try {
-      console.log("Fetching universities...")
-      const { data, error } = await supabase
-        .from("universities")
-        .select("*")
-        .eq("institution_id", institution.id)
-        .eq("status", "active")
-        .order("name", { ascending: true })
-
-      if (error) throw error
-
-      console.log("Universities data:", data)
-      setUniversities(data || [])
-    } catch (error) {
-      console.error("Error fetching universities:", error)
-      toast({
-        title: t("manager.exchangeBuilder.error"),
-        description: t("manager.exchangeBuilder.errorFetchingUniversities"),
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingUniversities(false)
-    }
-  }, [institution?.id, supabase, t, toast])
-
   useEffect(() => {
-    if (componentState === "ready" && currentStep === 2 && universities.length === 0 && !isLoadingUniversities) {
+    if (currentStep === 2 && universities.length === 0 && !isLoadingUniversities) {
       fetchUniversities()
     }
-  }, [componentState, currentStep, universities.length, isLoadingUniversities, fetchUniversities])
+  }, [currentStep, universities.length, isLoadingUniversities])
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -222,6 +171,36 @@ export default function ExchangeBuilderPage() {
       })
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  // Fetch universities
+  const fetchUniversities = async () => {
+    if (!institution?.id) return
+
+    setIsLoadingUniversities(true)
+    try {
+      console.log("Fetching universities...")
+      const { data, error } = await supabase
+        .from("universities")
+        .select("*")
+        .eq("institution_id", institution.id)
+        .eq("status", "active")
+        .order("name", { ascending: true })
+
+      if (error) throw error
+
+      console.log("Universities data:", data)
+      setUniversities(data || [])
+    } catch (error) {
+      console.error("Error fetching universities:", error)
+      toast({
+        title: t("manager.exchangeBuilder.error"),
+        description: t("manager.exchangeBuilder.errorFetchingUniversities"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingUniversities(false)
     }
   }
 
@@ -406,10 +385,6 @@ export default function ExchangeBuilderPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  if (componentState !== "ready") {
-    return <PageSkeleton />
   }
 
   return (

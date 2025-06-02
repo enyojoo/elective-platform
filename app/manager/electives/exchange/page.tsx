@@ -28,8 +28,6 @@ import { formatDate } from "@/lib/utils"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
 import { useDataCache } from "@/lib/data-cache-context"
-import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface ElectivePack {
   id: string
@@ -54,10 +52,8 @@ export default function ManagerExchangeElectivesPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
-  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { institution } = useInstitution()
   const { getCachedData, setCachedData, invalidateCache } = useDataCache()
-  const { profile, loading: profileLoading } = useCachedManagerProfile()
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
 
   // Delete confirmation dialog state
   const [packToDelete, setPackToDelete] = useState<string | null>(null)
@@ -68,24 +64,6 @@ export default function ManagerExchangeElectivesPage() {
   } = useDialogState(false)
 
   useEffect(() => {
-    if (institutionLoading || profileLoading) {
-      setComponentState("loading")
-      return
-    }
-    if (!institution) {
-      setComponentState("redirecting")
-      return
-    }
-    if (!profile) {
-      setComponentState("redirecting")
-      return
-    }
-    setComponentState("ready")
-  }, [institution, institutionLoading, profile, profileLoading])
-
-  useEffect(() => {
-    if (componentState !== "ready" || !institution?.id) return
-
     const fetchElectivePacks = async () => {
       if (!institution?.id) return
 
@@ -145,7 +123,7 @@ export default function ManagerExchangeElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [componentState, supabase, institution?.id, toast, t, getCachedData, setCachedData])
+  }, [supabase, institution?.id, toast, t, getCachedData, setCachedData])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {
@@ -290,14 +268,6 @@ export default function ManagerExchangeElectivesPage() {
       })
       handleCloseDeleteDialog()
     }
-  }
-
-  if (componentState !== "ready") {
-    return (
-      <DashboardLayout>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
   }
 
   return (

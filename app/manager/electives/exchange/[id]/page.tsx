@@ -22,10 +22,6 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { useRouter } from "next/navigation"
-import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
-import { useInstitution } from "@/lib/institution-context"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface ExchangeProgramDetailPageProps {
   params: {
@@ -44,27 +40,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
   const { t, language } = useLanguage()
   const { toast } = useToast()
-
-  const router = useRouter() // If not already imported
-  const { institution, isLoading: institutionLoading } = useInstitution()
-  const { profile, loading: profileLoading } = useCachedManagerProfile()
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
-
-  useEffect(() => {
-    if (institutionLoading || profileLoading) {
-      setComponentState("loading")
-      return
-    }
-    if (!institution) {
-      setComponentState("redirecting")
-      return
-    }
-    if (!profile) {
-      setComponentState("redirecting")
-      return
-    }
-    setComponentState("ready")
-  }, [institution, institutionLoading, profile, profileLoading, router])
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -465,10 +440,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
         description: t("toast.selection.updated.exchange.description").replace("{0}", studentToEdit.studentName),
       })
     }, 100)
-  }
-
-  if (componentState !== "ready") {
-    return <PageSkeleton />
   }
 
   return (

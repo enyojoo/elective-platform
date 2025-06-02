@@ -28,15 +28,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus, Globe, AlertTriangle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
-import { TableSkeleton } from "@/components/ui/table-skeleton" // Keep for table loading
-import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { useInstitution } from "@/lib/institution-context"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
-import { useRouter } from "next/navigation"
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 
 // Define the University type
 interface University {
@@ -84,12 +81,8 @@ export default function UniversitiesPage() {
   const itemsPerPage = 10
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const supabase = getSupabaseBrowserClient() // Corrected usage
-  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
-  const router = useRouter()
-
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
-  const [userId, setUserId] = useState<string | undefined>(undefined)
+  const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitution()
 
   // Delete confirmation dialog state
   const [universityToDelete, setUniversityToDelete] = useState<string | null>(null)
@@ -98,47 +91,6 @@ export default function UniversitiesPage() {
     openDialog: openDeleteDialog,
     closeDialog: closeDeleteDialog,
   } = useDialogState(false)
-
-  useEffect(() => {
-    let isMounted = true
-    async function fetchUserId() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (isMounted) {
-        if (user) {
-          setUserId(user.id)
-        } else {
-          setComponentState("error")
-          toast({
-            title: "Authentication Error",
-            description: "User not found. Redirecting to login.",
-            variant: "destructive",
-          })
-          router.push("/admin/login")
-        }
-      }
-    }
-    fetchUserId()
-    return () => {
-      isMounted = false
-    }
-  }, [supabase, router, toast])
-
-  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
-  const isLoadingInstitution = isLoadingInstitutionOriginal
-
-  useEffect(() => {
-    if (!userId || isLoadingProfile || isLoadingInstitution) {
-      setComponentState("loading")
-      return
-    }
-    if (profileError || !adminProfile || !institution) {
-      setComponentState("error")
-      return
-    }
-    setComponentState("ready")
-  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
 
   // Load cached data on initial render
   useEffect(() => {
@@ -166,19 +118,18 @@ export default function UniversitiesPage() {
           }
         }
       } catch (error) {
-        // console.error("Error loading cached data:", error) // Cache errors are not critical
+        console.error("Error loading cached data:", error)
         // If there's an error, we'll just fetch fresh data
       }
     }
-    // Load cache only when component is ready
-    if (componentState === "ready") loadCachedData()
-  }, [componentState, institution?.id])
+
+    loadCachedData()
+  }, [institution?.id])
 
   // Fetch countries from Supabase
   useEffect(() => {
     const fetchCountries = async () => {
-      if (!isLoadingCountries || componentState !== "ready") {
-        // Ensure component is ready
+      if (!isLoadingCountries) {
         return
       }
 
@@ -213,13 +164,12 @@ export default function UniversitiesPage() {
     }
 
     fetchCountries()
-  }, [componentState, supabase, toast, t, isLoadingCountries])
+  }, [supabase, toast, t, isLoadingCountries])
 
   // Fetch universities from Supabase
   useEffect(() => {
     const fetchUniversities = async () => {
-      if (!institution?.id || !isLoadingUniversities || componentState !== "ready") {
-        // Ensure component is ready
+      if (!institution?.id || !isLoadingUniversities) {
         return
       }
 
@@ -258,7 +208,7 @@ export default function UniversitiesPage() {
     }
 
     fetchUniversities()
-  }, [componentState, supabase, toast, t, institution?.id, isLoadingUniversities])
+  }, [supabase, toast, t, institution?.id, isLoadingUniversities])
 
   // Filter universities based on search term and filters
   useEffect(() => {
@@ -438,24 +388,6 @@ export default function UniversitiesPage() {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage
   const currentItems = filteredUniversities.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(filteredUniversities.length / itemsPerPage)
-
-  if (componentState === "loading") {
-    return (
-      <DashboardLayout>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
-
-  if (componentState === "error") {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-full p-4 text-destructive">
-          Error loading universities page. Please ensure you are logged in and have the necessary permissions.
-        </div>
-      </DashboardLayout>
-    )
-  }
 
   return (
     <DashboardLayout>

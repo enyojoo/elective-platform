@@ -31,23 +31,20 @@ import {
   ChevronRight,
   AlertTriangle,
 } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
-import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton" // Keep for table loading
-import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
-import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
+import { useInstitution } from "@/lib/institution-context"
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 
 // Create a separate component for the groups table content
 function GroupsTableContent() {
   const { t, language } = useLanguage()
-  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
+  const { institution } = useInstitution()
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -87,12 +84,7 @@ function GroupsTableContent() {
   const [degreeFilter, setDegreeFilter] = useState("")
 
   const { toast } = useToast()
-  const router = useRouter()
-  const supabase = getSupabaseBrowserClient()
   const { getCachedData, setCachedData } = useDataCache()
-
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
-  const [userId, setUserId] = useState<string | undefined>(undefined)
 
   // Set up cleanup when component unmounts
   useEffect(() => {
@@ -116,51 +108,11 @@ function GroupsTableContent() {
     }
   }, [])
 
-  useEffect(() => {
-    let isMounted = true
-    async function fetchUserId() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (isMounted) {
-        if (user) {
-          setUserId(user.id)
-        } else {
-          setComponentState("error")
-          toast({
-            title: "Authentication Error",
-            description: "User not found. Redirecting to login.",
-            variant: "destructive",
-          })
-          router.push("/admin/login")
-        }
-      }
-    }
-    fetchUserId()
-    return () => {
-      isMounted = false
-    }
-  }, [supabase, router, toast])
-
-  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
-  const isLoadingInstitution = isLoadingInstitutionOriginal
-
-  useEffect(() => {
-    if (!userId || isLoadingProfile || isLoadingInstitution) {
-      setComponentState("loading")
-      return
-    }
-    if (profileError || !adminProfile || !institution) {
-      setComponentState("error")
-      return
-    }
-    setComponentState("ready")
-  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
-
   // Fetch groups from Supabase with caching
   useEffect(() => {
     const fetchGroups = async () => {
-      if (dataFetchedRef.current || !institution?.id || componentState !== "ready") return
+      if (dataFetchedRef.current || !institution?.id) return
+
       try {
         setIsLoading(true)
 
@@ -264,12 +216,12 @@ function GroupsTableContent() {
     }
 
     fetchGroups()
-  }, [componentState, t, toast, getCachedData, setCachedData, institution, supabase]) // Added supabase
+  }, [t, toast, getCachedData, setCachedData, institution])
 
   // Fetch reference data (degrees and years) with caching
   useEffect(() => {
     const fetchReferenceData = async () => {
-      if (!institution?.id || componentState !== "ready") return
+      if (!institution?.id) return
 
       try {
         // Try to get degrees from cache
@@ -334,7 +286,7 @@ function GroupsTableContent() {
     }
 
     fetchReferenceData()
-  }, [componentState, t, toast, getCachedData, setCachedData, institution, language, supabase]) // Added supabase
+  }, [t, toast, getCachedData, setCachedData, institution, language])
 
   // Add this after the other useEffect hooks
   useEffect(() => {
@@ -712,18 +664,6 @@ function GroupsTableContent() {
     if (!groupToDelete) return 0
     const group = groups.find((g) => g.id === groupToDelete)
     return group ? group.students : 0
-  }
-
-  if (componentState === "loading") {
-    return <PageSkeleton />
-  }
-
-  if (componentState === "error") {
-    return (
-      <div className="flex items-center justify-center h-full p-4 text-destructive">
-        Error loading groups. Please ensure you are logged in and have the necessary permissions.
-      </div>
-    )
   }
 
   return (

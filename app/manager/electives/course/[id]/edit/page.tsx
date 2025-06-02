@@ -17,42 +17,22 @@ import { ArrowLeft, ArrowRight, Calendar, Check, ChevronRight, Info, Search } fr
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { DocumentUpload } from "@/components/document-upload"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 
-interface ExchangeEditPageProps {
+interface ElectiveCourseEditPageProps {
   params: {
     id: string
   }
 }
 
-export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
-  const { t } = useLanguage()
+export default function ElectiveCourseEditPage({ params }: ElectiveCourseEditPageProps) {
   const router = useRouter()
+  const { t } = useLanguage()
   const [activeStep, setActiveStep] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedUniversities, setSelectedUniversities] = useState<string[]>([])
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
-  const [documents, setDocuments] = useState<Array<{ name: string; url: string; path: string }>>([])
-
-  // Helper function to get formatted exchange program name
-  const getExchangeProgramName = (id: string) => {
-    if (id.includes("fall-2023")) return "Fall Semester 2023 Exchange"
-    if (id.includes("spring-2023")) return "Spring Semester 2023 Exchange"
-    if (id.includes("fall-2024")) return "Fall Semester 2024 Exchange"
-    if (id.includes("spring-2024")) return "Spring Semester 2024 Exchange"
-
-    // Extract season and year from ID
-    const seasonMatch = id.match(/(spring|fall|winter|summer)/i)
-    const yearMatch = id.match(/20\d\d/)
-
-    if (seasonMatch && yearMatch) {
-      const season = seasonMatch[0].charAt(0).toUpperCase() + seasonMatch[0].slice(1).toLowerCase()
-      return `${season} Semester ${yearMatch[0]} Exchange`
-    }
-
-    return "Exchange Program" // Default if no pattern is found
-  }
 
   // Form state
   const [packDetails, setPackDetails] = useState({
@@ -64,148 +44,144 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
     status: ElectivePackStatus.DRAFT,
   })
 
-  // Mock available universities data
-  const availableUniversities = [
+  // Mock available courses data
+  const availableCourses = [
     {
       id: "1",
-      name: "University of Amsterdam",
-      description: "A leading research university in the Netherlands with a strong international focus.",
-      country: "Netherlands",
-      city: "Amsterdam",
-      maxStudents: 3,
-      language: "English",
+      name: "Business Ethics",
+      description: "Explore ethical principles and moral challenges in business decision-making.",
+      maxStudents: 30,
+      teacher: "Dr. Anna Ivanova",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "2",
-      name: "HEC Paris",
-      description: "One of Europe's leading business schools with a focus on management education and research.",
-      country: "France",
-      city: "Paris",
-      maxStudents: 2,
-      language: "English, French",
+      name: "Digital Marketing",
+      description: "Learn modern digital marketing strategies and tools for business growth.",
+      maxStudents: 25,
+      teacher: "Prof. Mikhail Petrov",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "3",
-      name: "Bocconi University",
-      description:
-        "A private university in Milan, Italy, specializing in economics, management, and related disciplines.",
-      country: "Italy",
-      city: "Milan",
-      maxStudents: 4,
-      language: "English, Italian",
+      name: "Sustainable Business",
+      description: "Study sustainable business practices and their impact on the environment and society.",
+      maxStudents: 35,
+      teacher: "Dr. Elena Smirnova",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "4",
-      name: "Copenhagen Business School",
-      description: "A Danish public university specializing in business and economics education.",
-      country: "Denmark",
-      city: "Copenhagen",
-      maxStudents: 3,
-      language: "English",
+      name: "Project Management",
+      description: "Master the principles and methodologies of effective project management.",
+      maxStudents: 30,
+      teacher: "Prof. Sergei Kuznetsov",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["Management", "International Management", "Public Administration"],
     },
     {
       id: "5",
-      name: "Vienna University of Economics and Business",
-      description: "The largest university focusing on business and economics in Europe.",
-      country: "Austria",
-      city: "Vienna",
-      maxStudents: 2,
-      language: "English, German",
+      name: "International Business Law",
+      description: "Understand legal frameworks governing international business operations.",
+      maxStudents: 25,
+      teacher: "Dr. Olga Volkova",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["International Management"],
     },
     {
       id: "6",
-      name: "Stockholm School of Economics",
-      description: "A private business school in Stockholm, Sweden with a strong international presence.",
-      country: "Sweden",
-      city: "Stockholm",
-      maxStudents: 3,
-      language: "English",
+      name: "Financial Markets",
+      description: "Analyze financial markets, instruments, and investment strategies.",
+      maxStudents: 30,
+      teacher: "Prof. Dmitry Sokolov",
+      academicYear: 2,
+      degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "7",
-      name: "ESADE Business School",
-      description: "A private educational institution in Barcelona, Spain with a focus on law and business.",
-      country: "Spain",
-      city: "Barcelona",
-      maxStudents: 2,
-      language: "English, Spanish",
+      name: "Strategic Management",
+      description: "Develop strategic thinking and decision-making skills for business leadership.",
+      maxStudents: 30,
+      teacher: "Prof. Natalia Volkova",
+      academicYear: 3,
+      degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
     {
       id: "8",
-      name: "University of St. Gallen",
-      description: "A research university in St. Gallen, Switzerland specializing in business administration.",
-      country: "Switzerland",
-      city: "St. Gallen",
-      maxStudents: 3,
-      language: "English, German",
+      name: "Data Analytics for Business",
+      description: "Learn to analyze and interpret data for business decision-making.",
+      maxStudents: 25,
+      teacher: "Dr. Ivan Petrov",
+      academicYear: 3,
+      degree: "Bachelor",
       programs: ["Management", "International Management"],
     },
   ]
 
-  // Load existing exchange program data
-  useEffect(() => {
+  // Mock function to fetch elective course data
+  const fetchElectiveCourse = async (id: string) => {
     // In a real application, you would fetch the data from your API
-    // For now, we'll simulate loading with mock data
-    const loadExchangeProgram = () => {
-      setIsLoading(true)
-
-      // Simulate API call delay
+    // For this demo, we'll simulate a network request with setTimeout
+    return new Promise<void>((resolve) => {
       setTimeout(() => {
-        // Extract season and year from ID for pre-filling the form
-        const seasonMatch = params.id.match(/(spring|fall|winter|summer)/i)
-        const yearMatch = params.id.match(/20\d\d/)
-
-        const semester = seasonMatch ? seasonMatch[0].toLowerCase() : ""
-        const year = yearMatch ? Number.parseInt(yearMatch[0]) : new Date().getFullYear()
-
-        // Pre-populate form with mock data based on the ID
-        setPackDetails({
-          semester,
-          year,
+        // Mock data based on the ID
+        const mockData = {
+          id: params.id,
+          semester: params.id.includes("fall") ? "fall" : "spring",
+          year: params.id.includes("2023") ? 2023 : 2024,
           maxSelections: params.id === "spring-2024" ? 3 : 2,
-          startDate: params.id.includes("fall") ? "2023-08-01" : params.id.includes("spring-2024") ? "2024-01-10" : "",
-          endDate: params.id.includes("fall") ? "2023-08-15" : params.id.includes("spring-2024") ? "2024-01-25" : "",
+          startDate: params.id.includes("fall") ? "2023-08-01" : "2024-01-10",
+          endDate: params.id.includes("fall") ? "2023-08-15" : "2024-01-25",
           status: ElectivePackStatus.PUBLISHED,
-        })
-
-        // Pre-select universities
-        if (params.id === "spring-2024") {
-          setSelectedUniversities(["1", "2", "3", "4", "5", "6", "7", "8"])
-        } else if (params.id.includes("fall-2023")) {
-          setSelectedUniversities(["1", "2", "3", "4", "5", "6"])
-        } else {
-          setSelectedUniversities(["1", "3", "5"])
+          selectedCourses:
+            params.id === "spring-2024" ? ["1", "2", "3", "5", "7", "8"] : ["1", "3", "4", "6", "7", "8"],
         }
 
-        setIsLoading(false)
-      }, 500)
-    }
+        setPackDetails({
+          semester: mockData.semester,
+          year: mockData.year,
+          maxSelections: mockData.maxSelections,
+          startDate: mockData.startDate,
+          endDate: mockData.endDate,
+          status: mockData.status,
+        })
 
-    loadExchangeProgram()
+        setSelectedCourses(mockData.selectedCourses)
+        setIsLoading(false)
+        resolve()
+      }, 1000) // Simulate network delay
+    })
+  }
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchElectiveCourse(params.id)
   }, [params.id])
 
-  // Filter universities based on search query
-  const filteredUniversities = availableUniversities.filter(
-    (university) =>
-      university.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      university.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      university.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      university.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  // Filter courses based on search query
+  const filteredCourses = availableCourses.filter(
+    (course) =>
+      course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.description.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  // Toggle university selection
-  const toggleUniversitySelection = (universityId: string) => {
-    if (selectedUniversities.includes(universityId)) {
-      setSelectedUniversities(selectedUniversities.filter((id) => id !== universityId))
+  // Toggle course selection
+  const toggleCourseSelection = (courseId: string) => {
+    if (selectedCourses.includes(courseId)) {
+      setSelectedCourses(selectedCourses.filter((id) => id !== courseId))
     } else {
-      setSelectedUniversities([...selectedUniversities, universityId])
+      setSelectedCourses([...selectedCourses, courseId])
     }
   }
 
@@ -228,18 +204,19 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
 
   // Updated steps for the 3-step wizard
   const steps = [
-    { title: t("manager.exchangeBuilder.step1") },
-    { title: t("manager.exchangeBuilder.step2") },
-    { title: t("manager.exchangeBuilder.step3") },
-    { title: t("manager.exchangeBuilder.documents") },
+    { title: t("manager.courseBuilder.step1") },
+    { title: t("manager.courseBuilder.step2") },
+    { title: t("manager.courseBuilder.step3") },
   ]
 
   // Add a computed pack name function
   const getPackName = () => {
     if (!packDetails.semester || !packDetails.year) return ""
-    const semesterName =
-      packDetails.semester === "fall" ? t("manager.exchangeBuilder.fall") : t("manager.exchangeBuilder.spring")
-    return `${semesterName.charAt(0).toUpperCase() + semesterName.slice(1)} ${packDetails.year}`
+
+    const semester =
+      packDetails.semester === "fall" ? t("manager.courseBuilder.fall") : t("manager.courseBuilder.spring")
+
+    return `${semester} ${packDetails.year}`
   }
 
   // Handle next step
@@ -259,42 +236,36 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
   // Handle save as draft
   const handleSaveAsDraft = () => {
     // Here you would typically save to your backend
-    const packName = getPackName()
+    const courseSelectionName = getPackName()
     console.log("Saving as draft:", {
       id: params.id,
-      name: packName,
+      name: courseSelectionName,
       ...packDetails,
-      universities: selectedUniversities,
+      courses: selectedCourses,
+      status: ElectivePackStatus.DRAFT,
     })
-    router.push(`/manager/electives/exchange/${params.id}`)
+    router.push(`/manager/electives/course/${params.id}`)
   }
 
-  // Handle update
-  const handleUpdate = () => {
-    // Here you would typically update in your backend
-    const packName = getPackName()
-    console.log("Updating:", {
+  // Handle publish
+  const handlePublish = () => {
+    // Here you would typically save and publish to your backend
+    const courseSelectionName = getPackName()
+    console.log("Publishing:", {
       id: params.id,
-      name: packName,
+      name: courseSelectionName,
       ...packDetails,
-      universities: selectedUniversities,
+      courses: selectedCourses,
+      status: ElectivePackStatus.PUBLISHED,
     })
-    router.push(`/manager/electives/exchange/${params.id}`)
+    router.push(`/manager/electives/course/${params.id}`)
   }
 
-  if (isLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full animate-pulse bg-muted"></div>
-            <div className="h-8 w-64 animate-pulse bg-muted"></div>
-          </div>
-          <div className="h-20 animate-pulse bg-muted rounded-md"></div>
-          <div className="h-96 animate-pulse bg-muted rounded-md"></div>
-        </div>
-      </DashboardLayout>
-    )
+  // Format date for input fields
+  const formatDateForInput = (dateString: string) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    return date.toISOString().split("T")[0]
   }
 
   return (
@@ -302,17 +273,19 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href={`/manager/electives/exchange/${params.id}`}>
+            <Link href={`/manager/electives/course/${params.id}`}>
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{t("manager.exchangeBuilder.editTitle")}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {t("manager.courseBuilder.editTitle") || t("manager.courseBuilder.title")}
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">{t(`manager.status.${packDetails.status.toLowerCase()}`)}</Badge>
+            <Badge variant="outline">{t("manager.courseBuilder.draft")}</Badge>
           </div>
         </div>
 
@@ -343,7 +316,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
         <div className="md:hidden">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium">
-              {t("manager.exchangeBuilder.step")} {activeStep + 1} {t("manager.exchangeBuilder.of")} {steps.length}
+              {t("manager.courseBuilder.step")} {activeStep + 1} {t("manager.courseBuilder.of")} {steps.length}
             </p>
             <p className="text-sm font-medium">{steps[activeStep].title}</p>
           </div>
@@ -366,25 +339,25 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
               <div className="space-y-6">
                 {/* Basic Information Section */}
                 <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.exchangeBuilder.programInfo")}</h3>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.courseInfo")}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="semester">{t("manager.exchangeBuilder.semester")}</Label>
+                      <Label htmlFor="semester">{t("manager.courseBuilder.semester")}</Label>
                       <Select
                         value={packDetails.semester}
                         onValueChange={(value) => handleSelectChange("semester", value)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={t("manager.exchangeBuilder.semester")} />
+                          <SelectValue placeholder={t("manager.courseBuilder.semester")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="fall">{t("manager.exchangeBuilder.fall")}</SelectItem>
-                          <SelectItem value="spring">{t("manager.exchangeBuilder.spring")}</SelectItem>
+                          <SelectItem value="fall">{t("manager.courseBuilder.fall")}</SelectItem>
+                          <SelectItem value="spring">{t("manager.courseBuilder.spring")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="year">{t("manager.exchangeBuilder.year")}</Label>
+                      <Label htmlFor="year">{t("manager.courseBuilder.year")}</Label>
                       <Input
                         id="year"
                         name="year"
@@ -401,7 +374,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                       <div className="flex items-center gap-2">
                         <Info className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium">{t("manager.exchangeBuilder.namePreview")}</p>
+                          <p className="text-sm font-medium">{t("manager.courseBuilder.namePreview")}</p>
                           <p className="text-lg font-semibold">{getPackName()}</p>
                         </div>
                       </div>
@@ -411,10 +384,10 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
 
                 {/* Selection Rules Section */}
                 <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.exchangeBuilder.selectionRules")}</h3>
+                  <h3 className="text-lg font-medium mb-4">{t("manager.courseBuilder.selectionRules")}</h3>
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="maxSelections">{t("manager.exchangeBuilder.maxSelections")}</Label>
+                      <Label htmlFor="maxSelections">{t("manager.courseBuilder.maxSelections")}</Label>
                       <div className="flex items-center gap-2">
                         <Input
                           id="maxSelections"
@@ -426,28 +399,28 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                           onChange={handleInputChange}
                         />
                         <span className="text-sm text-muted-foreground">
-                          {t("manager.exchangeBuilder.universitiesPerStudent")}
+                          {t("manager.courseBuilder.coursesPerStudent")}
                         </span>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="startDate">{t("manager.exchangeBuilder.startDate")}</Label>
+                        <Label htmlFor="startDate">{t("manager.courseBuilder.startDate")}</Label>
                         <Input
                           id="startDate"
                           name="startDate"
                           type="date"
-                          value={packDetails.startDate}
+                          value={formatDateForInput(packDetails.startDate)}
                           onChange={handleInputChange}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="endDate">{t("manager.exchangeBuilder.endDate")}</Label>
+                        <Label htmlFor="endDate">{t("manager.courseBuilder.endDate")}</Label>
                         <Input
                           id="endDate"
                           name="endDate"
                           type="date"
-                          value={packDetails.endDate}
+                          value={formatDateForInput(packDetails.endDate)}
                           onChange={handleInputChange}
                         />
                       </div>
@@ -457,9 +430,9 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                         <Info className="h-5 w-5 text-amber-500 mt-0.5" />
                         <div>
                           <p className="text-sm font-medium text-amber-800">
-                            {t("manager.exchangeBuilder.importantNote")}
+                            {t("manager.courseBuilder.importantNote")}
                           </p>
-                          <p className="text-sm text-amber-700">{t("manager.exchangeBuilder.dateRangeNote")}</p>
+                          <p className="text-sm text-amber-700">{t("manager.courseBuilder.dateRangeNote")}</p>
                         </div>
                       </div>
                     </div>
@@ -468,7 +441,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
               </div>
             )}
 
-            {/* Step 2: Add Universities */}
+            {/* Step 2: Add Courses */}
             {activeStep === 1 && (
               <div className="space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -476,7 +449,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder={t("manager.exchangeBuilder.searchUniversities")}
+                      placeholder={t("manager.courseBuilder.searchCourses")}
                       className="pl-8 w-full md:w-[300px]"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -484,7 +457,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">
-                      {selectedUniversities.length} {t("manager.exchangeBuilder.universitiesSelected")}
+                      {selectedCourses.length} {t("manager.courseBuilder.coursesSelected")}
                     </span>
                   </div>
                 </div>
@@ -494,47 +467,41 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="w-[50px] py-3 px-4 text-left text-sm font-medium"></th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.exchangeBuilder.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseBuilder.name")}</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.exchangeBuilder.country")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.exchangeBuilder.city")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.exchangeBuilder.maxStudents")}
+                          {t("manager.courseBuilder.teacher")}
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.exchangeBuilder.language")}
+                          {t("manager.courseBuilder.maxStudents")}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUniversities.length === 0 ? (
+                      {filteredCourses.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                            {t("manager.exchangeBuilder.noUniversitiesFound")}
+                            {t("manager.courseBuilder.noCoursesFound")}
                           </td>
                         </tr>
                       ) : (
-                        filteredUniversities.map((university) => (
+                        filteredCourses.map((course) => (
                           <tr
-                            key={university.id}
+                            key={course.id}
                             className={`border-b hover:bg-muted/50 cursor-pointer ${
-                              selectedUniversities.includes(university.id) ? "bg-primary/10" : ""
+                              selectedCourses.includes(course.id) ? "bg-primary/10" : ""
                             }`}
-                            onClick={() => toggleUniversitySelection(university.id)}
+                            onClick={() => toggleCourseSelection(course.id)}
                           >
                             <td className="py-3 px-4 text-sm">
                               <Checkbox
-                                checked={selectedUniversities.includes(university.id)}
-                                onCheckedChange={() => toggleUniversitySelection(university.id)}
+                                checked={selectedCourses.includes(course.id)}
+                                onCheckedChange={() => toggleCourseSelection(course.id)}
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </td>
-                            <td className="py-3 px-4 text-sm">{university.name}</td>
-                            <td className="py-3 px-4 text-sm">{university.country}</td>
-                            <td className="py-3 px-4 text-sm">{university.city}</td>
-                            <td className="py-3 px-4 text-sm">{university.maxStudents}</td>
-                            <td className="py-3 px-4 text-sm">{university.language}</td>
+                            <td className="py-3 px-4 text-sm">{course.name}</td>
+                            <td className="py-3 px-4 text-sm">{course.teacher}</td>
+                            <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
                           </tr>
                         ))
                       )}
@@ -549,43 +516,41 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="text-lg font-medium mb-2">{t("manager.exchangeBuilder.programDetails")}</h3>
+                    <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.courseSelectionDetails")}</h3>
                     <dl className="space-y-2">
                       <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.exchangeBuilder.name")}:</dt>
-                        <dd>{getPackName() || t("manager.exchangeBuilder.notSpecified")}</dd>
+                        <dt className="font-medium">{t("manager.courseBuilder.name")}:</dt>
+                        <dd>{getPackName() || t("manager.courseBuilder.notSpecified")}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.exchangeBuilder.maxSelectionsLabel")}</dt>
+                        <dt className="font-medium">{t("manager.courseBuilder.maxSelectionsLabel")}</dt>
                         <dd>
-                          {packDetails.maxSelections} {t("manager.exchangeDetails.universities")}
+                          {packDetails.maxSelections} {t("manager.courseBuilder.courses")}
                         </dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.exchangeBuilder.selectionPeriod")}</dt>
+                        <dt className="font-medium">{t("manager.courseBuilder.selectionPeriod")}</dt>
                         <dd>
                           {packDetails.startDate && packDetails.endDate
                             ? `${new Date(packDetails.startDate).toLocaleDateString()} - ${new Date(packDetails.endDate).toLocaleDateString()}`
-                            : t("manager.exchangeBuilder.notSpecified")}
+                            : t("manager.courseBuilder.notSpecified")}
                         </dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="font-medium">{t("manager.exchangeBuilder.universities")}</dt>
-                        <dd>{selectedUniversities.length}</dd>
+                        <dt className="font-medium">{t("manager.courseBuilder.courses")}</dt>
+                        <dd>{selectedCourses.length}</dd>
                       </div>
                     </dl>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-2">{t("manager.exchangeBuilder.selectedUniversities")}</h3>
-                  {selectedUniversities.length === 0 ? (
+                  <h3 className="text-lg font-medium mb-2">{t("manager.courseBuilder.selectedCourses")}</h3>
+                  {selectedCourses.length === 0 ? (
                     <div className="text-center py-8 border rounded-md">
                       <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">
-                        {t("manager.exchangeBuilder.noUniversitiesSelected")}
-                      </h3>
-                      <p className="mt-2 text-muted-foreground">{t("manager.exchangeBuilder.goBackToAdd")}</p>
+                      <h3 className="mt-4 text-lg font-semibold">{t("manager.courseBuilder.noCoursesSelected")}</h3>
+                      <p className="mt-2 text-muted-foreground">{t("manager.courseBuilder.goBackToAdd")}</p>
                     </div>
                   ) : (
                     <div className="rounded-md border">
@@ -593,28 +558,24 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                         <thead>
                           <tr className="border-b bg-muted/50">
                             <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.exchangeBuilder.name")}
+                              {t("manager.courseBuilder.name")}
                             </th>
                             <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.exchangeBuilder.country")}
+                              {t("manager.courseBuilder.teacher")}
                             </th>
                             <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.exchangeBuilder.city")}
-                            </th>
-                            <th className="py-3 px-4 text-left text-sm font-medium">
-                              {t("manager.exchangeBuilder.maxStudents")}
+                              {t("manager.courseBuilder.maxStudents")}
                             </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {availableUniversities
-                            .filter((university) => selectedUniversities.includes(university.id))
-                            .map((university) => (
-                              <tr key={university.id} className="border-b">
-                                <td className="py-3 px-4 text-sm">{university.name}</td>
-                                <td className="py-3 px-4 text-sm">{university.country}</td>
-                                <td className="py-3 px-4 text-sm">{university.city}</td>
-                                <td className="py-3 px-4 text-sm">{university.maxStudents}</td>
+                          {availableCourses
+                            .filter((course) => selectedCourses.includes(course.id))
+                            .map((course) => (
+                              <tr key={course.id} className="border-b">
+                                <td className="py-3 px-4 text-sm">{course.name}</td>
+                                <td className="py-3 px-4 text-sm">{course.teacher}</td>
+                                <td className="py-3 px-4 text-sm">{course.maxStudents}</td>
                               </tr>
                             ))}
                         </tbody>
@@ -628,63 +589,23 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
                   !packDetails.year ||
                   !packDetails.startDate ||
                   !packDetails.endDate ||
-                  selectedUniversities.length === 0) && (
+                  selectedCourses.length === 0) && (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
                     <div className="flex items-start gap-2">
                       <Info className="h-5 w-5 text-amber-500 mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium text-amber-800">{t("manager.exchangeBuilder.missingInfo")}</p>
+                        <p className="text-sm font-medium text-amber-800">{t("manager.courseBuilder.missingInfo")}</p>
                         <ul className="text-sm text-amber-700 list-disc list-inside">
-                          {!packDetails.semester && <li>{t("manager.exchangeBuilder.semesterRequired")}</li>}
-                          {!packDetails.year && <li>{t("manager.exchangeBuilder.yearRequired")}</li>}
-                          {!packDetails.startDate && <li>{t("manager.exchangeBuilder.startDateRequired")}</li>}
-                          {!packDetails.endDate && <li>{t("manager.exchangeBuilder.endDateRequired")}</li>}
-                          {selectedUniversities.length === 0 && (
-                            <li>{t("manager.exchangeBuilder.universityRequired")}</li>
-                          )}
+                          {!packDetails.semester && <li>{t("manager.courseBuilder.semesterRequired")}</li>}
+                          {!packDetails.year && <li>{t("manager.courseBuilder.yearRequired")}</li>}
+                          {!packDetails.startDate && <li>{t("manager.courseBuilder.startDateRequired")}</li>}
+                          {!packDetails.endDate && <li>{t("manager.courseBuilder.endDateRequired")}</li>}
+                          {selectedCourses.length === 0 && <li>{t("manager.courseBuilder.courseRequired")}</li>}
                         </ul>
                       </div>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Step 4: Document Management */}
-            {activeStep === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-4">{t("manager.exchangeBuilder.programDocuments")}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {t("manager.exchangeBuilder.documentsDescription")}
-                  </p>
-
-                  <DocumentUpload
-                    bucketName="documents"
-                    folderPath={`exchange/${params.id}`}
-                    allowedFileTypes={[".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"]}
-                    maxFileSizeMB={10}
-                    onUploadComplete={(file) => {
-                      // In a real app, you would save the document to your database
-                      // Example: await addExchangeDocument(params.id, file)
-                      setDocuments([...documents, file])
-                      toast({
-                        title: "Document uploaded",
-                        description: `${file.name} has been uploaded successfully.`,
-                      })
-                    }}
-                    onDeleteComplete={(path) => {
-                      // In a real app, you would remove the document from your database
-                      // Example: await removeExchangeDocument(params.id, path)
-                      setDocuments(documents.filter((doc) => doc.path !== path))
-                      toast({
-                        title: "Document deleted",
-                        description: "The document has been deleted successfully.",
-                      })
-                    }}
-                    existingFiles={documents}
-                  />
-                </div>
               </div>
             )}
           </CardContent>
@@ -693,36 +614,63 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
               {activeStep > 0 && (
                 <Button variant="outline" onClick={handlePrevStep}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  {t("manager.exchangeBuilder.back")}
+                  {t("manager.courseBuilder.back")}
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleSaveAsDraft}>
-                {t("manager.exchangeBuilder.saveAsDraft")}
+                {t("manager.courseBuilder.saveAsDraft")}
               </Button>
               {activeStep < steps.length - 1 ? (
                 <Button onClick={handleNextStep}>
-                  {t("manager.exchangeBuilder.next")}
+                  {t("manager.courseBuilder.next")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
                 <Button
-                  onClick={handleUpdate}
+                  onClick={handlePublish}
                   disabled={
                     !packDetails.semester ||
                     !packDetails.year ||
                     !packDetails.startDate ||
                     !packDetails.endDate ||
-                    selectedUniversities.length === 0
+                    selectedCourses.length === 0
                   }
                 >
-                  {t("manager.exchangeBuilder.updateProgram")}
+                  {t("manager.courseBuilder.publishCourseSelection")}
                 </Button>
               )}
             </div>
           </CardFooter>
         </Card>
+        <div className="mt-6">
+          <DocumentUpload
+            courseId={params.id}
+            onUploadComplete={(url, fileName) => {
+              // In a real app, you would save this to the database
+              console.log("Document uploaded:", url, fileName)
+              toast({
+                title: "Document uploaded",
+                description: `${fileName} has been uploaded successfully.`,
+              })
+            }}
+            existingDocuments={
+              [
+                // In a real app, you would fetch these from the database
+                // This is just a placeholder
+              ]
+            }
+            onDelete={(id) => {
+              // In a real app, you would delete this from the database and storage
+              console.log("Delete document:", id)
+              toast({
+                title: "Document deleted",
+                description: "The document has been deleted successfully.",
+              })
+            }}
+          />
+        </div>
       </div>
     </DashboardLayout>
   )

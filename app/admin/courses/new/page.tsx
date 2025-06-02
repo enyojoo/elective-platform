@@ -13,13 +13,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { useLanguage } from "@/lib/language-context" // Corrected import path
-import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
+import { useLanguage } from "@/lib/language-context"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedDegrees } from "@/hooks/use-cached-degrees"
-import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { useInstitution } from "@/lib/institution-context"
 
 // Course status options
 const statusOptions = [
@@ -32,16 +30,11 @@ export default function NewCoursePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { t, language } = useLanguage() // Corrected usage
-  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
-  const supabase = getSupabaseBrowserClient()
+  const { t, language } = useLanguage()
+  const { institution } = useInstitution()
 
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-
-  // Degrees will be fetched when component is ready
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
+  // Use the cached degrees hook instead of fetching directly
+  const { degrees, isLoading: isLoadingDegrees } = useCachedDegrees(institution?.id?.toString())
 
   const [course, setCourse] = useState({
     nameEn: "",
@@ -55,63 +48,15 @@ export default function NewCoursePage() {
     maxStudents: 30, // Default max students
   })
 
-  useEffect(() => {
-    let isMounted = true
-    async function fetchUserId() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (isMounted) {
-        if (user) {
-          setUserId(user.id)
-        } else {
-          setComponentState("error")
-          toast({
-            title: "Authentication Error",
-            description: "User not found. Redirecting to login.",
-            variant: "destructive",
-          })
-          router.push("/admin/login")
-        }
-      }
-    }
-    fetchUserId()
-    return () => {
-      isMounted = false
-    }
-  }, [supabase, router, toast])
-
-  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
-  const isLoadingInstitution = isLoadingInstitutionOriginal
-
-  useEffect(() => {
-    if (!userId || isLoadingProfile || isLoadingInstitution) {
-      setComponentState("loading")
-      return
-    }
-    if (profileError || !adminProfile || !institution) {
-      setComponentState("error")
-      return
-    }
-    setComponentState("ready")
-  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
-
-  // Fetch degrees when component is ready
-  const { degrees: fetchedDegrees, isLoading: isLoadingFetchedDegrees } = useCachedDegrees(
-    componentState === "ready" ? institution?.id?.toString() : undefined,
-  )
-
   // Set default degree when degrees are loaded
   useEffect(() => {
-    if (componentState === "ready" && fetchedDegrees.length > 0 && !course.degreeId) {
+    if (degrees.length > 0 && !course.degreeId) {
       setCourse((prev) => ({
         ...prev,
-        degreeId: fetchedDegrees[0].id.toString(),
+        degreeId: degrees[0].id.toString(),
       }))
-      setDegrees(fetchedDegrees)
-      setIsLoadingDegrees(isLoadingFetchedDegrees)
     }
-  }, [componentState, fetchedDegrees, isLoadingFetchedDegrees, course.degreeId])
+  }, [degrees, course.degreeId])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -188,24 +133,6 @@ export default function NewCoursePage() {
       return degree.name_ru
     }
     return degree.name
-  }
-
-  if (componentState === "loading") {
-    return (
-      <DashboardLayout>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
-
-  if (componentState === "error") {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-full p-4 text-destructive">
-          Error loading page. Please ensure you are logged in and have the necessary permissions.
-        </div>
-      </DashboardLayout>
-    )
   }
 
   return (

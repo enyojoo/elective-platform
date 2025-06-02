@@ -8,58 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, CheckCircle, AlertCircle, Clock } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { useEffect } from "react" // useState might be needed if fetching real data
-import { useRouter } from "next/navigation"
-import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
-import { PageSkeleton } from "@/components/ui/page-skeleton" // Or TableSkeleton
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertTriangle } from "lucide-react"
-// DashboardLayout and UserRole are already imported.
 
 export default function ExchangePage() {
   const { t } = useLanguage()
-  const router = useRouter()
-  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile()
-  // const [exchangeData, setExchangeData] = useState<any[]>([]); // For real data
-  // const [isLoadingData, setIsLoadingData] = useState(true); // For real data
-
-  useEffect(() => {
-    if (!isLoadingProfile && !profile && !profileError) {
-      router.push("/student/login")
-    }
-    // If profile is loaded, you might fetch real exchange data here
-    // else if (profile) {
-    //   fetchRealExchangeData();
-    // }
-  }, [profile, isLoadingProfile, profileError, router])
-
-  if (isLoadingProfile || (!profile && !profileError)) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("student.exchange.title")}</h1>
-            <p className="text-muted-foreground">{t("student.exchange.subtitle")}</p>
-          </div>
-          <PageSkeleton /> {/* Or a more specific skeleton for this page */}
-        </div>
-      </DashboardLayout>
-    )
-  }
-
-  if (profileError) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Profile</AlertTitle>
-            <AlertDescription>{profileError}</AlertDescription>
-          </Alert>
-        </div>
-      </DashboardLayout>
-    )
-  }
 
   // Mock exchange data
   const exchangeData = [

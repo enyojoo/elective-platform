@@ -14,12 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, X, Plus } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { Badge } from "@/components/ui/badge" // Keep for tags
+import { Badge } from "@/components/ui/badge"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { useInstitutionContext } from "@/lib/institution-context"
 
 // University status options
 const statusOptions = [
@@ -40,7 +37,7 @@ export default function NewUniversityPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { t, language } = useLanguage()
-  const { toast } = useToast() // Corrected usage
+  const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const [countries, setCountries] = useState<Country[]>([])
   const [university, setUniversity] = useState({
@@ -56,10 +53,6 @@ export default function NewUniversityPage() {
     max_students: 5, // Default max students
   })
 
-  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
-
   // State for languages and programs
   const [languages, setLanguages] = useState<string[]>([])
   const [programs, setPrograms] = useState<string[]>([])
@@ -68,33 +61,7 @@ export default function NewUniversityPage() {
 
   // Fetch countries from Supabase
   useEffect(() => {
-    let isMounted = true
-    async function fetchUserId() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (isMounted) {
-        if (user) {
-          setUserId(user.id)
-        } else {
-          setComponentState("error")
-          router.push("/admin/login")
-        }
-      }
-    }
-    fetchUserId()
-    return () => {
-      isMounted = false
-    }
-  }, [supabase, router, toast])
-
-  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
-  const isLoadingInstitution = isLoadingInstitutionOriginal
-
-  useEffect(() => {
     const fetchCountries = async () => {
-      if (componentState !== "ready") return // Fetch only when ready
-
       try {
         const { data, error } = await supabase.from("countries").select("*").order("name", { ascending: true })
 
@@ -116,19 +83,7 @@ export default function NewUniversityPage() {
     }
 
     fetchCountries()
-  }, [componentState, supabase, toast, t])
-
-  useEffect(() => {
-    if (!userId || isLoadingProfile || isLoadingInstitution) {
-      setComponentState("loading")
-      return
-    }
-    if (profileError || !adminProfile || !institution) {
-      setComponentState("error")
-      return
-    }
-    setComponentState("ready")
-  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
+  }, [supabase, toast, t])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -232,24 +187,6 @@ export default function NewUniversityPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  if (componentState === "loading") {
-    return (
-      <DashboardLayout>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
-
-  if (componentState === "error") {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-full p-4 text-destructive">
-          Error loading page. Please ensure you are logged in and have the necessary permissions.
-        </div>
-      </DashboardLayout>
-    )
   }
 
   return (
