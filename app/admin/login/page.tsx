@@ -43,40 +43,52 @@ export default function InstitutionLoginPage() {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    console.log("Admin Login: Attempting login...")
 
     try {
-      // Sign in with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (authError) {
+        console.error("Admin Login: Supabase auth error:", authError.message)
         setError(authError.message)
+        setIsLoading(false)
         return
       }
 
-      if (authData.session) {
-        // Use a server API endpoint to check the role instead of direct query
+      if (authData.session && authData.user) {
+        console.log("Admin Login: Supabase auth successful, session created for user:", authData.user.id)
+
         const response = await fetch("/api/auth/check-role", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${authData.session.access_token}`,
           },
-          body: JSON.stringify({ userId: authData.session.user.id }),
+          body: JSON.stringify({ userId: authData.user.id }),
         })
 
+        console.log("Admin Login: Role check API response status:", response.status)
+
         if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to verify user role")
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse role check error response" }))
+          console.error("Admin Login: Role check API error:", errorData)
+          setError(errorData.error || "Failed to verify user role. Please try again.")
+          await supabase.auth.signOut()
+          setIsLoading(false)
+          return
         }
 
         const { role } = await response.json()
+        console.log("Admin Login: Role received from API:", role)
 
         if (role !== "admin") {
+          console.error("Admin Login: Role mismatch. Expected 'admin', got:", role)
+          setError("You do not have admin access.")
           await supabase.auth.signOut()
-          setError("You do not have admin access")
+          setIsLoading(false)
           return
         }
 
@@ -84,12 +96,17 @@ export default function InstitutionLoginPage() {
           title: t("auth.login.success"),
           description: t("auth.login.welcomeBack"),
         })
+        console.log("Admin Login: Redirecting to /admin/dashboard...")
         router.push("/admin/dashboard")
+        // No need to setIsLoading(false) here as the component will unmount
+      } else {
+        console.error("Admin Login: Supabase auth returned no error, but no session or user data.")
+        setError("Login failed: Could not establish a session. Please try again.")
+        setIsLoading(false)
       }
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("Login failed. Please try again.")
-    } finally {
+    } catch (err: any) {
+      console.error("Admin Login: An unexpected error occurred during login:", err)
+      setError(err.message || "An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }
   }

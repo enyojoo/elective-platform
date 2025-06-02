@@ -39,58 +39,83 @@ export default function StudentLoginPage() {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    console.log("Student Login: Attempting login...")
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        setError(error.message)
+      if (authError) {
+        console.error("Student Login: Supabase auth error:", authError.message)
+        setError(authError.message)
+        setIsLoading(false)
         return
       }
 
-      if (data.session) {
-        // Use a server API endpoint to check the role instead of direct query
+      if (authData.session && authData.user) {
+        console.log("Student Login: Supabase auth successful, session created for user:", authData.user.id)
+
         const response = await fetch("/api/auth/check-role", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${data.session.access_token}`,
+            Authorization: `Bearer ${authData.session.access_token}`,
           },
-          body: JSON.stringify({ userId: data.session.user.id }),
+          body: JSON.stringify({ userId: authData.user.id }),
         })
 
+        console.log("Student Login: Role check API response status:", response.status)
+
         if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to verify user role")
-        }
-
-        const { role, institutionId } = await response.json()
-
-        if (role === "student") {
-          // If accessed via subdomain, check if student belongs to this institution
-          if (isSubdomainAccess && institution && institutionId !== institution.id) {
-            await supabase.auth.signOut()
-            setError("You don't have access to this institution")
-          } else {
-            toast({
-              title: "Login successful",
-              description: "Welcome to the student dashboard",
-            })
-            router.push("/student/dashboard")
-          }
-        } else {
-          // User is authenticated but not a student
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse role check error response" }))
+          console.error("Student Login: Role check API error:", errorData)
+          setError(errorData.error || "Failed to verify user role. Please try again.")
           await supabase.auth.signOut()
-          setError("You do not have student access")
+          setIsLoading(false)
+          return
         }
+
+        const { role, institutionId: userInstitutionId } = await response.json() // Expect institutionId too
+        console.log("Student Login: Role received from API:", role, "Institution ID:", userInstitutionId)
+
+        if (role !== "student") {
+          console.error("Student Login: Role mismatch. Expected 'student', got:", role)
+          setError("You do not have student access.")
+          await supabase.auth.signOut()
+          setIsLoading(false)
+          return
+        }
+
+        // If accessed via subdomain, check if student belongs to this institution
+        if (isSubdomainAccess && institution && userInstitutionId !== institution.id) {
+          console.error(
+            "Student Login: Institution mismatch. Subdomain institution:",
+            institution.id,
+            "User's institution:",
+            userInstitutionId,
+          )
+          setError("You don't have access to this institution's student portal.")
+          await supabase.auth.signOut()
+          setIsLoading(false)
+          return
+        }
+
+        toast({
+          title: "Login successful",
+          description: "Welcome to the student dashboard",
+        })
+        console.log("Student Login: Redirecting to /student/dashboard...")
+        router.push("/student/dashboard")
+      } else {
+        console.error("Student Login: Supabase auth returned no error, but no session or user data.")
+        setError("Login failed: Could not establish a session. Please try again.")
+        setIsLoading(false)
       }
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("Login failed. Please try again.")
-    } finally {
+    } catch (err: any) {
+      console.error("Student Login: An unexpected error occurred during login:", err)
+      setError(err.message || "An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }
   }
