@@ -1,15 +1,12 @@
 "use client"
-
-import { AlertDescription } from "@/components/ui/alert"
-import { AlertTitle } from "@/components/ui/alert"
-import { Alert } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox, LogIn } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@supabase/supabase-js"
@@ -181,32 +178,6 @@ export default function ElectivesPage() {
             <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
           </div>
           <TableSkeleton numberOfRows={3} />
-        </div>
-      </DashboardLayout>
-    )
-  }
-
-  // If there's no profile and we're not loading, the user might not be logged in
-  if (!profile && !profileLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
-            <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
-          </div>
-
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <LogIn className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">You need to log in to view your courses</p>
-              <div className="mt-4">
-                <Link href="/student/login">
-                  <Button>Log In</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </DashboardLayout>
     )
