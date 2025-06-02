@@ -1,13 +1,11 @@
 "use server"
 
 import { cookies } from "next/headers"
-// If you are using @supabase/ssr for everything:
-// import { createServerClient } from "@supabase/ssr"
-// Otherwise, for auth-helpers-nextjs:
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { redirect } from "next/navigation"
-import { supabaseAdmin } from "@/lib/supabase" // Your admin client
+import { supabaseAdmin } from "@/lib/supabase"
 
+// Update the signIn function to use supabaseAdmin for profile checks
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
@@ -16,33 +14,28 @@ export async function signIn(formData: FormData) {
     return { error: "Email and password are required" }
   }
 
-  // For server actions with @supabase/auth-helpers-nextjs:
+  // For server actions, we need to create a new client each time
+  // This is fine because it's server-side and won't cause the GoTrueClient warning
   const supabase = createServerActionClient({ cookies })
-  // If using @supabase/ssr for actions:
-  // const supabase = createServerClient(
-  //   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  //   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  //   { cookies: { getAll: () => cookies().getAll(), set: (opts) => cookies().set(opts) /* ... other handlers */ } }
-  // );
 
-  const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
-  if (signInError) {
-    console.error("Auth Action - signIn Error:", signInError.message)
-    return { error: signInError.message }
+  if (error) {
+    return { error: error.message }
   }
 
-  if (!signInData || !signInData.user) {
-    console.error("Auth Action - signIn Error: No user data returned after successful sign-in.")
-    return { error: "Sign-in failed, no user data." }
-  }
-
+  // Get user profile to determine redirect
   try {
-    const user = signInData.user
+    const user = (await supabase.auth.getUser()).data.user
 
+    if (!user) {
+      return { error: "User not found" }
+    }
+
+    // ALWAYS use supabaseAdmin to bypass RLS for profile checks
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("role")
@@ -50,94 +43,30 @@ export async function signIn(formData: FormData) {
       .single()
 
     if (profileError) {
-      console.error("Auth Action - Profile fetch error:", profileError)
-      await supabase.auth.signOut() // Clean up partial session
-      return { error: "Error fetching user profile after login." }
+      console.error("Profile fetch error:", profileError)
+      return { error: "Error fetching user profile" }
     }
 
-    if (profile && profile.role) {
-      console.log(`Auth Action - Sign-in success for ${email}, role: ${profile.role}. Redirecting...`)
+    if (profile) {
       switch (profile.role) {
         case "student":
           redirect("/student/dashboard")
         case "program_manager":
           redirect("/manager/dashboard")
         case "admin":
-          redirect("/admin/dashboard") // <<--- This is our target
+          redirect("/admin/dashboard")
         case "super_admin":
           redirect("/super-admin/dashboard")
         default:
-          console.warn(`Auth Action - Unknown role '${profile.role}' for user ${user.id}. Signing out.`)
-          await supabase.auth.signOut()
-          redirect("/") // Or a specific error/info page
+          redirect("/")
       }
-    } else {
-      console.error(`Auth Action - Profile not found or role missing for user: ${user.id}`)
-      await supabase.auth.signOut()
-      return { error: "User profile not found or role is missing." }
     }
   } catch (err) {
-    console.error("Auth Action - Error in signIn post-authentication logic:", err)
-    await supabase.auth.signOut()
-    return { error: "An unexpected error occurred during login processing." }
+    console.error("Error in signIn:", err)
+    return { error: "An unexpected error occurred" }
   }
-  // Fallback, should not be reached if redirects are working
-  return { error: "Login process did not result in a redirect." }
-}
 
-export async function signOut() {
-  // For server actions with @supabase/auth-helpers-nextjs:
-  const supabase = createServerActionClient({ cookies })
-  // If using @supabase/ssr for actions, adjust client creation as above.
-
-  await supabase.auth.signOut()
-  console.log("Auth Action - signOut successful. Redirecting to /")
-  redirect("/") // Middleware will then route to the appropriate login page
-}
-
-// ensureUserProfile and signUp actions remain as they were, assuming they use createServerActionClient correctly.
-// ... (ensureUserProfile and signUp functions from your existing code)
-// Update the ensureUserProfile function to use supabaseAdmin for profile checks
-export async function ensureUserProfile(userId: string, email: string, role: string, institutionId?: string) {
-  try {
-    // Check if profile exists using admin client to bypass RLS
-    const { data: existingProfile, error: fetchError } = await supabaseAdmin
-      .from("profiles")
-      .select("id")
-      .eq("id", userId)
-      .single()
-
-    if (fetchError && fetchError.code === "PGRST116") {
-      // Profile doesn't exist, create it
-      const profileData: any = {
-        id: userId,
-        email: email,
-        role: role,
-        created_at: new Date().toISOString(),
-      }
-
-      if (institutionId) {
-        profileData.institution_id = institutionId
-      }
-
-      const { error: insertError } = await supabaseAdmin.from("profiles").insert(profileData)
-
-      if (insertError) {
-        console.error("Error creating profile:", insertError)
-        return { success: false, error: "Failed to create user profile" }
-      }
-
-      return { success: true }
-    } else if (fetchError) {
-      console.error("Error checking profile:", fetchError)
-      return { success: false, error: "Error checking user profile" }
-    }
-
-    return { success: true }
-  } catch (err) {
-    console.error("Error in ensureUserProfile:", err)
-    return { success: false, error: "An unexpected error occurred" }
-  }
+  return { success: true }
 }
 
 export async function signUp(formData: FormData) {
@@ -182,8 +111,6 @@ export async function signUp(formData: FormData) {
 
       if (profileError) {
         console.error("Profile creation error:", profileError)
-        // Potentially delete the auth user if profile creation fails to avoid orphaned auth users
-        // await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
         return { error: "Error creating user profile" }
       }
 
@@ -224,5 +151,54 @@ export async function signUp(formData: FormData) {
   } catch (err) {
     console.error("Error in signUp:", err)
     return { error: "An unexpected error occurred" }
+  }
+}
+
+export async function signOut() {
+  const supabase = createServerActionClient({ cookies })
+  await supabase.auth.signOut()
+  redirect("/")
+}
+
+// Add a new function to ensure a user profile exists
+export async function ensureUserProfile(userId: string, email: string, role: string, institutionId?: string) {
+  try {
+    // Check if profile exists using admin client to bypass RLS
+    const { data: existingProfile, error: fetchError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .single()
+
+    if (fetchError && fetchError.code === "PGRST116") {
+      // Profile doesn't exist, create it
+      const profileData: any = {
+        id: userId,
+        email: email,
+        role: role,
+        created_at: new Date().toISOString(),
+      }
+
+      if (institutionId) {
+        profileData.institution_id = institutionId
+      }
+
+      const { error: insertError } = await supabaseAdmin.from("profiles").insert(profileData)
+
+      if (insertError) {
+        console.error("Error creating profile:", insertError)
+        return { success: false, error: "Failed to create user profile" }
+      }
+
+      return { success: true }
+    } else if (fetchError) {
+      console.error("Error checking profile:", fetchError)
+      return { success: false, error: "Error checking user profile" }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error("Error in ensureUserProfile:", err)
+    return { success: false, error: "An unexpected error occurred" }
   }
 }
