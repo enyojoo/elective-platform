@@ -25,6 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 // Cache constants
 const CACHE_KEY = "managerCourseElectives"
@@ -94,6 +96,8 @@ const clearCache = () => {
 }
 
 export default function ManagerCourseElectivesPage() {
+  const { profile, loading: profileLoading } = useCachedManagerProfile()
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
   const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -105,9 +109,27 @@ export default function ManagerCourseElectivesPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
-  const { institution } = useInstitution()
+  const { institution, isLoading: institutionLoading } = useInstitution()
 
   useEffect(() => {
+    if (institutionLoading || profileLoading) {
+      setComponentState("loading")
+      return
+    }
+    if (!institution) {
+      setComponentState("redirecting")
+      return
+    }
+    if (!profile) {
+      setComponentState("redirecting")
+      return
+    }
+    setComponentState("ready")
+  }, [institution, institutionLoading, profile, profileLoading])
+
+  useEffect(() => {
+    if (componentState !== "ready" || !institution?.id) return
+
     // Update the fetchElectivePacks function to query the elective_courses table
     const fetchElectivePacks = async () => {
       if (!institution?.id) return
@@ -176,7 +198,7 @@ export default function ManagerCourseElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t])
+  }, [componentState, supabase, institution?.id, toast, t])
 
   // Filter elective packs based on search term and status filter
   useEffect(() => {
@@ -326,6 +348,14 @@ export default function ManagerCourseElectivesPage() {
       setIsDeleteDialogOpen(false)
       setPackToDelete(null)
     }
+  }
+
+  if (componentState !== "ready") {
+    return (
+      <DashboardLayout>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
   }
 
   return (

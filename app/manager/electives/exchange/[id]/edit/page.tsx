@@ -18,6 +18,9 @@ import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { DocumentUpload } from "@/components/document-upload"
 import { useToast } from "@/hooks/use-toast"
+import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
+import { useInstitution } from "@/lib/institution-context"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface ExchangeEditPageProps {
   params: {
@@ -34,6 +37,26 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
   const [documents, setDocuments] = useState<Array<{ name: string; url: string; path: string }>>([])
+
+  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { profile, loading: profileLoading } = useCachedManagerProfile()
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
+
+  useEffect(() => {
+    if (institutionLoading || profileLoading) {
+      setComponentState("loading")
+      return
+    }
+    if (!institution) {
+      setComponentState("redirecting")
+      return
+    }
+    if (!profile) {
+      setComponentState("redirecting")
+      return
+    }
+    setComponentState("ready")
+  }, [institution, institutionLoading, profile, profileLoading])
 
   // Helper function to get formatted exchange program name
   const getExchangeProgramName = (id: string) => {
@@ -151,8 +174,8 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
 
   // Load existing exchange program data
   useEffect(() => {
-    // In a real application, you would fetch the data from your API
-    // For now, we'll simulate loading with mock data
+    if (componentState !== "ready") return
+
     const loadExchangeProgram = () => {
       setIsLoading(true)
 
@@ -189,7 +212,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
     }
 
     loadExchangeProgram()
-  }, [params.id])
+  }, [componentState, params.id])
 
   // Filter universities based on search query
   const filteredUniversities = availableUniversities.filter(
@@ -282,17 +305,10 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
     router.push(`/manager/electives/exchange/${params.id}`)
   }
 
-  if (isLoading) {
+  if (componentState !== "ready" || isLoading) {
     return (
-      <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full animate-pulse bg-muted"></div>
-            <div className="h-8 w-64 animate-pulse bg-muted"></div>
-          </div>
-          <div className="h-20 animate-pulse bg-muted rounded-md"></div>
-          <div className="h-96 animate-pulse bg-muted rounded-md"></div>
-        </div>
+      <DashboardLayout>
+        <PageSkeleton />
       </DashboardLayout>
     )
   }

@@ -28,12 +28,15 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Search, MoreHorizontal, Filter, Plus, AlertTriangle } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
 import { useToast } from "@/hooks/use-toast"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { useInstitution } from "@/lib/institution-context"
+import { TableSkeleton } from "@/components/ui/table-skeleton" // Keep for table loading
+import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
 import { useDialogState } from "@/hooks/use-dialog-state"
 import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { useRouter } from "next/navigation"
+import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 
 interface Course {
   id: string
@@ -81,8 +84,12 @@ export default function CoursesPage() {
   const itemsPerPage = 10
   const { t, language } = useLanguage()
   const supabase = getSupabaseBrowserClient()
-  const { toast } = useToast()
-  const { institution } = useInstitution()
+  const { toast } = useToast() // Corrected usage
+  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
+  const router = useRouter()
+
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
+  const [userId, setUserId] = useState<string | undefined>(undefined)
 
   // Delete confirmation dialog state
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null)
@@ -91,6 +98,47 @@ export default function CoursesPage() {
     openDialog: openDeleteDialog,
     closeDialog: closeDeleteDialog,
   } = useDialogState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    async function fetchUserId() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (isMounted) {
+        if (user) {
+          setUserId(user.id)
+        } else {
+          setComponentState("error")
+          toast({
+            title: "Authentication Error",
+            description: "User not found. Redirecting to login.",
+            variant: "destructive",
+          })
+          router.push("/admin/login")
+        }
+      }
+    }
+    fetchUserId()
+    return () => {
+      isMounted = false
+    }
+  }, [supabase, router, toast])
+
+  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
+  const isLoadingInstitution = isLoadingInstitutionOriginal
+
+  useEffect(() => {
+    if (!userId || isLoadingProfile || isLoadingInstitution) {
+      setComponentState("loading")
+      return
+    }
+    if (profileError || !adminProfile || !institution) {
+      setComponentState("error")
+      return
+    }
+    setComponentState("ready")
+  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
 
   // Load cached data on initial render
   useEffect(() => {
@@ -126,13 +174,13 @@ export default function CoursesPage() {
           }
         }
       } catch (error) {
-        console.error("Error loading cached data:", error)
+        // console.error("Error loading cached data:", error) // Cache errors are not critical
         // If there's an error, we'll just fetch fresh data
       }
     }
-
-    loadCachedData()
-  }, [institution?.id, searchTerm, statusFilter, degreeFilter, currentPage])
+    // Load cache only when component is ready
+    if (componentState === "ready") loadCachedData()
+  }, [componentState, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage])
 
   // Fetch degrees from Supabase
   useEffect(() => {
@@ -175,13 +223,14 @@ export default function CoursesPage() {
       }
     }
 
-    fetchDegrees()
-  }, [supabase, institution?.id, isLoadingDegrees, toast, t])
+    if (componentState === "ready" && institution?.id) fetchDegrees()
+  }, [componentState, supabase, institution?.id, isLoadingDegrees, toast, t])
 
   // Fetch courses from Supabase
   useEffect(() => {
     async function fetchCourses() {
-      if (!institution?.id) {
+      if (!institution?.id || componentState !== "ready") {
+        // Ensure component is ready
         setIsLoadingCourses(false)
         return
       }
@@ -253,8 +302,8 @@ export default function CoursesPage() {
       }
     }
 
-    fetchCourses()
-  }, [supabase, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage, toast, t])
+    if (componentState === "ready") fetchCourses()
+  }, [componentState, supabase, institution?.id, searchTerm, statusFilter, degreeFilter, currentPage, toast, t])
 
   // Get status badge based on status
   const getStatusBadge = (status: string) => {
@@ -385,6 +434,24 @@ export default function CoursesPage() {
 
   // Calculate total pages
   const totalPages = Math.ceil(totalCourses / itemsPerPage)
+
+  if (componentState === "loading") {
+    return (
+      <DashboardLayout>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (componentState === "error") {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full p-4 text-destructive">
+          Error loading courses page. Please ensure you are logged in and have the necessary permissions.
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>

@@ -33,6 +33,10 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { useRouter } from "next/navigation"
+import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
+import { useInstitution } from "@/lib/institution-context"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -41,6 +45,11 @@ interface ElectiveCourseDetailPageProps {
 }
 
 export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
+  const router = useRouter() // If not already imported
+  const { institution, isLoading: institutionLoading } = useInstitution()
+  const { profile, loading: profileLoading } = useCachedManagerProfile()
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
+
   // Mock elective course data
   const electiveCourse = {
     id: params.id,
@@ -196,6 +205,24 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       statementFile: null,
     },
   ]
+
+  useEffect(() => {
+    if (institutionLoading || profileLoading) {
+      setComponentState("loading")
+      return
+    }
+    if (!institution) {
+      setComponentState("redirecting")
+      // router.replace("/institution-required"); // DashboardLayout handles
+      return
+    }
+    if (!profile) {
+      setComponentState("redirecting")
+      // router.replace("/manager/login"); // DashboardLayout handles
+      return
+    }
+    setComponentState("ready")
+  }, [institution, institutionLoading, profile, profileLoading, router])
 
   // Get translation function
   const { t, language } = useLanguage()
@@ -423,6 +450,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  if (componentState !== "ready") {
+    return <PageSkeleton />
   }
 
   return (

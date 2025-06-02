@@ -9,13 +9,14 @@ import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox, LogIn } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { useRouter } from "next/navigation"
 
 // Create a singleton Supabase client to prevent multiple instances
 const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -28,6 +29,7 @@ export default function ElectivesPage() {
   const [courseSelections, setCourseSelections] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     console.log("ElectivesPage: useEffect triggered.")
@@ -115,6 +117,13 @@ export default function ElectivesPage() {
     fetchData()
   }, [profile, profileLoading, profileError, toast])
 
+  useEffect(() => {
+    if (!profileLoading && !profile && !profileError) {
+      console.log("ElectivesPage: useEffect redirecting to login.")
+      router.push("/student/login")
+    }
+  }, [profile, profileLoading, profileError, router])
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
@@ -186,8 +195,9 @@ export default function ElectivesPage() {
     )
   }
 
-  // If there's no profile and we're not loading, the user might not be logged in
-  if (!profile && !profileLoading) {
+  // If redirecting (no profile, not loading, no error), show a loader.
+  // The useEffect will handle the actual redirect.
+  if (!profile && !profileLoading && !profileError) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
         <div className="space-y-6">
@@ -195,18 +205,26 @@ export default function ElectivesPage() {
             <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
             <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
           </div>
+          <TableSkeleton numberOfRows={3} />
+        </div>
+      </DashboardLayout>
+    )
+  }
 
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <LogIn className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">You need to log in to view your courses</p>
-              <div className="mt-4">
-                <Link href="/student/login">
-                  <Button>Log In</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+  // If there's a profileError, display it
+  if (profileError) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
+            <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
+          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading Profile</AlertTitle>
+            <AlertDescription>{profileError}</AlertDescription>
+          </Alert>
         </div>
       </DashboardLayout>
     )

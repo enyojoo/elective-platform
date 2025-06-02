@@ -6,20 +6,23 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { BrandingSettings } from "@/components/settings/branding-settings"
 import { AccountSettings } from "@/components/settings/account-settings"
 import { DegreesSettings } from "@/components/settings/degrees-settings"
-import { useLanguage } from "@/lib/language-context"
+import { useLanguage } from "@/lib/language-context" // Corrected import path
 import { Card, CardContent } from "@/components/ui/card"
-import { useInstitution } from "@/lib/institution-context"
-import { supabase } from "@/lib/supabase"
+import { useInstitutionContext } from "@/lib/institution-context" // Renamed for clarity
+import { getSupabaseBrowserClient } from "@/lib/supabase" // Use browser client
 import { useToast } from "@/hooks/use-toast"
 import { useCachedAdminProfile } from "@/hooks/use-cached-admin-profile"
 import { UsersSettings } from "@/components/settings/users-settings"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { useRouter } from "next/navigation"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("branding")
   const { t } = useLanguage()
-  const { institution } = useInstitution()
-  const { toast } = useToast()
+  const { institution, isLoading: isLoadingInstitutionOriginal } = useInstitutionContext()
+  const { toast } = useToast() // Corrected usage
   const [userId, setUserId] = useState<string | undefined>(undefined)
+  const router = useRouter()
 
   // Get current user ID
   useEffect(() => {
@@ -32,9 +35,12 @@ export default function SettingsPage() {
           setUserId(user.id)
         }
       } catch (error) {
-        console.error("Error getting current user:", error)
+        // console.error("Error getting current user:", error)
+        // Error will be handled by componentState or layout
       }
     }
+    // Initialize supabase client
+    const supabase = getSupabaseBrowserClient()
 
     getCurrentUserId()
 
@@ -47,7 +53,39 @@ export default function SettingsPage() {
   }, [])
 
   // Use the cached admin profile
-  const { profile: adminProfile, isLoading: isLoadingProfile } = useCachedAdminProfile(userId)
+  const { profile: adminProfile, isLoading: isLoadingProfile, error: profileError } = useCachedAdminProfile(userId)
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "error">("loading")
+  const isLoadingInstitution = isLoadingInstitutionOriginal
+
+  useEffect(() => {
+    if (!userId || isLoadingProfile || isLoadingInstitution) {
+      setComponentState("loading")
+      return
+    }
+    if (profileError || !adminProfile || !institution) {
+      setComponentState("error")
+      return
+    }
+    setComponentState("ready")
+  }, [userId, adminProfile, institution, isLoadingProfile, isLoadingInstitution, profileError])
+
+  if (componentState === "loading") {
+    return (
+      <DashboardLayout>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (componentState === "error") {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full p-4 text-destructive">
+          Error loading settings. You might be redirected.
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>

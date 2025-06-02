@@ -197,6 +197,13 @@ export default function StudentDashboard() {
   // Fetch student profile using the cached hook
   const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile(userId)
 
+  useEffect(() => {
+    if (!isLoadingProfile && !profile && !profileError && hasInitialized.current) {
+      console.log("Student Dashboard: No profile after loading, redirecting to login.")
+      router.push("/student/login")
+    }
+  }, [profile, isLoadingProfile, profileError, router, hasInitialized])
+
   // Fetch elective counts and selections with caching
   useEffect(() => {
     const fetchElectiveCounts = async () => {
@@ -381,8 +388,72 @@ export default function StudentDashboard() {
   }, [])
 
   // Don't render anything if we're redirecting or still checking subdomain access
-  if (!isSubdomainAccess && isInitialMount.current) {
-    return null
+  if (
+    (!isSubdomainAccess && isInitialMount.current) ||
+    isLoadingProfile ||
+    (!profile && !profileError && hasInitialized.current)
+  ) {
+    // Show a consistent loading skeleton for the dashboard
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="space-y-6">
+          <div>
+            <Skeleton className="h-8 w-3/4 mb-2" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-4 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-3 w-3/4 mt-1" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-4 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-3 w-3/4 mt-1" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-4 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-3 w-3/4 mt-1" />
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

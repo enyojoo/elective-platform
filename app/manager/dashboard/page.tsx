@@ -69,16 +69,13 @@ interface ElectiveCounts {
 
 export default function ManagerDashboard() {
   const { t, language } = useLanguage()
-  const { isSubdomainAccess, institution } = useInstitution()
+  const { isSubdomainAccess, institution } = useInstitution() // isSubdomainAccess can be undefined initially
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
-  // Use a ref to track if this is the initial mount
-  const isInitialMount = useRef(true)
+  const isInitialMount = useRef(true) // Keep this ref
 
-  // State for user ID with caching
   const [userId, setUserId] = useState<string | undefined>(() => {
-    // Try to get userId from cache on initial render
     if (typeof window !== "undefined") {
       try {
         const cachedUserId = getCachedData(USER_ID_CACHE_KEY)
@@ -90,208 +87,281 @@ export default function ManagerDashboard() {
     return undefined
   })
 
-  // State for loading
-  const [isLoadingCounts, setIsLoadingCounts] = useState(true)
-  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
 
-  // Fetch current user ID only once on mount
   useEffect(() => {
-    const fetchUserId = async () => {
-      // Skip if we already have a userId from cache
-      if (userId) return
+    // This effect runs once on mount to set isInitialMount to false after the first render cycle.
+    isInitialMount.current = false
+  }, [])
+
+  useEffect(() => {
+    // This effect handles the core logic for subdomain and auth checks.
+    if (isSubdomainAccess === undefined) {
+      // Still waiting for institution context to provide subdomain status
+      setComponentState("loading")
+      return
+    }
+
+    if (!isSubdomainAccess) {
+      // Not on a subdomain, redirect to institution-required page.
+      // This check should ideally run after isInitialMount.current is false to avoid premature redirect
+      // if the context is slow, but middleware should also catch this.
+      // For client-side, if isInitialMount is true, we might be in SSR or first client render.
+      if (!isInitialMount.current) {
+        // Only redirect if not on initial mount to prevent flicker if context is slow
+        setComponentState("redirecting")
+        router.push("/institution-required")
+      } else if (
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost" &&
+        !window.location.host.split(".")[1]
+      ) {
+        // Fallback for initial render if not on a proper subdomain (and not localhost)
+        setComponentState("redirecting")
+        router.push("/institution-required")
+      }
+      return
+    }
+
+    // At this point, we are on a valid subdomain. Now, check authentication.
+    const checkAuth = async () => {
+      if (userId) {
+        // User ID already exists (e.g., from cache)
+        setComponentState("ready")
+        return
+      }
 
       try {
-        const { data, error } = await supabase.auth.getUser()
-
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
         if (error) {
-          console.error("Auth error:", error)
-          router.push("/manager/login") // Redirect to manager login if auth error
+          console.error("Auth error on manager dashboard:", error)
+          setComponentState("redirecting")
+          router.push("/manager/login")
           return
         }
-        if (data?.user) {
-          const newUserId = data.user.id
-          setUserId(newUserId)
-          // Cache the userId
-          setCachedData(USER_ID_CACHE_KEY, newUserId)
+        if (user) {
+          setUserId(user.id)
+          setCachedData(USER_ID_CACHE_KEY, user.id)
+          setComponentState("ready")
         } else {
-          console.log("No authenticated user found")
-          router.push("/manager/login") // Redirect to manager login if no user
+          console.log("No authenticated user found on manager dashboard, redirecting to login.")
+          setComponentState("redirecting")
+          router.push("/manager/login")
         }
-      } catch (error) {
-        console.error("Error fetching user ID:", error)
-        router.push("/manager/login") // Redirect to manager login on other errors
+      } catch (e) {
+        console.error("Exception during auth check on manager dashboard:", e)
+        setComponentState("redirecting")
+        router.push("/manager/login")
       }
     }
 
-    fetchUserId()
-  }, [supabase, router, userId]) // Added userId to dependency array
+    checkAuth()
+  }, [isSubdomainAccess, supabase, router, userId])
 
-  // Fetch manager profile using the cached hook
   const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile(userId)
-
-  // State for deadlines and elective counts
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
   const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({
     courses: 0,
     exchange: 0,
   })
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true)
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
-  // Fetch elective counts with caching
+  // Fetch elective counts (useEffect remains the same)
   useEffect(() => {
-    const fetchElectiveCounts = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+    if (componentState === "ready" && isSubdomainAccess && institution?.id) {
+      const fetchElectiveCounts = async () => {
+        if (!isSubdomainAccess || !institution?.id) return
 
-      try {
-        setIsLoadingCounts(true)
+        try {
+          setIsLoadingCounts(true)
 
-        // Check for cached data
-        const cachedCounts = getCachedData(ELECTIVE_COUNTS_CACHE_KEY)
-        if (cachedCounts) {
-          console.log("Using cached elective counts data")
-          setElectiveCounts(cachedCounts)
-          setIsLoadingCounts(false)
-          return
-        }
-
-        console.log("Fetching fresh elective counts data")
-
-        // Fetch course electives count
-        const { count: courseCount, error: courseError } = await supabase
-          .from("elective_courses")
-          .select("*", { count: "exact", head: true })
-          .eq("institution_id", institution.id)
-
-        // Fetch exchange electives count
-        const { count: exchangeCount, error: exchangeError } = await supabase
-          .from("elective_exchange")
-          .select("*", { count: "exact", head: true })
-          .eq("institution_id", institution.id)
-
-        if (!courseError && !exchangeError) {
-          const counts = {
-            courses: courseCount || 0,
-            exchange: exchangeCount || 0,
+          // Check for cached data
+          const cachedCounts = getCachedData(ELECTIVE_COUNTS_CACHE_KEY)
+          if (cachedCounts) {
+            console.log("Using cached elective counts data")
+            setElectiveCounts(cachedCounts)
+            setIsLoadingCounts(false)
+            return
           }
 
-          setElectiveCounts(counts)
+          console.log("Fetching fresh elective counts data")
 
-          // Cache the data
-          setCachedData(ELECTIVE_COUNTS_CACHE_KEY, counts)
+          // Fetch course electives count
+          const { count: courseCount, error: courseError } = await supabase
+            .from("elective_courses")
+            .select("*", { count: "exact", head: true })
+            .eq("institution_id", institution.id)
+
+          // Fetch exchange electives count
+          const { count: exchangeCount, error: exchangeError } = await supabase
+            .from("elective_exchange")
+            .select("*", { count: "exact", head: true })
+            .eq("institution_id", institution.id)
+
+          if (!courseError && !exchangeError) {
+            const counts = {
+              courses: courseCount || 0,
+              exchange: exchangeCount || 0,
+            }
+
+            setElectiveCounts(counts)
+
+            // Cache the data
+            setCachedData(ELECTIVE_COUNTS_CACHE_KEY, counts)
+          }
+        } catch (error) {
+          console.error("Error fetching elective counts:", error)
+        } finally {
+          setIsLoadingCounts(false)
         }
-      } catch (error) {
-        console.error("Error fetching elective counts:", error)
-      } finally {
-        setIsLoadingCounts(false)
       }
+
+      fetchElectiveCounts()
     }
+  }, [supabase, isSubdomainAccess, institution?.id, componentState])
 
-    fetchElectiveCounts()
-  }, [supabase, isSubdomainAccess, institution?.id])
-
-  // Fetch upcoming deadlines with caching
+  // Fetch upcoming deadlines (useEffect remains the same)
   useEffect(() => {
-    const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+    if (componentState === "ready" && isSubdomainAccess && institution?.id) {
+      const fetchUpcomingDeadlines = async () => {
+        if (!isSubdomainAccess || !institution?.id) return
 
-      try {
-        setIsLoadingDeadlines(true)
+        try {
+          setIsLoadingDeadlines(true)
 
-        // Check for cached data
-        const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
-        if (cachedDeadlines) {
-          console.log("Using cached deadlines data")
-          setUpcomingDeadlines(cachedDeadlines)
+          // Check for cached data
+          const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
+          if (cachedDeadlines) {
+            console.log("Using cached deadlines data")
+            setUpcomingDeadlines(cachedDeadlines)
+            setIsLoadingDeadlines(false)
+            return
+          }
+
+          console.log("Fetching fresh deadlines data")
+
+          // Get current date
+          const now = new Date()
+
+          // Fetch course electives with deadlines
+          const { data: courseElectives, error: courseError } = await supabase
+            .from("elective_courses")
+            .select("id, name, name_ru, deadline, status")
+            .eq("institution_id", institution.id)
+            .eq("status", "published")
+            .not("deadline", "is", null)
+            .gte("deadline", now.toISOString())
+            .order("deadline", { ascending: true })
+            .limit(5)
+
+          // Fetch exchange programs with deadlines
+          const { data: exchangePrograms, error: exchangeError } = await supabase
+            .from("elective_exchange")
+            .select("id, name, name_ru, deadline, status")
+            .eq("institution_id", institution.id)
+            .eq("status", "published")
+            .not("deadline", "is", null)
+            .gte("deadline", now.toISOString())
+            .order("deadline", { ascending: true })
+            .limit(5)
+
+          if (!courseError && !exchangeError) {
+            // Process course electives
+            const courseDeadlines = (courseElectives || []).map((item) => ({
+              id: item.id,
+              title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+              date: item.deadline,
+              daysLeft: calculateDaysLeft(item.deadline),
+              type: "course" as const,
+            }))
+
+            // Process exchange programs
+            const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
+              id: item.id,
+              title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+              date: item.deadline,
+              daysLeft: calculateDaysLeft(item.deadline),
+              type: "exchange" as const,
+            }))
+
+            // Combine and sort by closest deadline
+            const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
+              .sort((a, b) => a.daysLeft - b.daysLeft)
+              .slice(0, 5) // Take top 5 closest deadlines
+
+            setUpcomingDeadlines(allDeadlines)
+
+            // Cache the data
+            setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
+          }
+        } catch (error) {
+          console.error("Error fetching upcoming deadlines:", error)
+        } finally {
           setIsLoadingDeadlines(false)
-          return
         }
-
-        console.log("Fetching fresh deadlines data")
-
-        // Get current date
-        const now = new Date()
-
-        // Fetch course electives with deadlines
-        const { data: courseElectives, error: courseError } = await supabase
-          .from("elective_courses")
-          .select("id, name, name_ru, deadline, status")
-          .eq("institution_id", institution.id)
-          .eq("status", "published")
-          .not("deadline", "is", null)
-          .gte("deadline", now.toISOString())
-          .order("deadline", { ascending: true })
-          .limit(5)
-
-        // Fetch exchange programs with deadlines
-        const { data: exchangePrograms, error: exchangeError } = await supabase
-          .from("elective_exchange")
-          .select("id, name, name_ru, deadline, status")
-          .eq("institution_id", institution.id)
-          .eq("status", "published")
-          .not("deadline", "is", null)
-          .gte("deadline", now.toISOString())
-          .order("deadline", { ascending: true })
-          .limit(5)
-
-        if (!courseError && !exchangeError) {
-          // Process course electives
-          const courseDeadlines = (courseElectives || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "course" as const,
-          }))
-
-          // Process exchange programs
-          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "exchange" as const,
-          }))
-
-          // Combine and sort by closest deadline
-          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
-            .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 5) // Take top 5 closest deadlines
-
-          setUpcomingDeadlines(allDeadlines)
-
-          // Cache the data
-          setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming deadlines:", error)
-      } finally {
-        setIsLoadingDeadlines(false)
       }
+
+      fetchUpcomingDeadlines()
     }
+  }, [supabase, isSubdomainAccess, institution?.id, language, componentState])
 
-    fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language])
-
-  // Ensure this page is only accessed via subdomain
-  useEffect(() => {
-    if (!isSubdomainAccess && isInitialMount.current === false) {
-      router.push("/institution-required")
-    }
-  }, [isSubdomainAccess, router])
-
-  // Log when component mounts/unmounts to track re-renders
-  useEffect(() => {
-    console.log("Manager Dashboard mounted")
-
-    // Mark that we're no longer on initial mount
-    isInitialMount.current = false
-
-    return () => {
-      console.log("Manager Dashboard unmounted")
-    }
-  }, [])
-
-  if (!isSubdomainAccess && isLoadingProfile) {
-    return null
+  if (componentState === "loading" || componentState === "redirecting") {
+    return (
+      <DashboardLayout userRole={UserRole.MANAGER}>
+        <div className="p-6 space-y-6">
+          <div>
+            <Skeleton className="h-9 w-1/3 mb-2" />
+            <Skeleton className="h-5 w-1/2" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-1/4 mb-1" />
+                <Skeleton className="h-4 w-3/4 mb-3" />
+                <Skeleton className="h-9 w-full" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-1/4 mb-1" />
+                <Skeleton className="h-4 w-3/4 mb-3" />
+                <Skeleton className="h-9 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-1/2 mb-1" />
+                <Skeleton className="h-4 w-3/4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-1/2 mb-1" />
+                <Skeleton className="h-4 w-3/4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

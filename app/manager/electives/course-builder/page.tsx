@@ -22,6 +22,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
+import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface Course {
   id: string
@@ -38,7 +40,10 @@ export default function CourseBuilderPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
-  const { institution } = useInstitution()
+  const { institution, isLoading: institutionLoading } = useInstitution()
+
+  const { profile, loading: profileLoading } = useCachedManagerProfile()
+  const [componentState, setComponentState] = useState<"loading" | "ready" | "redirecting">("loading")
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1)
@@ -72,10 +77,60 @@ export default function CourseBuilderPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  // Fetch courses
+  const fetchCourses = async () => {
+    if (!institution?.id) return
+
+    setIsLoadingCourses(true)
+    try {
+      console.log("Fetching courses...")
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("institution_id", institution.id)
+        .eq("status", "active")
+        .order("name_en", { ascending: true })
+
+      if (error) throw error
+
+      console.log("Courses data:", data)
+      setCourses(data || [])
+    } catch (error) {
+      console.error("Error fetching courses:", error)
+      toast({
+        title: t("manager.courseBuilder.error", "Error"),
+        description: t("manager.courseBuilder.errorFetchingCourses", "Failed to fetch courses"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingCourses(false)
+    }
+  }
+
+  useEffect(() => {
+    if (institutionLoading || profileLoading) {
+      setComponentState("loading")
+      return
+    }
+    if (!institution) {
+      // DashboardLayout handles actual redirect. This page just waits.
+      setComponentState("redirecting")
+      return
+    }
+    if (!profile) {
+      // DashboardLayout handles actual redirect. This page just waits.
+      setComponentState("redirecting")
+      return
+    }
+    setComponentState("ready")
+  }, [institution, institutionLoading, profile, profileLoading])
+
   // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
+    if (componentState !== "ready") return // Wait for auth and institution
+
     const fetchData = async () => {
-      setIsLoading(true)
+      // setIsLoading(true); // This can be removed if PageSkeleton handles overall loading
       try {
         console.log("Fetching semesters and years data...")
         const [semestersData, yearsData] = await Promise.all([getSemesters(), getYears()])
@@ -114,14 +169,14 @@ export default function CourseBuilderPage() {
     }
 
     fetchData()
-  }, [toast, t])
+  }, [componentState, toast, t])
 
   // Fetch courses when entering step 2
   useEffect(() => {
-    if (currentStep === 2 && courses.length === 0 && !isLoadingCourses) {
+    if (componentState === "ready" && currentStep === 2 && courses.length === 0 && !isLoadingCourses) {
       fetchCourses()
     }
-  }, [currentStep, courses.length, isLoadingCourses])
+  }, [componentState, currentStep, courses.length, isLoadingCourses, fetchCourses])
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -170,36 +225,6 @@ export default function CourseBuilderPage() {
       })
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  // Fetch courses
-  const fetchCourses = async () => {
-    if (!institution?.id) return
-
-    setIsLoadingCourses(true)
-    try {
-      console.log("Fetching courses...")
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("institution_id", institution.id)
-        .eq("status", "active")
-        .order("name_en", { ascending: true })
-
-      if (error) throw error
-
-      console.log("Courses data:", data)
-      setCourses(data || [])
-    } catch (error) {
-      console.error("Error fetching courses:", error)
-      toast({
-        title: t("manager.courseBuilder.error", "Error"),
-        description: t("manager.courseBuilder.errorFetchingCourses", "Failed to fetch courses"),
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingCourses(false)
     }
   }
 
@@ -371,6 +396,10 @@ export default function CourseBuilderPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (componentState !== "ready") {
+    return <PageSkeleton />
   }
 
   return (

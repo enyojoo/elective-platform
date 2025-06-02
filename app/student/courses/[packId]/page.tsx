@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import {
   Download,
   CheckCircle,
@@ -121,6 +122,7 @@ const getFileNameFromPath = (path: string | null | undefined): string | null => 
 export default function ElectivePage({ params }: ElectivePageProps) {
   const { t, language } = useLanguage()
   const { toast } = useToast()
+  const router = useRouter()
   const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -225,6 +227,13 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!profileLoading && !profile && !profileError) {
+      console.log("ElectivePage [packId]: No profile, redirecting to login.")
+      router.push("/student/login")
+    }
+  }, [profile, profileLoading, profileError, router])
 
   const toggleCourseSelection = (individualCourseId: string) => {
     setSelectedIndividualCourseIds((prevSelected) => {
@@ -432,13 +441,29 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     )
   }
 
-  if (profileLoading || isLoadingPage) {
+  if (profileLoading || isLoadingPage || (!profile && !profileLoading && !profileError)) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
         <PageSkeleton />
       </DashboardLayout>
     )
   }
+
+  if (profileError && !fetchError) {
+    // Show profile error if no other fetch error has taken precedence
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Profile</AlertTitle>
+            <AlertDescription>{profileError}</AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   if (fetchError) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
