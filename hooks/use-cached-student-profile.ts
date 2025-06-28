@@ -17,44 +17,39 @@ export function useCachedStudentProfile(userId?: string) {
     const fetchProfile = async () => {
       setIsLoading(true)
       setError(null)
-      console.log("useCachedStudentProfile: Starting profile fetch")
 
       try {
-        let currentUserId = userId
-
-        if (!currentUserId) {
-          console.log("useCachedStudentProfile: No userId provided, checking session")
+        // 1. Determine the user ID to use for fetching.
+        let effectiveUserId = userId
+        if (!effectiveUserId) {
+          // If no ID is passed, get it from the current session.
           const {
-            data: { session },
-            error: sessionError,
-          } = await supabase.auth.getSession()
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser()
 
-          if (sessionError) {
-            console.error("useCachedStudentProfile: Session error:", sessionError)
-            throw new Error(`Authentication error: ${sessionError.message}`)
-          }
-
-          if (!session || !session.user) {
-            console.log("useCachedStudentProfile: No active session found")
+          if (userError || !user) {
+            // This is a critical error, not a silent failure.
+            console.error("useCachedStudentProfile: User not authenticated.", userError)
+            setError("You are not logged in or your session has expired.")
             setIsLoading(false)
             return
           }
-
-          currentUserId = session.user.id
-          console.log("useCachedStudentProfile: Got userId from session:", currentUserId)
+          effectiveUserId = user.id
         }
 
-        const cachedProfile = getCachedData<any>("studentProfile", currentUserId)
-
+        // 2. Try to get data from cache first.
+        const cacheKey = "studentProfile"
+        const cachedProfile = getCachedData<any>(cacheKey, effectiveUserId)
         if (cachedProfile) {
-          console.log("useCachedStudentProfile: Using cached student profile")
+          console.log(`useCachedStudentProfile: Using cached data for user ${effectiveUserId}`)
           setProfile(cachedProfile)
           setIsLoading(false)
           return
         }
 
-        console.log("useCachedStudentProfile: Fetching student profile from API for user:", currentUserId)
-
+        // 3. If not in cache, fetch from the database.
+        console.log(`useCachedStudentProfile: Fetching fresh data from API for user: ${effectiveUserId}`)
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select(
@@ -64,29 +59,20 @@ export function useCachedStudentProfile(userId?: string) {
             groups:group_id(id, name)
           `,
           )
-          .eq("id", currentUserId)
+          .eq("id", effectiveUserId)
           .eq("role", "student")
           .single()
 
-        console.log("useCachedStudentProfile: Query result:", profileData, "Error:", profileError)
-
         if (profileError) {
-          console.error("useCachedStudentProfile: Profile fetch error:", profileError)
-          throw profileError
+          console.error("useCachedStudentProfile: Supabase error:", profileError)
+          throw profileError // Let the catch block handle it.
         }
 
         if (!profileData) {
-          console.error("useCachedStudentProfile: No profile data found")
-          throw new Error("No student profile data found for user")
+          throw new Error("No student profile data found for user.")
         }
 
-        if (profileData.role !== "student") {
-          console.error(`useCachedStudentProfile: Expected student role, but got: ${profileData.role}`)
-          throw new Error(`Expected student role, but got: ${profileData.role}`)
-        }
-
-        console.log("useCachedStudentProfile: Raw student profile data:", profileData)
-
+        // 4. Process data, set state, and update cache.
         const processedProfile = {
           ...profileData,
           year: profileData.academic_year || "Not specified",
@@ -96,17 +82,18 @@ export function useCachedStudentProfile(userId?: string) {
         }
 
         console.log("useCachedStudentProfile: Processed student profile data:", processedProfile)
-
-        setCachedData("studentProfile", currentUserId, processedProfile)
         setProfile(processedProfile)
-      } catch (error: any) {
-        console.error("useCachedStudentProfile: Error:", error)
-        setError(error.message)
+        setCachedData(cacheKey, effectiveUserId, processedProfile)
+      } catch (err: any) {
+        console.error("useCachedStudentProfile: Error fetching student profile:", err)
+        const errorMessage = err.message || "An unknown error occurred."
+        setError(errorMessage)
         toast({
-          title: "Profile Error",
-          description: `Failed to load student profile: ${error.message}`,
+          title: "Error Loading Profile",
+          description: `Failed to load student profile: ${errorMessage}`,
           variant: "destructive",
         })
+        setProfile(null) // Clear profile on error
       } finally {
         setIsLoading(false)
       }

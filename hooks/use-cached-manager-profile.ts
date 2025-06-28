@@ -17,78 +17,71 @@ export function useCachedManagerProfile(userId?: string) {
     const fetchProfile = async () => {
       setIsLoading(true)
       setError(null)
-      console.log("useCachedManagerProfile: Starting profile fetch")
 
       try {
-        let currentUserId = userId
-
-        if (!currentUserId) {
-          console.log("useCachedManagerProfile: No userId provided, checking session")
+        // 1. Determine the user ID to use for fetching.
+        let effectiveUserId = userId
+        if (!effectiveUserId) {
+          // If no ID is passed, get it from the current session.
           const {
-            data: { session },
-            error: sessionError,
-          } = await supabase.auth.getSession()
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser()
 
-          if (sessionError) {
-            console.error("useCachedManagerProfile: Session error:", sessionError)
-            throw new Error(`Authentication error: ${sessionError.message}`)
-          }
-
-          if (!session || !session.user) {
-            console.log("useCachedManagerProfile: No active session found")
+          if (userError || !user) {
+            // This is a critical error, not a silent failure.
+            console.error("useCachedManagerProfile: User not authenticated.", userError)
+            setError("You are not logged in or your session has expired.")
             setIsLoading(false)
             return
           }
-
-          currentUserId = session.user.id
-          console.log("useCachedManagerProfile: Got userId from session:", currentUserId)
+          effectiveUserId = user.id
         }
 
+        // 2. Try to get data from cache first.
         const cacheKey = "managerProfile"
-        const cachedProfile = getCachedData<any>(cacheKey, currentUserId)
-
+        const cachedProfile = getCachedData<any>(cacheKey, effectiveUserId)
         if (cachedProfile) {
-          console.log(`useCachedManagerProfile: Using cached data for ${cacheKey} with id ${currentUserId}`)
+          console.log(`useCachedManagerProfile: Using cached data for user ${effectiveUserId}`)
           setProfile(cachedProfile)
           setIsLoading(false)
           return
         }
 
-        console.log(
-          `useCachedManagerProfile: Fetching fresh data for ${cacheKey} from API for userId: ${currentUserId}`,
-        )
+        // 3. If not in cache, fetch from the database.
+        console.log(`useCachedManagerProfile: Fetching fresh data from API for user: ${effectiveUserId}`)
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*, degrees:degree_id(id, name), academic_year")
-          .eq("id", currentUserId)
+          .eq("id", effectiveUserId)
           .eq("role", "program_manager")
           .single()
 
         if (profileError) {
           console.error("useCachedManagerProfile: Supabase error:", profileError)
-          throw profileError
+          throw profileError // Let the catch block handle it.
         }
 
         if (!profileData) {
-          console.warn(`useCachedManagerProfile: No program_manager profile found for userId: ${currentUserId}`)
-          setProfile(null)
-        } else {
-          console.log("useCachedManagerProfile: Fetched profile data:", profileData)
-          setProfile(profileData)
-          setCachedData(cacheKey, currentUserId, profileData)
+          throw new Error(`No program manager profile found for user.`)
         }
+
+        // 4. Set state and update cache.
+        console.log("useCachedManagerProfile: Fetched profile data:", profileData)
+        setProfile(profileData)
+        setCachedData(cacheKey, effectiveUserId, profileData)
       } catch (err: any) {
         console.error("useCachedManagerProfile: Error fetching manager profile:", err)
-        setError(err.message)
+        const errorMessage = err.message || "An unknown error occurred."
+        setError(errorMessage)
         toast({
-          title: "Error",
-          description: "Failed to load program manager profile",
+          title: "Error Loading Profile",
+          description: `Failed to load program manager profile: ${errorMessage}`,
           variant: "destructive",
         })
-        setProfile(null)
+        setProfile(null) // Clear profile on error
       } finally {
         setIsLoading(false)
-        console.log("useCachedManagerProfile: Fetch process finished.")
       }
     }
 

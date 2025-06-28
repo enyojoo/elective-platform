@@ -1,20 +1,20 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { BookOpen, GlobeIcon } from "lucide-react"
+import { BookOpen, GlobeIcon, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { useRouter } from "next/navigation"
 import { useCachedManagerProfile } from "@/hooks/use-cached-manager-profile"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { formatDate, calculateDaysLeft } from "@/lib/utils"
 import { useDataCache } from "@/lib/data-cache-context"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface DeadlineItem {
   id: string
@@ -32,40 +32,35 @@ interface ElectiveCounts {
 export default function ManagerDashboard() {
   const { t, language } = useLanguage()
   const { isSubdomainAccess, institution } = useInstitution()
-  const router = useRouter()
   const supabase = getSupabaseBrowserClient()
   const { getCachedData, setCachedData } = useDataCache()
 
-  const isInitialMount = useRef(true)
+  // Use the robust profile hook. It handles its own loading and errors.
+  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedManagerProfile()
+
+  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({ courses: 0, exchange: 0 })
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
 
   const [isLoadingCounts, setIsLoadingCounts] = useState(true)
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
-  const { profile, isLoading: isLoadingProfile } = useCachedManagerProfile()
-
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
-  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({
-    courses: 0,
-    exchange: 0,
-  })
-
+  // Effect for fetching elective counts
   useEffect(() => {
-    const fetchElectiveCounts = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+    if (!isSubdomainAccess || !institution?.id) return
 
-      const cacheKey = "managerDashboardElectiveCounts"
-      const cachedCounts = getCachedData<ElectiveCounts>(cacheKey, institution.id)
+    const fetchElectiveCounts = async () => {
+      const cacheKey = "managerElectiveCounts"
+      const itemId = institution.id
+      const cachedCounts = getCachedData<ElectiveCounts>(cacheKey, itemId)
+
       if (cachedCounts) {
-        console.log("Using cached elective counts data")
         setElectiveCounts(cachedCounts)
         setIsLoadingCounts(false)
         return
       }
 
+      setIsLoadingCounts(true)
       try {
-        setIsLoadingCounts(true)
-        console.log("Fetching fresh elective counts data")
-
         const { count: courseCount, error: courseError } = await supabase
           .from("elective_courses")
           .select("*", { count: "exact", head: true })
@@ -76,14 +71,13 @@ export default function ManagerDashboard() {
           .select("*", { count: "exact", head: true })
           .eq("institution_id", institution.id)
 
-        if (!courseError && !exchangeError) {
-          const counts = {
-            courses: courseCount || 0,
-            exchange: exchangeCount || 0,
-          }
-          setElectiveCounts(counts)
-          setCachedData(cacheKey, institution.id, counts)
+        if (courseError || exchangeError) {
+          throw new Error(courseError?.message || exchangeError?.message)
         }
+
+        const counts = { courses: courseCount || 0, exchange: exchangeCount || 0 }
+        setElectiveCounts(counts)
+        setCachedData(cacheKey, itemId, counts)
       } catch (error) {
         console.error("Error fetching elective counts:", error)
       } finally {
@@ -92,26 +86,26 @@ export default function ManagerDashboard() {
     }
 
     fetchElectiveCounts()
-  }, [supabase, isSubdomainAccess, institution?.id, getCachedData, setCachedData])
+  }, [isSubdomainAccess, institution?.id, getCachedData, setCachedData, supabase])
 
+  // Effect for fetching deadlines
   useEffect(() => {
-    const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+    if (!isSubdomainAccess || !institution?.id) return
 
-      const cacheKey = "managerDashboardDeadlines"
-      const cachedDeadlines = getCachedData<DeadlineItem[]>(cacheKey, institution.id)
+    const fetchUpcomingDeadlines = async () => {
+      const cacheKey = "managerDeadlines"
+      const itemId = institution.id
+      const cachedDeadlines = getCachedData<DeadlineItem[]>(cacheKey, itemId)
+
       if (cachedDeadlines) {
-        console.log("Using cached deadlines data")
         setUpcomingDeadlines(cachedDeadlines)
         setIsLoadingDeadlines(false)
         return
       }
 
+      setIsLoadingDeadlines(true)
       try {
-        setIsLoadingDeadlines(true)
-        console.log("Fetching fresh deadlines data")
         const now = new Date()
-
         const { data: courseElectives, error: courseError } = await supabase
           .from("elective_courses")
           .select("id, name, name_ru, deadline, status")
@@ -132,30 +126,32 @@ export default function ManagerDashboard() {
           .order("deadline", { ascending: true })
           .limit(5)
 
-        if (!courseError && !exchangeError) {
-          const courseDeadlines = (courseElectives || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "course" as const,
-          }))
-
-          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "exchange" as const,
-          }))
-
-          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
-            .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 5)
-
-          setUpcomingDeadlines(allDeadlines)
-          setCachedData(cacheKey, institution.id, allDeadlines)
+        if (courseError || exchangeError) {
+          throw new Error(courseError?.message || exchangeError?.message)
         }
+
+        const courseDeadlines = (courseElectives || []).map((item) => ({
+          id: item.id,
+          title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+          date: item.deadline,
+          daysLeft: calculateDaysLeft(item.deadline),
+          type: "course" as const,
+        }))
+
+        const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
+          id: item.id,
+          title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+          date: item.deadline,
+          daysLeft: calculateDaysLeft(item.deadline),
+          type: "exchange" as const,
+        }))
+
+        const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
+          .sort((a, b) => a.daysLeft - b.daysLeft)
+          .slice(0, 5)
+
+        setUpcomingDeadlines(allDeadlines)
+        setCachedData(cacheKey, itemId, allDeadlines)
       } catch (error) {
         console.error("Error fetching upcoming deadlines:", error)
       } finally {
@@ -164,25 +160,7 @@ export default function ManagerDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language, getCachedData, setCachedData])
-
-  useEffect(() => {
-    if (!isSubdomainAccess && isInitialMount.current === false) {
-      router.push("/institution-required")
-    }
-  }, [isSubdomainAccess, router])
-
-  useEffect(() => {
-    console.log("Manager Dashboard mounted")
-    isInitialMount.current = false
-    return () => {
-      console.log("Manager Dashboard unmounted")
-    }
-  }, [])
-
-  if (!isSubdomainAccess && isLoadingProfile) {
-    return null
-  }
+  }, [isSubdomainAccess, institution?.id, language, getCachedData, setCachedData, supabase])
 
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
@@ -190,6 +168,14 @@ export default function ManagerDashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("manager.dashboard.title")}</h1>
         </div>
+
+        {profileError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading Dashboard</AlertTitle>
+            <AlertDescription>{profileError}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
           <Card>

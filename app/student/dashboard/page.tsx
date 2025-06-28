@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { BookOpen, Calendar, ClipboardList, AlertCircle } from "lucide-react"
@@ -8,7 +8,6 @@ import Link from "next/link"
 import { UserRole } from "@/lib/types"
 import { useLanguage } from "@/lib/language-context"
 import { useInstitution } from "@/lib/institution-context"
-import { useRouter } from "next/navigation"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -25,32 +24,18 @@ interface DeadlineItem {
 }
 
 interface ElectiveCounts {
-  required: {
-    courses: number
-    exchange: number
-    total: number
-  }
-  selected: {
-    courses: number
-    exchange: number
-    total: number
-  }
-  pending: {
-    courses: number
-    exchange: number
-    total: number
-  }
+  required: { courses: number; exchange: number; total: number }
+  selected: { courses: number; exchange: number; total: number }
+  pending: { courses: number; exchange: number; total: number }
 }
 
 export default function StudentDashboard() {
   const { t, language } = useLanguage()
   const { isSubdomainAccess, institution } = useInstitution()
-  const router = useRouter()
   const supabase = getSupabaseBrowserClient()
   const { getCachedData, setCachedData } = useDataCache()
 
-  const isInitialMount = useRef(true)
-
+  // Use the robust profile hook. It handles its own loading and errors.
   const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile()
   const userId = profile?.id
 
@@ -60,75 +45,75 @@ export default function StudentDashboard() {
     pending: { courses: 0, exchange: 0, total: 0 },
   })
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
-  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
+
   const [isLoadingElectiveCounts, setIsLoadingElectiveCounts] = useState(true)
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
 
+  // Effect for fetching elective counts, depends on userId.
   useEffect(() => {
-    const fetchElectiveCounts = async () => {
-      if (!isSubdomainAccess || !institution?.id || !userId) return
+    if (!isSubdomainAccess || !institution?.id || !userId) {
+      // If there's no userId yet, we can't fetch counts.
+      // If the profile hook is loading, we should also be in a loading state.
+      if (!isLoadingProfile) setIsLoadingElectiveCounts(false)
+      return
+    }
 
-      const cacheKey = `studentDashboardElectiveCounts_${userId}`
-      const cachedCounts = getCachedData<ElectiveCounts>(cacheKey)
+    const fetchElectiveCounts = async () => {
+      const cacheKey = "studentElectiveCounts"
+      const itemId = userId
+      const cachedCounts = getCachedData<ElectiveCounts>(cacheKey, itemId)
+
       if (cachedCounts) {
-        console.log("Using cached elective counts data")
         setElectiveCounts(cachedCounts)
         setIsLoadingElectiveCounts(false)
         return
       }
 
+      setIsLoadingElectiveCounts(true)
       try {
-        setIsLoadingElectiveCounts(true)
-        console.log("Fetching fresh elective counts data")
-
-        const { count: availableCoursesCount, error: availableCoursesError } = await supabase
+        const { count: availableCoursesCount } = await supabase
           .from("elective_courses")
           .select("*", { count: "exact", head: true })
           .eq("institution_id", institution.id)
           .eq("status", "published")
 
-        const { count: availableExchangeCount, error: availableExchangeError } = await supabase
+        const { count: availableExchangeCount } = await supabase
           .from("elective_exchange")
           .select("*", { count: "exact", head: true })
           .eq("institution_id", institution.id)
           .eq("status", "published")
 
-        const { data: courseSelections, error: courseSelectionsError } = await supabase
-          .from("course_selections")
-          .select("*")
-          .eq("student_id", userId)
-
-        const { data: exchangeSelections, error: exchangeSelectionsError } = await supabase
+        const { data: courseSelections } = await supabase.from("course_selections").select("*").eq("student_id", userId)
+        const { data: exchangeSelections } = await supabase
           .from("exchange_selections")
           .select("*")
           .eq("student_id", userId)
 
-        if (!availableCoursesError && !availableExchangeError && !courseSelectionsError && !exchangeSelectionsError) {
-          const selectedCourses = courseSelections?.length || 0
-          const selectedExchange = exchangeSelections?.length || 0
-          const pendingCourses = courseSelections?.filter((s) => s.status === "pending")?.length || 0
-          const pendingExchange = exchangeSelections?.filter((s) => s.status === "pending")?.length || 0
+        const selectedCourses = courseSelections?.length || 0
+        const selectedExchange = exchangeSelections?.length || 0
+        const pendingCourses = courseSelections?.filter((s) => s.status === "pending")?.length || 0
+        const pendingExchange = exchangeSelections?.filter((s) => s.status === "pending")?.length || 0
 
-          const counts: ElectiveCounts = {
-            required: {
-              courses: availableCoursesCount || 0,
-              exchange: availableExchangeCount || 0,
-              total: (availableCoursesCount || 0) + (availableExchangeCount || 0),
-            },
-            selected: {
-              courses: selectedCourses,
-              exchange: selectedExchange,
-              total: selectedCourses + selectedExchange,
-            },
-            pending: {
-              courses: pendingCourses,
-              exchange: pendingExchange,
-              total: pendingCourses + pendingExchange,
-            },
-          }
-
-          setElectiveCounts(counts)
-          setCachedData(cacheKey, null, counts) // No secondary key needed if primary is unique
+        const counts: ElectiveCounts = {
+          required: {
+            courses: availableCoursesCount || 0,
+            exchange: availableExchangeCount || 0,
+            total: (availableCoursesCount || 0) + (availableExchangeCount || 0),
+          },
+          selected: {
+            courses: selectedCourses,
+            exchange: selectedExchange,
+            total: selectedCourses + selectedExchange,
+          },
+          pending: {
+            courses: pendingCourses,
+            exchange: pendingExchange,
+            total: pendingCourses + pendingExchange,
+          },
         }
+
+        setElectiveCounts(counts)
+        setCachedData(cacheKey, itemId, counts)
       } catch (error) {
         console.error("Error fetching elective counts:", error)
       } finally {
@@ -137,27 +122,27 @@ export default function StudentDashboard() {
     }
 
     fetchElectiveCounts()
-  }, [supabase, isSubdomainAccess, institution?.id, userId, getCachedData, setCachedData])
+  }, [isSubdomainAccess, institution?.id, userId, isLoadingProfile, getCachedData, setCachedData, supabase])
 
+  // Effect for fetching deadlines
   useEffect(() => {
-    const fetchUpcomingDeadlines = async () => {
-      if (!isSubdomainAccess || !institution?.id) return
+    if (!isSubdomainAccess || !institution?.id) return
 
-      const cacheKey = "studentDashboardDeadlines"
-      const cachedDeadlines = getCachedData<DeadlineItem[]>(cacheKey, institution.id)
+    const fetchUpcomingDeadlines = async () => {
+      const cacheKey = "studentDeadlines"
+      const itemId = institution.id
+      const cachedDeadlines = getCachedData<DeadlineItem[]>(cacheKey, itemId)
+
       if (cachedDeadlines) {
-        console.log("Using cached deadlines data")
         setUpcomingDeadlines(cachedDeadlines)
         setIsLoadingDeadlines(false)
         return
       }
 
+      setIsLoadingDeadlines(true)
       try {
-        setIsLoadingDeadlines(true)
-        console.log("Fetching fresh deadlines data")
         const now = new Date()
-
-        const { data: courseElectives, error: courseError } = await supabase
+        const { data: courseElectives } = await supabase
           .from("elective_courses")
           .select("id, name, name_ru, deadline, status")
           .eq("institution_id", institution.id)
@@ -167,7 +152,7 @@ export default function StudentDashboard() {
           .order("deadline", { ascending: true })
           .limit(5)
 
-        const { data: exchangePrograms, error: exchangeError } = await supabase
+        const { data: exchangePrograms } = await supabase
           .from("elective_exchange")
           .select("id, name, name_ru, deadline, status")
           .eq("institution_id", institution.id)
@@ -177,30 +162,28 @@ export default function StudentDashboard() {
           .order("deadline", { ascending: true })
           .limit(5)
 
-        if (!courseError && !exchangeError) {
-          const courseDeadlines = (courseElectives || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "course" as const,
-          }))
+        const courseDeadlines = (courseElectives || []).map((item) => ({
+          id: item.id,
+          title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+          date: item.deadline,
+          daysLeft: calculateDaysLeft(item.deadline),
+          type: "course" as const,
+        }))
 
-          const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
-            id: item.id,
-            title: language === "ru" && item.name_ru ? item.name_ru : item.name,
-            date: item.deadline,
-            daysLeft: calculateDaysLeft(item.deadline),
-            type: "exchange" as const,
-          }))
+        const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
+          id: item.id,
+          title: language === "ru" && item.name_ru ? item.name_ru : item.name,
+          date: item.deadline,
+          daysLeft: calculateDaysLeft(item.deadline),
+          type: "exchange" as const,
+        }))
 
-          const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
-            .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 5)
+        const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
+          .sort((a, b) => a.daysLeft - b.daysLeft)
+          .slice(0, 5)
 
-          setUpcomingDeadlines(allDeadlines)
-          setCachedData(cacheKey, institution.id, allDeadlines)
-        }
+        setUpcomingDeadlines(allDeadlines)
+        setCachedData(cacheKey, itemId, allDeadlines)
       } catch (error) {
         console.error("Error fetching upcoming deadlines:", error)
       } finally {
@@ -209,32 +192,18 @@ export default function StudentDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language, getCachedData, setCachedData])
-
-  useEffect(() => {
-    if (!isSubdomainAccess && !isInitialMount.current) {
-      router.push("/institution-required")
-    }
-  }, [isSubdomainAccess, router])
-
-  useEffect(() => {
-    console.log("Student Dashboard mounted")
-    isInitialMount.current = false
-    return () => {
-      console.log("Student Dashboard unmounted")
-    }
-  }, [])
-
-  if (!isSubdomainAccess && isInitialMount.current) {
-    return null
-  }
+  }, [isSubdomainAccess, institution?.id, language, getCachedData, setCachedData, supabase])
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {t("student.dashboard.welcome", { name: profile?.full_name || t("student.dashboard.student") })}
+            {isLoadingProfile ? (
+              <Skeleton className="h-9 w-64" />
+            ) : (
+              t("student.dashboard.welcome", { name: profile?.full_name || t("student.dashboard.student") })
+            )}
           </h1>
           <p className="text-muted-foreground">{t("student.dashboard.subtitle")}</p>
         </div>
@@ -242,7 +211,7 @@ export default function StudentDashboard() {
         {profileError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>Error Loading Dashboard</AlertTitle>
             <AlertDescription>{profileError}</AlertDescription>
           </Alert>
         )}
