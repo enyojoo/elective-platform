@@ -106,6 +106,14 @@ export default function CourseBuilderPage() {
             year: yearsData[0].id,
           }))
         }
+
+        // Set default group if available
+        if (groupsData.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            groupId: groupsData[0].id,
+          }))
+        }
       } catch (error) {
         console.error("Error fetching data:", error)
         toast({

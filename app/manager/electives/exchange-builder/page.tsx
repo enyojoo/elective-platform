@@ -534,13 +534,13 @@ export default function ExchangeBuilderPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="group">{t("manager.exchangeBuilder.group")}</Label>
+                  <Label htmlFor="group">{t("manager.exchangeBuilder.group", "Group")}</Label>
                   {isLoading ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
                     <Select value={formData.groupId} onValueChange={(value) => handleSelectChange("groupId", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("manager.exchangeBuilder.selectGroup")} />
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectGroup", "Select a group")} />
                       </SelectTrigger>
                       <SelectContent>
                         {groups.length > 0 ? (
@@ -551,7 +551,7 @@ export default function ExchangeBuilderPage() {
                           ))
                         ) : (
                           <SelectItem value="" disabled>
-                            {t("manager.exchangeBuilder.noGroupsAvailable")}
+                            {t("manager.exchangeBuilder.noGroupsAvailable", "No groups available")}
                           </SelectItem>
                         )}
                       </SelectContent>
@@ -751,7 +751,7 @@ export default function ExchangeBuilderPage() {
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.exchangeBuilder.group")}
+                    {t("manager.exchangeBuilder.group", "Group")}
                   </h3>
                   <p className="text-lg">{groups.find((g) => g.id === formData.groupId)?.name || "N/A"}</p>
                 </div>
