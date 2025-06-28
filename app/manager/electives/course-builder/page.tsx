@@ -22,7 +22,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
-import { getGroups, type Group } from "@/actions/groups"
 
 interface Course {
   id: string
@@ -50,16 +49,14 @@ export default function CourseBuilderPage() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Semesters, years, and groups state
+  // Semesters and years state
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [years, setYears] = useState<Year[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
 
   // Form state
   const [formData, setFormData] = useState({
     semester: "",
     year: "",
-    group_id: "",
     maxSelections: 2,
     endDate: "",
     status: "draft",
@@ -78,23 +75,16 @@ export default function CourseBuilderPage() {
   // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
     const fetchData = async () => {
-      if (!institution?.id) return
       setIsLoading(true)
       try {
-        console.log("Fetching semesters, years, and groups data...")
-        const [semestersData, yearsData, groupsData] = await Promise.all([
-          getSemesters(),
-          getYears(),
-          getGroups(institution.id),
-        ])
+        console.log("Fetching semesters and years data...")
+        const [semestersData, yearsData] = await Promise.all([getSemesters(), getYears()])
 
         console.log("Semesters data:", semestersData)
         console.log("Years data:", yearsData)
-        console.log("Groups data:", groupsData)
 
         setSemesters(semestersData)
         setYears(yearsData)
-        setGroups(groupsData)
 
         // Set default semester if available
         if (semestersData.length > 0) {
@@ -111,14 +101,6 @@ export default function CourseBuilderPage() {
             year: yearsData[0].id,
           }))
         }
-
-        // Set default group if available
-        if (groupsData.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            group_id: groupsData[0].id,
-          }))
-        }
       } catch (error) {
         console.error("Error fetching data:", error)
         toast({
@@ -131,10 +113,8 @@ export default function CourseBuilderPage() {
       }
     }
 
-    if (institution?.id) {
-      fetchData()
-    }
-  }, [toast, t, institution?.id])
+    fetchData()
+  }, [toast, t])
 
   // Fetch courses when entering step 2
   useEffect(() => {
@@ -261,7 +241,7 @@ export default function CourseBuilderPage() {
   const handleNextStep = () => {
     if (currentStep === 1) {
       // Validate step 1
-      if (!formData.semester || !formData.year || !formData.group_id || !formData.endDate) {
+      if (!formData.semester || !formData.year || !formData.endDate) {
         toast({
           title: t("manager.courseBuilder.missingInfo", "Missing Information"),
           description: t("manager.courseBuilder.requiredFields", "Please fill in all required fields"),
@@ -358,7 +338,6 @@ export default function CourseBuilderPage() {
             syllabus_template_url: formData.syllabusTemplateUrl,
             semester: formData.semester,
             academic_year: formData.year,
-            group_id: formData.group_id,
             courses: selectedCourses, // Store course IDs as an array of UUIDs
             created_by: profileId,
           },
@@ -475,7 +454,7 @@ export default function CourseBuilderPage() {
               <CardTitle>{t("manager.courseBuilder.programInfo", "Program Information")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="semester">{t("manager.courseBuilder.semester", "Semester")}</Label>
                   {isLoading ? (
@@ -521,32 +500,6 @@ export default function CourseBuilderPage() {
                           ))
                         ) : (
                           <SelectItem value="default">{new Date().getFullYear()}</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="group_id">{t("manager.courseBuilder.group", "Group")}</Label>
-                  {isLoading ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : (
-                    <Select value={formData.group_id} onValueChange={(value) => handleSelectChange("group_id", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("manager.courseBuilder.selectGroup", "Select a group")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.length > 0 ? (
-                          groups.map((group) => (
-                            <SelectItem key={group.id} value={group.id}>
-                              {language === "ru" && group.name_ru ? group.name_ru : group.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>
-                            {t("manager.courseBuilder.noGroupsAvailable", "No groups available")}
-                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
