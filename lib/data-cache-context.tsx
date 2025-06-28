@@ -2,10 +2,15 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
 
+interface CacheItem<T> {
+  data: T
+  timestamp: number
+}
+
 interface DataCacheContextType {
   getCachedData: <T>(cacheKey: string, id: string) => T | null
   setCachedData: <T>(cacheKey: string, id: string, data: T) => void
-  clearCache: (cacheKey?: string) => void
+  invalidateCache: (cacheKey: string, id?: string) => void
 }
 
 const DataCacheContext = createContext<DataCacheContextType | undefined>(undefined)
@@ -23,65 +28,60 @@ interface DataCacheProviderProps {
 }
 
 export function DataCacheProvider({ children }: DataCacheProviderProps) {
-  // Use a single state object to store all cache data
-  const [cacheData, setCacheData] = useState<Record<string, Record<string, any>>>({})
+  const [cache, setCache] = useState<Record<string, Record<string, CacheItem<any>>>>({})
 
-  // Get data from cache
   const getCachedData = useCallback(
     <T,>(cacheKey: string, id: string): T | null => {
-      console.log(`Getting cached data for ${cacheKey}:${id}`)
-      if (!cacheData[cacheKey] || !cacheData[cacheKey][id]) {
+      const cachedItem = cache[cacheKey]?.[id]
+      if (!cachedItem) {
         return null
       }
 
-      // Check if the cached data has expired (30 minutes)
-      const cachedItem = cacheData[cacheKey][id]
-      const now = new Date().getTime()
-      if (cachedItem.timestamp && now - cachedItem.timestamp > 30 * 60 * 1000) {
+      // Cache expires after 30 minutes
+      const isExpired = new Date().getTime() - cachedItem.timestamp > 30 * 60 * 1000
+      if (isExpired) {
         console.log(`Cache expired for ${cacheKey}:${id}`)
         return null
       }
 
+      console.log(`Using cached data for ${cacheKey}:${id}`)
       return cachedItem.data as T
     },
-    [cacheData],
+    [cache],
   )
 
-  // Set data in cache
   const setCachedData = useCallback(<T,>(cacheKey: string, id: string, data: T): void => {
-    console.log(`Setting cached data for ${cacheKey}:${id}`)
-    setCacheData((prevCache) => {
-      const cacheEntry = prevCache[cacheKey] || {}
-      return {
-        ...prevCache,
-        [cacheKey]: {
-          ...cacheEntry,
-          [id]: {
-            data,
-            timestamp: new Date().getTime(),
-          },
+    console.log(`Setting cache for ${cacheKey}:${id}`)
+    setCache((prevCache) => ({
+      ...prevCache,
+      [cacheKey]: {
+        ...prevCache[cacheKey],
+        [id]: {
+          data,
+          timestamp: new Date().getTime(),
         },
+      },
+    }))
+  }, [])
+
+  const invalidateCache = useCallback((cacheKey: string, id?: string): void => {
+    setCache((prevCache) => {
+      const newCache = { ...prevCache }
+      if (id) {
+        if (newCache[cacheKey]) {
+          delete newCache[cacheKey][id]
+          console.log(`Cache invalidated for ${cacheKey}:${id}`)
+        }
+      } else {
+        delete newCache[cacheKey]
+        console.log(`Cache invalidated for key: ${cacheKey}`)
       }
+      return newCache
     })
   }, [])
 
-  // Clear cache
-  const clearCache = useCallback((cacheKey?: string): void => {
-    if (cacheKey) {
-      console.log(`Clearing cache for ${cacheKey}`)
-      setCacheData((prevCache) => {
-        const newCache = { ...prevCache }
-        delete newCache[cacheKey]
-        return newCache
-      })
-    } else {
-      console.log("Clearing all cache")
-      setCacheData({})
-    }
-  }, [])
-
   return (
-    <DataCacheContext.Provider value={{ getCachedData, setCachedData, clearCache }}>
+    <DataCacheContext.Provider value={{ getCachedData, setCachedData, invalidateCache }}>
       {children}
     </DataCacheContext.Provider>
   )

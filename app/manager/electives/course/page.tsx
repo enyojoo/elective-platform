@@ -25,12 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useDataCache } from "@/lib/data-cache-context"
 
-// Cache constants
-const CACHE_KEY = "managerCourseElectives"
-const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
-
-// Update the ElectivePack interface to match the elective_courses table structure
 interface ElectivePack {
   id: string
   name: string
@@ -47,52 +43,6 @@ interface ElectivePack {
   course_count?: number
 }
 
-interface CacheData {
-  data: ElectivePack[]
-  timestamp: number
-}
-
-// Cache helper functions
-const getCachedData = (): CacheData | null => {
-  try {
-    const cachedData = localStorage.getItem(CACHE_KEY)
-    if (!cachedData) return null
-
-    const parsed = JSON.parse(cachedData) as CacheData
-
-    // Check if cache is expired
-    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(CACHE_KEY)
-      return null
-    }
-
-    return parsed
-  } catch (error) {
-    console.error("Error reading from cache:", error)
-    return null
-  }
-}
-
-const setCachedData = (data: ElectivePack[]) => {
-  try {
-    const cacheData: CacheData = {
-      data,
-      timestamp: Date.now(),
-    }
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error("Error writing to cache:", error)
-  }
-}
-
-const clearCache = () => {
-  try {
-    localStorage.removeItem(CACHE_KEY)
-  } catch (error) {
-    console.error("Error clearing cache:", error)
-  }
-}
-
 export default function ManagerCourseElectivesPage() {
   const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
   const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
@@ -106,27 +56,24 @@ export default function ManagerCourseElectivesPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
   useEffect(() => {
-    // Update the fetchElectivePacks function to query the elective_courses table
     const fetchElectivePacks = async () => {
       if (!institution?.id) return
 
       try {
         setIsLoading(true)
+        const cacheKey = "coursePrograms"
 
-        // Check for cached data
-        const cachedData = getCachedData()
+        const cachedData = getCachedData<ElectivePack[]>(cacheKey, institution.id)
         if (cachedData) {
-          console.log("Using cached course electives data")
-          setElectivePacks(cachedData.data)
-          setFilteredPacks(cachedData.data)
+          setElectivePacks(cachedData)
+          setFilteredPacks(cachedData)
           setIsLoading(false)
           return
         }
 
-        console.log("Fetching fresh course electives data")
-        // Fetch elective packs from elective_courses table
         const { data: packs, error } = await supabase
           .from("elective_courses")
           .select("*")
@@ -135,34 +82,14 @@ export default function ManagerCourseElectivesPage() {
 
         if (error) throw error
 
-        // For each pack, fetch the count of courses
-        const packsWithCounts = await Promise.all(
-          (packs || []).map(async (pack) => {
-            // If courses array exists, use its length
-            if (pack.courses && Array.isArray(pack.courses)) {
-              return { ...pack, course_count: pack.courses.length }
-            }
-
-            // Otherwise query the courses table
-            const { count, error: countError } = await supabase
-              .from("courses")
-              .select("*", { count: "exact", head: true })
-              .eq("elective_pack_id", pack.id)
-
-            if (countError) {
-              console.error("Error fetching course count:", countError)
-              return { ...pack, course_count: 0 }
-            }
-
-            return { ...pack, course_count: count || 0 }
-          }),
-        )
+        const packsWithCounts = (packs || []).map((pack) => ({
+          ...pack,
+          course_count: pack.courses?.length || 0,
+        }))
 
         setElectivePacks(packsWithCounts)
         setFilteredPacks(packsWithCounts)
-
-        // Cache the data
-        setCachedData(packsWithCounts)
+        setCachedData(cacheKey, institution.id, packsWithCounts)
       } catch (error) {
         console.error("Error fetching elective packs:", error)
         toast({
@@ -176,9 +103,8 @@ export default function ManagerCourseElectivesPage() {
     }
 
     fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t])
+  }, [supabase, institution?.id, toast, t, getCachedData, setCachedData])
 
-  // Filter elective packs based on search term and status filter
   useEffect(() => {
     let result = [...electivePacks]
 
@@ -198,7 +124,6 @@ export default function ManagerCourseElectivesPage() {
     setFilteredPacks(result)
   }, [searchTerm, statusFilter, electivePacks])
 
-  // Get localized name based on current language
   const getLocalizedName = (pack: ElectivePack) => {
     if (language === "ru" && pack.name_ru) {
       return pack.name_ru
@@ -206,7 +131,6 @@ export default function ManagerCourseElectivesPage() {
     return pack.name
   }
 
-  // Get status badge based on status
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "published":
@@ -239,19 +163,14 @@ export default function ManagerCourseElectivesPage() {
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
+    if (!institution?.id) return
     try {
-      const { error } = await supabase.from("elective_packs").update({ status: newStatus }).eq("id", id)
+      const { error } = await supabase.from("elective_courses").update({ status: newStatus }).eq("id", id)
 
       if (error) throw error
 
-      // Update local state
-      const updatedPacks = electivePacks.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack))
-
-      setElectivePacks(updatedPacks)
-
-      // Update cache
-      clearCache()
-      setCachedData(updatedPacks)
+      invalidateCache("coursePrograms", institution.id)
+      setElectivePacks((prev) => prev.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack)))
 
       toast({
         title: t("manager.electives.success", "Success"),
@@ -273,42 +192,16 @@ export default function ManagerCourseElectivesPage() {
   }
 
   const handleDelete = async () => {
-    if (!packToDelete) return
+    if (!packToDelete || !institution?.id) return
 
     try {
       setIsDeleting(true)
-
-      // First check if there are any courses associated with this pack
-      const { count, error: countError } = await supabase
-        .from("courses")
-        .select("*", { count: "exact", head: true })
-        .eq("elective_pack_id", packToDelete)
-
-      if (countError) throw countError
-
-      if (count && count > 0) {
-        toast({
-          title: t("manager.electives.error", "Error"),
-          description: t(
-            "manager.electives.cannotDeleteWithCourses",
-            "Cannot delete elective pack with associated courses",
-          ),
-          variant: "destructive",
-        })
-        return
-      }
-
-      const { error } = await supabase.from("elective_packs").delete().eq("id", packToDelete)
+      const { error } = await supabase.from("elective_courses").delete().eq("id", packToDelete)
 
       if (error) throw error
 
-      // Update local state
-      const updatedPacks = electivePacks.filter((pack) => pack.id !== packToDelete)
-      setElectivePacks(updatedPacks)
-
-      // Update cache
-      clearCache()
-      setCachedData(updatedPacks)
+      invalidateCache("coursePrograms", institution.id)
+      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
 
       toast({
         title: t("manager.electives.success", "Success"),

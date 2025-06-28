@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface Course {
   id: string
@@ -44,6 +45,7 @@ export default function CourseBuilderPage() {
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
+  const { invalidateCache } = useDataCache()
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1)
@@ -369,6 +371,9 @@ export default function CourseBuilderPage() {
       }
 
       console.log("Created elective courses:", electiveCoursesData)
+
+      // Invalidate the cache for the course electives list
+      invalidateCache("coursePrograms", institution.id)
 
       toast({
         title:

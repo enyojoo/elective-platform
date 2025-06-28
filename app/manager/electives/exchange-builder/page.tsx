@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
 import { useCachedGroups } from "@/hooks/use-cached-groups"
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface University {
   id: string
@@ -42,6 +43,7 @@ export default function ExchangeBuilderPage() {
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
   const { groups, isLoading: isLoadingGroups } = useCachedGroups()
+  const { invalidateCache } = useDataCache()
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1)
@@ -75,6 +77,9 @@ export default function ExchangeBuilderPage() {
   // File upload state
   const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Find selected group for display
+  const selectedGroup = groups.find((g) => g.id === formData.group)
 
   // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
@@ -370,6 +375,9 @@ export default function ExchangeBuilderPage() {
       }
 
       console.log("Created exchange program:", exchangeData)
+
+      // Invalidate the cache for the exchange programs list
+      invalidateCache("exchangePrograms", institution.id)
 
       toast({
         title:
@@ -731,12 +739,19 @@ export default function ExchangeBuilderPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Program details in a single row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
                     {t("manager.exchangeBuilder.programName")}
                   </h3>
                   <p className="text-lg">{generateProgramName()}</p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.group", "Group")}
+                  </h3>
+                  <p className="text-lg">{selectedGroup?.name || "N/A"}</p>
                 </div>
 
                 <div>
