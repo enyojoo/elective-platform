@@ -1,257 +1,107 @@
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(req: NextRequest) {
-  // Get hostname for multi-tenancy
+  // Create a response object and a Supabase client that can read and write cookies.
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
+
+  // Get the current session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // Get hostname and path for routing logic
   const hostname = req.headers.get("host") || ""
   const path = req.nextUrl.pathname
-  const method = req.method
 
-  console.log(`Middleware: Processing ${method} request for hostname: ${hostname}, path: ${path}`)
-
-  // Check if we're in development mode (localhost)
+  // Environment and domain setup
   const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1")
-
-  // Define main domain based on environment
   const mainDomain = isDevelopment ? "localhost:3000" : "app.electivepro.net"
 
-  // Extract subdomain parameter in development mode
+  // Subdomain extraction
   let subdomain = null
   if (isDevelopment) {
-    // In development, get subdomain from query parameter
     const url = new URL(req.url)
     subdomain = url.searchParams.get("subdomain")
-    console.log(`Middleware: Development mode, subdomain from query: ${subdomain}`)
   } else {
-    // In production, extract subdomain from hostname
-    const isSubdomain =
+    const isSubdomainHost =
       hostname.includes(".electivepro.net") &&
       !hostname.startsWith("www.") &&
       !hostname.startsWith("app.") &&
       !hostname.startsWith("api.")
-
-    if (isSubdomain) {
+    if (isSubdomainHost) {
       subdomain = hostname.split(".")[0]
-      console.log(`Middleware: Production mode, subdomain from hostname: ${subdomain}`)
     }
   }
+  const isMainDomain = !subdomain
 
-  const isMainDomain =
-    hostname === "app.electivepro.net" || hostname === "electivepro.net" || (isDevelopment && !subdomain)
+  // Define route types
+  const isStudentRoute = path.startsWith("/student/")
+  const isManagerRoute = path.startsWith("/manager/")
+  const isAdminRoute = path.startsWith("/admin/")
+  const isSuperAdminRoute = path.startsWith("/super-admin/")
+  const isProtectedRoute = isStudentRoute || isManagerRoute || isAdminRoute || isSuperAdminRoute
 
-  // IMPORTANT: /institution-required should NEVER be accessible on a subdomain
-  if (path === "/institution-required" && subdomain) {
-    console.log(`Middleware: Redirecting /institution-required from subdomain to main domain`)
-    if (isDevelopment) {
-      return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
+  const publicPaths = ["/login", "/signup", "/forgot-password", "/reset-password"]
+  const isPublicPath = publicPaths.some((p) => path.includes(p))
+
+  // --- START: AUTHENTICATION & ROUTING LOGIC ---
+
+  // RULE 1: Redirect unauthenticated users from protected routes to the correct login page.
+  if (!session && isProtectedRoute && !isPublicPath) {
+    let loginUrl = "/"
+    if (isStudentRoute) loginUrl = "/student/login"
+    if (isManagerRoute) loginUrl = "/manager/login"
+    if (isAdminRoute) loginUrl = "/admin/login"
+    if (isSuperAdminRoute) loginUrl = "/super-admin/login"
+    return NextResponse.redirect(new URL(loginUrl, req.url))
+  }
+
+  // RULE 2: Redirect authenticated users from public auth pages to their dashboard.
+  if (session && isProtectedRoute && isPublicPath) {
+    let dashboardUrl = "/"
+    if (isStudentRoute) dashboardUrl = "/student/dashboard"
+    if (isManagerRoute) dashboardUrl = "/manager/dashboard"
+    if (isAdminRoute) dashboardUrl = "/admin/dashboard"
+    if (isSuperAdminRoute) dashboardUrl = "/super-admin/dashboard"
+    return NextResponse.redirect(new URL(dashboardUrl, req.url))
+  }
+
+  // RULE 3: Student and Manager routes are for subdomains only.
+  if ((isStudentRoute || isManagerRoute) && isMainDomain) {
+    const redirectUrl = new URL(req.url)
+    redirectUrl.host = mainDomain
+    redirectUrl.pathname = "/institution-required"
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  // RULE 4: Admin and Super-admin routes are for the main domain only.
+  if ((isAdminRoute || isSuperAdminRoute) && subdomain) {
+    const redirectUrl = new URL(req.url)
+    redirectUrl.host = mainDomain
+    redirectUrl.pathname = path
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  // RULE 5: Handle root path redirects based on session and domain.
+  if (path === "/") {
+    if (isMainDomain) {
+      const destination = session ? "/admin/dashboard" : "/admin/login"
+      return NextResponse.redirect(new URL(destination, req.url))
     } else {
-      return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
+      // On a subdomain
+      const destination = session ? "/student/dashboard" : "/student/login"
+      return NextResponse.redirect(new URL(destination, req.url))
     }
   }
 
-  // Check if the path is for student or manager routes
-  const isStudentOrManagerRoute = path.startsWith("/student/") || path.startsWith("/manager/")
+  // --- END: AUTHENTICATION & ROUTING LOGIC ---
 
-  // Check if the path is for admin or super-admin routes
-  const isAdminOrSuperAdminRoute = path.startsWith("/admin/") || path.startsWith("/super-admin/")
-
-  // RULE 1: Student and Manager routes should ONLY be accessed via subdomain
-  if (isStudentOrManagerRoute && !subdomain) {
-    console.log(`Middleware: Redirecting student/manager route to institution-required: ${path}`)
-    // Redirect to institution required page on main domain
-    if (isDevelopment) {
-      return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-    } else {
-      return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-    }
-  }
-
-  // RULE 2: Admin and Super-admin routes should ONLY be accessed via main domain
-  if (isAdminOrSuperAdminRoute && subdomain) {
-    console.log(`Middleware: Redirecting admin route to main domain: ${path}`)
-    if (isDevelopment) {
-      return NextResponse.redirect(new URL(`http://${mainDomain}${path}`, req.url))
-    } else {
-      return NextResponse.redirect(new URL(`https://${mainDomain}${path}`, req.url))
-    }
-  }
-
-  // Handle subdomain routing
-  if (subdomain) {
-    console.log(`Middleware: Processing subdomain: ${subdomain}`)
-
-    try {
-      // Check if this is a dashboard page reload - we'll be more lenient
-      const isDashboardPage = path.includes("/dashboard") || path.endsWith("/student") || path.endsWith("/manager")
-
-      // Use our special API endpoint to check the subdomain
-      let apiUrl
-      if (isDevelopment) {
-        apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
-      } else {
-        // In production, use the full URL to avoid cross-origin issues
-        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
-      }
-
-      console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
-
-      // Set a longer timeout for dashboard pages to prevent premature failures
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), isDashboardPage ? 5000 : 3000)
-
-      const response = await fetch(apiUrl, {
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeoutId))
-
-      if (!response.ok) {
-        console.error(`Middleware: API error for subdomain ${subdomain}:`, response.status)
-
-        // For dashboard pages, we'll be more lenient and allow the request to proceed
-        // This prevents redirects on page reloads when the API might be slow
-        if (isDashboardPage) {
-          console.log(`Middleware: Allowing dashboard page despite API error: ${path}`)
-          const requestHeaders = new Headers(req.headers)
-          requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          })
-        }
-
-        // For non-dashboard pages, redirect to institution required page on MAIN domain
-        if (isDevelopment) {
-          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-        } else {
-          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-        }
-      }
-
-      const data = await response.json()
-
-      if (!data.exists) {
-        console.log(`Middleware: Invalid subdomain: ${subdomain}, redirecting to main domain institution-required`)
-
-        // For dashboard pages, we'll log but still allow the request if it's a reload
-        if (isDashboardPage && req.headers.get("sec-fetch-mode") === "navigate") {
-          console.log(`Middleware: Allowing dashboard page despite invalid subdomain (likely a reload): ${path}`)
-          const requestHeaders = new Headers(req.headers)
-          requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          })
-        }
-
-        // Redirect to institution required page on MAIN domain
-        if (isDevelopment) {
-          return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-        } else {
-          return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-        }
-      }
-
-      // Valid subdomain - allow access and add institution info to headers
-      console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
-      const requestHeaders = new Headers(req.headers)
-      requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-      // Only set these headers if we have the data
-      if (data.institution) {
-        if (data.institution.id) {
-          requestHeaders.set("x-institution-id", data.institution.id)
-        }
-        if (data.institution.name) {
-          requestHeaders.set("x-institution-name", data.institution.name)
-        }
-        if (data.institution.favicon_url) {
-          requestHeaders.set("x-institution-favicon-url", data.institution.favicon_url)
-        }
-        if (data.institution.primary_color) {
-          requestHeaders.set("x-institution-primary-color", data.institution.primary_color)
-        }
-      }
-
-      requestHeaders.set("x-url", req.url)
-
-      // If accessing the root of a subdomain, redirect to student login
-      if (path === "/") {
-        return NextResponse.redirect(new URL("/student/login", req.url))
-      }
-
-      // Redirect /student to /student/login on subdomains
-      if (path === "/student") {
-        return NextResponse.redirect(new URL("/student/login", req.url))
-      }
-
-      // Redirect /manager to /manager/login on subdomains
-      if (path === "/manager") {
-        return NextResponse.redirect(new URL("/manager/login", req.url))
-      }
-
-      // IMPORTANT: Return next response with the updated headers
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      })
-    } catch (err) {
-      console.error("Middleware: Error in subdomain processing:", err)
-
-      // For dashboard pages, we'll be more lenient and allow the request to proceed
-      // This prevents redirects on page reloads when there are temporary errors
-      if (path.includes("/dashboard") || path.endsWith("/student") || path.endsWith("/manager")) {
-        console.log(`Middleware: Allowing dashboard page despite error: ${path}`)
-        const requestHeaders = new Headers(req.headers)
-        requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-        return NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        })
-      }
-
-      // Redirect to institution required page on MAIN domain
-      if (isDevelopment) {
-        return NextResponse.redirect(new URL(`http://${mainDomain}/institution-required`, req.url))
-      } else {
-        return NextResponse.redirect(new URL(`https://${mainDomain}/institution-required`, req.url))
-      }
-    }
-  }
-
-  // If accessing the root of the main domain, redirect to admin login
-  if (isMainDomain && path === "/") {
-    return NextResponse.redirect(new URL("/admin/login", req.url))
-  }
-
-  // Redirect base role paths to their login pages
-  if (path === "/admin" || path === "/admin/") {
-    return NextResponse.redirect(new URL("/admin/login", req.url))
-  }
-
-  if (path === "/student" || path === "/student/") {
-    return NextResponse.redirect(new URL("/student/login", req.url))
-  }
-
-  if (path === "/manager" || path === "/manager/") {
-    return NextResponse.redirect(new URL("/manager/login", req.url))
-  }
-
-  if (path === "/super-admin" || path === "/super-admin/") {
-    return NextResponse.redirect(new URL("/super-admin/login", req.url))
-  }
-
-  return NextResponse.next()
+  // If no redirects were triggered, pass the request through.
+  // The `res` object has been modified by the Supabase client to refresh the session cookie if needed.
+  return res
 }
 
 export const config = {
