@@ -74,16 +74,15 @@ export default function AdminDashboard() {
 
         if (groupsError) throw groupsError
 
-        // Fetch course electives count
+        // Fetch course electives count from elective_courses table
         const { count: electivesCount, error: electivesError } = await supabase
-          .from("elective_packs")
+          .from("elective_courses")
           .select("*", { count: "exact", head: true })
           .eq("institution_id", institution.id)
-          .eq("type", "course")
 
         if (electivesError) throw electivesError
 
-        // Fetch exchange programs count
+        // Fetch exchange programs count from elective_packs table
         const { count: exchangeCount, error: exchangeError } = await supabase
           .from("elective_packs")
           .select("*", { count: "exact", head: true })
