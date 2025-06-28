@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSemesters, type Semester } from "@/actions/semesters"
 import { getYears, type Year } from "@/actions/years"
+import { getGroups, type Group } from "@/actions/groups"
 
 interface University {
   id: string
@@ -50,14 +51,16 @@ export default function ExchangeBuilderPage() {
   const [isLoadingUniversities, setIsLoadingUniversities] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Semesters and years state
+  // Semesters, years, and groups state
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [years, setYears] = useState<Year[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
 
   // Form state
   const [formData, setFormData] = useState({
     semester: "",
     year: "",
+    groupId: "",
     maxSelections: 2,
     endDate: "",
     status: "draft",
@@ -78,14 +81,16 @@ export default function ExchangeBuilderPage() {
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        console.log("Fetching semesters and years data...")
-        const [semestersData, yearsData] = await Promise.all([getSemesters(), getYears()])
+        console.log("Fetching semesters, years, and groups data...")
+        const [semestersData, yearsData, groupsData] = await Promise.all([getSemesters(), getYears(), getGroups()])
 
         console.log("Semesters data:", semestersData)
         console.log("Years data:", yearsData)
+        console.log("Groups data:", groupsData)
 
         setSemesters(semestersData)
         setYears(yearsData)
+        setGroups(groupsData)
 
         // Set default semester if available
         if (semestersData.length > 0) {
@@ -100,6 +105,14 @@ export default function ExchangeBuilderPage() {
           setFormData((prev) => ({
             ...prev,
             year: yearsData[0].id,
+          }))
+        }
+
+        // Set default group if available
+        if (groupsData.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            groupId: groupsData[0].id,
           }))
         }
       } catch (error) {
@@ -244,7 +257,7 @@ export default function ExchangeBuilderPage() {
   const handleNextStep = () => {
     if (currentStep === 1) {
       // Validate step 1
-      if (!formData.semester || !formData.year || !formData.endDate) {
+      if (!formData.semester || !formData.year || !formData.endDate || !formData.groupId) {
         toast({
           title: t("manager.exchangeBuilder.missingInfo"),
           description: t("manager.exchangeBuilder.requiredFields"),
@@ -348,6 +361,7 @@ export default function ExchangeBuilderPage() {
         statement_template_url: formData.statementTemplateUrl,
         semester: formData.semester,
         academic_year: formData.year,
+        group_id: formData.groupId,
         universities: universityIds, // Store university IDs as an array of UUIDs
         created_by: profileId, // Store the user ID as the creator
       }
@@ -467,7 +481,7 @@ export default function ExchangeBuilderPage() {
               <CardTitle>{t("manager.exchangeBuilder.programInfo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="semester">{t("manager.exchangeBuilder.semester")}</Label>
                   {isLoading ? (
@@ -513,6 +527,32 @@ export default function ExchangeBuilderPage() {
                           ))
                         ) : (
                           <SelectItem value="default">{new Date().getFullYear()}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="group">{t("manager.exchangeBuilder.group")}</Label>
+                  {isLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={formData.groupId} onValueChange={(value) => handleSelectChange("groupId", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("manager.exchangeBuilder.selectGroup")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups.length > 0 ? (
+                          groups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>
+                            {t("manager.exchangeBuilder.noGroupsAvailable")}
+                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -701,12 +741,19 @@ export default function ExchangeBuilderPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Program details in a single row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
                     {t("manager.exchangeBuilder.programName")}
                   </h3>
                   <p className="text-lg">{generateProgramName()}</p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    {t("manager.exchangeBuilder.group")}
+                  </h3>
+                  <p className="text-lg">{groups.find((g) => g.id === formData.groupId)?.name || "N/A"}</p>
                 </div>
 
                 <div>
