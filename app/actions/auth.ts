@@ -154,10 +154,16 @@ export async function signUp(formData: FormData) {
   }
 }
 
-export async function signOut() {
+export async function signOut(formData: FormData) {
   const supabase = createServerActionClient({ cookies })
   await supabase.auth.signOut()
-  redirect("/")
+
+  const redirectTo = formData.get("redirectTo") as string
+  if (redirectTo) {
+    redirect(redirectTo)
+  } else {
+    redirect("/")
+  }
 }
 
 // Add a new function to ensure a user profile exists

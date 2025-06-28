@@ -17,11 +17,13 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  LogOut,
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { useState } from "react"
 import { DEFAULT_LOGO_URL } from "@/lib/institution-context"
 import { useInstitution } from "@/lib/institution-context"
+import { signOut } from "@/app/actions/auth"
 
 interface SidebarProps {
   open: boolean
@@ -41,7 +43,7 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
   const isStudent = pathname.includes("/student")
 
   // Set the appropriate logout route based on user role
-  const logoutRoute = isAdmin
+  const logoutRedirectRoute = isAdmin
     ? "/admin/login"
     : isManager
       ? "/manager/login"
@@ -231,30 +233,18 @@ export function Sidebar({ open, setOpen, className }: SidebarProps) {
           )}
         </div>
 
-        {/* Logout link at bottom with role-specific route */}
+        {/* Logout form at bottom */}
         <div className="mt-auto p-4 border-t flex-shrink-0">
-          <Link
-            href={logoutRoute}
-            className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
+          <form action={signOut}>
+            <input type="hidden" name="redirectTo" value={logoutRedirectRoute} />
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
             >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            {t("logout")}
-          </Link>
+              <LogOut className="h-4 w-4" />
+              {t("logout")}
+            </button>
+          </form>
         </div>
       </div>
     </>
