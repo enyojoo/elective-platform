@@ -5,28 +5,72 @@ import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase"
 
-// Update the signIn function
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const supabase = createServerActionClient({ cookies })
 
   if (!email || !password) {
     return { error: "Email and password are required" }
   }
 
-  const supabase = createServerActionClient({ cookies })
-
-  const { error } = await supabase.auth.signInWithPassword({
+  // 1. Attempt to sign in
+  const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
-  if (error) {
-    return { error: error.message }
+  if (signInError) {
+    return { error: signInError.message }
   }
 
-  // On success, simply return success. The client will handle the refresh.
-  return { success: true }
+  // 2. On success, get the user to determine their role
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    // This case should rarely happen, but it's a good safeguard
+    return { error: "Login successful, but failed to retrieve user details." }
+  }
+
+  // 3. Use the admin client to fetch the user's profile and role
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile) {
+    // If profile doesn't exist, sign out to prevent being stuck
+    await supabase.auth.signOut()
+    return { error: "Could not find a valid user profile. Please contact support." }
+  }
+
+  // 4. Determine the correct dashboard URL based on the role
+  let redirectTo = "/"
+  switch (profile.role) {
+    case "student":
+      redirectTo = "/student/dashboard"
+      break
+    case "program_manager":
+      redirectTo = "/manager/dashboard"
+      break
+    case "admin":
+      redirectTo = "/admin/dashboard"
+      break
+    case "super_admin":
+      redirectTo = "/super-admin/dashboard"
+      break
+    default:
+      // If role is unknown, sign out and redirect to a generic login
+      await supabase.auth.signOut()
+      redirectTo = "/"
+      break
+  }
+
+  // 5. Perform the server-side redirect. This will be caught by Next.js.
+  redirect(redirectTo)
 }
 
 // Update the signUp function
