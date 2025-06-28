@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +16,7 @@ import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
+import { signUp } from "@/app/actions/auth"
 
 export default function StudentSignupPage() {
   const { t, language } = useLanguage()
@@ -24,6 +24,7 @@ export default function StudentSignupPage() {
   const { toast } = useToast()
   const { institution, DEFAULT_LOGO_URL } = useInstitution()
 
+  // Form state
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
@@ -31,6 +32,8 @@ export default function StudentSignupPage() {
   const [degree, setDegree] = useState("")
   const [year, setYear] = useState("")
   const [group, setGroup] = useState("")
+
+  // UI state
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -40,9 +43,7 @@ export default function StudentSignupPage() {
   const [groups, setGroups] = useState<any[]>([])
   const [filteredGroups, setFilteredGroups] = useState<any[]>([])
 
-  // Refs to prevent multiple fetches
   const dataFetchedRef = useRef(false)
-
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   // Load all data once when the component mounts
@@ -52,163 +53,87 @@ export default function StudentSignupPage() {
     async function loadAllData() {
       try {
         dataFetchedRef.current = true
-
-        // Fetch all data in parallel
         const [degreesResponse, groupsResponse] = await Promise.all([
           supabase.from("degrees").select("*").eq("institution_id", institution.id).eq("status", "active"),
           supabase.from("groups").select("*").eq("institution_id", institution.id).eq("status", "active"),
         ])
 
-        // Process degrees
-        if (degreesResponse.data && degreesResponse.data.length > 0) {
-          setDegrees(degreesResponse.data)
-          setDegree(degreesResponse.data[0].id.toString())
-        }
-
-        // Process groups
-        if (groupsResponse.data && groupsResponse.data.length > 0) {
+        if (degreesResponse.data) setDegrees(degreesResponse.data)
+        if (groupsResponse.data) {
           setGroups(groupsResponse.data)
-
-          // Extract unique years from groups
           const uniqueYears = [...new Set(groupsResponse.data.map((g) => g.academic_year).filter(Boolean))]
             .sort()
             .reverse()
-
           setYears(uniqueYears)
-
-          // Set default year
-          if (uniqueYears.length > 0) {
-            const currentYear = new Date().getFullYear().toString()
-            if (uniqueYears.includes(currentYear)) {
-              setYear(currentYear)
-            } else {
-              setYear(uniqueYears[0])
-            }
-          }
+          if (uniqueYears.length > 0) setYear(uniqueYears[0])
         }
       } catch (error) {
         console.error("Error loading data:", error)
+        setError(t("auth.signup.errorLoadingData"))
       }
     }
 
     loadAllData()
-  }, [institution, supabase])
+  }, [institution, supabase, t])
 
   // Filter groups when degree or year changes
   useEffect(() => {
     if (!groups.length) return
-
-    let filtered = [...groups]
-
-    if (degree) {
-      filtered = filtered.filter((g) => g.degree_id?.toString() === degree)
-    }
-
-    if (year) {
-      filtered = filtered.filter((g) => g.academic_year === year)
-    }
-
+    const filtered = groups.filter(
+      (g) => (!degree || g.degree_id?.toString() === degree) && (!year || g.academic_year === year),
+    )
     setFilteredGroups(filtered)
-
-    // Set default group if available and not already set
-    if (filtered.length > 0 && (!group || !filtered.find((g) => g.id?.toString() === group))) {
-      setGroup(filtered[0].id?.toString() || "")
+    if (filtered.length > 0 && !filtered.some((g) => g.id.toString() === group)) {
+      setGroup(filtered[0].id.toString())
+    } else if (filtered.length === 0) {
+      setGroup("")
     }
   }, [degree, year, groups, group])
 
-  // Helper function to get localized degree name
-  const getDegreeName = (degreeItem: any) => {
-    return language === "ru" && degreeItem.name_ru ? degreeItem.name_ru : degreeItem.name
-  }
+  const getDegreeName = (degreeItem: any) =>
+    language === "ru" && degreeItem.name_ru ? degreeItem.name_ru : degreeItem.name
+  const getGroupName = (groupItem: any) => (language === "ru" && groupItem.name_ru ? groupItem.name_ru : groupItem.name)
 
-  // Helper function to get localized group name
-  const getGroupName = (groupItem: any) => {
-    return language === "ru" && groupItem.name_ru ? groupItem.name_ru : groupItem.name
-  }
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword)
-  }
-
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    try {
-      // Basic validation
-      if (!email.includes("@")) {
-        throw new Error(t("auth.error.invalidEmail"))
-      }
+    if (!institution) {
+      setError("Institution not found.")
+      setIsLoading(false)
+      return
+    }
 
-      if (!degree || !year || !group) {
-        throw new Error(t("auth.error.incompleteFields"))
-      }
+    const formData = new FormData(e.currentTarget)
 
-      // Create the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      })
+    const result = await signUp(formData)
 
-      if (authError) throw new Error(authError.message)
-
-      // Create student profile - using the correct column names
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user!.id,
-        institution_id: institution!.id,
-        full_name: name,
-        role: "student",
-        email: email,
-        degree_id: degree,
-        academic_year: year,
-        group_id: group,
-      })
-
-      if (profileError) throw new Error(profileError.message)
-
+    if (result.error) {
+      setError(result.error)
+    } else if (result.success) {
       toast({
         title: t("auth.signup.success"),
         description: t("auth.signup.successMessage"),
       })
-
-      // Redirect to login page
       router.push("/student/login")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.signup.error"))
-    } finally {
-      setIsLoading(false)
     }
+
+    setIsLoading(false)
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center space-y-2 text-center">
-          {institution?.logo_url ? (
-            <Image
-              src={institution.logo_url || "/placeholder.svg"}
-              alt={`${institution.name} Logo`}
-              width={160}
-              height={45}
-              className="h-10 w-auto"
-              priority
-            />
-          ) : (
-            <Image
-              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
-              alt="ElectivePRO Logo"
-              width={160}
-              height={45}
-              className="h-10 w-auto"
-              priority
-            />
-          )}
+          <Image
+            src={institution?.logo_url || DEFAULT_LOGO_URL || "/placeholder.svg"}
+            alt={`${institution?.name || "ElectivePRO"} Logo`}
+            width={160}
+            height={45}
+            className="h-10 w-auto"
+            priority
+          />
         </div>
 
         <Card>
@@ -216,14 +141,18 @@ export default function StudentSignupPage() {
             <CardTitle>{t("auth.signup.title")}</CardTitle>
             <CardDescription>{t("auth.signup.description")}</CardDescription>
           </CardHeader>
-          <form onSubmit={handleSignup}>
+          <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
+
+              <input type="hidden" name="role" value="student" />
+              <input type="hidden" name="institutionId" value={institution?.id || ""} />
 
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="student@university.edu"
                   value={email}
@@ -236,6 +165,7 @@ export default function StudentSignupPage() {
                 <Label htmlFor="name">{t("auth.signup.name")}</Label>
                 <Input
                   id="name"
+                  name="name"
                   type="text"
                   placeholder={t("auth.signup.fullNamePlaceholder")}
                   value={name}
@@ -246,7 +176,7 @@ export default function StudentSignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="degree">{t("auth.signup.degree")}</Label>
-                <Select value={degree} onValueChange={setDegree} required>
+                <Select name="degreeId" value={degree} onValueChange={setDegree} required>
                   <SelectTrigger id="degree" className="w-full">
                     <SelectValue placeholder={t("auth.signup.selectDegree")} />
                   </SelectTrigger>
@@ -263,7 +193,7 @@ export default function StudentSignupPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">{t("auth.signup.year")}</Label>
-                  <Select value={year} onValueChange={setYear} required>
+                  <Select name="academicYear" value={year} onValueChange={setYear} required>
                     <SelectTrigger id="year" className="w-full">
                       <SelectValue placeholder={t("auth.signup.selectYear")} />
                     </SelectTrigger>
@@ -279,7 +209,13 @@ export default function StudentSignupPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="group">{t("auth.signup.group")}</Label>
-                  <Select value={group} onValueChange={setGroup} required disabled={!degree || !year}>
+                  <Select
+                    name="groupId"
+                    value={group}
+                    onValueChange={setGroup}
+                    required
+                    disabled={!degree || !year || filteredGroups.length === 0}
+                  >
                     <SelectTrigger id="group" className="w-full">
                       <SelectValue placeholder={t("auth.signup.selectGroup")} />
                     </SelectTrigger>
@@ -299,6 +235,7 @@ export default function StudentSignupPage() {
                 <div className="relative">
                   <Input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
@@ -307,7 +244,7 @@ export default function StudentSignupPage() {
                   />
                   <button
                     type="button"
-                    onClick={togglePasswordVisibility}
+                    onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -316,7 +253,7 @@ export default function StudentSignupPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !institution}>
                 {isLoading ? t("auth.signup.loading") : t("auth.signup.button")}
               </Button>
               <div className="text-center text-sm">

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -15,7 +14,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { useLanguage } from "@/lib/language-context"
 import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
 import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context"
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { signUp } from "@/app/actions/auth"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function ManagerSignupPage() {
@@ -28,13 +28,8 @@ export default function ManagerSignupPage() {
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    name: "",
-    degreeId: "",
-    academicYear: "",
-  })
+  const [degreeId, setDegreeId] = useState("")
+  const [academicYear, setAcademicYear] = useState("")
 
   // Data states
   const [degrees, setDegrees] = useState<any[]>([])
@@ -43,53 +38,35 @@ export default function ManagerSignupPage() {
   // Ref to prevent multiple fetches
   const dataFetchedRef = useRef(false)
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
   // Load all data once when the component mounts
   useEffect(() => {
     if (!institution || dataFetchedRef.current) return
 
     async function loadAllData() {
+      const supabase = getSupabaseBrowserClient()
       try {
         dataFetchedRef.current = true
 
-        // Fetch all data in parallel
         const [degreesResponse, groupsResponse] = await Promise.all([
           supabase.from("degrees").select("*").eq("institution_id", institution.id).eq("status", "active"),
           supabase.from("groups").select("academic_year").eq("institution_id", institution.id).eq("status", "active"),
         ])
 
-        // Process degrees
-        if (degreesResponse.data && degreesResponse.data.length > 0) {
+        if (degreesResponse.data) {
           setDegrees(degreesResponse.data)
-          setFormData((prev) => ({
-            ...prev,
-            degreeId: degreesResponse.data[0].id.toString(),
-          }))
+          if (degreesResponse.data.length > 0) {
+            setDegreeId(degreesResponse.data[0].id.toString())
+          }
         }
 
-        // Process years from groups
-        if (groupsResponse.data && groupsResponse.data.length > 0) {
+        if (groupsResponse.data) {
           const uniqueYears = [...new Set(groupsResponse.data.map((g) => g.academic_year).filter(Boolean))]
             .sort()
             .reverse()
-
           setYears(uniqueYears)
-
-          // Set default year
           if (uniqueYears.length > 0) {
             const currentYear = new Date().getFullYear().toString()
-            if (uniqueYears.includes(currentYear)) {
-              setFormData((prev) => ({
-                ...prev,
-                academicYear: currentYear,
-              }))
-            } else {
-              setFormData((prev) => ({
-                ...prev,
-                academicYear: uniqueYears[0],
-              }))
-            }
+            setAcademicYear(uniqueYears.includes(currentYear) ? currentYear : uniqueYears[0])
           }
         }
       } catch (error) {
@@ -98,83 +75,36 @@ export default function ManagerSignupPage() {
     }
 
     loadAllData()
-  }, [institution, supabase])
+  }, [institution])
 
-  // Helper function to get localized degree name
   const getDegreeName = (degreeItem: any) => {
     return language === "ru" && degreeItem.name_ru ? degreeItem.name_ru : degreeItem.name
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
-  }
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
   }
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    try {
-      if (!formData.degreeId) {
-        throw new Error(t("auth.error.incompleteFields"))
-      }
+    const formData = new FormData(e.currentTarget)
+    const result = await signUp(formData)
 
-      // Create the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.name,
-          },
-        },
-      })
-
-      if (authError) throw new Error(authError.message)
-
-      // Create manager profile - using the correct column names
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user!.id,
-        institution_id: institution!.id,
-        full_name: formData.name,
-        role: "program_manager", // Fixed role name to match expected value
-        email: formData.email,
-        degree_id: formData.degreeId,
-        academic_year: formData.academicYear,
-      })
-
-      if (profileError) throw new Error(profileError.message)
-
+    if (result.error) {
+      setError(result.error)
+    } else {
       toast({
         title: t("auth.signup.success"),
         description: t("auth.signup.successMessage"),
       })
-
-      // Redirect to login page
       router.push("/manager/login")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.signup.error"))
-    } finally {
-      setIsLoading(false)
     }
+    setIsLoading(false)
   }
 
-  // Generate enrollment years if no years are available from the database
   const enrollmentYears =
     years.length > 0 ? years : Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - 2 + i).toString())
 
@@ -182,25 +112,14 @@ export default function ManagerSignupPage() {
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center space-y-2 text-center">
-          {institution?.logo_url ? (
-            <Image
-              src={institution.logo_url || "/placeholder.svg"}
-              alt={`${institution.name} Logo`}
-              width={160}
-              height={45}
-              className="h-10 w-auto"
-              priority
-            />
-          ) : (
-            <Image
-              src={DEFAULT_LOGO_URL || "/placeholder.svg"}
-              alt="Elective Pro Logo"
-              width={160}
-              height={45}
-              className="h-10 w-auto"
-              priority
-            />
-          )}
+          <Image
+            src={institution?.logo_url || DEFAULT_LOGO_URL}
+            alt={`${institution?.name || "Elective Pro"} Logo`}
+            width={160}
+            height={45}
+            className="h-10 w-auto"
+            priority
+          />
         </div>
 
         <Card>
@@ -212,41 +131,23 @@ export default function ManagerSignupPage() {
             <CardContent className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
 
-              {/* Email */}
+              {/* Hidden inputs for the server action */}
+              <input type="hidden" name="role" value="program_manager" />
+              <input type="hidden" name="institutionId" value={institution?.id || ""} />
+
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.signup.email")}</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="manager@university.edu"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                />
+                <Input id="email" name="email" type="email" placeholder="manager@university.edu" required />
               </div>
 
-              {/* Full Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">{t("admin.users.fullName")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder={t("auth.signup.fullNamePlaceholder")}
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
+                <Input id="name" name="name" placeholder={t("auth.signup.fullNamePlaceholder")} required />
               </div>
 
-              {/* Degree Assignment */}
               <div className="space-y-2">
-                <Label htmlFor="degree">{t("admin.users.degree")}</Label>
-                <Select
-                  value={formData.degreeId}
-                  onValueChange={(value) => handleSelectChange("degreeId", value)}
-                  required
-                >
+                <Label htmlFor="degreeId">{t("admin.users.degree")}</Label>
+                <Select name="degreeId" value={degreeId} onValueChange={setDegreeId} required>
                   <SelectTrigger>
                     <SelectValue placeholder={t("admin.users.selectDegree")} />
                   </SelectTrigger>
@@ -260,14 +161,9 @@ export default function ManagerSignupPage() {
                 </Select>
               </div>
 
-              {/* Year */}
               <div className="space-y-2">
                 <Label htmlFor="academicYear">{t("year.enrollment")}</Label>
-                <Select
-                  value={formData.academicYear}
-                  onValueChange={(value) => handleSelectChange("academicYear", value)}
-                  required
-                >
+                <Select name="academicYear" value={academicYear} onValueChange={setAcademicYear} required>
                   <SelectTrigger>
                     <SelectValue placeholder={t("auth.signup.selectYear")} />
                   </SelectTrigger>
@@ -281,7 +177,6 @@ export default function ManagerSignupPage() {
                 </Select>
               </div>
 
-              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.signup.password")}</Label>
                 <div className="relative">
@@ -290,8 +185,6 @@ export default function ManagerSignupPage() {
                     name="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleInputChange}
                     required
                   />
                   <button
@@ -305,7 +198,7 @@ export default function ManagerSignupPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !institution}>
                 {isLoading ? t("auth.signup.creating") : t("auth.signup.createAccount")}
               </Button>
               <div className="text-center text-sm">

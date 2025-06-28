@@ -5,7 +5,7 @@ import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase"
 
-// Update the signIn function to use supabaseAdmin for profile checks
+// Update the signIn function
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
@@ -14,8 +14,6 @@ export async function signIn(formData: FormData) {
     return { error: "Email and password are required" }
   }
 
-  // For server actions, we need to create a new client each time
-  // This is fine because it's server-side and won't cause the GoTrueClient warning
   const supabase = createServerActionClient({ cookies })
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -27,48 +25,11 @@ export async function signIn(formData: FormData) {
     return { error: error.message }
   }
 
-  // Get user profile to determine redirect
-  try {
-    const user = (await supabase.auth.getUser()).data.user
-
-    if (!user) {
-      return { error: "User not found" }
-    }
-
-    // ALWAYS use supabaseAdmin to bypass RLS for profile checks
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError) {
-      console.error("Profile fetch error:", profileError)
-      return { error: "Error fetching user profile" }
-    }
-
-    if (profile) {
-      switch (profile.role) {
-        case "student":
-          redirect("/student/dashboard")
-        case "program_manager":
-          redirect("/manager/dashboard")
-        case "admin":
-          redirect("/admin/dashboard")
-        case "super_admin":
-          redirect("/super-admin/dashboard")
-        default:
-          redirect("/")
-      }
-    }
-  } catch (err) {
-    console.error("Error in signIn:", err)
-    return { error: "An unexpected error occurred" }
-  }
-
+  // On success, simply return success. The client will handle the refresh.
   return { success: true }
 }
 
+// Update the signUp function
 export async function signUp(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
@@ -76,15 +37,13 @@ export async function signUp(formData: FormData) {
   const role = formData.get("role") as string
   const institutionId = formData.get("institutionId") as string
 
-  if (!email || !password || !name || !role) {
-    return { error: "All fields are required" }
+  if (!email || !password || !name || !role || !institutionId) {
+    return { error: "All required fields are not provided." }
   }
 
-  // For server actions, we need to create a new client each time
   const supabase = createServerActionClient({ cookies })
 
   try {
-    // Create user in auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -100,50 +59,31 @@ export async function signUp(formData: FormData) {
     }
 
     if (authData.user) {
-      // Create profile using admin client to bypass RLS
-      const { error: profileError } = await supabaseAdmin.from("profiles").insert({
+      // Base profile data
+      const profileData: any = {
         id: authData.user.id,
         institution_id: institutionId,
         full_name: name,
         role,
         email,
-      })
+      }
+
+      // Add role-specific fields to the main profile
+      if (role === "program_manager") {
+        profileData.degree_id = formData.get("degreeId") as string
+        profileData.academic_year = formData.get("academicYear") as string
+      } else if (role === "student") {
+        profileData.degree_id = formData.get("degreeId") as string
+        profileData.academic_year = formData.get("academicYear") as string
+        profileData.group_id = formData.get("groupId") as string
+      }
+
+      // Create profile using admin client to bypass RLS
+      const { error: profileError } = await supabaseAdmin.from("profiles").insert(profileData)
 
       if (profileError) {
         console.error("Profile creation error:", profileError)
-        return { error: "Error creating user profile" }
-      }
-
-      // For students, create student profile
-      if (role === "student") {
-        const groupId = formData.get("groupId") as string
-        const enrollmentYear = formData.get("enrollmentYear") as string
-
-        const { error: studentError } = await supabaseAdmin.from("student_profiles").insert({
-          profile_id: authData.user.id,
-          group_id: groupId,
-          enrollment_year: enrollmentYear,
-        })
-
-        if (studentError) {
-          console.error("Student profile creation error:", studentError)
-          return { error: "Error creating student profile" }
-        }
-      }
-
-      // For program managers, create manager profile
-      if (role === "program_manager") {
-        const programId = formData.get("programId") as string
-
-        const { error: managerError } = await supabaseAdmin.from("manager_profiles").insert({
-          profile_id: authData.user.id,
-          program_id: programId,
-        })
-
-        if (managerError) {
-          console.error("Manager profile creation error:", managerError)
-          return { error: "Error creating manager profile" }
-        }
+        return { error: "Database error saving new user." }
       }
     }
 
