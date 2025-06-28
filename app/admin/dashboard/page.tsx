@@ -82,12 +82,11 @@ export default function AdminDashboard() {
 
         if (electivesError) throw electivesError
 
-        // Fetch exchange programs count from elective_packs table
+        // Fetch exchange programs count from elective_exchange table
         const { count: exchangeCount, error: exchangeError } = await supabase
-          .from("elective_packs")
+          .from("elective_exchange")
           .select("*", { count: "exact", head: true })
           .eq("institution_id", institution.id)
-          .eq("type", "exchange")
 
         if (exchangeError) throw exchangeError
 
