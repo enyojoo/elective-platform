@@ -84,7 +84,7 @@ export default function InstitutionLoginPage() {
           title: t("auth.login.success"),
           description: t("auth.login.welcomeBack"),
         })
-        router.push("/admin/dashboard")
+        router.refresh() // Use refresh to allow middleware to handle redirect
       }
     } catch (err) {
       console.error("Login error:", err)

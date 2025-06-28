@@ -79,7 +79,7 @@ export default function StudentLoginPage() {
               title: "Login successful",
               description: "Welcome to the student dashboard",
             })
-            router.push("/student/dashboard")
+            router.refresh() // Use refresh to allow middleware to handle redirect
           }
         } else {
           // User is authenticated but not a student

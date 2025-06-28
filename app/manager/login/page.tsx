@@ -80,7 +80,7 @@ export default function ManagerLoginPage() {
               title: "Login successful",
               description: "Welcome to the manager dashboard",
             })
-            router.push("/manager/dashboard")
+            router.refresh() // Use refresh to allow middleware to handle redirect
           }
         } else {
           // User is authenticated but not a manager
