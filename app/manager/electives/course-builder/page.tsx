@@ -59,7 +59,7 @@ export default function CourseBuilderPage() {
   const [formData, setFormData] = useState({
     semester: "",
     year: "",
-    groupId: "",
+    group_id: "",
     maxSelections: 2,
     endDate: "",
     status: "draft",
@@ -78,10 +78,15 @@ export default function CourseBuilderPage() {
   // Fetch semesters, years, and academic years on component mount
   useEffect(() => {
     const fetchData = async () => {
+      if (!institution?.id) return
       setIsLoading(true)
       try {
         console.log("Fetching semesters, years, and groups data...")
-        const [semestersData, yearsData, groupsData] = await Promise.all([getSemesters(), getYears(), getGroups()])
+        const [semestersData, yearsData, groupsData] = await Promise.all([
+          getSemesters(),
+          getYears(),
+          getGroups(institution.id),
+        ])
 
         console.log("Semesters data:", semestersData)
         console.log("Years data:", yearsData)
@@ -111,7 +116,7 @@ export default function CourseBuilderPage() {
         if (groupsData.length > 0) {
           setFormData((prev) => ({
             ...prev,
-            groupId: groupsData[0].id,
+            group_id: groupsData[0].id,
           }))
         }
       } catch (error) {
@@ -126,8 +131,10 @@ export default function CourseBuilderPage() {
       }
     }
 
-    fetchData()
-  }, [toast, t])
+    if (institution?.id) {
+      fetchData()
+    }
+  }, [toast, t, institution?.id])
 
   // Fetch courses when entering step 2
   useEffect(() => {
@@ -254,7 +261,7 @@ export default function CourseBuilderPage() {
   const handleNextStep = () => {
     if (currentStep === 1) {
       // Validate step 1
-      if (!formData.semester || !formData.year || !formData.endDate || !formData.groupId) {
+      if (!formData.semester || !formData.year || !formData.group_id || !formData.endDate) {
         toast({
           title: t("manager.courseBuilder.missingInfo", "Missing Information"),
           description: t("manager.courseBuilder.requiredFields", "Please fill in all required fields"),
@@ -351,7 +358,7 @@ export default function CourseBuilderPage() {
             syllabus_template_url: formData.syllabusTemplateUrl,
             semester: formData.semester,
             academic_year: formData.year,
-            group_id: formData.groupId,
+            group_id: formData.group_id,
             courses: selectedCourses, // Store course IDs as an array of UUIDs
             created_by: profileId,
           },
@@ -386,8 +393,6 @@ export default function CourseBuilderPage() {
       setIsSubmitting(false)
     }
   }
-
-  const selectedGroup = groups.find((g) => g.id === formData.groupId)
 
   return (
     <DashboardLayout>
@@ -523,11 +528,11 @@ export default function CourseBuilderPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="group">{t("manager.courseBuilder.group", "Group")}</Label>
+                  <Label htmlFor="group_id">{t("manager.courseBuilder.group", "Group")}</Label>
                   {isLoading ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
-                    <Select value={formData.groupId} onValueChange={(value) => handleSelectChange("groupId", value)}>
+                    <Select value={formData.group_id} onValueChange={(value) => handleSelectChange("group_id", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t("manager.courseBuilder.selectGroup", "Select a group")} />
                       </SelectTrigger>
@@ -535,12 +540,12 @@ export default function CourseBuilderPage() {
                         {groups.length > 0 ? (
                           groups.map((group) => (
                             <SelectItem key={group.id} value={group.id}>
-                              {group.name}
+                              {language === "ru" && group.name_ru ? group.name_ru : group.name}
                             </SelectItem>
                           ))
                         ) : (
                           <SelectItem value="" disabled>
-                            {t("manager.courseBuilder.noGroups", "No groups available")}
+                            {t("manager.courseBuilder.noGroupsAvailable", "No groups available")}
                           </SelectItem>
                         )}
                       </SelectContent>
@@ -730,19 +735,12 @@ export default function CourseBuilderPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Program details in a single row */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
                     {t("manager.courseBuilder.programName", "Program Name")}
                   </h3>
                   <p className="text-lg">{generateProgramName()}</p>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    {t("manager.courseBuilder.group", "Group")}
-                  </h3>
-                  <p className="text-lg">{selectedGroup?.name || "N/A"}</p>
                 </div>
 
                 <div>
