@@ -14,45 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { formatDate, calculateDaysLeft } from "@/lib/utils"
-
-// Cache constants
-const DEADLINES_CACHE_KEY = "studentDashboardDeadlines"
-const USER_ID_CACHE_KEY = "studentDashboardUserId"
-const getElectiveCountsCacheKey = (userId: string) => `studentDashboardElectiveCounts_${userId}`
-const CACHE_EXPIRY = 60 * 60 * 1000 // 60 minutes
-
-// Cache helper functions
-const getCachedData = (key: string): any | null => {
-  try {
-    const cachedData = localStorage.getItem(key)
-    if (!cachedData) return null
-
-    const parsed = JSON.parse(cachedData)
-
-    // Check if cache is expired
-    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(key)
-      return null
-    }
-
-    return parsed.data
-  } catch (error) {
-    console.error(`Error reading from cache (${key}):`, error)
-    return null
-  }
-}
-
-const setCachedData = (key: string, data: any) => {
-  try {
-    const cacheData = {
-      data,
-      timestamp: Date.now(),
-    }
-    localStorage.setItem(key, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error(`Error writing to cache (${key}):`, error)
-  }
-}
+import { useDataCache } from "@/lib/data-cache-context"
 
 interface DeadlineItem {
   id: string
@@ -85,125 +47,28 @@ export default function StudentDashboard() {
   const { isSubdomainAccess, institution } = useInstitution()
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
+  const { getCachedData, setCachedData } = useDataCache()
 
-  // Use a ref to track if this is the initial mount
   const isInitialMount = useRef(true)
-  const hasInitialized = useRef(false)
 
-  // Initialize state with cached data to prevent flash
-  const [userId, setUserId] = useState<string | undefined>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cachedUserId = getCachedData(USER_ID_CACHE_KEY)
-        return cachedUserId || undefined
-      } catch (e) {
-        return undefined
-      }
-    }
-    return undefined
+  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile()
+  const userId = profile?.id
+
+  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>({
+    required: { courses: 0, exchange: 0, total: 0 },
+    selected: { courses: 0, exchange: 0, total: 0 },
+    pending: { courses: 0, exchange: 0, total: 0 },
   })
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>([])
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(true)
+  const [isLoadingElectiveCounts, setIsLoadingElectiveCounts] = useState(true)
 
-  // Initialize elective counts with cached data
-  const [electiveCounts, setElectiveCounts] = useState<ElectiveCounts>(() => {
-    if (typeof window !== "undefined" && userId) {
-      try {
-        const cachedCounts = getCachedData(getElectiveCountsCacheKey(userId))
-        if (cachedCounts) {
-          return cachedCounts
-        }
-      } catch (e) {
-        // Fall back to default
-      }
-    }
-    return {
-      required: { courses: 0, exchange: 0, total: 0 },
-      selected: { courses: 0, exchange: 0, total: 0 },
-      pending: { courses: 0, exchange: 0, total: 0 },
-    }
-  })
-
-  // Initialize deadlines with cached data
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<DeadlineItem[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
-        if (cachedDeadlines) {
-          return cachedDeadlines
-        }
-      } catch (e) {
-        // Fall back to empty array
-      }
-    }
-    return []
-  })
-
-  // Loading states - start as false if we have cached data
-  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(() => {
-    if (typeof window !== "undefined") {
-      const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
-      return !cachedDeadlines
-    }
-    return true
-  })
-
-  const [isLoadingElectiveCounts, setIsLoadingElectiveCounts] = useState(() => {
-    if (typeof window !== "undefined" && userId) {
-      const cachedCounts = getCachedData(getElectiveCountsCacheKey(userId))
-      return !cachedCounts
-    }
-    return true
-  })
-
-  // Fetch current user ID only once on mount
-  useEffect(() => {
-    const fetchUserId = async () => {
-      // Skip if we already have a userId from cache
-      if (userId) {
-        hasInitialized.current = true
-        return
-      }
-
-      try {
-        const { data, error } = await supabase.auth.getUser()
-
-        if (error) {
-          console.error("Auth error:", error)
-          router.push("/student/login")
-          return
-        }
-
-        if (data?.user) {
-          const newUserId = data.user.id
-          console.log("Student Dashboard - Fetched user ID:", newUserId)
-          setUserId(newUserId)
-          // Cache the userId
-          setCachedData(USER_ID_CACHE_KEY, newUserId)
-          hasInitialized.current = true
-        } else {
-          console.log("No authenticated user found")
-          router.push("/student/login")
-        }
-      } catch (error) {
-        console.error("Error fetching user ID:", error)
-        router.push("/student/login")
-      }
-    }
-
-    if (!hasInitialized.current) {
-      fetchUserId()
-    }
-  }, [supabase, router, userId])
-
-  // Fetch student profile using the cached hook
-  const { profile, isLoading: isLoadingProfile, error: profileError } = useCachedStudentProfile(userId)
-
-  // Fetch elective counts and selections with caching
   useEffect(() => {
     const fetchElectiveCounts = async () => {
       if (!isSubdomainAccess || !institution?.id || !userId) return
 
-      // Check for cached data first
-      const cachedCounts = getCachedData(getElectiveCountsCacheKey(userId))
+      const cacheKey = `studentDashboardElectiveCounts_${userId}`
+      const cachedCounts = getCachedData<ElectiveCounts>(cacheKey)
       if (cachedCounts) {
         console.log("Using cached elective counts data")
         setElectiveCounts(cachedCounts)
@@ -215,7 +80,6 @@ export default function StudentDashboard() {
         setIsLoadingElectiveCounts(true)
         console.log("Fetching fresh elective counts data")
 
-        // Fetch available electives (required)
         const { count: availableCoursesCount, error: availableCoursesError } = await supabase
           .from("elective_courses")
           .select("*", { count: "exact", head: true })
@@ -228,13 +92,11 @@ export default function StudentDashboard() {
           .eq("institution_id", institution.id)
           .eq("status", "published")
 
-        // Fetch student's course selections
         const { data: courseSelections, error: courseSelectionsError } = await supabase
           .from("course_selections")
           .select("*")
           .eq("student_id", userId)
 
-        // Fetch student's exchange selections
         const { data: exchangeSelections, error: exchangeSelectionsError } = await supabase
           .from("exchange_selections")
           .select("*")
@@ -265,9 +127,7 @@ export default function StudentDashboard() {
           }
 
           setElectiveCounts(counts)
-
-          // Cache the data
-          setCachedData(getElectiveCountsCacheKey(userId), counts)
+          setCachedData(cacheKey, null, counts) // No secondary key needed if primary is unique
         }
       } catch (error) {
         console.error("Error fetching elective counts:", error)
@@ -277,15 +137,14 @@ export default function StudentDashboard() {
     }
 
     fetchElectiveCounts()
-  }, [supabase, isSubdomainAccess, institution?.id, userId])
+  }, [supabase, isSubdomainAccess, institution?.id, userId, getCachedData, setCachedData])
 
-  // Fetch upcoming deadlines with caching
   useEffect(() => {
     const fetchUpcomingDeadlines = async () => {
       if (!isSubdomainAccess || !institution?.id) return
 
-      // Check for cached data first
-      const cachedDeadlines = getCachedData(DEADLINES_CACHE_KEY)
+      const cacheKey = "studentDashboardDeadlines"
+      const cachedDeadlines = getCachedData<DeadlineItem[]>(cacheKey, institution.id)
       if (cachedDeadlines) {
         console.log("Using cached deadlines data")
         setUpcomingDeadlines(cachedDeadlines)
@@ -296,11 +155,8 @@ export default function StudentDashboard() {
       try {
         setIsLoadingDeadlines(true)
         console.log("Fetching fresh deadlines data")
-
-        // Get current date
         const now = new Date()
 
-        // Fetch course electives with deadlines
         const { data: courseElectives, error: courseError } = await supabase
           .from("elective_courses")
           .select("id, name, name_ru, deadline, status")
@@ -311,7 +167,6 @@ export default function StudentDashboard() {
           .order("deadline", { ascending: true })
           .limit(5)
 
-        // Fetch exchange programs with deadlines
         const { data: exchangePrograms, error: exchangeError } = await supabase
           .from("elective_exchange")
           .select("id, name, name_ru, deadline, status")
@@ -323,7 +178,6 @@ export default function StudentDashboard() {
           .limit(5)
 
         if (!courseError && !exchangeError) {
-          // Process course electives
           const courseDeadlines = (courseElectives || []).map((item) => ({
             id: item.id,
             title: language === "ru" && item.name_ru ? item.name_ru : item.name,
@@ -332,7 +186,6 @@ export default function StudentDashboard() {
             type: "course" as const,
           }))
 
-          // Process exchange programs
           const exchangeDeadlines = (exchangePrograms || []).map((item) => ({
             id: item.id,
             title: language === "ru" && item.name_ru ? item.name_ru : item.name,
@@ -341,15 +194,12 @@ export default function StudentDashboard() {
             type: "exchange" as const,
           }))
 
-          // Combine and sort by closest deadline
           const allDeadlines = [...courseDeadlines, ...exchangeDeadlines]
             .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 5) // Take top 5 closest deadlines
+            .slice(0, 5)
 
           setUpcomingDeadlines(allDeadlines)
-
-          // Cache the data
-          setCachedData(DEADLINES_CACHE_KEY, allDeadlines)
+          setCachedData(cacheKey, institution.id, allDeadlines)
         }
       } catch (error) {
         console.error("Error fetching upcoming deadlines:", error)
@@ -359,28 +209,22 @@ export default function StudentDashboard() {
     }
 
     fetchUpcomingDeadlines()
-  }, [supabase, isSubdomainAccess, institution?.id, language])
+  }, [supabase, isSubdomainAccess, institution?.id, language, getCachedData, setCachedData])
 
-  // Ensure this page is only accessed via subdomain
   useEffect(() => {
     if (!isSubdomainAccess && !isInitialMount.current) {
       router.push("/institution-required")
     }
   }, [isSubdomainAccess, router])
 
-  // Log when component mounts/unmounts to track re-renders
   useEffect(() => {
     console.log("Student Dashboard mounted")
-
-    // Mark that we're no longer on initial mount
     isInitialMount.current = false
-
     return () => {
       console.log("Student Dashboard unmounted")
     }
   }, [])
 
-  // Don't render anything if we're redirecting or still checking subdomain access
   if (!isSubdomainAccess && isInitialMount.current) {
     return null
   }
