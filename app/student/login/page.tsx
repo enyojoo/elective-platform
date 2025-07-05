@@ -1,55 +1,101 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useLanguage } from "@/lib/language-context"
+import { useInstitution } from "@/lib/institution-context"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
-import { useLanguage } from "@/lib/language-context"
-import { AuthLanguageSwitcher } from "@/app/auth/components/auth-language-switcher"
-import { useInstitution, DEFAULT_LOGO_URL } from "@/lib/institution-context"
-import { signIn } from "@/app/actions/auth"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function StudentLoginPage() {
-  const { t } = useLanguage()
-  const router = useRouter()
-  const { toast } = useToast()
-  const { institution } = useInstitution()
-
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
+  const router = useRouter()
+  const { t } = useLanguage()
+  const { toast } = useToast()
+  const { institution, isLoading: institutionLoading, isSubdomainAccess, DEFAULT_LOGO_URL } = useInstitution()
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Update the handleLogin function to handle missing profiles
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setIsLoading(true)
+    setError("")
 
-    const formData = new FormData(e.currentTarget)
-    const result = await signIn(formData)
-
-    if (result.error) {
-      setError(result.error)
-      setIsLoading(false)
-    } else {
-      toast({
-        title: t("auth.login.success"),
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
-      // This refresh is crucial. It re-fetches the page and allows the middleware
-      // to correctly redirect the now-authenticated user.
-      router.refresh()
+
+      if (error) {
+        setError(error.message)
+        return
+      }
+
+      if (data.session) {
+        // Use a server API endpoint to check the role instead of direct query
+        const response = await fetch("/api/auth/check-role", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ userId: data.session.user.id }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to verify user role")
+        }
+
+        const { role, institutionId } = await response.json()
+
+        if (role === "student") {
+          // If accessed via subdomain, check if student belongs to this institution
+          if (isSubdomainAccess && institution && institutionId !== institution.id) {
+            await supabase.auth.signOut()
+            setError("You don't have access to this institution")
+          } else {
+            toast({
+              title: "Login successful",
+              description: "Welcome to the student dashboard",
+            })
+            router.push("/student/dashboard")
+          }
+        } else {
+          // User is authenticated but not a student
+          await supabase.auth.signOut()
+          setError("You do not have student access")
+        }
+      }
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("Login failed. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
+
+  // Remove loading indicator - render the page immediately
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
@@ -67,7 +113,7 @@ export default function StudentLoginPage() {
           ) : (
             <Image
               src={DEFAULT_LOGO_URL || "/placeholder.svg"}
-              alt="Elective Pro Logo"
+              alt="ElectivePRO Logo"
               width={160}
               height={45}
               className="h-10 w-auto"
@@ -75,36 +121,40 @@ export default function StudentLoginPage() {
             />
           )}
         </div>
-
         <Card>
           <CardHeader>
             <CardTitle>{t("auth.login.title")}</CardTitle>
-            <CardDescription>{t("auth.login.studentSubtitle")}</CardDescription>
+            <CardDescription>
+              {institution ? `${t("auth.login.description")} - ${institution.name}` : t("auth.login.description")}
+            </CardDescription>
           </CardHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
-              {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">{error}</div>}
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.login.email")}</Label>
-                <Input id="email" name="email" type="email" placeholder="student@university.edu" required />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="student@university.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">{t("auth.login.password")}</Label>
-                  <Link
-                    href="/student/forgot-password"
-                    prefetch={false}
-                    className="text-sm text-primary hover:underline"
-                  >
+                  <Link href="/student/forgot-password" className="text-xs text-primary hover:underline">
                     {t("auth.login.forgotPassword")}
                   </Link>
                 </div>
                 <div className="relative">
                   <Input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                   <button
@@ -116,22 +166,24 @@ export default function StudentLoginPage() {
                   </button>
                 </div>
               </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? t("auth.login.loggingIn") : t("auth.login.login")}
+                {isLoading ? t("auth.login.loading") : t("auth.login.button")}
               </Button>
               <div className="text-center text-sm">
-                {t("auth.signup.noAccount")}{" "}
+                {t("auth.login.noAccount")}{" "}
                 <Link href="/student/signup" className="text-primary hover:underline">
-                  {t("auth.signup.createAccount")}
+                  {t("auth.login.signUp")}
                 </Link>
               </div>
             </CardFooter>
           </form>
         </Card>
         <div className="flex justify-center mt-8">
-          <AuthLanguageSwitcher />
+          <LanguageSwitcher />
         </div>
       </div>
     </div>
