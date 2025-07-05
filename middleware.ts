@@ -1,18 +1,16 @@
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import type { Database } from "@/types/supabase"
 
 export async function middleware(req: NextRequest) {
-  // Create a response object and a Supabase client that can read and write cookies.
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  const supabase = createMiddlewareClient<Database>({ req, res })
 
-  // Get the current session
+  // Get session and hostname/path
   const {
     data: { session },
   } = await supabase.auth.getSession()
-
-  // Get hostname and path for routing logic
   const hostname = req.headers.get("host") || ""
   const path = req.nextUrl.pathname
 
@@ -21,21 +19,40 @@ export async function middleware(req: NextRequest) {
   const mainDomain = isDevelopment ? "localhost:3000" : "app.electivepro.net"
 
   // Subdomain extraction
-  let subdomain = null
+  let subdomain: string | null = null
   if (isDevelopment) {
-    const url = new URL(req.url)
-    subdomain = url.searchParams.get("subdomain")
+    subdomain = req.nextUrl.searchParams.get("subdomain")
   } else {
-    const isSubdomainHost =
-      hostname.includes(".electivepro.net") &&
-      !hostname.startsWith("www.") &&
-      !hostname.startsWith("app.") &&
-      !hostname.startsWith("api.")
-    if (isSubdomainHost) {
-      subdomain = hostname.split(".")[0]
+    const parts = hostname.split(".")
+    if (parts.length > 2 && parts[0] !== "app" && parts[0] !== "www") {
+      subdomain = parts[0]
     }
   }
   const isMainDomain = !subdomain
+
+  // --- START: Institution Data Injection ---
+  if (subdomain) {
+    const { data: institution, error } = await supabase
+      .from("institutions")
+      .select("id, name, favicon_url, primary_color")
+      .eq("subdomain", subdomain)
+      .single()
+
+    if (error || !institution) {
+      // Invalid subdomain, redirect to main domain's institution required page
+      const url = new URL(isDevelopment ? `http://${mainDomain}` : `https://${mainDomain}`)
+      url.pathname = "/institution-required"
+      return NextResponse.redirect(url)
+    }
+
+    // Inject institution data into request headers for the app to use
+    res.headers.set("x-electivepro-subdomain", subdomain)
+    res.headers.set("x-institution-id", institution.id)
+    res.headers.set("x-institution-name", institution.name)
+    if (institution.favicon_url) res.headers.set("x-institution-favicon-url", institution.favicon_url)
+    if (institution.primary_color) res.headers.set("x-institution-primary-color", institution.primary_color)
+  }
+  // --- END: Institution Data Injection ---
 
   // Define route types
   const isStudentRoute = path.startsWith("/student/")
@@ -49,7 +66,7 @@ export async function middleware(req: NextRequest) {
 
   // --- START: AUTHENTICATION & ROUTING LOGIC ---
 
-  // RULE 1: Redirect unauthenticated users from protected routes to the correct login page.
+  // RULE 1: Redirect unauthenticated users from protected routes.
   if (!session && isProtectedRoute && !isPublicPath) {
     let loginUrl = "/"
     if (isStudentRoute) loginUrl = "/student/login"
@@ -59,7 +76,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(loginUrl, req.url))
   }
 
-  // RULE 2: Redirect authenticated users from public auth pages to their dashboard.
+  // RULE 2: Redirect authenticated users from public auth pages.
   if (session && isProtectedRoute && isPublicPath) {
     let dashboardUrl = "/"
     if (isStudentRoute) dashboardUrl = "/student/dashboard"
@@ -85,13 +102,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // RULE 5: Handle root path redirects based on session and domain.
+  // RULE 5: Handle root path redirects.
   if (path === "/") {
     if (isMainDomain) {
       const destination = session ? "/admin/dashboard" : "/admin/login"
       return NextResponse.redirect(new URL(destination, req.url))
     } else {
-      // On a subdomain
       const destination = session ? "/student/dashboard" : "/student/login"
       return NextResponse.redirect(new URL(destination, req.url))
     }
@@ -99,8 +115,7 @@ export async function middleware(req: NextRequest) {
 
   // --- END: AUTHENTICATION & ROUTING LOGIC ---
 
-  // If no redirects were triggered, pass the request through.
-  // The `res` object has been modified by the Supabase client to refresh the session cookie if needed.
+  // Return the response, which has been modified by Supabase client and our header injection.
   return res
 }
 
