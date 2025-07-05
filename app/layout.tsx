@@ -1,117 +1,39 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import type { ReactNode } from "react"
 import { headers } from "next/headers"
-import "./globals.css"
-import { Providers } from "./providers"
-import { ThemeProvider } from "@/components/theme-provider"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { Providers } from "@/app/providers"
 import { Toaster } from "@/components/ui/toaster"
-import { DynamicBranding } from "@/components/dynamic-branding"
-import { getSubdomain } from "@/lib/subdomain-utils"
+import type { Institution } from "@/lib/institution-context"
+import type { Database } from "@/types/supabase"
+import "@/styles/globals.css"
 
-const inter = Inter({ subsets: ["latin"] })
+export const dynamic = "force-dynamic"
 
-// Updated default favicon URL
-const DEFAULT_FAVICON_URL =
-  "https://pbqvvvdhssghkpvsluvw.supabase.co/storage/v1/object/public/favicons//epro_favicon.svg"
-
-// Default primary color
-const DEFAULT_PRIMARY_COLOR = "#027659"
-
-// Default platform name
-const DEFAULT_PLATFORM_NAME = "ElectivePRO"
-
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   const headersList = headers()
-  const host = headersList.get("host") || ""
-  const subdomain = getSubdomain(host)
-  const institutionId = headersList.get("x-institution-id")
-  const institutionName = headersList.get("x-institution-name")
-  const institutionFaviconUrl = headersList.get("x-institution-favicon-url")
-  const institutionPrimaryColor = headersList.get("x-institution-primary-color")
+  const subdomain = headersList.get("x-electivepro-subdomain")
+  let initialInstitution: Institution | null = null
 
-  // Check if this is an admin path
-  const url = headersList.get("x-url") || ""
-  const isAdminPath = url.includes("/admin")
-
-  console.log("Layout: Processing request for", {
-    host,
-    subdomain,
-    institutionId,
-    institutionName,
-    hasFavicon: !!institutionFaviconUrl,
-    hasPrimaryColor: !!institutionPrimaryColor,
-    url,
-    isAdminPath,
-  })
-
-  // If we have institution info from headers, use it
-  let institution = null
-  if (institutionId && subdomain) {
-    institution = {
-      id: institutionId,
-      name: institutionName || "Institution",
-      subdomain: subdomain,
-      is_active: true,
-      favicon_url: institutionFaviconUrl || null,
-      primary_color: institutionPrimaryColor || null,
-    }
-    console.log("Layout: Using institution from headers:", institution.name)
-  }
-
-  // For admin paths, always use the default color
-  const primaryColor = isAdminPath ? DEFAULT_PRIMARY_COLOR : institutionPrimaryColor || DEFAULT_PRIMARY_COLOR
-
-  // For admin paths, always use the default favicon
-  const faviconUrl = isAdminPath ? DEFAULT_FAVICON_URL : institutionFaviconUrl || DEFAULT_FAVICON_URL
-
-  // Set the page title based on whether we're on a subdomain and have an institution name
-  // For admin paths, always use the default platform name
-  const pageTitle = isAdminPath ? DEFAULT_PLATFORM_NAME : institutionName || DEFAULT_PLATFORM_NAME
-
-  // Create metadata for the current request
-  const metadata: Metadata = {
-    title: pageTitle,
-    description:
-      "The complete platform for managing the selection of elective courses, exchange programs, and academic pathways.",
-    icons: {
-      icon: faviconUrl,
-      shortcut: faviconUrl,
-      apple: faviconUrl,
-    },
+  if (subdomain) {
+    // Since the middleware already validated the subdomain,
+    // we can fetch the institution data here to pass to the client.
+    const supabase = createServerComponentClient<Database>({ cookies })
+    const { data } = await supabase
+      .from("institutions")
+      .select("id, name, subdomain, logo_url, favicon_url, primary_color, is_active")
+      .eq("subdomain", subdomain)
+      .single()
+    initialInstitution = data
   }
 
   return (
-    <html lang="en" suppressHydrationWarning style={{ "--primary": primaryColor } as React.CSSProperties}>
-      <head>
-        {/* Add a meta tag to help debug */}
-        <meta name="x-subdomain" content={subdomain || "none"} />
-        <meta name="x-institution-id" content={institutionId || "none"} />
-        <meta name="theme-color" content={primaryColor} />
-        <meta name="x-primary-color" content={primaryColor} />
-        <meta name="x-is-admin" content={isAdminPath ? "true" : "false"} />
-        <meta name="x-favicon-url" content={faviconUrl} />
-        <meta name="x-page-title" content={pageTitle} />
-
-        {/* Set favicon explicitly for server-side rendering */}
-        <link rel="icon" href={faviconUrl} />
-        <link rel="shortcut icon" href={faviconUrl} />
-        <link rel="apple-touch-icon" href={faviconUrl} />
-
-        {/* Set the page title explicitly */}
-        <title>{pageTitle}</title>
-      </head>
-      <body className={inter.className}>
-        <Providers institution={institution}>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-            <DynamicBranding />
-            {children}
-            <Toaster />
-          </ThemeProvider>
+    <html lang="en" suppressHydrationWarning>
+      <head />
+      <body>
+        <Providers initialInstitution={initialInstitution}>
+          {children}
+          <Toaster />
         </Providers>
       </body>
     </html>
