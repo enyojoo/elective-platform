@@ -37,8 +37,8 @@ export async function signUp(formData: FormData) {
   const role = formData.get("role") as string
   const institutionId = formData.get("institutionId") as string
 
-  if (!email || !password || !name || !role || !institutionId) {
-    return { error: "All required fields are not provided." }
+  if (!email || !password || !name || !role) {
+    return { error: "All fields are required" }
   }
 
   const supabase = createServerActionClient({ cookies })
@@ -68,14 +68,10 @@ export async function signUp(formData: FormData) {
         email,
       }
 
-      // Add role-specific fields to the main profile
+      // Add manager-specific fields if role is program_manager
       if (role === "program_manager") {
         profileData.degree_id = formData.get("degreeId") as string
         profileData.academic_year = formData.get("academicYear") as string
-      } else if (role === "student") {
-        profileData.degree_id = formData.get("degreeId") as string
-        profileData.academic_year = formData.get("academicYear") as string
-        profileData.group_id = formData.get("groupId") as string
       }
 
       // Create profile using admin client to bypass RLS
@@ -83,7 +79,25 @@ export async function signUp(formData: FormData) {
 
       if (profileError) {
         console.error("Profile creation error:", profileError)
+        // Provide a more generic error to the user
         return { error: "Database error saving new user." }
+      }
+
+      // For students, create student profile
+      if (role === "student") {
+        const groupId = formData.get("groupId") as string
+        const enrollmentYear = formData.get("enrollmentYear") as string
+
+        const { error: studentError } = await supabaseAdmin.from("student_profiles").insert({
+          profile_id: authData.user.id,
+          group_id: groupId,
+          enrollment_year: enrollmentYear,
+        })
+
+        if (studentError) {
+          console.error("Student profile creation error:", studentError)
+          return { error: "Error creating student profile" }
+        }
       }
     }
 
