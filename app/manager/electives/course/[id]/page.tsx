@@ -33,6 +33,7 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { createClient } from "@/lib/supabase/client"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -62,88 +63,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     studentsEnrolled: params.id === "fall-2023" ? 42 : params.id === "spring-2024" ? 28 : 0,
     createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
   }
-
-  // Mock courses data for this elective program
-  const courses = [
-    {
-      id: "1",
-      name: "Strategic Management",
-      description: "This course focuses on the strategic management of organizations.",
-      credits: 5,
-      maxStudents: 30,
-      currentStudents: 25,
-      professor: "Dr. Smith",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "2",
-      name: "International Marketing",
-      description: "This course covers marketing strategies in an international context.",
-      credits: 4,
-      maxStudents: 25,
-      currentStudents: 25,
-      professor: "Dr. Johnson",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "3",
-      name: "Financial Management",
-      description: "This course covers financial management principles and practices.",
-      credits: 5,
-      maxStudents: 35,
-      currentStudents: 20,
-      professor: "Dr. Williams",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "4",
-      name: "Organizational Behavior",
-      description: "This course examines human behavior in organizational settings.",
-      credits: 4,
-      maxStudents: 30,
-      currentStudents: 30,
-      professor: "Dr. Brown",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "5",
-      name: "Business Ethics",
-      description: "This course explores ethical issues in business and management.",
-      credits: 3,
-      maxStudents: 40,
-      currentStudents: 15,
-      professor: "Dr. Davis",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["International Management"],
-    },
-    {
-      id: "6",
-      name: "Supply Chain Management",
-      description: "This course covers the management of supply chains and logistics.",
-      credits: 4,
-      maxStudents: 25,
-      currentStudents: 20,
-      professor: "Dr. Miller",
-      semester: electiveCourse.semester,
-      year: electiveCourse.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-  ]
 
   // Mock student selections data
   const studentSelections = [
@@ -196,6 +115,72 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       statementFile: null,
     },
   ]
+
+  // Replace the mock courses data with real data fetching
+  const [courses, setCourses] = useState<any[]>([])
+
+  // Add this useEffect to fetch real course data
+  useEffect(() => {
+    const fetchCoursesData = async () => {
+      try {
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Get the elective course data to find associated courses
+        const { data: electiveData, error: electiveError } = await supabase
+          .from("elective_courses")
+          .select("courses")
+          .eq("id", params.id)
+          .single()
+
+        if (electiveError) throw electiveError
+
+        const courseUuids = electiveData?.courses || []
+
+        if (courseUuids.length > 0) {
+          // Fetch course details
+          const { data: fetchedCourses, error: coursesError } = await supabase
+            .from("courses")
+            .select("*")
+            .in("id", courseUuids)
+
+          if (coursesError) throw coursesError
+
+          // Get current enrollment counts (pending + approved)
+          const { data: enrollmentCounts, error: enrollmentError } = await supabase
+            .from("course_selections")
+            .select("selected_course_ids, status")
+            .eq("elective_courses_id", params.id)
+            .in("status", ["pending", "approved"])
+
+          if (enrollmentError) throw enrollmentError
+
+          // Calculate current students for each course
+          const coursesWithEnrollment = fetchedCourses?.map((course) => {
+            const currentStudents =
+              enrollmentCounts?.reduce((count, selection) => {
+                if (selection.selected_course_ids && selection.selected_course_ids.includes(course.id)) {
+                  return count + 1
+                }
+                return count
+              }, 0) || 0
+
+            return {
+              ...course,
+              current_students: currentStudents,
+              name: course.name_en || course.name,
+              professor: course.instructor_en || course.instructor_ru || "TBD",
+            }
+          })
+
+          setCourses(coursesWithEnrollment || [])
+        }
+      } catch (error) {
+        console.error("Error fetching courses data:", error)
+      }
+    }
+
+    fetchCoursesData()
+  }, [params.id])
 
   // Get translation function
   const { t, language } = useLanguage()
@@ -523,8 +508,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           <td className="py-3 px-4 text-sm">{course.name}</td>
                           <td className="py-3 px-4 text-sm">{course.professor}</td>
                           <td className="py-3 px-4 text-sm">
-                            <Badge variant={course.currentStudents >= course.maxStudents ? "destructive" : "secondary"}>
-                              {course.currentStudents}/{course.maxStudents}
+                            <Badge
+                              variant={course.current_students >= course.max_students ? "destructive" : "secondary"}
+                            >
+                              {course.current_students}/{course.max_students}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-sm text-center">
@@ -767,7 +754,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full flex items-center gap-2"
+                            className="w-full flex items-center gap-2 bg-transparent"
                             onClick={() =>
                               downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                             }

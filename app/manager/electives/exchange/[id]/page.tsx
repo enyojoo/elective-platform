@@ -22,6 +22,7 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { createClient } from "@/lib/supabase/client"
 
 interface ExchangeProgramDetailPageProps {
   params: {
@@ -77,106 +78,69 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
   }
 
-  // Mock universities data for this exchange program
-  const universities = [
-    {
-      id: "1",
-      name: "University of Amsterdam",
-      description: "One of the largest research universities in Europe with a rich academic tradition.",
-      country: "Netherlands",
-      city: "Amsterdam",
-      language: "English, Dutch",
-      maxStudents: 5,
-      currentStudents: 3,
-      website: "https://www.uva.nl/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "2",
-      name: "HEC Paris",
-      description: "One of Europe's leading business schools with a strong focus on management education.",
-      country: "France",
-      city: "Paris",
-      language: "English, French",
-      maxStudents: 4,
-      currentStudents: 4,
-      website: "https://www.hec.edu/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "3",
-      name: "Copenhagen Business School",
-      description: "One of the largest business schools in Europe with a broad range of programs.",
-      country: "Denmark",
-      city: "Copenhagen",
-      language: "English, Danish",
-      maxStudents: 6,
-      currentStudents: 2,
-      website: "https://www.cbs.dk/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "4",
-      name: "Bocconi University",
-      description: "A private university in Milan, Italy, specializing in economics, management, and finance.",
-      country: "Italy",
-      city: "Milan",
-      language: "English, Italian",
-      maxStudents: 5,
-      currentStudents: 5,
-      website: "https://www.unibocconi.eu/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "5",
-      name: "Vienna University of Economics and Business",
-      description:
-        "One of Europe's largest business universities focusing on business, economics, and social sciences.",
-      country: "Austria",
-      city: "Vienna",
-      language: "English, German",
-      maxStudents: 4,
-      currentStudents: 2,
-      website: "https://www.wu.ac.at/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["International Management"],
-    },
-    {
-      id: "6",
-      name: "Stockholm School of Economics",
-      description: "A private business school with a strong international presence and research focus.",
-      country: "Sweden",
-      city: "Stockholm",
-      language: "English, Swedish",
-      maxStudents: 3,
-      currentStudents: 2,
-      website: "https://www.hhs.se/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-  ]
+  // Replace the mock universities data with real data fetching
+  const [universities, setUniversities] = useState<any[]>([])
+
+  // Add this useEffect to fetch real university data
+  useEffect(() => {
+    const fetchUniversitiesData = async () => {
+      try {
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Get the exchange program data to find associated universities
+        const { data: exchangeData, error: exchangeError } = await supabase
+          .from("elective_exchange")
+          .select("universities")
+          .eq("id", params.id)
+          .single()
+
+        if (exchangeError) throw exchangeError
+
+        const universityUuids = exchangeData?.universities || []
+
+        if (universityUuids.length > 0) {
+          // Fetch university details
+          const { data: fetchedUniversities, error: universitiesError } = await supabase
+            .from("universities")
+            .select("*")
+            .in("id", universityUuids)
+
+          if (universitiesError) throw universitiesError
+
+          // Get current enrollment counts (pending + approved)
+          const { data: enrollmentCounts, error: enrollmentError } = await supabase
+            .from("exchange_selections")
+            .select("selected_university_ids, status")
+            .eq("elective_exchange_id", params.id)
+            .in("status", ["pending", "approved"])
+
+          if (enrollmentError) throw enrollmentError
+
+          // Calculate current students for each university
+          const universitiesWithEnrollment = fetchedUniversities?.map((university) => {
+            const currentStudents =
+              enrollmentCounts?.reduce((count, selection) => {
+                if (selection.selected_university_ids && selection.selected_university_ids.includes(university.id)) {
+                  return count + 1
+                }
+                return count
+              }, 0) || 0
+
+            return {
+              ...university,
+              current_students: currentStudents,
+            }
+          })
+
+          setUniversities(universitiesWithEnrollment || [])
+        }
+      } catch (error) {
+        console.error("Error fetching universities data:", error)
+      }
+    }
+
+    fetchUniversitiesData()
+  }, [params.id])
 
   // Mock student selections data
   const studentSelections = [
@@ -323,7 +287,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
     // Add data row
     const location = `${university.city}, ${university.country}`
-    const enrollment = `${university.currentStudents}/${university.maxStudents}`
+    const enrollment = `${university.current_students}/${university.max_students}`
     const programs = university.programs.join("; ")
 
     // Escape fields that might contain commas
@@ -546,10 +510,10 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                           <td className="py-3 px-4 text-sm">
                             <Badge
                               variant={
-                                university.currentStudents >= university.maxStudents ? "destructive" : "secondary"
+                                university.current_students >= university.max_students ? "destructive" : "secondary"
                               }
                             >
-                              {university.currentStudents}/{university.maxStudents}
+                              {university.current_students}/{university.max_students}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-sm text-center">
@@ -804,7 +768,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full flex items-center gap-2"
+                          className="w-full flex items-center gap-2 bg-transparent"
                           onClick={() =>
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }

@@ -17,12 +17,13 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { createClient } from "@/lib/supabase/client"
 
 interface ExchangeProgramDetailPageProps {
   params: {
@@ -77,106 +78,69 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
     createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
   }
 
-  // Mock universities data for this exchange program
-  const universities = [
-    {
-      id: "1",
-      name: "University of Amsterdam",
-      description: "One of the largest research universities in Europe with a rich academic tradition.",
-      country: "Netherlands",
-      city: "Amsterdam",
-      language: "English, Dutch",
-      maxStudents: 5,
-      currentStudents: 4, // This now includes pending + approved (was 3, now includes 1 pending)
-      website: "https://www.uva.nl/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "2",
-      name: "HEC Paris",
-      description: "One of Europe's leading business schools with a strong focus on management education.",
-      country: "France",
-      city: "Paris",
-      language: "English, French",
-      maxStudents: 4,
-      currentStudents: 4, // This now includes pending + approved
-      website: "https://www.hec.edu/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-    {
-      id: "3",
-      name: "Copenhagen Business School",
-      description: "One of the largest business schools in Europe with a broad range of programs.",
-      country: "Denmark",
-      city: "Copenhagen",
-      language: "English, Danish",
-      maxStudents: 6,
-      currentStudents: 2, // This now includes pending + approved
-      website: "https://www.cbs.dk/en",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "4",
-      name: "Bocconi University",
-      description: "A private university in Milan, Italy, specializing in economics, management, and finance.",
-      country: "Italy",
-      city: "Milan",
-      language: "English, Italian",
-      maxStudents: 5,
-      currentStudents: 6, // This now includes pending + approved (was 5, now includes 1 pending)
-      website: "https://www.unibocconi.eu/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management", "Public Administration"],
-    },
-    {
-      id: "5",
-      name: "Vienna University of Economics and Business",
-      description:
-        "One of Europe's largest business universities focusing on business, economics, and social sciences.",
-      country: "Austria",
-      city: "Vienna",
-      language: "English, German",
-      maxStudents: 4,
-      currentStudents: 3, // This now includes pending + approved (was 2, now includes 1 pending)
-      website: "https://www.wu.ac.at/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["International Management"],
-    },
-    {
-      id: "6",
-      name: "Stockholm School of Economics",
-      description: "A private business school with a strong international presence and research focus.",
-      country: "Sweden",
-      city: "Stockholm",
-      language: "English, Swedish",
-      maxStudents: 3,
-      currentStudents: 2, // This now includes pending + approved
-      website: "https://www.hhs.se/en/",
-      academicYear: 2,
-      semester: exchangeProgram.semester,
-      year: exchangeProgram.year,
-      degree: "Bachelor",
-      programs: ["Management", "International Management"],
-    },
-  ]
+  // Replace the mock universities data with real data fetching
+  const [universities, setUniversities] = useState<any[]>([])
+
+  // Add this useEffect to fetch real university data
+  useEffect(() => {
+    const fetchUniversitiesData = async () => {
+      try {
+        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Get the exchange program data to find associated universities
+        const { data: exchangeData, error: exchangeError } = await supabase
+          .from("elective_exchange")
+          .select("universities")
+          .eq("id", params.id)
+          .single()
+
+        if (exchangeError) throw exchangeError
+
+        const universityUuids = exchangeData?.universities || []
+
+        if (universityUuids.length > 0) {
+          // Fetch university details
+          const { data: fetchedUniversities, error: universitiesError } = await supabase
+            .from("universities")
+            .select("*")
+            .in("id", universityUuids)
+
+          if (universitiesError) throw universitiesError
+
+          // Get current enrollment counts (pending + approved)
+          const { data: enrollmentCounts, error: enrollmentError } = await supabase
+            .from("exchange_selections")
+            .select("selected_university_ids, status")
+            .eq("elective_exchange_id", params.id)
+            .in("status", ["pending", "approved"])
+
+          if (enrollmentError) throw enrollmentError
+
+          // Calculate current students for each university
+          const universitiesWithEnrollment = fetchedUniversities?.map((university) => {
+            const currentStudents =
+              enrollmentCounts?.reduce((count, selection) => {
+                if (selection.selected_university_ids && selection.selected_university_ids.includes(university.id)) {
+                  return count + 1
+                }
+                return count
+              }, 0) || 0
+
+            return {
+              ...university,
+              current_students: currentStudents,
+            }
+          })
+
+          setUniversities(universitiesWithEnrollment || [])
+        }
+      } catch (error) {
+        console.error("Error fetching universities data:", error)
+      }
+    }
+
+    fetchUniversitiesData()
+  }, [params.id])
 
   // Mock student selections data
   const studentSelections = [
@@ -341,7 +305,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
 
     // Add data row
     const location = `${university.city}, ${university.country}`
-    const enrollment = `${university.currentStudents}/${university.maxStudents}`
+    const enrollment = `${university.current_students}/${university.maxStudents}`
     const programs = university.programs.join("; ")
 
     // Escape fields that might contain commas
@@ -542,9 +506,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
           <TabsContent value="universities" className="mt-4">
             <Card>
               <CardHeader>
-                <div>
-                  <CardTitle>{t("manager.exchangeDetails.universitiesInProgram")}</CardTitle>
-                </div>
+                <CardTitle>{t("manager.exchangeDetails.universitiesTab")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
@@ -577,10 +539,10 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                           <td className="py-3 px-4 text-sm">
                             <Badge
                               variant={
-                                university.currentStudents >= university.maxStudents ? "destructive" : "secondary"
+                                university.current_students >= university.maxStudents ? "destructive" : "secondary"
                               }
                             >
-                              {university.currentStudents}/{university.maxStudents}
+                              {university.current_students}/{university.maxStudents}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-sm text-center">
@@ -588,9 +550,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                               variant="ghost"
                               size="sm"
                               onClick={() => exportUniversityToCSV(university)}
-                              className="flex items-center gap-1 mx-auto"
+                              className="flex mx-auto"
                             >
-                              <Download className="h-4 w-4" />
+                              <Download className="h-4 w-4 mr-1" />
                               {t("manager.exchangeDetails.download")}
                             </Button>
                           </td>
@@ -703,7 +665,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                                       onClick={() => {
                                         toast({
                                           title: "Selection rejected",
-                                          description: `The selection for ${selection.studentName} has been rejected. Their seat has been freed up.`,
+                                          description: `The selection for ${selection.studentName} has been rejected.`,
                                         })
                                       }}
                                     >
@@ -717,11 +679,8 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                                     className="text-red-600"
                                     onClick={() => {
                                       toast({
-                                        title: t("toast.selection.withdrawn"),
-                                        description: t("toast.selection.withdrawn.description").replace(
-                                          "{0}",
-                                          selection.studentName,
-                                        ),
+                                        title: "Selection withdrawn",
+                                        description: `The selection for ${selection.studentName} has been withdrawn.`,
                                       })
                                     }}
                                   >
@@ -788,6 +747,10 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       {selectedStudent.selectedUniversities.map((university: string, index: number) => (
                         <div key={index} className="rounded-md border p-2">
                           <p className="font-medium">{university}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {universities.find((u) => u.name === university)?.city},{" "}
+                            {universities.find((u) => u.name === university)?.country}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -827,6 +790,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       )}
                     </div>
                   </div>
+
                   {/* Digital Authorization Section */}
                   <div className="mt-4">
                     <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
@@ -840,42 +804,38 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                 </div>
               </div>
               <DialogFooter>
-                {selectedStudent.status === SelectionStatus.PENDING && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection approved",
-                            description: `The selection for ${selectedStudent.studentName} has been approved.`,
-                          })
-                        }, 100)
-                      }}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection rejected",
-                            description: `The selection for ${selectedStudent.studentName} has been rejected. Their seat has been freed up.`,
-                          })
-                        }, 100)
-                      }}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.reject")}
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                  onClick={() => {
+                    setViewDialogOpen(false)
+                    window.setTimeout(() => {
+                      toast({
+                        title: "Selection approved",
+                        description: `The selection for ${selectedStudent.studentName} has been approved.`,
+                      })
+                    }, 100)
+                  }}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.approve")}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                  onClick={() => {
+                    setViewDialogOpen(false)
+                    window.setTimeout(() => {
+                      toast({
+                        title: "Selection rejected",
+                        description: `The selection for ${selectedStudent.studentName} has been rejected.`,
+                      })
+                    }, 100)
+                  }}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  {t("manager.exchangeDetails.reject")}
+                </Button>
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   {t("manager.exchangeDetails.close")}
                 </Button>
@@ -945,6 +905,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                             }
                           >
                             {university.name}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({university.city}, {university.country})
+                            </span>
                           </Label>
                         </div>
                       ))}

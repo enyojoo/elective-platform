@@ -183,17 +183,41 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         courseUuids = ecData.courses
       }
 
+      // After fetching courses, get current enrollment counts
       if (courseUuids.length > 0) {
         const { data: fetchedCourses, error: coursesError } = await supabase
           .from("courses")
-          .select(
-            "id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students, current_students",
-          )
+          .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
           .in("id", courseUuids)
 
         if (coursesError) throw coursesError
 
-        const fetchedCoursesMap = new Map(fetchedCourses?.map((fc) => [fc.id, fc]))
+        // Get current enrollment counts for each course (pending + approved)
+        const { data: enrollmentCounts, error: enrollmentError } = await supabase
+          .from("course_selections")
+          .select("selected_course_ids, status")
+          .eq("elective_courses_id", packId)
+          .in("status", ["pending", "approved"])
+
+        if (enrollmentError) throw enrollmentError
+
+        // Calculate current students for each course
+        const coursesWithEnrollment = fetchedCourses?.map((course) => {
+          const currentStudents =
+            enrollmentCounts?.reduce((count, selection) => {
+              if (selection.selected_course_ids && selection.selected_course_ids.includes(course.id)) {
+                return count + 1
+              }
+              return count
+            }, 0) || 0
+
+          return {
+            ...course,
+            current_students: currentStudents,
+          }
+        })
+
+        const fetchedCoursesMap = new Map(coursesWithEnrollment?.map((fc) => [fc.id, fc]))
         const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
         setIndividualCourses(orderedFetchedCourses || [])
       } else {

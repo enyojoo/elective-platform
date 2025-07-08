@@ -111,7 +111,33 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           .in("id", universityUuids)
 
         if (unisError) throw unisError
-        setUniversities(fetchedUnis || [])
+
+        // Get current enrollment counts for each university (pending + approved)
+        const { data: enrollmentCounts, error: enrollmentError } = await supabase
+          .from("exchange_selections")
+          .select("selected_university_ids, status")
+          .eq("elective_exchange_id", packId)
+          .in("status", ["pending", "approved"])
+
+        if (enrollmentError) throw enrollmentError
+
+        // Calculate current students for each university
+        const universitiesWithEnrollment = fetchedUnis?.map((university) => {
+          const currentStudents =
+            enrollmentCounts?.reduce((count, selection) => {
+              if (selection.selected_university_ids && selection.selected_university_ids.includes(university.id)) {
+                return count + 1
+              }
+              return count
+            }, 0) || 0
+
+          return {
+            ...university,
+            current_students: currentStudents,
+          }
+        })
+
+        setUniversities(universitiesWithEnrollment || [])
       } else {
         setUniversities([])
       }
