@@ -12,10 +12,8 @@ import {
   AlertTriangle,
   FileText,
   UploadCloud,
-  Users,
   Globe,
   MapPin,
-  GraduationCap,
   ExternalLink,
 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -43,7 +41,6 @@ import { createClient } from "@supabase/supabase-js"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelExchangeSelection } from "@/app/actions/student-exchange-selections"
-import { Badge } from "@/components/ui/badge"
 
 interface ExchangePageProps {
   params: {
@@ -92,6 +89,8 @@ export default function ExchangePage({ params }: ExchangePageProps) {
 
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+      // Fetch exchange pack data
       const { data: packData, error: packError } = await supabase
         .from("elective_exchange")
         .select("*")
@@ -102,10 +101,11 @@ export default function ExchangePage({ params }: ExchangePageProps) {
       if (!packData) throw new Error("Exchange program not found.")
       setExchangePackData(packData)
 
+      // Fetch universities using the UUIDs from the universities column
       const universityUuids = packData.universities || []
       if (universityUuids.length > 0) {
         const { data: fetchedUnis, error: unisError } = await supabase
-          .from("exchange_universities")
+          .from("universities")
           .select("*")
           .in("id", universityUuids)
 
@@ -115,6 +115,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         setUniversities([])
       }
 
+      // Fetch existing selection
       const { data: selectionData, error: selectionError } = await supabase
         .from("exchange_selections")
         .select("*")
@@ -182,8 +183,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
 
       if (uploadedStatement) {
         setIsUploadingStatement(true)
-        const { url } = await uploadStatement(uploadedStatement, `exchange_${packId}_${profile.id}`)
-        statementUrlToSave = url
+        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
         setIsUploadingStatement(false)
       }
 
@@ -197,14 +197,22 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         status: SelectionStatus.PENDING,
         selected_university_ids: selectedUniversityIds,
         institution_id: profile.institution_id,
-        statement_url: statementUrlToSave,
       }
 
-      const { error } = await supabase.from("exchange_selections").upsert(selectionPayload, {
-        onConflict: "student_id, elective_exchange_id",
-      })
+      if (statementUrlToSave) {
+        selectionPayload.statement_url = statementUrlToSave
+      }
 
-      if (error) throw error
+      if (existingSelection) {
+        const { error } = await supabase
+          .from("exchange_selections")
+          .update(selectionPayload)
+          .eq("id", existingSelection.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("exchange_selections").insert(selectionPayload).select().single()
+        if (error) throw error
+      }
 
       toast({ title: "Selection submitted", description: "Your university selection has been submitted successfully." })
       window.location.href = "/student/exchange"
@@ -226,7 +234,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         return
       }
       if (file.size > 5 * 1024 * 1024) {
-        // 5MB
         toast({ title: "File too large", description: "Please upload a file smaller than 5MB", variant: "destructive" })
         return
       }
@@ -488,9 +495,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {universities.map((uni) => {
             const isSelected = selectedUniversityIds.includes(uni.id)
-            const isFull = uni.current_students >= uni.max_students
-            const isDisabled =
-              !isSelected && (selectedUniversityIds.length >= exchangePackData.max_selections || isFull)
+            const isDisabled = !isSelected && selectedUniversityIds.length >= exchangePackData.max_selections
             return (
               <Card
                 key={uni.id}
@@ -499,10 +504,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-lg">{uni.name}</CardTitle>
-                    <Badge variant={isFull ? "destructive" : "secondary"} className="ml-2 shrink-0">
-                      <Users className="h-3 w-3 mr-1" />
-                      {uni.current_students}/{uni.max_students}
-                    </Badge>
                   </div>
                   <CardDescription className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
@@ -510,10 +511,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pb-4 flex-grow flex flex-col gap-2">
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <GraduationCap className="h-3.5 w-3.5" />
-                    <span>{uni.language}</span>
-                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -543,15 +540,17 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                   ) : (
                     <div />
                   )}
-                  <a
-                    href={uni.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:text-primary/80 flex items-center"
-                  >
-                    {t("student.exchange.visitWebsite")}
-                    <ExternalLink className="h-3.5 w-3.5 ml-1" />
-                  </a>
+                  {uni.website && (
+                    <a
+                      href={uni.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:text-primary/80 flex items-center"
+                    >
+                      {t("student.exchange.visitWebsite")}
+                      <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                    </a>
+                  )}
                 </CardFooter>
               </Card>
             )
@@ -676,36 +675,26 @@ export default function ExchangePage({ params }: ExchangePageProps) {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">{t("student.exchange.universityDescription")}</h4>
-                <p className="text-sm text-muted-foreground">{viewingUniversity?.description}</p>
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("student.exchange.languageInstruction")}</h4>
-                <p className="text-sm text-muted-foreground">{viewingUniversity?.language}</p>
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">{t("student.exchange.availablePrograms")}</h4>
-                <div className="flex flex-wrap gap-1">
-                  {viewingUniversity?.programs?.map((program: string, index: number) => (
-                    <Badge key={index} variant="outline">
-                      {program}
-                    </Badge>
-                  ))}
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {viewingUniversity?.description || "No description available."}
+                </p>
               </div>
             </div>
             <ShadDialogFooter className="flex justify-between sm:justify-between">
               <Button variant="outline" onClick={() => setViewingUniversity(null)}>
                 {t("student.exchange.close")}
               </Button>
-              <a
-                href={viewingUniversity?.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-              >
-                {t("student.exchange.visitWebsite")}
-                <ExternalLink className="h-4 w-4 ml-2" />
-              </a>
+              {viewingUniversity?.website && (
+                <a
+                  href={viewingUniversity.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                >
+                  {t("student.exchange.visitWebsite")}
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              )}
             </ShadDialogFooter>
           </DialogContent>
         </Dialog>

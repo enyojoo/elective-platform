@@ -6,7 +6,7 @@ import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox, Globe } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@supabase/supabase-js"
@@ -250,12 +250,7 @@ export default function ExchangePage() {
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-grow">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                      <Globe className="h-4 w-4" />
-                      <span>{t("student.exchange.exchangeProgram")}</span>
-                    </div>
-                  </CardContent>
+                  <CardContent className="flex-grow"></CardContent>
                   <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
                     <div className="flex flex-col gap-y-2 text-sm w-full">
                       <div className="flex items-center gap-1.5">
