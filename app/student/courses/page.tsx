@@ -66,11 +66,12 @@ export default function StudentCoursesPage() {
       for (const pack of packs || []) {
         if (pack.courses && Array.isArray(pack.courses)) {
           for (const courseId of pack.courses) {
-            // Count ALL selections for this course (pending, approved, rejected)
+            // Count only PENDING and APPROVED selections for this course
             const { count, error: countError } = await supabase
               .from("course_selections")
               .select("*", { count: "exact", head: true })
               .contains("selected_course_ids", [courseId])
+              .in("status", ["pending", "approved"])
 
             if (countError) {
               console.error(`Error counting enrollments for course ${courseId}:`, countError)
@@ -106,6 +107,11 @@ export default function StudentCoursesPage() {
 
   const getSelectionForPack = (packId: string) => {
     return studentSelections.find((selection) => selection.elective_courses_id === packId)
+  }
+
+  const getSelectedCoursesCount = (packId: string) => {
+    const selection = getSelectionForPack(packId)
+    return selection?.selected_course_ids?.length || 0
   }
 
   const getStatusBadge = (status: SelectionStatus) => {
@@ -332,8 +338,20 @@ export default function StudentCoursesPage() {
                   <CardFooter className="pt-0 border-t mt-auto">
                     <div className="w-full space-y-3">
                       {getPackStatusAlert(pack)}
-                      <div className="flex gap-2">
-                        <Button asChild className="flex-1" disabled={!canSelect && !selection}>
+
+                      <div
+                        className={`flex items-center justify-between rounded-md p-2 w-full ${
+                          selection?.status === SelectionStatus.APPROVED
+                            ? "bg-green-100/50 dark:bg-green-900/20"
+                            : selection?.status === SelectionStatus.PENDING
+                              ? "bg-yellow-100/50 dark:bg-yellow-900/20"
+                              : "bg-gray-100/50 dark:bg-gray-900/20"
+                        }`}
+                      >
+                        <span className="text-sm">
+                          {t("student.courses.selected")}: {getSelectedCoursesCount(pack.id)}/{pack.max_selections || 0}
+                        </span>
+                        <Button asChild size="sm" disabled={!canSelect && !selection}>
                           <Link href={`/student/courses/${pack.id}`}>
                             {selection
                               ? t("student.courses.viewSelection")
