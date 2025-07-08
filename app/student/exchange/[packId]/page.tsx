@@ -101,22 +101,8 @@ export default function ExchangePage({ params }: ExchangePageProps) {
       if (!packData) throw new Error("Exchange program not found.")
       setExchangePackData(packData)
 
-      // Parse the universities JSON and fetch university data
-      let universityUuids: string[] = []
-      if (packData.universities) {
-        try {
-          // Handle both string and array formats
-          if (typeof packData.universities === "string") {
-            universityUuids = JSON.parse(packData.universities)
-          } else if (Array.isArray(packData.universities)) {
-            universityUuids = packData.universities
-          }
-        } catch (e) {
-          console.error("Error parsing universities JSON:", e)
-          universityUuids = []
-        }
-      }
-
+      // Fetch universities using the UUIDs from the universities column
+      const universityUuids = packData.universities || []
       if (universityUuids.length > 0) {
         const { data: fetchedUnis, error: unisError } = await supabase
           .from("universities")
@@ -124,11 +110,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           .in("id", universityUuids)
 
         if (unisError) throw unisError
-
-        // Order universities according to the original order in the universities array
-        const universityMap = new Map(fetchedUnis?.map((uni) => [uni.id, uni]) || [])
-        const orderedUniversities = universityUuids.map((id) => universityMap.get(id)).filter(Boolean)
-        setUniversities(orderedUniversities)
+        setUniversities(fetchedUnis || [])
       } else {
         setUniversities([])
       }

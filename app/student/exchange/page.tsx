@@ -194,7 +194,7 @@ export default function ExchangePage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">{t("student.exchange.noProgramsFound")}</p>
+              <p className="text-lg font-medium text-muted-foreground">{t("student.exchange.noExchangeFound")}</p>
               <p className="text-sm text-muted-foreground mt-1">{t("student.exchange.checkBackLater")}</p>
             </CardContent>
           </Card>
