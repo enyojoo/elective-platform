@@ -1,88 +1,85 @@
 "use client"
 
-import { useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@supabase/supabase-js"
-import { useCachedDataPattern } from "./use-cached-data-pattern"
 import { useCachedStudentProfile } from "./use-cached-student-profile"
 
 const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 interface ExchangeDetailsData {
-  exchangePackData: any
+  exchange: any | null
   universities: any[]
-  existingSelection: any
+  selection: any | null
 }
 
 export function useCachedExchangeDetails(packId: string) {
-  const { profile } = useCachedStudentProfile()
+  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
+  const [data, setData] = useState<ExchangeDetailsData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const fetchExchangeDetails = useCallback(async (): Promise<ExchangeDetailsData> => {
-    if (!profile?.id) {
-      throw new Error("Student profile not loaded")
+  const fetchData = useCallback(async () => {
+    if (profileLoading) return
+
+    if (profileError) {
+      setError(`Failed to load profile: ${profileError}`)
+      setIsLoading(false)
+      return
     }
 
-    // Fetch exchange pack data
-    const { data: packData, error: packError } = await supabaseClient
-      .from("elective_exchange")
-      .select("*")
-      .eq("id", packId)
-      .single()
+    if (!profile?.id || !packId) {
+      setError("Missing required data")
+      setIsLoading(false)
+      return
+    }
 
-    if (packError) throw packError
-    if (!packData) throw new Error("Exchange program not found.")
+    try {
+      setIsLoading(true)
+      setError(null)
 
-    // Fetch universities using the UUIDs from the universities column
-    const universityUuids = packData.universities || []
-    let universitiesWithCounts: any[] = []
-
-    if (universityUuids.length > 0) {
-      const { data: fetchedUnis, error: unisError } = await supabaseClient
-        .from("universities")
+      // Fetch exchange program details
+      const { data: exchangeData, error: exchangeError } = await supabaseClient
+        .from("elective_exchange")
         .select("*")
-        .in("id", universityUuids)
+        .eq("id", packId)
+        .single()
 
-      if (unisError) throw unisError
+      if (exchangeError) throw exchangeError
 
-      // Fetch current student counts for each university (pending + approved)
-      universitiesWithCounts = await Promise.all(
-        (fetchedUnis || []).map(async (university) => {
-          const { count: currentStudents, error: countError } = await supabaseClient
-            .from("exchange_selections")
-            .select("*", { count: "exact", head: true })
-            .contains("selected_university_ids", [university.id])
-            .in("status", ["pending", "approved"])
+      // Fetch universities for this exchange
+      const { data: universitiesData, error: universitiesError } = await supabaseClient
+        .from("exchange_universities")
+        .select("*")
+        .contains("elective_exchange_ids", [packId])
 
-          if (countError) {
-            console.error("Error fetching exchange selection count:", countError)
-            return { ...university, current_students: 0 }
-          }
+      if (universitiesError) throw universitiesError
 
-          return { ...university, current_students: currentStudents || 0 }
-        }),
-      )
+      // Fetch student's selection for this exchange
+      const { data: selectionData, error: selectionError } = await supabaseClient
+        .from("exchange_selections")
+        .select("*")
+        .eq("student_id", profile.id)
+        .eq("elective_exchange_id", packId)
+        .maybeSingle()
+
+      if (selectionError) throw selectionError
+
+      setData({
+        exchange: exchangeData,
+        universities: universitiesData || [],
+        selection: selectionData,
+      })
+    } catch (err: any) {
+      setError(err.message || "Failed to load exchange details.")
+      setData(null)
+    } finally {
+      setIsLoading(false)
     }
+  }, [profile, profileLoading, profileError, packId])
 
-    // Fetch existing selection
-    const { data: selectionData, error: selectionError } = await supabaseClient
-      .from("exchange_selections")
-      .select("*")
-      .eq("student_id", profile.id)
-      .eq("elective_exchange_id", packId)
-      .maybeSingle()
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
-    if (selectionError) throw selectionError
-
-    return {
-      exchangePackData: packData,
-      universities: universitiesWithCounts,
-      existingSelection: selectionData,
-    }
-  }, [packId, profile?.id])
-
-  return useCachedDataPattern<ExchangeDetailsData>(
-    `exchange-details-${packId}`,
-    fetchExchangeDetails,
-    !!profile?.id && !!packId,
-    3 * 60 * 1000, // 3 minutes cache
-  )
+  return { data, isLoading, error, refetch: fetchData }
 }
