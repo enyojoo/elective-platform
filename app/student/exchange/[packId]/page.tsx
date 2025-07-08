@@ -512,8 +512,14 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                 className={`flex flex-col h-full transition-all hover:shadow-md ${isSelected ? (currentSelectionStatus === SelectionStatus.APPROVED ? "border-green-500 ring-2 ring-green-500/50" : currentSelectionStatus === SelectionStatus.PENDING ? "border-yellow-500 ring-2 ring-yellow-500/50" : "border-primary ring-2 ring-primary/50") : "border-border"} ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-start gap-2">
                     <CardTitle className="text-lg">{uni.name}</CardTitle>
+                    {uni.max_students && (
+                      <span className="text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        0/{uni.max_students}
+                      </span>
+                    )}
                   </div>
                   <CardDescription className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
@@ -530,12 +536,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                     <Globe className="h-3.5 w-3.5 mr-1" />
                     {t("student.exchange.viewDetails")}
                   </Button>
-                  {uni.max_students && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                      <Users className="h-3 w-3" />
-                      <span>0 / {uni.max_students}</span>
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between items-center mt-auto border-t pt-3">
                   {canSubmit ? (
