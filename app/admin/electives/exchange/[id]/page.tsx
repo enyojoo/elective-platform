@@ -87,7 +87,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Amsterdam",
       language: "English, Dutch",
       maxStudents: 5,
-      currentStudents: 3,
+      currentStudents: 4, // This now includes pending + approved (was 3, now includes 1 pending)
       website: "https://www.uva.nl/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -103,7 +103,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Paris",
       language: "English, French",
       maxStudents: 4,
-      currentStudents: 4,
+      currentStudents: 4, // This now includes pending + approved
       website: "https://www.hec.edu/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -119,7 +119,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Copenhagen",
       language: "English, Danish",
       maxStudents: 6,
-      currentStudents: 2,
+      currentStudents: 2, // This now includes pending + approved
       website: "https://www.cbs.dk/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -135,7 +135,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Milan",
       language: "English, Italian",
       maxStudents: 5,
-      currentStudents: 5,
+      currentStudents: 6, // This now includes pending + approved (was 5, now includes 1 pending)
       website: "https://www.unibocconi.eu/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -152,7 +152,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Vienna",
       language: "English, German",
       maxStudents: 4,
-      currentStudents: 2,
+      currentStudents: 3, // This now includes pending + approved (was 2, now includes 1 pending)
       website: "https://www.wu.ac.at/en/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -168,7 +168,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Stockholm",
       language: "English, Swedish",
       maxStudents: 3,
-      currentStudents: 2,
+      currentStudents: 2, // This now includes pending + approved
       website: "https://www.hhs.se/en/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -542,7 +542,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
           <TabsContent value="universities" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>{t("manager.exchangeDetails.universitiesTab")}</CardTitle>
+                <div>
+                  <CardTitle>{t("manager.exchangeDetails.universitiesInProgram")}</CardTitle>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
@@ -586,9 +588,9 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                               variant="ghost"
                               size="sm"
                               onClick={() => exportUniversityToCSV(university)}
-                              className="flex mx-auto"
+                              className="flex items-center gap-1 mx-auto"
                             >
-                              <Download className="h-4 w-4 mr-1" />
+                              <Download className="h-4 w-4" />
                               {t("manager.exchangeDetails.download")}
                             </Button>
                           </td>
@@ -701,7 +703,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                                       onClick={() => {
                                         toast({
                                           title: "Selection rejected",
-                                          description: `The selection for ${selection.studentName} has been rejected.`,
+                                          description: `The selection for ${selection.studentName} has been rejected. Their seat has been freed up.`,
                                         })
                                       }}
                                     >
@@ -715,8 +717,11 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                                     className="text-red-600"
                                     onClick={() => {
                                       toast({
-                                        title: "Selection withdrawn",
-                                        description: `The selection for ${selection.studentName} has been withdrawn.`,
+                                        title: t("toast.selection.withdrawn"),
+                                        description: t("toast.selection.withdrawn.description").replace(
+                                          "{0}",
+                                          selection.studentName,
+                                        ),
                                       })
                                     }}
                                   >
@@ -783,10 +788,6 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       {selectedStudent.selectedUniversities.map((university: string, index: number) => (
                         <div key={index} className="rounded-md border p-2">
                           <p className="font-medium">{university}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {universities.find((u) => u.name === university)?.city},{" "}
-                            {universities.find((u) => u.name === university)?.country}
-                          </p>
                         </div>
                       ))}
                     </div>
@@ -813,7 +814,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full flex items-center gap-2"
+                          className="w-full flex items-center gap-2 bg-transparent"
                           onClick={() =>
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }
@@ -826,7 +827,6 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                       )}
                     </div>
                   </div>
-
                   {/* Digital Authorization Section */}
                   <div className="mt-4">
                     <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
@@ -840,38 +840,42 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                  onClick={() => {
-                    setViewDialogOpen(false)
-                    window.setTimeout(() => {
-                      toast({
-                        title: "Selection approved",
-                        description: `The selection for ${selectedStudent.studentName} has been approved.`,
-                      })
-                    }, 100)
-                  }}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  {t("manager.exchangeDetails.approve")}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                  onClick={() => {
-                    setViewDialogOpen(false)
-                    window.setTimeout(() => {
-                      toast({
-                        title: "Selection rejected",
-                        description: `The selection for ${selectedStudent.studentName} has been rejected.`,
-                      })
-                    }, 100)
-                  }}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  {t("manager.exchangeDetails.reject")}
-                </Button>
+                {selectedStudent.status === SelectionStatus.PENDING && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                      onClick={() => {
+                        setViewDialogOpen(false)
+                        window.setTimeout(() => {
+                          toast({
+                            title: "Selection approved",
+                            description: `The selection for ${selectedStudent.studentName} has been approved.`,
+                          })
+                        }, 100)
+                      }}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      {t("manager.exchangeDetails.approve")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                      onClick={() => {
+                        setViewDialogOpen(false)
+                        window.setTimeout(() => {
+                          toast({
+                            title: "Selection rejected",
+                            description: `The selection for ${selectedStudent.studentName} has been rejected. Their seat has been freed up.`,
+                          })
+                        }, 100)
+                      }}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      {t("manager.exchangeDetails.reject")}
+                    </Button>
+                  </>
+                )}
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   {t("manager.exchangeDetails.close")}
                 </Button>
@@ -941,9 +945,6 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                             }
                           >
                             {university.name}
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({university.city}, {university.country})
-                            </span>
                           </Label>
                         </div>
                       ))}
