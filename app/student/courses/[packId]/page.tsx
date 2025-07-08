@@ -297,6 +297,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         status: SelectionStatus.PENDING,
         selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
         institution_id: profile.institution_id, // Add this line
+        authorized_by: studentName.trim(), // Add this line
       }
       if (statementUrlToSave) {
         selectionPayload.statement_url = statementUrlToSave
@@ -560,7 +561,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               {electiveCourseData.syllabus_template_url && (
                 <Button
                   variant="outline"
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto bg-transparent"
                   onClick={handleDownloadStatementTemplate}
                   disabled={downloadingStatement || electiveCourseData.status === "draft"}
                 >

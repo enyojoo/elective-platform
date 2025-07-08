@@ -126,10 +126,9 @@ export default function ExchangePage() {
     return selection?.status || null
   }
 
-  const getSelectedUniversitiesCount = (exchangeProgram: any) => {
-    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeProgram.id)
-    if (!selection || !selection.selected_university_ids) return 0
-    return Array.isArray(selection.selected_university_ids) ? selection.selected_university_ids.length : 0
+  const getSelectedUniversitiesCount = (exchangeId: string) => {
+    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
+    return selection?.selected_university_ids?.length || 0
   }
 
   const getStatusColor = (status: string | null) => {
@@ -204,7 +203,7 @@ export default function ExchangePage() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {exchangePrograms.map((exchange) => {
               const selectionStatus = getSelectionStatus(exchange.id)
-              const selectedCount = getSelectedUniversitiesCount(exchange)
+              const selectedCount = getSelectedUniversitiesCount(exchange.id)
               const deadlinePassed = isDeadlinePassed(exchange.deadline)
               const name = language === "ru" && exchange.name_ru ? exchange.name_ru : exchange.name
 

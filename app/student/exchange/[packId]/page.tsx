@@ -175,6 +175,14 @@ export default function ExchangePage({ params }: ExchangePageProps) {
       })
       return
     }
+    if (!studentName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your full name to authorize the selection.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -197,6 +205,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         status: SelectionStatus.PENDING,
         selected_university_ids: selectedUniversityIds,
         institution_id: profile.institution_id,
+        authorized_by: studentName.trim(),
       }
 
       if (statementUrlToSave) {
