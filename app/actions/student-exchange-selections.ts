@@ -1,19 +1,23 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { getSupabaseServerClient } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 export async function cancelExchangeSelection(formData: FormData) {
-  const studentId = formData.get("studentId") as string
-  const electiveExchangeId = formData.get("electiveExchangeId") as string
-
-  if (!studentId || !electiveExchangeId) {
-    return { success: false, error: "Missing student ID or elective exchange ID." }
-  }
-
-  const supabase = createClient()
-
   try {
+    const studentId = formData.get("studentId") as string
+    const electiveExchangeId = formData.get("electiveExchangeId") as string
+
+    if (!studentId || !electiveExchangeId) {
+      return {
+        success: false,
+        error: "Missing required information",
+      }
+    }
+
+    const supabase = getSupabaseServerClient()
+
+    // Delete the exchange selection
     const { error } = await supabase
       .from("exchange_selections")
       .delete()
@@ -21,15 +25,26 @@ export async function cancelExchangeSelection(formData: FormData) {
       .eq("elective_exchange_id", electiveExchangeId)
 
     if (error) {
-      console.error("Error deleting exchange selection:", error)
-      throw error
+      console.error("Error cancelling exchange selection:", error)
+      return {
+        success: false,
+        error: error.message,
+      }
     }
 
-    revalidatePath(`/student/exchange/${electiveExchangeId}`)
+    // Revalidate the exchange pages to reflect the changes
     revalidatePath("/student/exchange")
+    revalidatePath(`/student/exchange/${electiveExchangeId}`)
 
-    return { success: true, message: "Exchange selection has been cancelled." }
+    return {
+      success: true,
+      message: "Exchange selection cancelled successfully",
+    }
   } catch (error: any) {
-    return { success: false, error: error.message || "Failed to cancel exchange selection." }
+    console.error("Error in cancelExchangeSelection:", error)
+    return {
+      success: false,
+      error: error.message || "An unexpected error occurred",
+    }
   }
 }

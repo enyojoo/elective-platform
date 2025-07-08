@@ -1,19 +1,18 @@
 "use client"
-
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox, Globe } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@supabase/supabase-js"
 import { useToast } from "@/hooks/use-toast"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Create a singleton Supabase client to prevent multiple instances
 const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -28,18 +27,22 @@ export default function ExchangePage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log("ExchangePage: useEffect triggered.")
     if (profileLoading) {
+      console.log("ExchangePage: Profile is loading.")
       setIsLoading(true)
       return
     }
 
     if (profileError) {
+      console.error("ExchangePage: Profile loading error:", profileError)
       setFetchError(`Failed to load profile: ${profileError}`)
       setIsLoading(false)
       return
     }
 
     if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
+      console.log("ExchangePage: Profile ID, Institution ID, or Group ID missing.", profile)
       setFetchError(
         "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific exchange programs.",
       )
@@ -49,34 +52,49 @@ export default function ExchangePage() {
       return
     }
 
+    console.log("ExchangePage: Profile loaded:", profile)
+
     const fetchData = async () => {
       setIsLoading(true)
       setFetchError(null)
+      console.log(
+        "ExchangePage: Starting data fetch for institution:",
+        profile.institution_id,
+        "and group:",
+        profile.group.id,
+      )
       try {
         // Fetch exchange programs for the institution and group
-        const { data: programsData, error: programsError } = await supabaseClient
+        console.log("ExchangePage: Fetching elective_exchange...")
+        const { data: exchangeData, error: exchangeError } = await supabaseClient
           .from("elective_exchange")
           .select("*")
           .eq("institution_id", profile.institution_id)
           .eq("group_id", profile.group.id)
           .order("deadline", { ascending: false })
 
-        if (programsError) {
-          throw programsError
+        if (exchangeError) {
+          console.error("ExchangePage: Error fetching elective_exchange:", exchangeError)
+          throw exchangeError
         }
-        setExchangePrograms(programsData || [])
+        console.log("ExchangePage: elective_exchange fetched:", exchangeData)
+        setExchangePrograms(exchangeData || [])
 
         // Fetch student's exchange selections
+        console.log("ExchangePage: Fetching exchange_selections for student:", profile.id)
         const { data: selectionsData, error: selectionsError } = await supabaseClient
           .from("exchange_selections")
           .select("*")
           .eq("student_id", profile.id)
 
         if (selectionsError) {
+          console.error("ExchangePage: Error fetching exchange_selections:", selectionsError)
           throw selectionsError
         }
+        console.log("ExchangePage: exchange_selections fetched:", selectionsData)
         setExchangeSelections(selectionsData || [])
       } catch (error: any) {
+        console.error("ExchangePage: Data fetching error:", error)
         setFetchError(error.message || "Failed to load exchange programs data.")
         toast({
           title: "Error",
@@ -86,6 +104,7 @@ export default function ExchangePage() {
         setExchangePrograms([])
         setExchangeSelections([])
       } finally {
+        console.log("ExchangePage: Data fetch finished.")
         setIsLoading(false)
       }
     }
@@ -94,7 +113,6 @@ export default function ExchangePage() {
   }, [profile, profileLoading, profileError, toast])
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return "N/A"
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
@@ -103,27 +121,15 @@ export default function ExchangePage() {
     })
   }
 
-  const getSelectionStatus = (programId: string) => {
-    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === programId)
+  const getSelectionStatus = (exchangeId: string) => {
+    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
     return selection?.status || null
   }
 
-  const getSelectedCount = (programId: string) => {
-    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === programId)
-    return selection?.selected_university_ids?.length || 0
-  }
-
-  const getUniversitiesCount = (program: any) => {
-    if (!program.universities) return 0
-    try {
-      // Assuming 'universities' is a JSON array of objects or strings
-      const universities =
-        typeof program.universities === "string" ? JSON.parse(program.universities) : program.universities
-      return Array.isArray(universities) ? universities.length : 0
-    } catch (e) {
-      console.error("Error parsing universities JSON:", e)
-      return 0
-    }
+  const getSelectedUniversitiesCount = (exchangeProgram: any) => {
+    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeProgram.id)
+    if (!selection || !selection.selected_university_ids) return 0
+    return Array.isArray(selection.selected_university_ids) ? selection.selected_university_ids.length : 0
   }
 
   const getStatusColor = (status: string | null) => {
@@ -152,7 +158,7 @@ export default function ExchangePage() {
     }
   }
 
-  const isDeadlinePassed = (deadline: string) => (deadline ? new Date(deadline) < new Date() : false)
+  const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
   if (profileLoading || isLoading) {
     return (
@@ -188,12 +194,8 @@ export default function ExchangePage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">
-                {t("student.exchange.noProgramsFound", "No exchange programs found for your group.")}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {t("student.exchange.checkBackLater", "Please check back later or contact your administrator.")}
-              </p>
+              <p className="text-lg font-medium text-muted-foreground">{t("student.exchange.noExchangeFound")}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t("student.exchange.checkBackLater")}</p>
             </CardContent>
           </Card>
         )}
@@ -202,10 +204,9 @@ export default function ExchangePage() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {exchangePrograms.map((exchange) => {
               const selectionStatus = getSelectionStatus(exchange.id)
-              const selectedCount = getSelectedCount(exchange.id)
+              const selectedCount = getSelectedUniversitiesCount(exchange)
               const deadlinePassed = isDeadlinePassed(exchange.deadline)
               const name = language === "ru" && exchange.name_ru ? exchange.name_ru : exchange.name
-              const universitiesCount = getUniversitiesCount(exchange)
 
               return (
                 <Card
@@ -243,13 +244,18 @@ export default function ExchangePage() {
                       {exchange.status === "draft" ? (
                         <Badge variant="outline">{t("student.exchange.comingSoon")}</Badge>
                       ) : deadlinePassed ? (
-                        <Badge variant="destructive">{t("student.exchange.closed", "Closed")}</Badge>
+                        <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
                       ) : (
                         <Badge variant="secondary">{t("student.exchange.open")}</Badge>
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-grow"></CardContent>
+                  <CardContent className="flex-grow">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                      <Globe className="h-4 w-4" />
+                      <span>{t("student.exchange.exchangeProgram")}</span>
+                    </div>
+                  </CardContent>
                   <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
                     <div className="flex flex-col gap-y-2 text-sm w-full">
                       <div className="flex items-center gap-1.5">
@@ -257,10 +263,6 @@ export default function ExchangePage() {
                         <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(exchange.deadline)}</span>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-muted-foreground">{t("student.exchange.universities")}:</span>
-                          <span>{universitiesCount}</span>
-                        </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-muted-foreground">{t("student.exchange.limit")}:</span>
                           <span>{exchange.max_selections}</span>
