@@ -1,7 +1,9 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState, useCallback } from "react"
+import React from "react"
+
+import type { ReactElement } from "react"
+import { useState } from "react"
 import {
   Download,
   CheckCircle,
@@ -37,61 +39,10 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { uploadStatement } from "@/lib/file-utils"
 import { createClient } from "@supabase/supabase-js"
-import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelCourseSelection } from "@/app/actions/student-selections"
-
-// Assuming these types/enums are defined elsewhere and passed as props or imported
-// For example:
-// import { ElectivePack, Course, CourseSelection, UserProfile, SelectionStatus } from '@/types';
-// import { useTranslation } from 'react-i18next'; // Or your i18n solution
-
-// Mock types for demonstration if not available
-// enum SelectionStatus {
-//   DRAFT = "draft",
-//   PENDING = "pending",
-//   APPROVED = "approved",
-//   REJECTED = "rejected",
-// }
-
-type ElectivePack = {
-  id: string
-  name: string
-  max_selections: number
-  status: "draft" | "published" | "archived" // Assuming status for the pack itself
-  syllabus_template_url?: string | null // Path to template in Supabase storage
-  // ... other properties
-}
-
-type Course = {
-  id: string
-  name: string
-  name_en: string
-  name_ru: string
-  instructor_en: string
-  instructor_ru: string
-  description_en: string
-  description_ru: string
-  max_students: number | null | undefined
-  current_students: number | null | undefined
-  teacher: string
-  // ... other properties
-}
-
-type CourseSelection = {
-  id: string
-  student_id: string
-  elective_courses_id: string
-  selected_course_ids: string[]
-  status: SelectionStatus
-  statement_url?: string | null // Path to student's uploaded statement in Supabase storage
-  // ... other properties
-}
-
-type UserProfile = {
-  id: string
-  // ... other properties
-}
+import { useCachedCourseDetails } from "@/hooks/use-cached-course-details"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 
 interface ElectivePageProps {
   params: {
@@ -99,29 +50,11 @@ interface ElectivePageProps {
   }
 }
 
-interface ElectivePackPageClientProps {
-  electiveData: ElectivePack
-  courses: Course[] // Assuming courses are also passed if needed for other parts
-  existingSelection: CourseSelection | null
-  profile: UserProfile // Student's profile
-  // packId: string // Already in electiveData.id
-}
-
-// Utility to get filename from a path
-const getFileNameFromPath = (path: string | null | undefined): string | null => {
-  if (!path) return null
-  const name = path.substring(path.lastIndexOf("/") + 1)
-  try {
-    return decodeURIComponent(name)
-  } catch (e) {
-    return name // Fallback if decoding fails
-  }
-}
-
-export default function ElectivePage({ params }: ElectivePageProps) {
+export default function ElectivePage({ params }: ElectivePageProps): ReactElement {
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
+  const { profile } = useCachedStudentProfile()
+  const { data, isLoading, error } = useCachedCourseDetails(params.packId)
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
@@ -130,117 +63,17 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
   const [isUploadingStatement, setIsUploadingStatement] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
-  const [isLoadingPage, setIsLoadingPage] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>(
+    data?.existingSelectionRecord?.selected_course_ids || [],
+  )
 
-  const [electiveCourseData, setElectiveCourseData] = useState<any>(null)
-  const [individualCourses, setIndividualCourses] = useState<any[]>([])
-  const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null)
-  const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>([])
-
-  const packId = params.packId
-
-  const loadData = useCallback(async () => {
-    if (profileLoading) return
-    if (profileError) {
-      setFetchError(`Failed to load profile: ${profileError}`)
-      setIsLoadingPage(false)
-      return
+  // Update selected courses when data loads
+  React.useEffect(() => {
+    if (data?.existingSelectionRecord?.selected_course_ids) {
+      setSelectedIndividualCourseIds(data.existingSelectionRecord.selected_course_ids)
     }
-    if (!profile?.id) {
-      setFetchError("Student profile not loaded or incomplete.")
-      setIsLoadingPage(false)
-      return
-    }
-
-    setIsLoadingPage(true)
-    setFetchError(null)
-
-    try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      const { data: ecData, error: ecError } = await supabase
-        .from("elective_courses")
-        .select("*")
-        .eq("id", packId)
-        .single()
-
-      if (ecError) throw ecError
-      if (!ecData) throw new Error("Elective course pack not found.")
-      setElectiveCourseData(ecData)
-
-      let courseUuids: string[] = []
-      if (ecData.courses && typeof ecData.courses === "string") {
-        try {
-          const parsed = JSON.parse(ecData.courses)
-          if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
-            courseUuids = parsed
-          }
-        } catch (e) {
-          console.error("Error parsing 'courses' JSON from elective_courses:", e)
-        }
-      } else if (Array.isArray(ecData.courses) && ecData.courses.every((item: any) => typeof item === "string")) {
-        courseUuids = ecData.courses
-      }
-
-      if (courseUuids.length > 0) {
-        const { data: fetchedCourses, error: coursesError } = await supabase
-          .from("courses")
-          .select("id, name_en, name_ru, instructor_en, instructor_ru, description_en, description_ru, max_students")
-          .in("id", courseUuids)
-
-        if (coursesError) throw coursesError
-
-        // Fetch current student counts for each course (pending + approved)
-        const coursesWithCounts = await Promise.all(
-          (fetchedCourses || []).map(async (course) => {
-            const { count: currentStudents, error: countError } = await supabase
-              .from("course_selections")
-              .select("*", { count: "exact", head: true })
-              .contains("selected_course_ids", [course.id])
-              .in("status", ["pending", "approved"])
-
-            if (countError) {
-              console.error("Error fetching course selection count:", countError)
-              return { ...course, current_students: 0 }
-            }
-
-            return { ...course, current_students: currentStudents || 0 }
-          }),
-        )
-
-        const fetchedCoursesMap = new Map(coursesWithCounts.map((fc) => [fc.id, fc]))
-        const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
-        setIndividualCourses(orderedFetchedCourses || [])
-      } else {
-        setIndividualCourses([])
-      }
-
-      const { data: selectionData, error: selectionError } = await supabase
-        .from("course_selections")
-        .select("*")
-        .eq("student_id", profile.id)
-        .eq("elective_courses_id", packId)
-        .maybeSingle()
-
-      if (selectionError) throw selectionError
-      setExistingSelectionRecord(selectionData)
-
-      // Example: If 'course_selections' table has a 'selected_course_ids' (TEXT[]) column
-      // setSelectedIndividualCourseIds(selectionData?.selected_course_ids || []);
-      // For now, keeping it simple as the schema detail for this is pending
-      setSelectedIndividualCourseIds(selectionData?.selected_course_ids || [])
-    } catch (error: any) {
-      setFetchError(error.message || "Failed to load elective course details.")
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } finally {
-      setIsLoadingPage(false)
-    }
-  }, [profile, profileLoading, profileError, packId, toast])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  }, [data?.existingSelectionRecord])
 
   const toggleCourseSelection = (individualCourseId: string) => {
     setSelectedIndividualCourseIds((prevSelected) => {
@@ -248,7 +81,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         return prevSelected.filter((id) => id !== individualCourseId)
       } else {
         // Check if course is at capacity
-        const course = individualCourses.find((c) => c.id === individualCourseId)
+        const course = data?.individualCourses?.find((c) => c.id === individualCourseId)
         if (course && course.max_students && course.current_students >= course.max_students) {
           toast({
             title: t("student.courses.courseAtCapacity"),
@@ -258,12 +91,14 @@ export default function ElectivePage({ params }: ElectivePageProps) {
           return prevSelected
         }
 
-        if (prevSelected.length < (electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
+        if (prevSelected.length < (data?.electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
           return [...prevSelected, individualCourseId]
         }
         toast({
           title: t("student.courses.maxSelectionsReached"),
-          description: t("student.courses.maxSelectionsReachedDesc", { count: electiveCourseData?.max_selections }),
+          description: t("student.courses.maxSelectionsReachedDesc", {
+            count: data?.electiveCourseData?.max_selections,
+          }),
           variant: "warning",
         })
         return prevSelected
@@ -272,45 +107,29 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   }
 
   const handleSubmit = async () => {
-    const statementRequired = !!electiveCourseData?.syllabus_template_url
+    const statementRequired = !!data?.electiveCourseData?.syllabus_template_url
 
-    if (!profile?.id) {
+    if (!profile?.id || !profile?.institution_id) {
       toast({ title: "Missing Information", description: "Profile not loaded.", variant: "destructive" })
       return
     }
-    if (!profile?.institution_id) {
-      toast({
-        title: "Missing Information",
-        description: "Institution ID not found in profile.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (statementRequired && !uploadedStatement && !existingSelectionRecord?.statement_url) {
+    if (statementRequired && !uploadedStatement && !data?.existingSelectionRecord?.statement_url) {
       toast({ title: "Missing Information", description: "Statement is required.", variant: "destructive" })
       return
     }
-    if (selectedIndividualCourseIds.length === 0 && (electiveCourseData?.max_selections || 0) > 0) {
+    if (selectedIndividualCourseIds.length === 0 && (data?.electiveCourseData?.max_selections || 0) > 0) {
       toast({ title: "No Courses Selected", description: "Please select at least one course.", variant: "destructive" })
-      return
-    }
-    if (selectedIndividualCourseIds.length > (electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)) {
-      toast({
-        title: "Too Many Courses",
-        description: `You can select at most ${electiveCourseData?.max_selections} courses.`,
-        variant: "destructive",
-      })
       return
     }
 
     setSubmitting(true)
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      let statementUrlToSave = existingSelectionRecord?.statement_url
+      let statementUrlToSave = data?.existingSelectionRecord?.statement_url
 
       if (uploadedStatement) {
         setIsUploadingStatement(true)
-        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
+        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, params.packId)
         setIsUploadingStatement(false)
       }
 
@@ -320,21 +139,21 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
       const selectionPayload: any = {
         student_id: profile.id,
-        elective_courses_id: packId,
+        elective_courses_id: params.packId,
         status: SelectionStatus.PENDING,
-        selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
-        institution_id: profile.institution_id, // Add this line
-        authorized_by: studentName.trim(), // Add this line
+        selected_course_ids: selectedIndividualCourseIds,
+        institution_id: profile.institution_id,
+        authorized_by: studentName.trim(),
       }
       if (statementUrlToSave) {
         selectionPayload.statement_url = statementUrlToSave
       }
 
-      if (existingSelectionRecord) {
+      if (data?.existingSelectionRecord) {
         const { error } = await supabase
           .from("course_selections")
           .update(selectionPayload)
-          .eq("id", existingSelectionRecord.id)
+          .eq("id", data.existingSelectionRecord.id)
         if (error) throw error
       } else {
         const { error } = await supabase.from("course_selections").insert(selectionPayload).select().single()
@@ -361,7 +180,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         return
       }
       if (file.size > 5 * 1024 * 1024) {
-        // 5MB
         toast({ title: "File too large", description: "Please upload a file smaller than 5MB", variant: "destructive" })
         return
       }
@@ -371,18 +189,41 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   }
 
   const handleDownloadStatementTemplate = async () => {
-    if (!electiveCourseData?.syllabus_template_url) {
+    if (!data?.electiveCourseData?.syllabus_template_url) {
       toast({ title: "No template", description: "Statement template is not available.", variant: "destructive" })
       return
     }
     setDownloadingStatement(true)
     try {
-      window.open(electiveCourseData.syllabus_template_url, "_blank")
+      window.open(data.electiveCourseData.syllabus_template_url, "_blank")
     } catch (error) {
       toast({ title: "Download failed", variant: "destructive" })
     } finally {
       setDownloadingStatement(false)
     }
+  }
+
+  const handleCancelSelection = async () => {
+    if (!profile?.id || !data?.electiveCourseData?.id || !data?.existingSelectionRecord) {
+      toast({ title: "Error", description: "Cannot cancel selection. Missing information.", variant: "destructive" })
+      return
+    }
+
+    setIsCancelling(true)
+    const formData = new FormData()
+    formData.append("studentId", profile.id)
+    formData.append("electiveCoursesId", data.electiveCourseData.id)
+
+    const result = await cancelCourseSelection(formData)
+
+    if (result.success) {
+      toast({ title: "Selection Cancelled", description: result.message })
+      setSelectedIndividualCourseIds([])
+      setUploadedStatement(null)
+    } else {
+      toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
+    }
+    setIsCancelling(false)
   }
 
   const formatDateDisplay = (dateString: string) => {
@@ -394,13 +235,57 @@ export default function ElectivePage({ params }: ElectivePageProps) {
     })
   }
 
-  const selectionProgress =
-    electiveCourseData?.max_selections && electiveCourseData.max_selections > 0
-      ? (selectedIndividualCourseIds.length / electiveCourseData.max_selections) * 100
-      : 0
+  if (isLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
 
-  const isDeadlinePassed = electiveCourseData?.deadline ? new Date(electiveCourseData.deadline) < new Date() : false
-  const currentSelectionStatus = existingSelectionRecord?.status as SelectionStatus | undefined
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Page</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!data?.electiveCourseData) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4 text-center">{t("student.courses.notFound")}</div>
+      </DashboardLayout>
+    )
+  }
+
+  const electivePackName =
+    language === "ru" && data.electiveCourseData.name_ru
+      ? data.electiveCourseData.name_ru
+      : data.electiveCourseData.name
+  const selectionProgress =
+    data.electiveCourseData?.max_selections && data.electiveCourseData.max_selections > 0
+      ? (selectedIndividualCourseIds.length / data.electiveCourseData.max_selections) * 100
+      : 0
+  const isDeadlinePassed = data.electiveCourseData?.deadline
+    ? new Date(data.electiveCourseData.deadline) < new Date()
+    : false
+  const currentSelectionStatus = data.existingSelectionRecord?.status as SelectionStatus | undefined
+  const canSubmit =
+    !isDeadlinePassed &&
+    data.electiveCourseData.status !== "draft" &&
+    currentSelectionStatus !== SelectionStatus.APPROVED
+  const statementRequiredForPack = !!data.electiveCourseData?.syllabus_template_url
+  const isStatementHandled =
+    !statementRequiredForPack || !!uploadedStatement || !!data.existingSelectionRecord?.statement_url
+  const areCoursesSelected =
+    selectedIndividualCourseIds.length > 0 || (data.electiveCourseData?.max_selections || 0) === 0
 
   const getStatusAlert = () => {
     if (currentSelectionStatus === SelectionStatus.APPROVED) {
@@ -430,7 +315,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         </Alert>
       )
     }
-    if (electiveCourseData?.status === "draft") {
+    if (data.electiveCourseData?.status === "draft") {
       return (
         <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <Info className="h-4 w-4" />
@@ -453,79 +338,13 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         <Info className="h-4 w-4" />
         <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
         <AlertDescription>
-          {t("student.courses.selectionPeriodDesc")} {electiveCourseData?.max_selections} {t("student.courses.until")}{" "}
-          {electiveCourseData?.deadline && formatDateDisplay(electiveCourseData.deadline)}.
+          {t("student.courses.selectionPeriodDesc")} {data.electiveCourseData?.max_selections}{" "}
+          {t("student.courses.until")}{" "}
+          {data.electiveCourseData?.deadline && formatDateDisplay(data.electiveCourseData.deadline)}.
         </AlertDescription>
       </Alert>
     )
   }
-
-  if (profileLoading || isLoadingPage) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
-  if (fetchError) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Page</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        </div>
-      </DashboardLayout>
-    )
-  }
-  if (!electiveCourseData) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4 text-center">{t("student.courses.notFound")}</div>
-      </DashboardLayout>
-    )
-  }
-
-  const electivePackName =
-    language === "ru" && electiveCourseData.name_ru ? electiveCourseData.name_ru : electiveCourseData.name
-  const canSubmit =
-    !isDeadlinePassed && electiveCourseData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
-
-  const handleCancelSelection = async () => {
-    if (!profile?.id || !electiveCourseData?.id) {
-      toast({ title: "Error", description: "Cannot cancel selection. Missing information.", variant: "destructive" })
-      return
-    }
-    if (!existingSelectionRecord) {
-      toast({ title: "No Selection", description: "There is no selection to cancel.", variant: "destructive" })
-      return
-    }
-
-    setIsCancelling(true)
-    const formData = new FormData()
-    formData.append("studentId", profile.id)
-    formData.append("electiveCoursesId", electiveCourseData.id)
-
-    const result = await cancelCourseSelection(formData)
-
-    if (result.success) {
-      toast({ title: "Selection Cancelled", description: result.message })
-      setExistingSelectionRecord(null)
-      setSelectedIndividualCourseIds([])
-      setUploadedStatement(null)
-      // await loadData(); // Optionally reload all data
-    } else {
-      toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
-    }
-    setIsCancelling(false)
-  }
-
-  const statementRequiredForPack = !!electiveCourseData?.syllabus_template_url
-  const isStatementHandled =
-    !statementRequiredForPack || !!uploadedStatement || !!existingSelectionRecord?.statement_url
-  const areCoursesSelected = selectedIndividualCourseIds.length > 0 || (electiveCourseData?.max_selections || 0) === 0
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
@@ -557,7 +376,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             <CardTitle>{t("student.courses.selectionProgress")}</CardTitle>
             <CardDescription>
               {t("student.courses.selectedOutOf")} {selectedIndividualCourseIds.length} {t("student.courses.of")}{" "}
-              {electiveCourseData.max_selections || 0} {t("student.courses.allowedCourses")}
+              {data.electiveCourseData.max_selections || 0} {t("student.courses.allowedCourses")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -565,11 +384,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               value={selectionProgress}
               className={`h-3 ${currentSelectionStatus === SelectionStatus.APPROVED ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600" : currentSelectionStatus === SelectionStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-500" : "[&>*]:bg-primary"}`}
             />
-            {(electiveCourseData.max_selections || 0) > 0 && (
+            {(data.electiveCourseData.max_selections || 0) > 0 && (
               <p className="mt-2.5 text-sm text-muted-foreground">
-                {selectedIndividualCourseIds.length === electiveCourseData.max_selections
+                {selectedIndividualCourseIds.length === data.electiveCourseData.max_selections
                   ? t("student.courses.maxSelections")
-                  : `${t("student.courses.canSelectMore")} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
+                  : `${t("student.courses.canSelectMore")} ${data.electiveCourseData.max_selections - selectedIndividualCourseIds.length} ${data.electiveCourseData.max_selections - selectedIndividualCourseIds.length === 1 ? t("student.courses.moreCourse") : t("student.courses.moreCourses")}`}
               </p>
             )}
           </CardContent>
@@ -585,12 +404,12 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               <CardDescription>{t("student.statement.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {electiveCourseData.syllabus_template_url && (
+              {data.electiveCourseData.syllabus_template_url && (
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto bg-transparent"
                   onClick={handleDownloadStatementTemplate}
-                  disabled={downloadingStatement || electiveCourseData.status === "draft"}
+                  disabled={downloadingStatement || data.electiveCourseData.status === "draft"}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
@@ -635,26 +454,26 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   </AlertDescription>
                 </Alert>
               )}
-              {existingSelectionRecord?.statement_url && !uploadedStatement && (
+              {data.existingSelectionRecord?.statement_url && !uploadedStatement && (
                 <Alert variant="info">
                   <Info className="h-4 w-4" />
                   <AlertTitle>{t("student.statement.previouslyUploadedTitle")}</AlertTitle>
                   <AlertDescription>{t("student.statement.previouslyUploadedDesc")}</AlertDescription>
-                  {/* Optionally, add a button to view/download the existing statement if URL is directly accessible */}
                 </Alert>
               )}
             </CardContent>
           </Card>
         )}
 
-        {individualCourses.length > 0 ? (
+        {data.individualCourses && data.individualCourses.length > 0 ? (
           <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {individualCourses.map((course) => {
+            {data.individualCourses.map((course) => {
               const isSelected = selectedIndividualCourseIds.includes(course.id)
               const isAtCapacity = course.max_students && course.current_students >= course.max_students
               const isDisabledByMax =
                 !isSelected &&
-                selectedIndividualCourseIds.length >= (electiveCourseData.max_selections || Number.POSITIVE_INFINITY)
+                selectedIndividualCourseIds.length >=
+                  (data.electiveCourseData?.max_selections || Number.POSITIVE_INFINITY)
               const isDisabledByCapacity = !isSelected && isAtCapacity
               return (
                 <Card
@@ -739,7 +558,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
         {canSubmit && (
           <div className="flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
-            {existingSelectionRecord && canSubmit && (
+            {data.existingSelectionRecord && canSubmit && (
               <Button
                 variant="outline"
                 onClick={() => {
@@ -756,7 +575,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
             )}
             <Button
               onClick={() => {
-                if (!areCoursesSelected && (electiveCourseData?.max_selections || 0) > 0) {
+                if (!areCoursesSelected && (data.electiveCourseData?.max_selections || 0) > 0) {
                   toast({ title: t("student.courses.selectMinOneCourse"), variant: "destructive" })
                 } else if (!isStatementHandled) {
                   toast({
@@ -773,7 +592,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               size="lg"
             >
               {submitting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
-              {existingSelectionRecord ? t("student.courses.updateSelection") : t("student.courses.confirmSelection")}
+              {data.existingSelectionRecord
+                ? t("student.courses.updateSelection")
+                : t("student.courses.confirmSelection")}
             </Button>
           </div>
         )}
@@ -790,7 +611,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                 {selectedIndividualCourseIds.length > 0 ? (
                   <ul className="space-y-1 list-disc list-inside pl-1">
                     {selectedIndividualCourseIds.map((id) => {
-                      const course = individualCourses.find((c) => c.id === id)
+                      const course = data?.individualCourses?.find((c) => c.id === id)
                       return (
                         <li key={id} className="text-sm">
                           {language === "ru" && course?.name_ru ? course.name_ru : course?.name_en || course?.name}

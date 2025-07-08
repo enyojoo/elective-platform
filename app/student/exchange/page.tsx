@@ -1,6 +1,5 @@
 "use client"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -9,108 +8,12 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
-import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
-
-// Create a singleton Supabase client to prevent multiple instances
-const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+import { useCachedStudentExchange } from "@/hooks/use-cached-student-exchange"
 
 export default function ExchangePage() {
   const { t, language } = useLanguage()
-  const { toast } = useToast()
-  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
-  const [exchangePrograms, setExchangePrograms] = useState<any[]>([])
-  const [exchangeSelections, setExchangeSelections] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    console.log("ExchangePage: useEffect triggered.")
-    if (profileLoading) {
-      console.log("ExchangePage: Profile is loading.")
-      setIsLoading(true)
-      return
-    }
-
-    if (profileError) {
-      console.error("ExchangePage: Profile loading error:", profileError)
-      setFetchError(`Failed to load profile: ${profileError}`)
-      setIsLoading(false)
-      return
-    }
-
-    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
-      console.log("ExchangePage: Profile ID, Institution ID, or Group ID missing.", profile)
-      setFetchError(
-        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific exchange programs.",
-      )
-      setIsLoading(false)
-      setExchangePrograms([])
-      setExchangeSelections([])
-      return
-    }
-
-    console.log("ExchangePage: Profile loaded:", profile)
-
-    const fetchData = async () => {
-      setIsLoading(true)
-      setFetchError(null)
-      console.log(
-        "ExchangePage: Starting data fetch for institution:",
-        profile.institution_id,
-        "and group:",
-        profile.group.id,
-      )
-      try {
-        // Fetch exchange programs for the institution and group
-        console.log("ExchangePage: Fetching elective_exchange...")
-        const { data: exchangeData, error: exchangeError } = await supabaseClient
-          .from("elective_exchange")
-          .select("*")
-          .eq("institution_id", profile.institution_id)
-          .eq("group_id", profile.group.id)
-          .order("deadline", { ascending: false })
-
-        if (exchangeError) {
-          console.error("ExchangePage: Error fetching elective_exchange:", exchangeError)
-          throw exchangeError
-        }
-        console.log("ExchangePage: elective_exchange fetched:", exchangeData)
-        setExchangePrograms(exchangeData || [])
-
-        // Fetch student's exchange selections
-        console.log("ExchangePage: Fetching exchange_selections for student:", profile.id)
-        const { data: selectionsData, error: selectionsError } = await supabaseClient
-          .from("exchange_selections")
-          .select("*")
-          .eq("student_id", profile.id)
-
-        if (selectionsError) {
-          console.error("ExchangePage: Error fetching exchange_selections:", selectionsError)
-          throw selectionsError
-        }
-        console.log("ExchangePage: exchange_selections fetched:", selectionsData)
-        setExchangeSelections(selectionsData || [])
-      } catch (error: any) {
-        console.error("ExchangePage: Data fetching error:", error)
-        setFetchError(error.message || "Failed to load exchange programs data.")
-        toast({
-          title: "Error",
-          description: error.message || "Failed to load exchange programs",
-          variant: "destructive",
-        })
-        setExchangePrograms([])
-        setExchangeSelections([])
-      } finally {
-        console.log("ExchangePage: Data fetch finished.")
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [profile, profileLoading, profileError, toast])
+  const { data, isLoading, error } = useCachedStudentExchange()
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -122,12 +25,14 @@ export default function ExchangePage() {
   }
 
   const getSelectionStatus = (exchangeId: string) => {
-    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
+    if (!data?.exchangeSelections) return null
+    const selection = data.exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
     return selection?.status || null
   }
 
   const getSelectedUniversitiesCount = (exchangeId: string) => {
-    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
+    if (!data?.exchangeSelections) return 0
+    const selection = data.exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
     return selection?.selected_university_ids?.length || 0
   }
 
@@ -159,7 +64,7 @@ export default function ExchangePage() {
 
   const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
-  if (profileLoading || isLoading) {
+  if (isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
         <div className="space-y-6">
@@ -181,15 +86,15 @@ export default function ExchangePage() {
           <p className="text-muted-foreground">{t("student.exchange.subtitle")}</p>
         </div>
 
-        {fetchError && (
+        {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {!fetchError && exchangePrograms.length === 0 && (
+        {!error && (!data?.exchangePrograms || data.exchangePrograms.length === 0) && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -199,9 +104,9 @@ export default function ExchangePage() {
           </Card>
         )}
 
-        {!fetchError && exchangePrograms.length > 0 && (
+        {!error && data?.exchangePrograms && data.exchangePrograms.length > 0 && (
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {exchangePrograms.map((exchange) => {
+            {data.exchangePrograms.map((exchange) => {
               const selectionStatus = getSelectionStatus(exchange.id)
               const selectedCount = getSelectedUniversitiesCount(exchange.id)
               const deadlinePassed = isDeadlinePassed(exchange.deadline)

@@ -1,7 +1,8 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState, useCallback } from "react"
+import React from "react"
+
+import { useState } from "react"
 import {
   Download,
   CheckCircle,
@@ -39,9 +40,10 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { uploadStatement } from "@/lib/file-utils"
 import { createClient } from "@supabase/supabase-js"
-import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelExchangeSelection } from "@/app/actions/student-exchange-selections"
+import { useCachedExchangeDetails } from "@/hooks/use-cached-exchange-details"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 
 interface ExchangePageProps {
   params: {
@@ -52,7 +54,8 @@ interface ExchangePageProps {
 export default function ExchangePage({ params }: ExchangePageProps) {
   const { t, language } = useLanguage()
   const { toast } = useToast()
-  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
+  const { profile } = useCachedStudentProfile()
+  const { data, isLoading, error } = useCachedExchangeDetails(params.packId)
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
@@ -61,102 +64,17 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   const [uploadedStatement, setUploadedStatement] = useState<File | null>(null)
   const [isUploadingStatement, setIsUploadingStatement] = useState(false)
   const [downloadingStatement, setDownloadingStatement] = useState(false)
-  const [isLoadingPage, setIsLoadingPage] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [selectedUniversityIds, setSelectedUniversityIds] = useState<string[]>(
+    data?.existingSelection?.selected_university_ids || [],
+  )
 
-  const [exchangePackData, setExchangePackData] = useState<any>(null)
-  const [universities, setUniversities] = useState<any[]>([])
-  const [existingSelection, setExistingSelection] = useState<any>(null)
-  const [selectedUniversityIds, setSelectedUniversityIds] = useState<string[]>([])
-
-  const packId = params.packId
-
-  const loadData = useCallback(async () => {
-    if (profileLoading) return
-    if (profileError) {
-      setFetchError(`Failed to load profile: ${profileError}`)
-      setIsLoadingPage(false)
-      return
+  // Update selected universities when data loads
+  React.useEffect(() => {
+    if (data?.existingSelection?.selected_university_ids) {
+      setSelectedUniversityIds(data.existingSelection.selected_university_ids)
     }
-    if (!profile?.id) {
-      setFetchError("Student profile not loaded or incomplete.")
-      setIsLoadingPage(false)
-      return
-    }
-
-    setIsLoadingPage(true)
-    setFetchError(null)
-
-    try {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-      // Fetch exchange pack data
-      const { data: packData, error: packError } = await supabase
-        .from("elective_exchange")
-        .select("*")
-        .eq("id", packId)
-        .single()
-
-      if (packError) throw packError
-      if (!packData) throw new Error("Exchange program not found.")
-      setExchangePackData(packData)
-
-      // Fetch universities using the UUIDs from the universities column
-      const universityUuids = packData.universities || []
-      if (universityUuids.length > 0) {
-        const { data: fetchedUnis, error: unisError } = await supabase
-          .from("universities")
-          .select("*")
-          .in("id", universityUuids)
-
-        if (unisError) throw unisError
-
-        // Fetch current student counts for each university (pending + approved)
-        const universitiesWithCounts = await Promise.all(
-          (fetchedUnis || []).map(async (university) => {
-            const { count: currentStudents, error: countError } = await supabase
-              .from("exchange_selections")
-              .select("*", { count: "exact", head: true })
-              .contains("selected_university_ids", [university.id])
-              .in("status", ["pending", "approved"])
-
-            if (countError) {
-              console.error("Error fetching exchange selection count:", countError)
-              return { ...university, current_students: 0 }
-            }
-
-            return { ...university, current_students: currentStudents || 0 }
-          }),
-        )
-
-        setUniversities(universitiesWithCounts || [])
-      } else {
-        setUniversities([])
-      }
-
-      // Fetch existing selection
-      const { data: selectionData, error: selectionError } = await supabase
-        .from("exchange_selections")
-        .select("*")
-        .eq("student_id", profile.id)
-        .eq("elective_exchange_id", packId)
-        .maybeSingle()
-
-      if (selectionError) throw selectionError
-      setExistingSelection(selectionData)
-      setSelectedUniversityIds(selectionData?.selected_university_ids || [])
-    } catch (error: any) {
-      setFetchError(error.message || "Failed to load exchange program details.")
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } finally {
-      setIsLoadingPage(false)
-    }
-  }, [profile, profileLoading, profileError, packId, toast])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  }, [data?.existingSelection])
 
   const toggleUniversitySelection = (universityId: string) => {
     setSelectedUniversityIds((prevSelected) => {
@@ -164,7 +82,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         return prevSelected.filter((id) => id !== universityId)
       } else {
         // Check if university is at capacity
-        const university = universities.find((u) => u.id === universityId)
+        const university = data?.universities?.find((u) => u.id === universityId)
         if (university && university.max_students && university.current_students >= university.max_students) {
           toast({
             title: t("student.exchange.universityAtCapacity"),
@@ -174,12 +92,14 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           return prevSelected
         }
 
-        if (prevSelected.length < (exchangePackData?.max_selections || Number.POSITIVE_INFINITY)) {
+        if (prevSelected.length < (data?.exchangePackData?.max_selections || Number.POSITIVE_INFINITY)) {
           return [...prevSelected, universityId]
         }
         toast({
           title: t("student.exchange.maxSelectionsReached"),
-          description: t("student.exchange.maxSelectionsReachedDesc", { count: exchangePackData?.max_selections }),
+          description: t("student.exchange.maxSelectionsReachedDesc", {
+            count: data?.exchangePackData?.max_selections,
+          }),
           variant: "warning",
         })
         return prevSelected
@@ -188,13 +108,13 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   }
 
   const handleSubmit = async () => {
-    const statementRequired = !!exchangePackData?.statement_template_url
+    const statementRequired = !!data?.exchangePackData?.statement_template_url
 
     if (!profile?.id || !profile?.institution_id) {
       toast({ title: "Missing Information", description: "Profile or institution not loaded.", variant: "destructive" })
       return
     }
-    if (statementRequired && !uploadedStatement && !existingSelection?.statement_url) {
+    if (statementRequired && !uploadedStatement && !data?.existingSelection?.statement_url) {
       toast({ title: "Missing Information", description: "Statement is required.", variant: "destructive" })
       return
     }
@@ -218,11 +138,11 @@ export default function ExchangePage({ params }: ExchangePageProps) {
     setSubmitting(true)
     try {
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-      let statementUrlToSave = existingSelection?.statement_url
+      let statementUrlToSave = data?.existingSelection?.statement_url
 
       if (uploadedStatement) {
         setIsUploadingStatement(true)
-        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, packId)
+        statementUrlToSave = await uploadStatement(uploadedStatement, profile.id, params.packId)
         setIsUploadingStatement(false)
       }
 
@@ -232,7 +152,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
 
       const selectionPayload: any = {
         student_id: profile.id,
-        elective_exchange_id: packId,
+        elective_exchange_id: params.packId,
         status: SelectionStatus.PENDING,
         selected_university_ids: selectedUniversityIds,
         institution_id: profile.institution_id,
@@ -243,11 +163,11 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         selectionPayload.statement_url = statementUrlToSave
       }
 
-      if (existingSelection) {
+      if (data?.existingSelection) {
         const { error } = await supabase
           .from("exchange_selections")
           .update(selectionPayload)
-          .eq("id", existingSelection.id)
+          .eq("id", data.existingSelection.id)
         if (error) throw error
       } else {
         const { error } = await supabase.from("exchange_selections").insert(selectionPayload).select().single()
@@ -283,13 +203,13 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   }
 
   const handleDownloadStatementTemplate = async () => {
-    if (!exchangePackData?.statement_template_url) {
+    if (!data?.exchangePackData?.statement_template_url) {
       toast({ title: "No template", description: "Statement template is not available.", variant: "destructive" })
       return
     }
     setDownloadingStatement(true)
     try {
-      window.open(exchangePackData.statement_template_url, "_blank")
+      window.open(data.exchangePackData.statement_template_url, "_blank")
     } catch (error) {
       toast({ title: "Download failed", variant: "destructive" })
     } finally {
@@ -298,19 +218,17 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   }
 
   const handleCancelSelection = async () => {
-    if (!profile?.id || !exchangePackData?.id) return
-    if (!existingSelection) return
+    if (!profile?.id || !data?.exchangePackData?.id || !data?.existingSelection) return
 
     setIsCancelling(true)
     const formData = new FormData()
     formData.append("studentId", profile.id)
-    formData.append("electiveExchangeId", exchangePackData.id)
+    formData.append("electiveExchangeId", data.exchangePackData.id)
 
     const result = await cancelExchangeSelection(formData)
 
     if (result.success) {
       toast({ title: "Selection Cancelled", description: result.message })
-      setExistingSelection(null)
       setSelectedUniversityIds([])
       setUploadedStatement(null)
     } else {
@@ -326,10 +244,51 @@ export default function ExchangePage({ params }: ExchangePageProps) {
       day: "numeric",
     })
 
+  if (isLoading) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Page</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!data?.exchangePackData) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4 text-center">{t("student.exchange.notFound")}</div>
+      </DashboardLayout>
+    )
+  }
+
+  const packName =
+    language === "ru" && data.exchangePackData.name_ru ? data.exchangePackData.name_ru : data.exchangePackData.name
   const selectionProgress =
-    exchangePackData?.max_selections > 0 ? (selectedUniversityIds.length / exchangePackData.max_selections) * 100 : 0
-  const isDeadlinePassed = exchangePackData?.deadline ? new Date(exchangePackData.deadline) < new Date() : false
-  const currentSelectionStatus = existingSelection?.status as SelectionStatus | undefined
+    data.exchangePackData?.max_selections > 0
+      ? (selectedUniversityIds.length / data.exchangePackData.max_selections) * 100
+      : 0
+  const isDeadlinePassed = data.exchangePackData?.deadline
+    ? new Date(data.exchangePackData.deadline) < new Date()
+    : false
+  const currentSelectionStatus = data.existingSelection?.status as SelectionStatus | undefined
+  const canSubmit =
+    !isDeadlinePassed && data.exchangePackData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
+  const statementRequired = !!data.exchangePackData?.statement_template_url
+  const isStatementHandled = !statementRequired || !!uploadedStatement || !!data.existingSelection?.statement_url
+  const areUnisSelected = selectedUniversityIds.length > 0
 
   const getStatusAlert = () => {
     if (currentSelectionStatus === SelectionStatus.APPROVED)
@@ -356,7 +315,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           <AlertDescription>{t("student.exchange.selectionRejectedDesc")}</AlertDescription>
         </Alert>
       )
-    if (exchangePackData?.status === "draft")
+    if (data.exchangePackData?.status === "draft")
       return (
         <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <Info className="h-4 w-4" />
@@ -377,44 +336,13 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         <Info className="h-4 w-4" />
         <AlertTitle>{t("student.exchange.selectionPeriodActive")}</AlertTitle>
         <AlertDescription>
-          {t("student.exchange.selectionPeriodDesc")} {exchangePackData?.max_selections} {t("student.exchange.until")}{" "}
-          {exchangePackData?.deadline && formatDateDisplay(exchangePackData.deadline)}.
+          {t("student.exchange.selectionPeriodDesc")} {data.exchangePackData?.max_selections}{" "}
+          {t("student.exchange.until")}{" "}
+          {data.exchangePackData?.deadline && formatDateDisplay(data.exchangePackData.deadline)}.
         </AlertDescription>
       </Alert>
     )
   }
-
-  if (profileLoading || isLoadingPage)
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  if (fetchError)
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Page</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        </div>
-      </DashboardLayout>
-    )
-  if (!exchangePackData)
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4 text-center">{t("student.exchange.notFound")}</div>
-      </DashboardLayout>
-    )
-
-  const packName = language === "ru" && exchangePackData.name_ru ? exchangePackData.name_ru : exchangePackData.name
-  const canSubmit =
-    !isDeadlinePassed && exchangePackData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
-  const statementRequired = !!exchangePackData?.statement_template_url
-  const isStatementHandled = !statementRequired || !!uploadedStatement || !!existingSelection?.statement_url
-  const areUnisSelected = selectedUniversityIds.length > 0
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
@@ -446,7 +374,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
             <CardTitle>{t("student.exchange.selectionProgress")}</CardTitle>
             <CardDescription>
               {t("student.exchange.selectedOutOf")} {selectedUniversityIds.length} {t("student.exchange.of")}{" "}
-              {exchangePackData.max_selections || 0} {t("student.exchange.allowedUniversities")}
+              {data.exchangePackData.max_selections || 0} {t("student.exchange.allowedUniversities")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -455,9 +383,9 @@ export default function ExchangePage({ params }: ExchangePageProps) {
               className={`h-3 ${currentSelectionStatus === SelectionStatus.APPROVED ? "bg-green-100 dark:bg-green-950 [&>*]:bg-green-600" : currentSelectionStatus === SelectionStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-950 [&>*]:bg-yellow-500" : "[&>*]:bg-primary"}`}
             />
             <p className="mt-2.5 text-sm text-muted-foreground">
-              {selectedUniversityIds.length === exchangePackData.max_selections
+              {selectedUniversityIds.length === data.exchangePackData.max_selections
                 ? t("student.exchange.maxSelections")
-                : `${t("student.exchange.canSelectMore")} ${exchangePackData.max_selections - selectedUniversityIds.length} ${exchangePackData.max_selections - selectedUniversityIds.length === 1 ? t("student.exchange.moreUniversity") : t("student.exchange.moreUniversities")}`}
+                : `${t("student.exchange.canSelectMore")} ${data.exchangePackData.max_selections - selectedUniversityIds.length} ${data.exchangePackData.max_selections - selectedUniversityIds.length === 1 ? t("student.exchange.moreUniversity") : t("student.exchange.moreUniversities")}`}
             </p>
           </CardContent>
         </Card>
@@ -472,12 +400,12 @@ export default function ExchangePage({ params }: ExchangePageProps) {
               <CardDescription>{t("student.statement.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {exchangePackData.statement_template_url && (
+              {data.exchangePackData.statement_template_url && (
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto bg-transparent"
                   onClick={handleDownloadStatementTemplate}
-                  disabled={downloadingStatement || exchangePackData.status === "draft"}
+                  disabled={downloadingStatement || data.exchangePackData.status === "draft"}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
@@ -521,7 +449,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                   </AlertDescription>
                 </Alert>
               )}
-              {existingSelection?.statement_url && !uploadedStatement && (
+              {data.existingSelection?.statement_url && !uploadedStatement && (
                 <Alert variant="info">
                   <Info className="h-4 w-4" />
                   <AlertTitle>{t("student.statement.previouslyUploadedTitle")}</AlertTitle>
@@ -533,89 +461,90 @@ export default function ExchangePage({ params }: ExchangePageProps) {
         )}
 
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {universities.map((uni) => {
-            const isSelected = selectedUniversityIds.includes(uni.id)
-            const isAtCapacity = uni.max_students && uni.current_students >= uni.max_students
-            const isDisabled =
-              (!isSelected && selectedUniversityIds.length >= exchangePackData.max_selections) ||
-              (!isSelected && isAtCapacity)
-            return (
-              <Card
-                key={uni.id}
-                className={`flex flex-col h-full transition-all hover:shadow-md ${isSelected ? (currentSelectionStatus === SelectionStatus.APPROVED ? "border-green-500 ring-2 ring-green-500/50" : currentSelectionStatus === SelectionStatus.PENDING ? "border-yellow-500 ring-2 ring-yellow-500/50" : "border-primary ring-2 ring-primary/50") : "border-border"} ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <CardTitle className="text-lg">{uni.name}</CardTitle>
-                    {uni.max_students && (
-                      <span
-                        className={`text-xs whitespace-nowrap px-2 py-1 rounded-full flex items-center gap-1 ${
-                          isAtCapacity
-                            ? "text-red-800 bg-red-100 dark:bg-red-900 dark:text-red-200"
-                            : "text-muted-foreground bg-muted"
-                        }`}
-                      >
-                        <Users className="h-3 w-3" />
-                        {uni.current_students}/{uni.max_students}
-                        {isAtCapacity && " (Full)"}
-                      </span>
-                    )}
-                  </div>
-                  <CardDescription className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {uni.city}, {uni.country}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-4 flex-grow flex flex-col gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 h-auto text-primary hover:text-primary/80 hover:bg-transparent w-fit"
-                    onClick={() => setViewingUniversity(uni)}
-                  >
-                    <Globe className="h-3.5 w-3.5 mr-1" />
-                    {t("student.exchange.viewDetails")}
-                  </Button>
-                </CardContent>
-                <CardFooter className="pt-0 flex justify-between items-center mt-auto border-t pt-3">
-                  {canSubmit ? (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`uni-${uni.id}`}
-                        checked={isSelected}
-                        onCheckedChange={() => toggleUniversitySelection(uni.id)}
-                        disabled={isDisabled || !canSubmit}
-                      />
-                      <label
-                        htmlFor={`uni-${uni.id}`}
-                        className={`text-sm font-medium leading-none ${isDisabled || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
-                      >
-                        {isSelected ? t("student.exchange.selected") : t("student.exchange.select")}
-                      </label>
+          {data.universities &&
+            data.universities.map((uni) => {
+              const isSelected = selectedUniversityIds.includes(uni.id)
+              const isAtCapacity = uni.max_students && uni.current_students >= uni.max_students
+              const isDisabled =
+                (!isSelected && selectedUniversityIds.length >= data.exchangePackData.max_selections) ||
+                (!isSelected && isAtCapacity)
+              return (
+                <Card
+                  key={uni.id}
+                  className={`flex flex-col h-full transition-all hover:shadow-md ${isSelected ? (currentSelectionStatus === SelectionStatus.APPROVED ? "border-green-500 ring-2 ring-green-500/50" : currentSelectionStatus === SelectionStatus.PENDING ? "border-yellow-500 ring-2 ring-yellow-500/50" : "border-primary ring-2 ring-primary/50") : "border-border"} ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-lg">{uni.name}</CardTitle>
+                      {uni.max_students && (
+                        <span
+                          className={`text-xs whitespace-nowrap px-2 py-1 rounded-full flex items-center gap-1 ${
+                            isAtCapacity
+                              ? "text-red-800 bg-red-100 dark:bg-red-900 dark:text-red-200"
+                              : "text-muted-foreground bg-muted"
+                          }`}
+                        >
+                          <Users className="h-3 w-3" />
+                          {uni.current_students}/{uni.max_students}
+                          {isAtCapacity && " (Full)"}
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <div />
-                  )}
-                  {uni.website && (
-                    <a
-                      href={uni.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary hover:text-primary/80 flex items-center"
+                    <CardDescription className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {uni.city}, {uni.country}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-4 flex-grow flex flex-col gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="p-0 h-auto text-primary hover:text-primary/80 hover:bg-transparent w-fit"
+                      onClick={() => setViewingUniversity(uni)}
                     >
-                      {t("student.exchange.visitWebsite")}
-                      <ExternalLink className="h-3.5 w-3.5 ml-1" />
-                    </a>
-                  )}
-                </CardFooter>
-              </Card>
-            )
-          })}
+                      <Globe className="h-3.5 w-3.5 mr-1" />
+                      {t("student.exchange.viewDetails")}
+                    </Button>
+                  </CardContent>
+                  <CardFooter className="pt-0 flex justify-between items-center mt-auto border-t pt-3">
+                    {canSubmit ? (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`uni-${uni.id}`}
+                          checked={isSelected}
+                          onCheckedChange={() => toggleUniversitySelection(uni.id)}
+                          disabled={isDisabled || !canSubmit}
+                        />
+                        <label
+                          htmlFor={`uni-${uni.id}`}
+                          className={`text-sm font-medium leading-none ${isDisabled || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                        >
+                          {isSelected ? t("student.exchange.selected") : t("student.exchange.select")}
+                        </label>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    {uni.website && (
+                      <a
+                        href={uni.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:text-primary/80 flex items-center"
+                      >
+                        {t("student.exchange.visitWebsite")}
+                        <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                      </a>
+                    )}
+                  </CardFooter>
+                </Card>
+              )
+            })}
         </div>
 
         {canSubmit && (
           <div className="flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
-            {existingSelection && canSubmit && (
+            {data.existingSelection && canSubmit && (
               <Button
                 variant="outline"
                 onClick={() => {
@@ -649,7 +578,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
               size="lg"
             >
               {submitting && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-              {existingSelection ? t("student.exchange.updateSelection") : t("student.exchange.confirmSelection")}
+              {data.existingSelection ? t("student.exchange.updateSelection") : t("student.exchange.confirmSelection")}
             </Button>
           </div>
         )}
@@ -665,7 +594,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                 <h4 className="text-sm font-medium mb-2">{t("student.exchange.selectedUniversities")}:</h4>
                 <ul className="space-y-1 list-disc list-inside pl-1">
                   {selectedUniversityIds.map((id) => {
-                    const uni = universities.find((u) => u.id === id)
+                    const uni = data?.universities?.find((u) => u.id === id)
                     return (
                       <li key={id} className="text-sm">
                         {uni?.name} ({uni?.city}, {uni?.country})

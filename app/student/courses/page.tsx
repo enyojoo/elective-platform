@@ -1,6 +1,5 @@
 "use client"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -9,108 +8,12 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
-import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
-
-// Create a singleton Supabase client to prevent multiple instances
-const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+import { useCachedStudentCourses } from "@/hooks/use-cached-student-courses"
 
 export default function ElectivesPage() {
   const { t, language } = useLanguage()
-  const { toast } = useToast()
-  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
-  const [electiveCourses, setElectiveCourses] = useState<any[]>([])
-  const [courseSelections, setCourseSelections] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    console.log("ElectivesPage: useEffect triggered.")
-    if (profileLoading) {
-      console.log("ElectivesPage: Profile is loading.")
-      setIsLoading(true)
-      return
-    }
-
-    if (profileError) {
-      console.error("ElectivesPage: Profile loading error:", profileError)
-      setFetchError(`Failed to load profile: ${profileError}`)
-      setIsLoading(false)
-      return
-    }
-
-    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
-      console.log("ElectivesPage: Profile ID, Institution ID, or Group ID missing.", profile)
-      setFetchError(
-        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific electives.",
-      )
-      setIsLoading(false)
-      setElectiveCourses([])
-      setCourseSelections([])
-      return
-    }
-
-    console.log("ElectivesPage: Profile loaded:", profile)
-
-    const fetchData = async () => {
-      setIsLoading(true)
-      setFetchError(null)
-      console.log(
-        "ElectivesPage: Starting data fetch for institution:",
-        profile.institution_id,
-        "and group:",
-        profile.group.id,
-      )
-      try {
-        // Fetch elective courses for the institution
-        console.log("ElectivesPage: Fetching elective_courses...")
-        const { data: coursesData, error: coursesError } = await supabaseClient
-          .from("elective_courses")
-          .select("*")
-          .eq("institution_id", profile.institution_id)
-          .eq("group_id", profile.group.id) // Added group_id filter
-          .order("deadline", { ascending: false })
-
-        if (coursesError) {
-          console.error("ElectivesPage: Error fetching elective_courses:", coursesError)
-          throw coursesError
-        }
-        console.log("ElectivesPage: elective_courses fetched:", coursesData)
-        setElectiveCourses(coursesData || [])
-
-        // Fetch student's course selections
-        console.log("ElectivesPage: Fetching course_selections for student:", profile.id)
-        const { data: selectionsData, error: selectionsError } = await supabaseClient
-          .from("course_selections")
-          .select("*")
-          .eq("student_id", profile.id)
-
-        if (selectionsError) {
-          console.error("ElectivesPage: Error fetching course_selections:", selectionsError)
-          throw selectionsError
-        }
-        console.log("ElectivesPage: course_selections fetched:", selectionsData)
-        setCourseSelections(selectionsData || [])
-      } catch (error: any) {
-        console.error("ElectivesPage: Data fetching error:", error)
-        setFetchError(error.message || "Failed to load elective courses data.")
-        toast({
-          title: "Error",
-          description: error.message || "Failed to load elective courses",
-          variant: "destructive",
-        })
-        setElectiveCourses([]) // Clear data on error
-        setCourseSelections([])
-      } finally {
-        console.log("ElectivesPage: Data fetch finished.")
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [profile, profileLoading, profileError, toast])
+  const { data, isLoading, error } = useCachedStudentCourses()
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -122,12 +25,14 @@ export default function ElectivesPage() {
   }
 
   const getSelectionStatus = (courseId: string) => {
-    const selection = courseSelections.find((sel) => sel.elective_courses_id === courseId)
+    if (!data?.courseSelections) return null
+    const selection = data.courseSelections.find((sel) => sel.elective_courses_id === courseId)
     return selection?.status || null
   }
 
   const getSelectedCoursesCount = (courseId: string) => {
-    const selection = courseSelections.find((sel) => sel.elective_courses_id === courseId)
+    if (!data?.courseSelections) return 0
+    const selection = data.courseSelections.find((sel) => sel.elective_courses_id === courseId)
     return selection?.selected_course_ids?.length || 0
   }
 
@@ -159,7 +64,7 @@ export default function ElectivesPage() {
 
   const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
-  if (profileLoading || isLoading) {
+  if (isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
         <div className="space-y-6">
@@ -181,15 +86,15 @@ export default function ElectivesPage() {
           <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
         </div>
 
-        {fetchError && (
+        {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {!fetchError && electiveCourses.length === 0 && (
+        {!error && (!data?.electiveCourses || data.electiveCourses.length === 0) && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -199,9 +104,9 @@ export default function ElectivesPage() {
           </Card>
         )}
 
-        {!fetchError && electiveCourses.length > 0 && (
+        {!error && data?.electiveCourses && data.electiveCourses.length > 0 && (
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {electiveCourses.map((elective) => {
+            {data.electiveCourses.map((elective) => {
               const selectionStatus = getSelectionStatus(elective.id)
               const selectedCount = getSelectedCoursesCount(elective.id)
               const deadlinePassed = isDeadlinePassed(elective.deadline)
