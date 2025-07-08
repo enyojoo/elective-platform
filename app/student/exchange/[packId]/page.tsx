@@ -15,6 +15,7 @@ import {
   Globe,
   MapPin,
   ExternalLink,
+  Users,
 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole, SelectionStatus } from "@/lib/types"
@@ -529,6 +530,12 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                     <Globe className="h-3.5 w-3.5 mr-1" />
                     {t("student.exchange.viewDetails")}
                   </Button>
+                  {uni.max_students && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                      <Users className="h-3 w-3" />
+                      <span>0 / {uni.max_students}</span>
+                    </div>
+                  )}
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between items-center mt-auto border-t pt-3">
                   {canSubmit ? (
