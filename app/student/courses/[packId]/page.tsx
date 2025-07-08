@@ -41,12 +41,26 @@ import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cancelCourseSelection } from "@/app/actions/student-selections"
 
+// Assuming these types/enums are defined elsewhere and passed as props or imported
+// For example:
+// import { ElectivePack, Course, CourseSelection, UserProfile, SelectionStatus } from '@/types';
+// import { useTranslation } from 'react-i18next'; // Or your i18n solution
+
+// Mock types for demonstration if not available
+// enum SelectionStatus {
+//   DRAFT = "draft",
+//   PENDING = "pending",
+//   APPROVED = "approved",
+//   REJECTED = "rejected",
+// }
+
 type ElectivePack = {
   id: string
   name: string
   max_selections: number
-  status: "draft" | "published" | "archived"
-  syllabus_template_url?: string | null
+  status: "draft" | "published" | "archived" // Assuming status for the pack itself
+  syllabus_template_url?: string | null // Path to template in Supabase storage
+  // ... other properties
 }
 
 type Course = {
@@ -61,6 +75,7 @@ type Course = {
   max_students: number | null | undefined
   current_students: number | null | undefined
   teacher: string
+  // ... other properties
 }
 
 type CourseSelection = {
@@ -69,11 +84,13 @@ type CourseSelection = {
   elective_courses_id: string
   selected_course_ids: string[]
   status: SelectionStatus
-  statement_url?: string | null
+  statement_url?: string | null // Path to student's uploaded statement in Supabase storage
+  // ... other properties
 }
 
 type UserProfile = {
   id: string
+  // ... other properties
 }
 
 interface ElectivePageProps {
@@ -82,13 +99,22 @@ interface ElectivePageProps {
   }
 }
 
+interface ElectivePackPageClientProps {
+  electiveData: ElectivePack
+  courses: Course[] // Assuming courses are also passed if needed for other parts
+  existingSelection: CourseSelection | null
+  profile: UserProfile // Student's profile
+  // packId: string // Already in electiveData.id
+}
+
+// Utility to get filename from a path
 const getFileNameFromPath = (path: string | null | undefined): string | null => {
   if (!path) return null
   const name = path.substring(path.lastIndexOf("/") + 1)
   try {
     return decodeURIComponent(name)
   } catch (e) {
-    return name
+    return name // Fallback if decoding fails
   }
 }
 
@@ -112,7 +138,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
   const [individualCourses, setIndividualCourses] = useState<any[]>([])
   const [existingSelectionRecord, setExistingSelectionRecord] = useState<any>(null)
   const [selectedIndividualCourseIds, setSelectedIndividualCourseIds] = useState<string[]>([])
-  const [courseEnrollmentCounts, setCourseEnrollmentCounts] = useState<Record<string, number>>({})
 
   const packId = params.packId
 
@@ -171,24 +196,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         const fetchedCoursesMap = new Map(fetchedCourses?.map((fc) => [fc.id, fc]))
         const orderedFetchedCourses = courseUuids.map((uuid) => fetchedCoursesMap.get(uuid)).filter(Boolean)
         setIndividualCourses(orderedFetchedCourses || [])
-
-        // Get enrollment counts for each course (count ONLY pending and approved selections)
-        const enrollmentCounts: Record<string, number> = {}
-        for (const course of orderedFetchedCourses || []) {
-          const { count, error: countError } = await supabase
-            .from("course_selections")
-            .select("*", { count: "exact", head: true })
-            .contains("selected_course_ids", [course.id])
-            .in("status", ["pending", "approved"]) // Only count pending and approved
-
-          if (countError) {
-            console.error(`Error counting enrollments for course ${course.id}:`, countError)
-            enrollmentCounts[course.id] = 0
-          } else {
-            enrollmentCounts[course.id] = count || 0
-          }
-        }
-        setCourseEnrollmentCounts(enrollmentCounts)
       } else {
         setIndividualCourses([])
       }
@@ -202,6 +209,10 @@ export default function ElectivePage({ params }: ElectivePageProps) {
 
       if (selectionError) throw selectionError
       setExistingSelectionRecord(selectionData)
+
+      // Example: If 'course_selections' table has a 'selected_course_ids' (TEXT[]) column
+      // setSelectedIndividualCourseIds(selectionData?.selected_course_ids || []);
+      // For now, keeping it simple as the schema detail for this is pending
       setSelectedIndividualCourseIds(selectionData?.selected_course_ids || [])
     } catch (error: any) {
       setFetchError(error.message || "Failed to load elective course details.")
@@ -284,9 +295,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         student_id: profile.id,
         elective_courses_id: packId,
         status: SelectionStatus.PENDING,
-        selected_course_ids: selectedIndividualCourseIds,
-        institution_id: profile.institution_id,
-        authorized_by: studentName.trim(),
+        selected_course_ids: selectedIndividualCourseIds, // Store the selected course IDs
+        institution_id: profile.institution_id, // Add this line
+        authorized_by: studentName.trim(), // Add this line
       }
       if (statementUrlToSave) {
         selectionPayload.statement_url = statementUrlToSave
@@ -323,6 +334,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
         return
       }
       if (file.size > 5 * 1024 * 1024) {
+        // 5MB
         toast({ title: "File too large", description: "Please upload a file smaller than 5MB", variant: "destructive" })
         return
       }
@@ -476,6 +488,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
       setExistingSelectionRecord(null)
       setSelectedIndividualCourseIds([])
       setUploadedStatement(null)
+      // await loadData(); // Optionally reload all data
     } else {
       toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" })
     }
@@ -600,6 +613,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                   <Info className="h-4 w-4" />
                   <AlertTitle>{t("student.statement.previouslyUploadedTitle")}</AlertTitle>
                   <AlertDescription>{t("student.statement.previouslyUploadedDesc")}</AlertDescription>
+                  {/* Optionally, add a button to view/download the existing statement if URL is directly accessible */}
                 </Alert>
               )}
             </CardContent>
@@ -613,9 +627,6 @@ export default function ElectivePage({ params }: ElectivePageProps) {
               const isDisabledByMax =
                 !isSelected &&
                 selectedIndividualCourseIds.length >= (electiveCourseData.max_selections || Number.POSITIVE_INFINITY)
-              const currentEnrollment = courseEnrollmentCounts[course.id] || 0
-              const maxStudents = course.max_students || 0
-
               return (
                 <Card
                   key={course.id}
@@ -626,12 +637,11 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                       <CardTitle className="text-lg leading-tight">
                         {language === "ru" && course.name_ru ? course.name_ru : course.name_en || course.name}
                       </CardTitle>
-                      {maxStudents > 0 && (
-                        <span
-                          className={`text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1 ${currentEnrollment >= maxStudents ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" : ""}`}
-                        >
+                      {course.max_students !== null && course.max_students !== undefined && (
+                        <span className="text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1">
                           <Users className="h-3 w-3" />
-                          {currentEnrollment}/{maxStudents}
+                          {typeof course.current_students === "number" ? course.current_students : "?"}/
+                          {course.max_students}
                         </span>
                       )}
                     </div>
@@ -659,11 +669,7 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                           id={`course-${course.id}`}
                           checked={isSelected}
                           onCheckedChange={() => toggleCourseSelection(course.id)}
-                          disabled={
-                            isDisabledByMax ||
-                            !canSubmit ||
-                            (maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected)
-                          }
+                          disabled={isDisabledByMax || !canSubmit}
                           aria-label={t(
                             isSelected ? "student.courses.deselectCourse" : "student.courses.selectCourse",
                             {
@@ -674,13 +680,9 @@ export default function ElectivePage({ params }: ElectivePageProps) {
                         />
                         <Label
                           htmlFor={`course-${course.id}`}
-                          className={`text-sm font-medium leading-none ${isDisabledByMax || !canSubmit || (maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected) ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                          className={`text-sm font-medium leading-none ${isDisabledByMax || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                         >
-                          {maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected
-                            ? t("student.courses.full")
-                            : isSelected
-                              ? t("student.courses.selected")
-                              : t("student.courses.select")}
+                          {isSelected ? t("student.courses.selected") : t("student.courses.select")}
                         </Label>
                       </div>
                     </CardFooter>

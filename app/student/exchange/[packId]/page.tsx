@@ -69,7 +69,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   const [universities, setUniversities] = useState<any[]>([])
   const [existingSelection, setExistingSelection] = useState<any>(null)
   const [selectedUniversityIds, setSelectedUniversityIds] = useState<string[]>([])
-  const [universityEnrollmentCounts, setUniversityEnrollmentCounts] = useState<Record<string, number>>({})
 
   const packId = params.packId
 
@@ -113,24 +112,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
 
         if (unisError) throw unisError
         setUniversities(fetchedUnis || [])
-
-        // Get enrollment counts for each university (count ONLY pending and approved selections)
-        const enrollmentCounts: Record<string, number> = {}
-        for (const uni of fetchedUnis || []) {
-          const { count, error: countError } = await supabase
-            .from("exchange_selections")
-            .select("*", { count: "exact", head: true })
-            .contains("selected_university_ids", [uni.id])
-            .in("status", ["pending", "approved"]) // Only count pending and approved
-
-          if (countError) {
-            console.error(`Error counting enrollments for university ${uni.id}:`, countError)
-            enrollmentCounts[uni.id] = 0
-          } else {
-            enrollmentCounts[uni.id] = count || 0
-          }
-        }
-        setUniversityEnrollmentCounts(enrollmentCounts)
       } else {
         setUniversities([])
       }
@@ -525,9 +506,6 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           {universities.map((uni) => {
             const isSelected = selectedUniversityIds.includes(uni.id)
             const isDisabled = !isSelected && selectedUniversityIds.length >= exchangePackData.max_selections
-            const currentEnrollment = universityEnrollmentCounts[uni.id] || 0
-            const maxStudents = uni.max_students || 0
-
             return (
               <Card
                 key={uni.id}
@@ -536,12 +514,10 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start gap-2">
                     <CardTitle className="text-lg">{uni.name}</CardTitle>
-                    {maxStudents > 0 && (
-                      <span
-                        className={`text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1 ${currentEnrollment >= maxStudents ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" : ""}`}
-                      >
+                    {uni.max_students && (
+                      <span className="text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1">
                         <Users className="h-3 w-3" />
-                        {currentEnrollment}/{maxStudents}
+                        0/{uni.max_students}
                       </span>
                     )}
                   </div>
@@ -568,21 +544,13 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                         id={`uni-${uni.id}`}
                         checked={isSelected}
                         onCheckedChange={() => toggleUniversitySelection(uni.id)}
-                        disabled={
-                          isDisabled ||
-                          !canSubmit ||
-                          (maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected)
-                        }
+                        disabled={isDisabled || !canSubmit}
                       />
                       <label
                         htmlFor={`uni-${uni.id}`}
-                        className={`text-sm font-medium leading-none ${isDisabled || !canSubmit || (maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected) ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                        className={`text-sm font-medium leading-none ${isDisabled || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                       >
-                        {maxStudents > 0 && currentEnrollment >= maxStudents && !isSelected
-                          ? t("student.exchange.full")
-                          : isSelected
-                            ? t("student.exchange.selected")
-                            : t("student.exchange.select")}
+                        {isSelected ? t("student.exchange.selected") : t("student.exchange.select")}
                       </label>
                     </div>
                   ) : (
