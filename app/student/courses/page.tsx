@@ -1,8 +1,5 @@
 "use client"
-
-import { AlertDescription } from "@/components/ui/alert"
-import { AlertTitle } from "@/components/ui/alert"
-import { Alert } from "@/components/ui/alert"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
@@ -129,19 +126,9 @@ export default function ElectivesPage() {
     return selection?.status || null
   }
 
-  const getSelectedCoursesCount = (electiveCourse: any) => {
-    const selection = courseSelections.find((sel) => sel.elective_courses_id === electiveCourse.id)
-    if (!selection || !electiveCourse.courses) return 0
-    try {
-      const coursesInElective = JSON.parse(electiveCourse.courses)
-      if (Array.isArray(coursesInElective)) {
-        const selected = coursesInElective.filter((c) => c.selected === true)
-        return selected.length
-      }
-    } catch (e) {
-      console.error("Error parsing courses JSON for count:", e)
-    }
-    return 0 // Fallback
+  const getSelectedCoursesCount = (courseId: string) => {
+    const selection = courseSelections.find((sel) => sel.elective_courses_id === courseId)
+    return selection?.selected_course_ids?.length || 0
   }
 
   const getStatusColor = (status: string | null) => {
@@ -216,7 +203,7 @@ export default function ElectivesPage() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {electiveCourses.map((elective) => {
               const selectionStatus = getSelectionStatus(elective.id)
-              const selectedCount = getSelectedCoursesCount(elective) // Pass the whole elective object
+              const selectedCount = getSelectedCoursesCount(elective.id)
               const deadlinePassed = isDeadlinePassed(elective.deadline)
               const name = language === "ru" && elective.name_ru ? elective.name_ru : elective.name
 
