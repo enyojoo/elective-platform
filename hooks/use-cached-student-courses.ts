@@ -7,8 +7,8 @@ import { useCachedStudentProfile } from "./use-cached-student-profile"
 const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 interface StudentCoursesData {
-  electiveCourses: any[]
-  courseSelections: any[]
+  electives: any[]
+  selections: any[]
 }
 
 export function useCachedStudentCourses() {
@@ -26,12 +26,9 @@ export function useCachedStudentCourses() {
       return
     }
 
-    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
-      setError(
-        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific electives.",
-      )
+    if (!profile?.id) {
+      setError("Student profile not loaded")
       setIsLoading(false)
-      setData({ electiveCourses: [], courseSelections: [] })
       return
     }
 
@@ -39,15 +36,14 @@ export function useCachedStudentCourses() {
       setIsLoading(true)
       setError(null)
 
-      // Fetch elective courses for the institution and group
-      const { data: coursesData, error: coursesError } = await supabaseClient
+      // Fetch all elective courses
+      const { data: electivesData, error: electivesError } = await supabaseClient
         .from("elective_courses")
         .select("*")
-        .eq("institution_id", profile.institution_id)
-        .eq("group_id", profile.group.id)
-        .order("deadline", { ascending: false })
+        .eq("status", "published")
+        .order("created_at", { ascending: false })
 
-      if (coursesError) throw coursesError
+      if (electivesError) throw electivesError
 
       // Fetch student's course selections
       const { data: selectionsData, error: selectionsError } = await supabaseClient
@@ -58,12 +54,12 @@ export function useCachedStudentCourses() {
       if (selectionsError) throw selectionsError
 
       setData({
-        electiveCourses: coursesData || [],
-        courseSelections: selectionsData || [],
+        electives: electivesData || [],
+        selections: selectionsData || [],
       })
     } catch (err: any) {
-      setError(err.message || "Failed to load elective courses data.")
-      setData({ electiveCourses: [], courseSelections: [] })
+      setError(err.message || "Failed to load courses data.")
+      setData(null)
     } finally {
       setIsLoading(false)
     }

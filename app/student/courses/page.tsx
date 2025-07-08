@@ -1,17 +1,17 @@
 "use client"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { UserRole, SelectionStatus } from "@/lib/types"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { CheckCircle, Clock, AlertTriangle, Calendar, Users, BookOpen, Info } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { useCachedStudentCourses } from "@/hooks/use-cached-student-courses"
 
-export default function ElectivesPage() {
+export default function StudentCoursesPage() {
   const { t, language } = useLanguage()
   const { data, isLoading, error } = useCachedStudentCourses()
 
@@ -24,194 +24,156 @@ export default function ElectivesPage() {
     })
   }
 
-  const getSelectionStatus = (courseId: string) => {
-    if (!data?.courseSelections) return null
-    const selection = data.courseSelections.find((sel) => sel.elective_courses_id === courseId)
-    return selection?.status || null
-  }
-
-  const getSelectedCoursesCount = (courseId: string) => {
-    if (!data?.courseSelections) return 0
-    const selection = data.courseSelections.find((sel) => sel.elective_courses_id === courseId)
-    return selection?.selected_course_ids?.length || 0
-  }
-
-  const getStatusColor = (status: string | null) => {
+  const getStatusColor = (status: SelectionStatus) => {
     switch (status) {
-      case "approved":
+      case SelectionStatus.APPROVED:
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      case "pending":
+      case SelectionStatus.PENDING:
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case "rejected":
+      case SelectionStatus.REJECTED:
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
     }
   }
 
-  const getStatusIcon = (status: string | null) => {
+  const getStatusIcon = (status: SelectionStatus) => {
     switch (status) {
-      case "approved":
+      case SelectionStatus.APPROVED:
         return <CheckCircle className="h-4 w-4" />
-      case "pending":
+      case SelectionStatus.PENDING:
         return <Clock className="h-4 w-4" />
-      case "rejected":
-        return <AlertCircle className="h-4 w-4" />
+      case SelectionStatus.REJECTED:
+        return <AlertTriangle className="h-4 w-4" />
       default:
-        return <AlertCircle className="h-4 w-4" />
+        return <Info className="h-4 w-4" />
     }
   }
-
-  const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
   if (isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
-            <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
-          </div>
-          <TableSkeleton numberOfRows={3} />
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Courses</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </div>
       </DashboardLayout>
     )
   }
 
+  const { electives, selections } = data || { electives: [], selections: [] }
+
+  // Create a map of selections by elective_courses_id for quick lookup
+  const selectionMap = new Map(selections.map((sel) => [sel.elective_courses_id, sel]))
+
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
-          <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
+          <p className="text-muted-foreground">{t("student.courses.description")}</p>
         </div>
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {!error && (!data?.electiveCourses || data.electiveCourses.length === 0) && (
+        {electives.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">{t("student.courses.noCoursesFound")}</p>
-              <p className="text-sm text-muted-foreground mt-1">{t("student.courses.checkBackLater")}</p>
+            <CardContent className="py-10 text-center">
+              <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">{t("student.courses.noElectivesAvailable")}</p>
             </CardContent>
           </Card>
-        )}
-
-        {!error && data?.electiveCourses && data.electiveCourses.length > 0 && (
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {data.electiveCourses.map((elective) => {
-              const selectionStatus = getSelectionStatus(elective.id)
-              const selectedCount = getSelectedCoursesCount(elective.id)
-              const deadlinePassed = isDeadlinePassed(elective.deadline)
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {electives.map((elective) => {
+              const selection = selectionMap.get(elective.id)
               const name = language === "ru" && elective.name_ru ? elective.name_ru : elective.name
+              const description =
+                language === "ru" && elective.description_ru ? elective.description_ru : elective.description
+              const isDeadlinePassed = new Date(elective.deadline) < new Date()
+              const isDraft = elective.status === "draft"
 
               return (
                 <Card
                   key={elective.id}
-                  className={`h-full transition-all hover:shadow-md ${
-                    selectionStatus === "approved"
-                      ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
-                      : selectionStatus === "pending"
-                        ? "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
-                        : ""
+                  className={`flex flex-col h-full transition-all hover:shadow-md ${
+                    selection?.status === SelectionStatus.APPROVED
+                      ? "border-green-200 dark:border-green-800"
+                      : selection?.status === SelectionStatus.PENDING
+                        ? "border-yellow-200 dark:border-yellow-800"
+                        : selection?.status === SelectionStatus.REJECTED
+                          ? "border-red-200 dark:border-red-800"
+                          : ""
                   }`}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <CardTitle className="text-xl">{name}</CardTitle>
-                        {selectionStatus ? (
-                          <Badge className={getStatusColor(selectionStatus)} variant="secondary">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-lg leading-tight">{name}</CardTitle>
+                      {isDraft ? (
+                        <Badge variant="outline" className="text-xs">
+                          {t("student.courses.comingSoon")}
+                        </Badge>
+                      ) : isDeadlinePassed ? (
+                        <Badge variant="destructive" className="text-xs">
+                          {t("student.courses.closed")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {t("student.courses.open")}
+                        </Badge>
+                      )}
+                    </div>
+                    {description && <CardDescription className="text-sm line-clamp-2">{description}</CardDescription>}
+                  </CardHeader>
+
+                  <CardContent className="flex-grow pb-3">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>
+                          {t("student.courses.deadline")}: {formatDate(elective.deadline)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        <span>
+                          {t("student.courses.maxSelections")}: {elective.max_selections}
+                        </span>
+                      </div>
+
+                      {selection && (
+                        <div className="pt-2">
+                          <Badge className={getStatusColor(selection.status)} variant="secondary">
                             <span className="flex items-center space-x-1">
-                              {getStatusIcon(selectionStatus)}
+                              {getStatusIcon(selection.status)}
                               <span className="capitalize ml-1">
-                                {t(`student.courses.status.${selectionStatus}` as any, selectionStatus)}
+                                {t(`student.courses.status.${selection.status}` as any, selection.status)}
                               </span>
                             </span>
                           </Badge>
-                        ) : (
-                          <Badge className={getStatusColor(null)} variant="secondary">
-                            <span className="flex items-center space-x-1">
-                              {getStatusIcon(null)}
-                              <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
-                            </span>
-                          </Badge>
-                        )}
-                      </div>
-                      {elective.status === "draft" ? (
-                        <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
-                      ) : deadlinePassed ? (
-                        <Badge variant="destructive">{t("student.courses.closed")}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("student.courses.open")}</Badge>
+                        </div>
                       )}
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow"></CardContent>
-                  <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
-                    <div className="flex flex-col gap-y-2 text-sm w-full">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
-                        <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(elective.deadline)}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
-                          <span>{elective.max_selections}</span>
-                        </div>
-                      </div>
-                    </div>
+                  </CardContent>
 
-                    <div
-                      className={`flex items-center justify-between rounded-md p-2 w-full ${
-                        selectionStatus === "approved"
-                          ? "bg-green-100/50 dark:bg-green-900/20"
-                          : selectionStatus === "pending"
-                            ? "bg-yellow-100/50 dark:bg-yellow-900/20"
-                            : "bg-gray-100/50 dark:bg-gray-900/20"
-                      }`}
-                    >
-                      <span className="text-sm">
-                        {t("student.courses.selected")}: {selectedCount}/{elective.max_selections}
-                      </span>
-                      <Link href={`/student/courses/${elective.id}`}>
-                        <Button
-                          size="sm"
-                          variant={
-                            elective.status === "draft" ||
-                            (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
-                              ? "outline"
-                              : selectionStatus === "approved"
-                                ? "outline"
-                                : selectionStatus === "pending"
-                                  ? "secondary"
-                                  : "default"
-                          }
-                          className={`h-7 gap-1 ${
-                            selectionStatus === "approved"
-                              ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
-                              : elective.status === "draft" ||
-                                  (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
-                                ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
-                                : ""
-                          }`}
-                          disabled={elective.status === "draft"}
-                        >
-                          <>
-                            <span>{t("student.courses.view")}</span>
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </>
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardFooter>
+                  <CardContent className="pt-0 border-t mt-auto">
+                    <Link href={`/student/courses/${elective.id}`} className="block w-full">
+                      <Button variant="outline" className="w-full bg-transparent">
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        {selection ? t("student.courses.viewSelection") : t("student.courses.viewDetails")}
+                      </Button>
+                    </Link>
+                  </CardContent>
                 </Card>
               )
             })}

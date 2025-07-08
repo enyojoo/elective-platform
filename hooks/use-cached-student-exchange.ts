@@ -7,8 +7,8 @@ import { useCachedStudentProfile } from "./use-cached-student-profile"
 const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 interface StudentExchangeData {
-  exchangePrograms: any[]
-  exchangeSelections: any[]
+  exchanges: any[]
+  selections: any[]
 }
 
 export function useCachedStudentExchange() {
@@ -26,12 +26,9 @@ export function useCachedStudentExchange() {
       return
     }
 
-    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
-      setError(
-        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific exchange programs.",
-      )
+    if (!profile?.id) {
+      setError("Student profile not loaded")
       setIsLoading(false)
-      setData({ exchangePrograms: [], exchangeSelections: [] })
       return
     }
 
@@ -39,15 +36,14 @@ export function useCachedStudentExchange() {
       setIsLoading(true)
       setError(null)
 
-      // Fetch exchange programs for the institution and group
-      const { data: exchangeData, error: exchangeError } = await supabaseClient
+      // Fetch all exchange programs
+      const { data: exchangesData, error: exchangesError } = await supabaseClient
         .from("elective_exchange")
         .select("*")
-        .eq("institution_id", profile.institution_id)
-        .eq("group_id", profile.group.id)
-        .order("deadline", { ascending: false })
+        .eq("status", "published")
+        .order("created_at", { ascending: false })
 
-      if (exchangeError) throw exchangeError
+      if (exchangesError) throw exchangesError
 
       // Fetch student's exchange selections
       const { data: selectionsData, error: selectionsError } = await supabaseClient
@@ -58,12 +54,12 @@ export function useCachedStudentExchange() {
       if (selectionsError) throw selectionsError
 
       setData({
-        exchangePrograms: exchangeData || [],
-        exchangeSelections: selectionsData || [],
+        exchanges: exchangesData || [],
+        selections: selectionsData || [],
       })
     } catch (err: any) {
-      setError(err.message || "Failed to load exchange programs data.")
-      setData({ exchangePrograms: [], exchangeSelections: [] })
+      setError(err.message || "Failed to load exchange data.")
+      setData(null)
     } finally {
       setIsLoading(false)
     }
