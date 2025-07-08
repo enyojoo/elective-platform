@@ -1,119 +1,99 @@
 "use client"
 
-import { AlertDescription } from "@/components/ui/alert"
-import { AlertTitle } from "@/components/ui/alert"
-import { Alert } from "@/components/ui/alert"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
+import { Clock, CheckCircle, AlertTriangle, Info, BookOpen, Users, Calendar } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { UserRole, SelectionStatus } from "@/lib/types"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { createClient } from "@supabase/supabase-js"
-import { useToast } from "@/hooks/use-toast"
 import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { createClient } from "@supabase/supabase-js"
 
-// Create a singleton Supabase client to prevent multiple instances
-const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-export default function ElectivesPage() {
+export default function StudentCoursesPage() {
   const { t, language } = useLanguage()
-  const { toast } = useToast()
   const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
-  const [electiveCourses, setElectiveCourses] = useState<any[]>([])
-  const [courseSelections, setCourseSelections] = useState<any[]>([])
+
+  const [electivePacks, setElectivePacks] = useState<any[]>([])
+  const [studentSelections, setStudentSelections] = useState<any[]>([])
+  const [courseEnrollmentCounts, setCourseEnrollmentCounts] = useState<Record<string, number>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadData = useCallback(async () => {
+    if (profileLoading) return
+    if (profileError) {
+      setError(`Failed to load profile: ${profileError}`)
+      setIsLoading(false)
+      return
+    }
+    if (!profile?.id) {
+      setError("Student profile not loaded or incomplete.")
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+      // Fetch elective course packs
+      const { data: packs, error: packsError } = await supabase
+        .from("elective_courses")
+        .select("*")
+        .eq("institution_id", profile.institution_id)
+        .order("created_at", { ascending: false })
+
+      if (packsError) throw packsError
+
+      // Fetch student's existing selections
+      const { data: selections, error: selectionsError } = await supabase
+        .from("course_selections")
+        .select("*")
+        .eq("student_id", profile.id)
+
+      if (selectionsError) throw selectionsError
+
+      // For each pack, get course enrollment counts
+      const enrollmentCounts: Record<string, number> = {}
+
+      for (const pack of packs || []) {
+        if (pack.courses && Array.isArray(pack.courses)) {
+          for (const courseId of pack.courses) {
+            // Count ALL selections for this course (pending, approved, rejected)
+            const { count, error: countError } = await supabase
+              .from("course_selections")
+              .select("*", { count: "exact", head: true })
+              .contains("selected_course_ids", [courseId])
+
+            if (countError) {
+              console.error(`Error counting enrollments for course ${courseId}:`, countError)
+            } else {
+              enrollmentCounts[courseId] = count || 0
+            }
+          }
+        }
+      }
+
+      setElectivePacks(packs || [])
+      setStudentSelections(selections || [])
+      setCourseEnrollmentCounts(enrollmentCounts)
+    } catch (error: any) {
+      setError(error.message || "Failed to load course data.")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [profile, profileLoading, profileError])
 
   useEffect(() => {
-    console.log("ElectivesPage: useEffect triggered.")
-    if (profileLoading) {
-      console.log("ElectivesPage: Profile is loading.")
-      setIsLoading(true)
-      return
-    }
-
-    if (profileError) {
-      console.error("ElectivesPage: Profile loading error:", profileError)
-      setFetchError(`Failed to load profile: ${profileError}`)
-      setIsLoading(false)
-      return
-    }
-
-    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
-      console.log("ElectivesPage: Profile ID, Institution ID, or Group ID missing.", profile)
-      setFetchError(
-        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific electives.",
-      )
-      setIsLoading(false)
-      setElectiveCourses([])
-      setCourseSelections([])
-      return
-    }
-
-    console.log("ElectivesPage: Profile loaded:", profile)
-
-    const fetchData = async () => {
-      setIsLoading(true)
-      setFetchError(null)
-      console.log(
-        "ElectivesPage: Starting data fetch for institution:",
-        profile.institution_id,
-        "and group:",
-        profile.group.id,
-      )
-      try {
-        // Fetch elective courses for the institution
-        console.log("ElectivesPage: Fetching elective_courses...")
-        const { data: coursesData, error: coursesError } = await supabaseClient
-          .from("elective_courses")
-          .select("*")
-          .eq("institution_id", profile.institution_id)
-          .eq("group_id", profile.group.id) // Added group_id filter
-          .order("deadline", { ascending: false })
-
-        if (coursesError) {
-          console.error("ElectivesPage: Error fetching elective_courses:", coursesError)
-          throw coursesError
-        }
-        console.log("ElectivesPage: elective_courses fetched:", coursesData)
-        setElectiveCourses(coursesData || [])
-
-        // Fetch student's course selections
-        console.log("ElectivesPage: Fetching course_selections for student:", profile.id)
-        const { data: selectionsData, error: selectionsError } = await supabaseClient
-          .from("course_selections")
-          .select("*")
-          .eq("student_id", profile.id)
-
-        if (selectionsError) {
-          console.error("ElectivesPage: Error fetching course_selections:", selectionsError)
-          throw selectionsError
-        }
-        console.log("ElectivesPage: course_selections fetched:", selectionsData)
-        setCourseSelections(selectionsData || [])
-      } catch (error: any) {
-        console.error("ElectivesPage: Data fetching error:", error)
-        setFetchError(error.message || "Failed to load elective courses data.")
-        toast({
-          title: "Error",
-          description: error.message || "Failed to load elective courses",
-          variant: "destructive",
-        })
-        setElectiveCourses([]) // Clear data on error
-        setCourseSelections([])
-      } finally {
-        console.log("ElectivesPage: Data fetch finished.")
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [profile, profileLoading, profileError, toast])
+    loadData()
+  }, [loadData])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -124,63 +104,134 @@ export default function ElectivesPage() {
     })
   }
 
-  const getSelectionStatus = (courseId: string) => {
-    const selection = courseSelections.find((sel) => sel.elective_courses_id === courseId)
-    return selection?.status || null
+  const getSelectionForPack = (packId: string) => {
+    return studentSelections.find((selection) => selection.elective_courses_id === packId)
   }
 
-  const getSelectedCoursesCount = (electiveCourse: any) => {
-    const selection = courseSelections.find((sel) => sel.elective_courses_id === electiveCourse.id)
-    if (!selection || !electiveCourse.courses) return 0
-    try {
-      const coursesInElective = JSON.parse(electiveCourse.courses)
-      if (Array.isArray(coursesInElective)) {
-        const selected = coursesInElective.filter((c) => c.selected === true)
-        return selected.length
-      }
-    } catch (e) {
-      console.error("Error parsing courses JSON for count:", e)
-    }
-    return 0 // Fallback
-  }
-
-  const getStatusColor = (status: string | null) => {
+  const getStatusBadge = (status: SelectionStatus) => {
     switch (status) {
-      case "approved":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case "rejected":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+      case SelectionStatus.APPROVED:
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            {t("student.courses.approved")}
+          </Badge>
+        )
+      case SelectionStatus.PENDING:
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
+            <Clock className="mr-1 h-3 w-3" />
+            {t("student.courses.pending")}
+          </Badge>
+        )
+      case SelectionStatus.REJECTED:
+        return (
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
+            <AlertTriangle className="mr-1 h-3 w-3" />
+            {t("student.courses.rejected")}
+          </Badge>
+        )
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+        return null
     }
   }
 
-  const getStatusIcon = (status: string | null) => {
-    switch (status) {
-      case "approved":
-        return <CheckCircle className="h-4 w-4" />
-      case "pending":
-        return <Clock className="h-4 w-4" />
-      case "rejected":
-        return <AlertCircle className="h-4 w-4" />
-      default:
-        return <AlertCircle className="h-4 w-4" />
+  const getPackStatusAlert = (pack: any) => {
+    const selection = getSelectionForPack(pack.id)
+    const isDeadlinePassed = pack.deadline ? new Date(pack.deadline) < new Date() : false
+
+    if (selection?.status === SelectionStatus.APPROVED) {
+      return (
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionApproved")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionApprovedDesc")}</AlertDescription>
+        </Alert>
+      )
     }
+
+    if (selection?.status === SelectionStatus.PENDING) {
+      return (
+        <Alert className="bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionPending")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionPendingDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+
+    if (selection?.status === SelectionStatus.REJECTED) {
+      return (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.selectionRejected")}</AlertTitle>
+          <AlertDescription>{t("student.courses.selectionRejectedDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+
+    if (pack.status === "draft") {
+      return (
+        <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.comingSoon")}</AlertTitle>
+          <AlertDescription>{t("student.courses.comingSoonDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+
+    if (isDeadlinePassed) {
+      return (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.courses.deadlinePassed")}</AlertTitle>
+          <AlertDescription>{t("student.courses.deadlinePassedDesc")}</AlertDescription>
+        </Alert>
+      )
+    }
+
+    return (
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>{t("student.courses.selectionPeriodActive")}</AlertTitle>
+        <AlertDescription>
+          {t("student.courses.selectionPeriodDesc")} {pack.max_selections} {t("student.courses.until")}{" "}
+          {pack.deadline && formatDate(pack.deadline)}.
+        </AlertDescription>
+      </Alert>
+    )
   }
 
-  const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
+  const getCourseEnrollmentInfo = (courseId: string, maxStudents: number | null) => {
+    const currentEnrollment = courseEnrollmentCounts[courseId] || 0
+    const max = maxStudents || 0
+
+    if (max === 0) return null
+
+    return {
+      current: currentEnrollment,
+      max: max,
+      isFull: currentEnrollment >= max,
+    }
+  }
 
   if (profileLoading || isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
-            <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
-          </div>
-          <TableSkeleton numberOfRows={3} />
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Courses</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </div>
       </DashboardLayout>
     )
@@ -188,136 +239,110 @@ export default function ElectivesPage() {
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("student.courses.title")}</h1>
-          <p className="text-muted-foreground">{t("student.courses.subtitle")}</p>
+          <p className="text-muted-foreground">{t("student.courses.description")}</p>
         </div>
 
-        {fetchError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        )}
-
-        {!fetchError && electiveCourses.length === 0 && (
+        {electivePacks.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">{t("student.courses.noCoursesFound")}</p>
-              <p className="text-sm text-muted-foreground mt-1">{t("student.courses.checkBackLater")}</p>
+            <CardContent className="py-10 text-center">
+              <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">{t("student.courses.noCoursesAvailable")}</p>
             </CardContent>
           </Card>
-        )}
-
-        {!fetchError && electiveCourses.length > 0 && (
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {electiveCourses.map((elective) => {
-              const selectionStatus = getSelectionStatus(elective.id)
-              const selectedCount = getSelectedCoursesCount(elective) // Pass the whole elective object
-              const deadlinePassed = isDeadlinePassed(elective.deadline)
-              const name = language === "ru" && elective.name_ru ? elective.name_ru : elective.name
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {electivePacks.map((pack) => {
+              const selection = getSelectionForPack(pack.id)
+              const packName = language === "ru" && pack.name_ru ? pack.name_ru : pack.name
+              const packDescription = language === "ru" && pack.description_ru ? pack.description_ru : pack.description
+              const isDeadlinePassed = pack.deadline ? new Date(pack.deadline) < new Date() : false
+              const canSelect = !isDeadlinePassed && pack.status === "published" && !selection
 
               return (
                 <Card
-                  key={elective.id}
-                  className={`h-full transition-all hover:shadow-md ${
-                    selectionStatus === "approved"
-                      ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
-                      : selectionStatus === "pending"
-                        ? "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
-                        : ""
+                  key={pack.id}
+                  className={`flex flex-col h-full transition-all hover:shadow-md ${
+                    selection?.status === SelectionStatus.APPROVED
+                      ? "border-green-200 dark:border-green-800"
+                      : selection?.status === SelectionStatus.PENDING
+                        ? "border-yellow-200 dark:border-yellow-800"
+                        : selection?.status === SelectionStatus.REJECTED
+                          ? "border-red-200 dark:border-red-800"
+                          : ""
                   }`}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <CardTitle className="text-xl">{name}</CardTitle>
-                        {selectionStatus ? (
-                          <Badge className={getStatusColor(selectionStatus)} variant="secondary">
-                            <span className="flex items-center space-x-1">
-                              {getStatusIcon(selectionStatus)}
-                              <span className="capitalize ml-1">
-                                {t(`student.courses.status.${selectionStatus}` as any, selectionStatus)}
-                              </span>
-                            </span>
-                          </Badge>
-                        ) : (
-                          <Badge className={getStatusColor(null)} variant="secondary">
-                            <span className="flex items-center space-x-1">
-                              {getStatusIcon(null)}
-                              <span className="capitalize ml-1">{t("student.courses.noSelection")}</span>
-                            </span>
-                          </Badge>
-                        )}
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-lg leading-tight">{packName}</CardTitle>
+                      {selection && getStatusBadge(selection.status)}
+                    </div>
+                    {packDescription && (
+                      <CardDescription className="text-sm line-clamp-2">{packDescription}</CardDescription>
+                    )}
+                  </CardHeader>
+
+                  <CardContent className="flex-grow space-y-3">
+                    <div className="space-y-2 text-sm">
+                      {pack.deadline && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                          <span>
+                            {t("student.courses.deadline")}: {formatDate(pack.deadline)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <BookOpen className="h-4 w-4" />
+                        <span>
+                          {t("student.courses.maxSelections")}: {pack.max_selections || 0}
+                        </span>
                       </div>
-                      {elective.status === "draft" ? (
-                        <Badge variant="outline">{t("student.courses.comingSoon")}</Badge>
-                      ) : deadlinePassed ? (
-                        <Badge variant="destructive">{t("student.courses.closed")}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("student.courses.open")}</Badge>
+                      {pack.courses && Array.isArray(pack.courses) && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Users className="h-4 w-4" />
+                          <span>
+                            {pack.courses.length} {t("student.courses.coursesAvailable")}
+                          </span>
+                        </div>
                       )}
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow"></CardContent>
-                  <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
-                    <div className="flex flex-col gap-y-2 text-sm w-full">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground">{t("student.courses.deadline")}:</span>
-                        <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(elective.deadline)}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-muted-foreground">{t("student.courses.limit")}:</span>
-                          <span>{elective.max_selections}</span>
+
+                    {selection && selection.selected_course_ids && selection.selected_course_ids.length > 0 && (
+                      <div className="mt-3 pt-3 border-t">
+                        <h4 className="text-sm font-medium mb-2">{t("student.courses.selectedCourses")}:</h4>
+                        <div className="space-y-1">
+                          {selection.selected_course_ids.slice(0, 2).map((courseId: string, index: number) => (
+                            <div key={courseId} className="text-xs text-muted-foreground">
+                              • {t("student.courses.course")} {index + 1}
+                            </div>
+                          ))}
+                          {selection.selected_course_ids.length > 2 && (
+                            <div className="text-xs text-muted-foreground">
+                              • {t("student.courses.andMore", { count: selection.selected_course_ids.length - 2 })}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
+                    )}
+                  </CardContent>
 
-                    <div
-                      className={`flex items-center justify-between rounded-md p-2 w-full ${
-                        selectionStatus === "approved"
-                          ? "bg-green-100/50 dark:bg-green-900/20"
-                          : selectionStatus === "pending"
-                            ? "bg-yellow-100/50 dark:bg-yellow-900/20"
-                            : "bg-gray-100/50 dark:bg-gray-900/20"
-                      }`}
-                    >
-                      <span className="text-sm">
-                        {t("student.courses.selected")}: {selectedCount}/{elective.max_selections}
-                      </span>
-                      <Link href={`/student/courses/${elective.id}`}>
-                        <Button
-                          size="sm"
-                          variant={
-                            elective.status === "draft" ||
-                            (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
-                              ? "outline"
-                              : selectionStatus === "approved"
-                                ? "outline"
-                                : selectionStatus === "pending"
-                                  ? "secondary"
-                                  : "default"
-                          }
-                          className={`h-7 gap-1 ${
-                            selectionStatus === "approved"
-                              ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
-                              : elective.status === "draft" ||
-                                  (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
-                                ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
-                                : ""
-                          }`}
-                          disabled={elective.status === "draft"}
-                        >
-                          <>
-                            <span>{t("student.courses.view")}</span>
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </>
+                  <CardFooter className="pt-0 border-t mt-auto">
+                    <div className="w-full space-y-3">
+                      {getPackStatusAlert(pack)}
+                      <div className="flex gap-2">
+                        <Button asChild className="flex-1" disabled={!canSelect && !selection}>
+                          <Link href={`/student/courses/${pack.id}`}>
+                            {selection
+                              ? t("student.courses.viewSelection")
+                              : canSelect
+                                ? t("student.courses.selectCourses")
+                                : t("student.courses.viewCourses")}
+                          </Link>
                         </Button>
-                      </Link>
+                      </div>
                     </div>
                   </CardFooter>
                 </Card>

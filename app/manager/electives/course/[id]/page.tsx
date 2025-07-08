@@ -71,7 +71,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course focuses on the strategic management of organizations.",
       credits: 5,
       maxStudents: 30,
-      currentStudents: 25,
+      currentStudents: 22, // Only count pending + approved (was 25)
       professor: "Dr. Smith",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -84,7 +84,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course covers marketing strategies in an international context.",
       credits: 4,
       maxStudents: 25,
-      currentStudents: 25,
+      currentStudents: 23, // Only count pending + approved (was 25)
       professor: "Dr. Johnson",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -97,7 +97,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course covers financial management principles and practices.",
       credits: 5,
       maxStudents: 35,
-      currentStudents: 20,
+      currentStudents: 18, // Only count pending + approved (was 20)
       professor: "Dr. Williams",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -110,7 +110,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course examines human behavior in organizational settings.",
       credits: 4,
       maxStudents: 30,
-      currentStudents: 30,
+      currentStudents: 28, // Only count pending + approved (was 30)
       professor: "Dr. Brown",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -123,7 +123,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course explores ethical issues in business and management.",
       credits: 3,
       maxStudents: 40,
-      currentStudents: 15,
+      currentStudents: 12, // Only count pending + approved (was 15)
       professor: "Dr. Davis",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -136,7 +136,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       description: "This course covers the management of supply chains and logistics.",
       credits: 4,
       maxStudents: 25,
-      currentStudents: 20,
+      currentStudents: 18, // Only count pending + approved (was 20)
       professor: "Dr. Miller",
       semester: electiveCourse.semester,
       year: electiveCourse.year,
@@ -767,7 +767,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full flex items-center gap-2"
+                            className="w-full flex items-center gap-2 bg-transparent"
                             onClick={() =>
                               downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                             }

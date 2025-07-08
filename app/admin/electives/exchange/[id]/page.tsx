@@ -87,7 +87,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Amsterdam",
       language: "English, Dutch",
       maxStudents: 5,
-      currentStudents: 3,
+      currentStudents: 2, // Only count pending + approved (was 3)
       website: "https://www.uva.nl/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -103,7 +103,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Paris",
       language: "English, French",
       maxStudents: 4,
-      currentStudents: 4,
+      currentStudents: 3, // Only count pending + approved (was 4)
       website: "https://www.hec.edu/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -119,7 +119,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Copenhagen",
       language: "English, Danish",
       maxStudents: 6,
-      currentStudents: 2,
+      currentStudents: 2, // Remains the same
       website: "https://www.cbs.dk/en",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -135,7 +135,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Milan",
       language: "English, Italian",
       maxStudents: 5,
-      currentStudents: 5,
+      currentStudents: 4, // Only count pending + approved (was 5)
       website: "https://www.unibocconi.eu/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -152,7 +152,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Vienna",
       language: "English, German",
       maxStudents: 4,
-      currentStudents: 2,
+      currentStudents: 2, // Remains the same
       website: "https://www.wu.ac.at/en/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -168,7 +168,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
       city: "Stockholm",
       language: "English, Swedish",
       maxStudents: 3,
-      currentStudents: 2,
+      currentStudents: 2, // Remains the same
       website: "https://www.hhs.se/en/",
       academicYear: 2,
       semester: exchangeProgram.semester,
@@ -813,7 +813,7 @@ export default function AdminExchangeDetailPage({ params }: ExchangeProgramDetai
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full flex items-center gap-2"
+                          className="w-full flex items-center gap-2 bg-transparent"
                           onClick={() =>
                             downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
                           }
