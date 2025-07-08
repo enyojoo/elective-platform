@@ -1,19 +1,116 @@
 "use client"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, SelectionStatus } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { UserRole } from "@/lib/types"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CheckCircle, Clock, AlertTriangle, Calendar, Users, Globe, Info } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertCircle, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { useCachedStudentExchange } from "@/hooks/use-cached-student-exchange"
+import { createClient } from "@supabase/supabase-js"
+import { useToast } from "@/hooks/use-toast"
+import { useCachedStudentProfile } from "@/hooks/use-cached-student-profile"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
-export default function StudentExchangePage() {
+// Create a singleton Supabase client to prevent multiple instances
+const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+export default function ExchangePage() {
   const { t, language } = useLanguage()
-  const { data, isLoading, error } = useCachedStudentExchange()
+  const { toast } = useToast()
+  const { profile, isLoading: profileLoading, error: profileError } = useCachedStudentProfile()
+  const [exchangePrograms, setExchangePrograms] = useState<any[]>([])
+  const [exchangeSelections, setExchangeSelections] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  useEffect(() => {
+    console.log("ExchangePage: useEffect triggered.")
+    if (profileLoading) {
+      console.log("ExchangePage: Profile is loading.")
+      setIsLoading(true)
+      return
+    }
+
+    if (profileError) {
+      console.error("ExchangePage: Profile loading error:", profileError)
+      setFetchError(`Failed to load profile: ${profileError}`)
+      setIsLoading(false)
+      return
+    }
+
+    if (!profile?.id || !profile?.institution_id || !profile.group?.id) {
+      console.log("ExchangePage: Profile ID, Institution ID, or Group ID missing.", profile)
+      setFetchError(
+        "Student profile information (including group assignment) is incomplete. Cannot fetch group-specific exchange programs.",
+      )
+      setIsLoading(false)
+      setExchangePrograms([])
+      setExchangeSelections([])
+      return
+    }
+
+    console.log("ExchangePage: Profile loaded:", profile)
+
+    const fetchData = async () => {
+      setIsLoading(true)
+      setFetchError(null)
+      console.log(
+        "ExchangePage: Starting data fetch for institution:",
+        profile.institution_id,
+        "and group:",
+        profile.group.id,
+      )
+      try {
+        // Fetch exchange programs for the institution and group
+        console.log("ExchangePage: Fetching elective_exchange...")
+        const { data: exchangeData, error: exchangeError } = await supabaseClient
+          .from("elective_exchange")
+          .select("*")
+          .eq("institution_id", profile.institution_id)
+          .eq("group_id", profile.group.id)
+          .order("deadline", { ascending: false })
+
+        if (exchangeError) {
+          console.error("ExchangePage: Error fetching elective_exchange:", exchangeError)
+          throw exchangeError
+        }
+        console.log("ExchangePage: elective_exchange fetched:", exchangeData)
+        setExchangePrograms(exchangeData || [])
+
+        // Fetch student's exchange selections
+        console.log("ExchangePage: Fetching exchange_selections for student:", profile.id)
+        const { data: selectionsData, error: selectionsError } = await supabaseClient
+          .from("exchange_selections")
+          .select("*")
+          .eq("student_id", profile.id)
+
+        if (selectionsError) {
+          console.error("ExchangePage: Error fetching exchange_selections:", selectionsError)
+          throw selectionsError
+        }
+        console.log("ExchangePage: exchange_selections fetched:", selectionsData)
+        setExchangeSelections(selectionsData || [])
+      } catch (error: any) {
+        console.error("ExchangePage: Data fetching error:", error)
+        setFetchError(error.message || "Failed to load exchange programs data.")
+        toast({
+          title: "Error",
+          description: error.message || "Failed to load exchange programs",
+          variant: "destructive",
+        })
+        setExchangePrograms([])
+        setExchangeSelections([])
+      } finally {
+        console.log("ExchangePage: Data fetch finished.")
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [profile, profileLoading, profileError, toast])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -24,156 +121,192 @@ export default function StudentExchangePage() {
     })
   }
 
-  const getStatusColor = (status: SelectionStatus) => {
+  const getSelectionStatus = (exchangeId: string) => {
+    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
+    return selection?.status || null
+  }
+
+  const getSelectedUniversitiesCount = (exchangeId: string) => {
+    const selection = exchangeSelections.find((sel) => sel.elective_exchange_id === exchangeId)
+    return selection?.selected_university_ids?.length || 0
+  }
+
+  const getStatusColor = (status: string | null) => {
     switch (status) {
-      case SelectionStatus.APPROVED:
+      case "approved":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      case SelectionStatus.PENDING:
+      case "pending":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case SelectionStatus.REJECTED:
+      case "rejected":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
     }
   }
 
-  const getStatusIcon = (status: SelectionStatus) => {
+  const getStatusIcon = (status: string | null) => {
     switch (status) {
-      case SelectionStatus.APPROVED:
+      case "approved":
         return <CheckCircle className="h-4 w-4" />
-      case SelectionStatus.PENDING:
+      case "pending":
         return <Clock className="h-4 w-4" />
-      case SelectionStatus.REJECTED:
-        return <AlertTriangle className="h-4 w-4" />
+      case "rejected":
+        return <AlertCircle className="h-4 w-4" />
       default:
-        return <Info className="h-4 w-4" />
+        return <AlertCircle className="h-4 w-4" />
     }
   }
 
-  if (isLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <PageSkeleton />
-      </DashboardLayout>
-    )
-  }
+  const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
-  if (error) {
+  if (profileLoading || isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="p-4">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Exchange Programs</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{t("student.exchange.title")}</h1>
+            <p className="text-muted-foreground">{t("student.exchange.subtitle")}</p>
+          </div>
+          <TableSkeleton numberOfRows={3} />
         </div>
       </DashboardLayout>
     )
   }
-
-  const { exchanges, selections } = data || { exchanges: [], selections: [] }
-
-  // Create a map of selections by elective_exchange_id for quick lookup
-  const selectionMap = new Map(selections.map((sel) => [sel.elective_exchange_id, sel]))
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{t("student.exchange.title")}</h1>
-          <p className="text-muted-foreground">{t("student.exchange.description")}</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("student.exchange.title")}</h1>
+          <p className="text-muted-foreground">{t("student.exchange.subtitle")}</p>
         </div>
 
-        {exchanges.length === 0 ? (
+        {fetchError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{fetchError}</AlertDescription>
+          </Alert>
+        )}
+
+        {!fetchError && exchangePrograms.length === 0 && (
           <Card>
-            <CardContent className="py-10 text-center">
-              <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">{t("student.exchange.noExchangesAvailable")}</p>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">{t("student.exchange.noExchangeFound")}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t("student.exchange.checkBackLater")}</p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {exchanges.map((exchange) => {
-              const selection = selectionMap.get(exchange.id)
+        )}
+
+        {!fetchError && exchangePrograms.length > 0 && (
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+            {exchangePrograms.map((exchange) => {
+              const selectionStatus = getSelectionStatus(exchange.id)
+              const selectedCount = getSelectedUniversitiesCount(exchange.id)
+              const deadlinePassed = isDeadlinePassed(exchange.deadline)
               const name = language === "ru" && exchange.name_ru ? exchange.name_ru : exchange.name
-              const description =
-                language === "ru" && exchange.description_ru ? exchange.description_ru : exchange.description
-              const isDeadlinePassed = new Date(exchange.deadline) < new Date()
-              const isDraft = exchange.status === "draft"
 
               return (
                 <Card
                   key={exchange.id}
-                  className={`flex flex-col h-full transition-all hover:shadow-md ${
-                    selection?.status === SelectionStatus.APPROVED
-                      ? "border-green-200 dark:border-green-800"
-                      : selection?.status === SelectionStatus.PENDING
-                        ? "border-yellow-200 dark:border-yellow-800"
-                        : selection?.status === SelectionStatus.REJECTED
-                          ? "border-red-200 dark:border-red-800"
-                          : ""
+                  className={`h-full transition-all hover:shadow-md ${
+                    selectionStatus === "approved"
+                      ? "border-green-500 bg-green-50/30 dark:bg-green-950/10"
+                      : selectionStatus === "pending"
+                        ? "border-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10"
+                        : ""
                   }`}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start gap-2">
-                      <CardTitle className="text-lg leading-tight">{name}</CardTitle>
-                      {isDraft ? (
-                        <Badge variant="outline" className="text-xs">
-                          {t("student.exchange.comingSoon")}
-                        </Badge>
-                      ) : isDeadlinePassed ? (
-                        <Badge variant="destructive" className="text-xs">
-                          {t("student.exchange.closed")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">
-                          {t("student.exchange.open")}
-                        </Badge>
-                      )}
-                    </div>
-                    {description && <CardDescription className="text-sm line-clamp-2">{description}</CardDescription>}
-                  </CardHeader>
-
-                  <CardContent className="flex-grow pb-3">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span>
-                          {t("student.exchange.deadline")}: {formatDate(exchange.deadline)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Users className="h-4 w-4" />
-                        <span>
-                          {t("student.exchange.maxSelections")}: {exchange.max_selections}
-                        </span>
-                      </div>
-
-                      {selection && (
-                        <div className="pt-2">
-                          <Badge className={getStatusColor(selection.status)} variant="secondary">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <CardTitle className="text-xl">{name}</CardTitle>
+                        {selectionStatus ? (
+                          <Badge className={getStatusColor(selectionStatus)} variant="secondary">
                             <span className="flex items-center space-x-1">
-                              {getStatusIcon(selection.status)}
+                              {getStatusIcon(selectionStatus)}
                               <span className="capitalize ml-1">
-                                {t(`student.exchange.status.${selection.status}` as any, selection.status)}
+                                {t(`student.exchange.status.${selectionStatus}` as any, selectionStatus)}
                               </span>
                             </span>
                           </Badge>
-                        </div>
+                        ) : (
+                          <Badge className={getStatusColor(null)} variant="secondary">
+                            <span className="flex items-center space-x-1">
+                              {getStatusIcon(null)}
+                              <span className="capitalize ml-1">{t("student.exchange.noSelection")}</span>
+                            </span>
+                          </Badge>
+                        )}
+                      </div>
+                      {exchange.status === "draft" ? (
+                        <Badge variant="outline">{t("student.exchange.comingSoon")}</Badge>
+                      ) : deadlinePassed ? (
+                        <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
+                      ) : (
+                        <Badge variant="secondary">{t("student.exchange.open")}</Badge>
                       )}
                     </div>
-                  </CardContent>
+                  </CardHeader>
+                  <CardContent className="flex-grow"></CardContent>
+                  <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
+                    <div className="flex flex-col gap-y-2 text-sm w-full">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{t("student.exchange.deadline")}:</span>
+                        <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(exchange.deadline)}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">{t("student.exchange.limit")}:</span>
+                          <span>{exchange.max_selections}</span>
+                        </div>
+                      </div>
+                    </div>
 
-                  <CardContent className="pt-0 border-t mt-auto">
-                    <Link href={`/student/exchange/${exchange.id}`} className="block w-full">
-                      <Button variant="outline" className="w-full bg-transparent">
-                        <Globe className="h-4 w-4 mr-2" />
-                        {selection ? t("student.exchange.viewSelection") : t("student.exchange.viewDetails")}
-                      </Button>
-                    </Link>
-                  </CardContent>
+                    <div
+                      className={`flex items-center justify-between rounded-md p-2 w-full ${
+                        selectionStatus === "approved"
+                          ? "bg-green-100/50 dark:bg-green-900/20"
+                          : selectionStatus === "pending"
+                            ? "bg-yellow-100/50 dark:bg-yellow-900/20"
+                            : "bg-gray-100/50 dark:bg-gray-900/20"
+                      }`}
+                    >
+                      <span className="text-sm">
+                        {t("student.exchange.selected")}: {selectedCount}/{exchange.max_selections}
+                      </span>
+                      <Link href={`/student/exchange/${exchange.id}`}>
+                        <Button
+                          size="sm"
+                          variant={
+                            exchange.status === "draft" ||
+                            (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
+                              ? "outline"
+                              : selectionStatus === "approved"
+                                ? "outline"
+                                : selectionStatus === "pending"
+                                  ? "secondary"
+                                  : "default"
+                          }
+                          className={`h-7 gap-1 ${
+                            selectionStatus === "approved"
+                              ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
+                              : exchange.status === "draft" ||
+                                  (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
+                                ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
+                                : ""
+                          }`}
+                          disabled={exchange.status === "draft"}
+                        >
+                          <>
+                            <span>{t("student.exchange.view")}</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </>
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardFooter>
                 </Card>
               )
             })}
