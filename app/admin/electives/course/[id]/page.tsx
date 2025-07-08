@@ -1,885 +1,454 @@
 "use client"
 
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, ElectivePackStatus, SelectionStatus } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  ArrowLeft,
-  Edit,
-  Eye,
-  MoreVertical,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Download,
-  FileDown,
-} from "lucide-react"
-import Link from "next/link"
-import { useState, useEffect } from "react"
-import { useLanguage } from "@/lib/language-context"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ArrowLeft, Users, Edit, Eye, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Toaster } from "@/components/ui/toaster"
-import { createClient } from "@/lib/supabase/client"
+import { useInstitutionContext } from "@/lib/institution-context"
 
-interface ElectiveCourseDetailPageProps {
-  params: {
-    id: string
+interface Course {
+  id: string
+  name: string
+  description: string
+  instructor: string
+  schedule: string
+  location: string
+  max_students: number
+  current_students: number
+}
+
+interface ElectivePack {
+  id: string
+  name: string
+  description: string
+  courses: Course[]
+  max_selections: number
+  selection_deadline: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+interface StudentSelection {
+  id: string
+  student_id: string
+  selected_ids: string[]
+  status: string
+  created_at: string
+  updated_at: string
+  student: {
+    full_name: string
+    email: string
+    group: {
+      name: string
+    }
   }
 }
 
-export default function AdminElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
-  // Add the language hook near the top of the component
-  const { t, language } = useLanguage()
+export default function AdminCoursePackDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const packId = params.id as string
   const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitutionContext()
 
-  // State for dialogs
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
-  const [viewDialogOpen, setViewDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editedCourses, setEditedCourses] = useState<string[]>([])
+  const [pack, setPack] = useState<ElectivePack | null>(null)
+  const [selections, setSelections] = useState<StudentSelection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectionsLoading, setSelectionsLoading] = useState(true)
 
-  // Mock elective course data
-  const electiveCourse = {
-    id: params.id,
-    name:
-      params.id === "fall-2023"
-        ? "Fall Semester 2023"
-        : params.id === "spring-2024"
-          ? "Spring Semester 2024"
-          : "Elective Courses",
-    description:
-      "Select your preferred courses for this semester's elective program. You can choose up to the maximum number of courses allowed for this program.",
-    semester: params.id.includes("fall") ? "Fall" : "Spring",
-    year: params.id.includes("2023") ? 2023 : params.id.includes("2024") ? 2024 : 2025,
-    maxSelections: params.id === "spring-2024" ? 3 : 2,
-    status: ElectivePackStatus.PUBLISHED,
-    startDate: params.id.includes("fall") ? "2023-08-01" : "2024-01-10",
-    endDate: params.id.includes("fall") ? "2023-08-15" : "2024-01-25",
-    coursesCount: params.id === "spring-2024" ? 8 : 6,
-    studentsEnrolled: params.id === "fall-2023" ? 42 : params.id === "spring-2024" ? 28 : 0,
-    createdAt: params.id.includes("fall") ? "2023-07-01" : "2023-12-01",
-  }
-
-  // Replace the mock courses data with real data fetching
-  const [courses, setCourses] = useState<any[]>([])
-
-  // Add this useEffect to fetch real course data
   useEffect(() => {
-    const fetchCoursesData = async () => {
-      try {
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    if (packId && institution?.id) {
+      fetchPackDetails()
+      fetchSelections()
+    }
+  }, [packId, institution?.id])
 
-        // Get the elective course data to find associated courses
-        const { data: electiveData, error: electiveError } = await supabase
-          .from("elective_courses")
-          .select("courses")
-          .eq("id", params.id)
-          .single()
+  const fetchPackDetails = async () => {
+    try {
+      setLoading(true)
 
-        if (electiveError) throw electiveError
+      // Fetch elective course pack details
+      const { data: packData, error: packError } = await supabase
+        .from("elective_courses")
+        .select("*")
+        .eq("id", packId)
+        .eq("institution_id", institution?.id)
+        .single()
 
-        const courseUuids = electiveData?.courses || []
+      if (packError) throw packError
 
-        if (courseUuids.length > 0) {
-          // Fetch course details
-          const { data: fetchedCourses, error: coursesError } = await supabase
-            .from("courses")
-            .select("*")
-            .in("id", courseUuids)
+      if (!packData) {
+        toast({
+          title: "Error",
+          description: "Course pack not found",
+          variant: "destructive",
+        })
+        router.push("/admin/electives/course")
+        return
+      }
 
-          if (coursesError) throw coursesError
-
-          // Get current enrollment counts (pending + approved)
-          const { data: enrollmentCounts, error: enrollmentError } = await supabase
+      // Fetch courses with enrollment counts
+      const coursesWithEnrollment = await Promise.all(
+        (packData.courses || []).map(async (course: any) => {
+          // Count pending and approved selections for this course
+          const { count, error: countError } = await supabase
             .from("course_selections")
-            .select("selected_course_ids, status")
-            .eq("elective_courses_id", params.id)
+            .select("*", { count: "exact", head: true })
+            .eq("elective_courses_id", packId)
+            .contains("selected_ids", [course.id])
             .in("status", ["pending", "approved"])
 
-          if (enrollmentError) throw enrollmentError
+          if (countError) {
+            console.error("Error counting enrollments:", countError)
+            return { ...course, current_students: 0 }
+          }
 
-          // Calculate current students for each course
-          const coursesWithEnrollment = fetchedCourses?.map((course) => {
-            const currentStudents =
-              enrollmentCounts?.reduce((count, selection) => {
-                if (selection.selected_course_ids && selection.selected_course_ids.includes(course.id)) {
-                  return count + 1
-                }
-                return count
-              }, 0) || 0
+          return {
+            ...course,
+            current_students: count || 0,
+          }
+        }),
+      )
 
-            return {
-              ...course,
-              current_students: currentStudents,
-              name: course.name_en || course.name,
-              professor: course.instructor_en || course.instructor_ru || "TBD",
-            }
-          })
-
-          setCourses(coursesWithEnrollment || [])
-        }
-      } catch (error) {
-        console.error("Error fetching courses data:", error)
-      }
-    }
-
-    fetchCoursesData()
-  }, [params.id])
-
-  // Mock student selections data
-  const studentSelections = [
-    {
-      id: "1",
-      studentName: "Alex Johnson",
-      studentId: "st123456",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "alex.johnson@student.gsom.spbu.ru",
-      selectedCourses: ["Strategic Management", "Financial Management"],
-      selectionDate: "2023-08-05",
-      status: SelectionStatus.APPROVED,
-      statementFile: "alex_johnson_statement.pdf",
-    },
-    {
-      id: "2",
-      studentName: "Maria Petrova",
-      studentId: "st123457",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "maria.petrova@student.gsom.spbu.ru",
-      selectedCourses: ["International Marketing", "Supply Chain Management"],
-      selectionDate: "2023-08-06",
-      status: SelectionStatus.APPROVED,
-      statementFile: "maria_petrova_statement.pdf",
-    },
-    {
-      id: "3",
-      studentName: "Ivan Sokolov",
-      studentId: "st123458",
-      group: "23.B12-vshm",
-      program: "Management",
-      email: "ivan.sokolov@student.gsom.spbu.ru",
-      selectedCourses: ["Organizational Behavior", "Business Ethics"],
-      selectionDate: "2023-08-07",
-      status: SelectionStatus.PENDING,
-      statementFile: "ivan_sokolov_statement.pdf",
-    },
-    {
-      id: "4",
-      studentName: "Elena Ivanova",
-      studentId: "st123459",
-      group: "23.B11-vshm",
-      program: "International Management",
-      email: "elena.ivanova@student.gsom.spbu.ru",
-      selectedCourses: ["Strategic Management", "Business Ethics"],
-      selectionDate: "2023-08-08",
-      status: SelectionStatus.PENDING,
-      statementFile: null,
-    },
-  ]
-
-  // Format date helper
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
-  // Helper function to get status badge
-  const getStatusBadge = (status: ElectivePackStatus) => {
-    switch (status) {
-      case ElectivePackStatus.DRAFT:
-        return <Badge variant="outline">{t("manager.status.draft")}</Badge>
-      case ElectivePackStatus.PUBLISHED:
-        return <Badge variant="secondary">{t("manager.status.published")}</Badge>
-      case ElectivePackStatus.CLOSED:
-        return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
-      case ElectivePackStatus.ARCHIVED:
-        return <Badge variant="default">{t("manager.status.archived")}</Badge>
-      default:
-        return null
-    }
-  }
-
-  // Helper function to get selection status badge
-  const getSelectionStatusBadge = (status: SelectionStatus) => {
-    switch (status) {
-      case SelectionStatus.APPROVED:
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
-            <CheckCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.approved")}
-          </Badge>
-        )
-      case SelectionStatus.PENDING:
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
-            <Clock className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.pending")}
-          </Badge>
-        )
-      case SelectionStatus.REJECTED:
-        return (
-          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
-            <XCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.rejected")}
-          </Badge>
-        )
-      default:
-        return null
-    }
-  }
-
-  // Function to open view dialog with student details
-  const openViewDialog = (student: any) => {
-    setSelectedStudent(student)
-    setViewDialogOpen(true)
-  }
-
-  // Function to open edit dialog with student details
-  const openEditDialog = (student: any) => {
-    setSelectedStudent(student)
-    setEditedCourses([...student.selectedCourses])
-    setEditDialogOpen(true)
-  }
-
-  // Function to handle course selection in edit dialog
-  const handleCourseSelection = (courseName: string, checked: boolean) => {
-    if (checked) {
-      // Add course if it's not already selected and we haven't reached the max
-      if (!editedCourses.includes(courseName) && editedCourses.length < electiveCourse.maxSelections) {
-        setEditedCourses([...editedCourses, courseName])
-      }
-    } else {
-      // Remove course if it's selected
-      setEditedCourses(editedCourses.filter((name) => name !== courseName))
-    }
-  }
-
-  // Function to save edited courses
-  const saveEditedCourses = () => {
-    // In a real app, you would make an API call here to update the database
-    // For this demo, we'll just show a success message
-    setEditDialogOpen(false)
-
-    // Use setTimeout to ensure the toast appears after the dialog closes
-    window.setTimeout(() => {
+      setPack({
+        ...packData,
+        courses: coursesWithEnrollment,
+      })
+    } catch (error: any) {
+      console.error("Error fetching pack details:", error)
       toast({
-        title: t("toast.selection.updated"),
-        description: t("toast.selection.updated.course.description").replace("{0}", selectedStudent.studentName),
+        title: "Error",
+        description: "Failed to load course pack details",
+        variant: "destructive",
       })
-    }, 100)
-  }
-
-  // Function to export course enrollments to CSV
-  const exportCourseEnrollmentsToCSV = (courseName: string) => {
-    // Find students who selected this course
-    const studentsInCourse = studentSelections.filter((student) => student.selectedCourses.includes(courseName))
-
-    // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}"\n`
-
-    // Create CSV content with translated status
-    const courseContent = studentsInCourse
-      .map((student) => {
-        // Translate status based on current language
-        const translatedStatus =
-          language === "ru"
-            ? student.status === SelectionStatus.APPROVED
-              ? "Утверждено"
-              : student.status === SelectionStatus.PENDING
-                ? "На рассмотрении"
-                : "Отклонено"
-            : student.status === SelectionStatus.APPROVED
-              ? "Approved"
-              : student.status === SelectionStatus.PENDING
-                ? "Pending"
-                : "Rejected"
-
-        // Format date properly
-        const formattedDate = formatDate(student.selectionDate)
-
-        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${formattedDate}","${translatedStatus}"`
-      })
-      .join("\n")
-
-    // Combine header and content
-    const csv = csvHeader + courseContent
-
-    // Create a blob and download
-    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${courseName.replace(/\s+/g, "_")}_${language === "ru" ? "зачисления" : "enrollments"}.csv`,
-    )
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  // Function to download student statement
-  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
-    if (!fileName) {
-      toast({
-        title: t("toast.statement.notAvailable"),
-        description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
-      })
-      return
+    } finally {
+      setLoading(false)
     }
-
-    // In a real app, this would download the actual file
-    // For this demo, we'll just show a toast
-    toast({
-      title: t("toast.statement.download.success"),
-      description: t("toast.statement.download.success.description"),
-    })
   }
 
-  // Function to export all student selections to CSV
-  const exportAllSelectionsToCSV = () => {
-    // Create CSV header with translated column names
-    const csvHeader = `${language === "ru" ? "Имя студента" : "Student Name"},${language === "ru" ? "ID студента" : "Student ID"},${language === "ru" ? "Группа" : "Group"},${language === "ru" ? "Программа" : "Program"},${language === "ru" ? "Электронная почта" : "Email"},${language === "ru" ? "Выбранные курсы" : "Selected Courses"},${language === "ru" ? "Дата выбора" : "Selection Date"},${language === "ru" ? "Статус" : "Status"},${language === "ru" ? "Заявление" : "Statement"}\n`
+  const fetchSelections = async () => {
+    try {
+      setSelectionsLoading(true)
 
-    // Create CSV content with translated status
-    const allSelectionsContent = studentSelections
-      .map((student) => {
-        // Translate status based on current language
-        const translatedStatus =
-          language === "ru"
-            ? student.status === SelectionStatus.APPROVED
-              ? "Утверждено"
-              : student.status === SelectionStatus.PENDING
-                ? "На рассмотрении"
-                : "Отклонено"
-            : student.status
+      const { data: selectionsData, error: selectionsError } = await supabase
+        .from("course_selections")
+        .select(`
+          *,
+          student:profiles!course_selections_student_id_fkey(
+            full_name,
+            email,
+            group:groups(name)
+          )
+        `)
+        .eq("elective_courses_id", packId)
+        .order("created_at", { ascending: false })
 
-        // Format date properly
-        const formattedDate = formatDate(student.selectionDate)
+      if (selectionsError) throw selectionsError
 
-        // Create a download link for the statement if available
-        const statementLink = student.statementFile
-          ? `${window.location.origin}/api/statements/${student.statementFile}`
-          : language === "ru"
-            ? "Не загружено"
-            : "Not uploaded"
-
-        // Properly escape fields that might contain commas and ensure correct column alignment
-        return `"${student.studentName}","${student.studentId}","${student.group}","${student.program}","${student.email}","${student.selectedCourses.join("; ")}","${formattedDate}","${translatedStatus}","${statementLink}"`
+      setSelections(selectionsData || [])
+    } catch (error: any) {
+      console.error("Error fetching selections:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load student selections",
+        variant: "destructive",
       })
-      .join("\n")
+    } finally {
+      setSelectionsLoading(false)
+    }
+  }
 
-    // Combine header and content
-    const csv = csvHeader + allSelectionsContent
+  const updateSelectionStatus = async (selectionId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from("course_selections")
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectionId)
 
-    // Create a blob and download
-    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${electiveCourse.name.replace(/\s+/g, "_")}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: `Selection ${newStatus} successfully`,
+      })
+
+      // Refresh data to update counts
+      fetchSelections()
+      fetchPackDetails()
+    } catch (error: any) {
+      console.error("Error updating selection status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update selection status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case "rejected":
+        return <XCircle className="h-4 w-4 text-red-500" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return (
+          <Badge variant="default" className="bg-green-500">
+            Approved
+          </Badge>
+        )
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>
+      default:
+        return <Badge variant="secondary">Pending</Badge>
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-32 bg-gray-200 rounded"></div>
+          <div className="h-96 bg-gray-200 rounded"></div>
+        </div>
+      </div>
     )
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  }
+
+  if (!pack) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Course Pack Not Found</h1>
+          <Button onClick={() => router.push("/admin/electives/course")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Course Electives
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <DashboardLayout userRole={UserRole.ADMIN}>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Link href="/admin/electives?tab=courses">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{electiveCourse.name}</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">{getStatusBadge(electiveCourse.status)}</div>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => router.push("/admin/electives/course")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Course Electives
+          </Button>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("manager.courseDetails.programDetails")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-2">
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.selectionPeriod")}:</dt>
-                <dd>
-                  {formatDate(electiveCourse.startDate)} - {formatDate(electiveCourse.endDate)}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
-                <dd>
-                  {electiveCourse.maxSelections} {t("manager.courseDetails.courses")}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.courses")}:</dt>
-                <dd>{electiveCourse.coursesCount}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
-                <dd>{electiveCourse.studentsEnrolled}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
-                <dd>{formatDate(electiveCourse.createdAt)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
-                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <Tabs defaultValue="courses">
-          <TabsList>
-            <TabsTrigger value="courses">{t("manager.courseDetails.coursesTab")}</TabsTrigger>
-            <TabsTrigger value="students">{t("manager.courseDetails.studentsTab")}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="courses" className="mt-4">
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>{t("manager.courseDetails.coursesInProgram")}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.professor")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.enrollment")}
-                        </th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">
-                          {t("manager.courseDetails.export")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {courses.map((course) => (
-                        <tr key={course.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{course.name}</td>
-                          <td className="py-3 px-4 text-sm">{course.professor}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <Badge
-                              variant={course.current_students >= course.max_students ? "destructive" : "secondary"}
-                            >
-                              {course.current_students}/{course.max_students}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => exportCourseEnrollmentsToCSV(course.name)}
-                              className="flex items-center gap-1 mx-auto"
-                            >
-                              <FileDown className="h-4 w-4" />
-                              {t("manager.courseDetails.download")}
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="students" className="mt-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>{t("manager.courseDetails.studentSelections")}</CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="search"
-                      placeholder={t("manager.courseDetails.searchStudents")}
-                      className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
-                    />
-                  </div>
-                  <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
-                    <Download className="mr-2 h-4 w-4" />
-                    {t("manager.courseDetails.exportAll")}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.selectionDate")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">
-                          {t("manager.courseDetails.actions")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentSelections.map((selection) => (
-                        <tr key={selection.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{selection.studentName}</td>
-                          <td className="py-3 px-4 text-sm">{selection.group}</td>
-                          <td className="py-3 px-4 text-sm">{formatDate(selection.selectionDate)}</td>
-                          <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            {selection.statementFile ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => downloadStudentStatement(selection.studentName, selection.statementFile)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <Button variant="ghost" size="icon" onClick={() => openViewDialog(selection)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  {t("manager.courseDetails.edit")}
-                                </DropdownMenuItem>
-                                {selection.status === SelectionStatus.PENDING && (
-                                  <>
-                                    <DropdownMenuItem
-                                      className="text-green-600"
-                                      onClick={() => {
-                                        toast({
-                                          title: "Selection approved",
-                                          description: `The selection for ${selection.studentName} has been approved.`,
-                                        })
-                                      }}
-                                    >
-                                      <CheckCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.approve")}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-red-600"
-                                      onClick={() => {
-                                        toast({
-                                          title: "Selection rejected",
-                                          description: `The selection for ${selection.studentName} has been rejected.`,
-                                        })
-                                      }}
-                                    >
-                                      <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.reject")}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {selection.status === SelectionStatus.APPROVED && (
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() => {
-                                      toast({
-                                        title: t("toast.selection.withdrawn"),
-                                        description: t("toast.selection.withdrawn.description").replace(
-                                          "{0}",
-                                          selection.studentName,
-                                        ),
-                                      })
-                                    }}
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    {t("manager.courseDetails.withdraw")}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push(`/admin/electives/course/${pack.id}/edit`)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit Pack
+          </Button>
+        </div>
       </div>
 
-      {/* View Student Details Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          {selectedStudent && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{t("manager.courseDetails.studentDetails")}</DialogTitle>
-                <DialogDescription>
-                  {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.studentName}
-                  {t("manager.courseDetails.courseSelection")}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                        <span>{selectedStudent.studentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                        <span>{selectedStudent.studentId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.email")}:</span>
-                        <span>{selectedStudent.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                        <span>{selectedStudent.group}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                        <span>{selectedStudent.program}</span>
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-2xl">{pack.name}</CardTitle>
+              <CardDescription className="mt-2">{pack.description}</CardDescription>
+            </div>
+            <Badge variant={pack.status === "published" ? "default" : "secondary"}>{pack.status}</Badge>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Max Selections:</span>
+              <p className="font-medium">{pack.max_selections}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Selection Deadline:</span>
+              <p className="font-medium">{new Date(pack.selection_deadline).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Created:</span>
+              <p className="font-medium">{new Date(pack.created_at).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Last Updated:</span>
+              <p className="font-medium">{new Date(pack.updated_at).toLocaleDateString()}</p>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Tabs defaultValue="courses" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="courses">Courses ({pack.courses.length})</TabsTrigger>
+          <TabsTrigger value="selections">Student Selections ({selections.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="courses" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {pack.courses.map((course) => {
+              const isFull = course.current_students >= course.max_students
+              const utilizationPercentage = (course.current_students / course.max_students) * 100
+
+              return (
+                <Card key={course.id}>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{course.name}</CardTitle>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Users className="h-4 w-4" />
+                        <span className={isFull ? "text-red-500 font-medium" : ""}>
+                          {course.current_students}/{course.max_students}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
-                    <div className="mt-2 space-y-2">
-                      {selectedStudent.selectedCourses.map((course: string, index: number) => (
-                        <div key={index} className="rounded-md border p-2">
-                          <p className="font-medium">{course}</p>
+                    <CardDescription>{course.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <strong>Instructor:</strong> {course.instructor}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">{t("manager.courseDetails.selectionInformation")}</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.date")}:</span>
-                        <span>{formatDate(selectedStudent.selectionDate)}</span>
+                        <div>
+                          <strong>Schedule:</strong> {course.schedule}
+                        </div>
+                        <div>
+                          <strong>Location:</strong> {course.location}
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.status")}:</span>
-                        <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Statement File Section */}
-                  <div>
-                    <h3 className="text-sm font-medium">{t("statementFile")}</h3>
-                    <div className="mt-2">
-                      {selectedStudent.statementFile ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full flex items-center gap-2 bg-transparent"
-                          onClick={() =>
-                            downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
-                          }
-                        >
-                          <Download className="h-4 w-4" />
-                          {t("downloadStatement")}
-                        </Button>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
-                      )}
-                    </div>
-                  </div>
-                  {/* Digital Authorization Section */}
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
-                    <div className="mt-2">
-                      <p className="text-sm">
-                        <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
-                        {selectedStudent.studentName}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                {selectedStudent.status === SelectionStatus.PENDING && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection approved",
-                            description: `The selection for ${selectedStudent.studentName} has been approved.`,
-                          })
-                        }, 100)
-                      }}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => {
-                        setViewDialogOpen(false)
-                        window.setTimeout(() => {
-                          toast({
-                            title: "Selection rejected",
-                            description: `The selection for ${selectedStudent.studentName} has been rejected.`,
-                          })
-                        }, 100)
-                      }}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      {t("manager.exchangeDetails.reject")}
-                    </Button>
-                  </>
-                )}
-                <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-                  {t("manager.courseDetails.close")}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Student Selection Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          {selectedStudent && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{t("manager.courseDetails.editStudentSelection")}</DialogTitle>
-                <DialogDescription>
-                  {t("manager.courseDetails.editSelectionFor")} {selectedStudent.studentName}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                        <span>{selectedStudent.studentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                        <span>{selectedStudent.group}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                        <span>{selectedStudent.program}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t("manager.courseDetails.selectUpTo")} {electiveCourse.maxSelections}{" "}
-                      {t("manager.courseDetails.courses")}
-                    </p>
-                    <div className="mt-3 space-y-3">
-                      {courses.map((course) => (
-                        <div key={course.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`course-${course.id}`}
-                            checked={editedCourses.includes(course.name)}
-                            onCheckedChange={(checked) => handleCourseSelection(course.name, checked as boolean)}
-                            disabled={
-                              !editedCourses.includes(course.name) &&
-                              editedCourses.length >= electiveCourse.maxSelections
-                            }
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Enrollment</span>
+                          <span>{utilizationPercentage.toFixed(1)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              utilizationPercentage >= 100
+                                ? "bg-red-500"
+                                : utilizationPercentage >= 80
+                                  ? "bg-yellow-500"
+                                  : "bg-green-500"
+                            }`}
+                            style={{ width: `${Math.min(utilizationPercentage, 100)}%` }}
                           />
-                          <Label
-                            htmlFor={`course-${course.id}`}
-                            className={
-                              !editedCourses.includes(course.name) &&
-                              editedCourses.length >= electiveCourse.maxSelections
-                                ? "text-muted-foreground"
-                                : ""
-                            }
-                          >
-                            {course.name}
-                          </Label>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                  {t("manager.courseDetails.cancel")}
-                </Button>
-                <Button onClick={saveEditedCourses} disabled={editedCourses.length === 0}>
-                  {t("manager.courseDetails.saveChanges")}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                      </div>
 
-      {/* Toast component */}
-      <Toaster />
-    </DashboardLayout>
+                      <div className="flex justify-between items-center">
+                        <Badge variant={isFull ? "destructive" : "outline"}>{isFull ? "Full" : "Available"}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="selections" className="space-y-4">
+          {selectionsLoading ? (
+            <div className="text-center py-8">Loading selections...</div>
+          ) : selections.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center text-muted-foreground">
+                  <Eye className="h-8 w-8 mx-auto mb-2" />
+                  <p>No student selections yet</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Student Selections</CardTitle>
+                <CardDescription>Manage and review student course selections</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Group</TableHead>
+                      <TableHead>Selected Courses</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selections.map((selection) => (
+                      <TableRow key={selection.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{selection.student.full_name}</div>
+                            <div className="text-sm text-muted-foreground">{selection.student.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{selection.student.group?.name || "N/A"}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {selection.selected_ids.map((courseId) => {
+                              const course = pack.courses.find((c) => c.id === courseId)
+                              return course ? (
+                                <Badge key={courseId} variant="outline" className="mr-1">
+                                  {course.name}
+                                </Badge>
+                              ) : null
+                            })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(selection.status)}
+                            {getStatusBadge(selection.status)}
+                          </div>
+                        </TableCell>
+                        <TableCell>{new Date(selection.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          {selection.status === "pending" && (
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={() => updateSelectionStatus(selection.id, "approved")}>
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => updateSelectionStatus(selection.id, "rejected")}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }
