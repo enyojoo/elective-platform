@@ -11,13 +11,13 @@ export async function getCourseProgram(id: string) {
 
     if (error) {
       console.error("Error fetching course program:", error)
-      throw new Error("Failed to fetch course program")
+      return null
     }
 
     return data
   } catch (error) {
     console.error("Error in getCourseProgram:", error)
-    throw error
+    return null
   }
 }
 
@@ -27,101 +27,185 @@ export async function getCoursesFromIds(courseIds: string[]) {
   }
 
   try {
-    const { data: courses, error } = await supabase.from("courses").select("*").in("id", courseIds).order("name")
+    const { data: courses, error } = await supabase
+      .from("courses")
+      .select(`
+        id,
+        name,
+        name_ru,
+        code,
+        description,
+        description_ru,
+        credits,
+        max_students,
+        status,
+        semester,
+        year,
+        degree_id,
+        degrees(
+          name,
+          name_ru
+        )
+      `)
+      .in("id", courseIds)
+      .order("name")
 
     if (error) {
       console.error("Error fetching courses:", error)
-      throw new Error("Failed to fetch courses")
+      return []
     }
 
     return courses || []
   } catch (error) {
     console.error("Error in getCoursesFromIds:", error)
-    throw error
+    return []
   }
 }
 
 export async function getCourseSelections(electiveCourseId: string) {
   try {
-    // First get the selections with profile data
+    // First get the selections
     const { data: selections, error: selectionsError } = await supabase
       .from("course_selections")
-      .select(`
-        *,
-        profiles!inner(
-          id,
-          full_name,
-          email,
-          student_profiles!inner(
-            group_id,
-            enrollment_year,
-            groups(
-              name,
-              display_name,
-              programs(
-                name,
-                name_ru,
-                degrees(
-                  name,
-                  name_ru
-                )
-              )
-            )
-          )
-        )
-      `)
+      .select("*")
       .eq("elective_courses_id", electiveCourseId)
       .order("created_at", { ascending: false })
 
     if (selectionsError) {
       console.error("Error fetching course selections:", selectionsError)
-      throw new Error("Failed to fetch course selections")
+      return []
     }
 
-    return selections || []
+    // Then get profile data for each selection
+    const selectionsWithProfiles = await Promise.all(
+      (selections || []).map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select(`
+              id, 
+              full_name, 
+              email,
+              student_profiles!inner(
+                group_id,
+                enrollment_year,
+                groups(
+                  name,
+                  display_name,
+                  programs(
+                    name,
+                    name_ru,
+                    degrees(
+                      name,
+                      name_ru
+                    )
+                  )
+                )
+              )
+            `)
+            .eq("id", selection.student_id)
+            .single()
+
+          if (profileError) {
+            console.error("Error fetching profile for student:", selection.student_id, profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
+
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing selection profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
+
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getCourseSelections:", error)
-    throw error
+    return []
   }
 }
 
 export async function getCourseSelectionData(courseId: string, electiveCourseId: string) {
   try {
-    // Get all selections for this elective course program that include the specific course
+    // Get all selections for this elective course program
     const { data: selections, error: selectionsError } = await supabase
       .from("course_selections")
-      .select(`
-        *,
-        profiles!inner(
-          id,
-          full_name,
-          email,
-          student_profiles!inner(
-            group_id,
-            enrollment_year,
-            groups(
-              name,
-              display_name,
-              programs(
-                name,
-                name_ru
-              )
-            )
-          )
-        )
-      `)
+      .select("*")
       .eq("elective_courses_id", electiveCourseId)
-      .contains("selected_ids", [courseId])
 
     if (selectionsError) {
-      console.error("Error fetching course selection data:", selectionsError)
-      throw new Error("Failed to fetch course selection data")
+      console.error("Error fetching selections:", selectionsError)
+      return []
     }
 
-    return selections || []
+    // Filter selections that include this course
+    const filteredSelections = (selections || []).filter(
+      (selection) =>
+        selection.selected_ids && Array.isArray(selection.selected_ids) && selection.selected_ids.includes(courseId),
+    )
+
+    // Get profile data for filtered selections
+    const selectionsWithProfiles = await Promise.all(
+      filteredSelections.map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select(`
+              id, 
+              full_name, 
+              email,
+              student_profiles!inner(
+                group_id,
+                enrollment_year,
+                groups(
+                  name,
+                  display_name,
+                  programs(
+                    name,
+                    name_ru
+                  )
+                )
+              )
+            `)
+            .eq("id", selection.student_id)
+            .single()
+
+          if (profileError) {
+            console.error("Error fetching profile:", profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
+
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
+
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getCourseSelectionData:", error)
-    throw error
+    return []
   }
 }
 
@@ -143,7 +227,7 @@ export async function updateCourseSelectionStatus(selectionId: string, status: "
     return data
   } catch (error) {
     console.error("Error in updateCourseSelectionStatus:", error)
-    throw error
+    throw new Error("Failed to update course selection status")
   }
 }
 
@@ -172,6 +256,6 @@ export async function updateStudentCourseSelection(
     return data
   } catch (error) {
     console.error("Error in updateStudentCourseSelection:", error)
-    throw error
+    throw new Error("Failed to update student course selection")
   }
 }

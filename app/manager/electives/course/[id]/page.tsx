@@ -72,6 +72,13 @@ interface Course {
   credits: number
   max_students: number
   status: string
+  semester?: string
+  year?: number
+  degree_id?: string
+  degrees?: {
+    name: string
+    name_ru: string | null
+  }
 }
 
 interface StudentSelection {
@@ -100,7 +107,7 @@ interface StudentSelection {
         }
       }
     }[]
-  }
+  } | null
 }
 
 export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
@@ -134,19 +141,38 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       console.log("Course program loaded:", program)
 
       if (!program) {
-        throw new Error("Course program not found")
+        setError("Course program not found")
+        return
       }
 
       setElectiveCourse(program)
 
-      // Load courses from the courses column
-      if (program.courses && Array.isArray(program.courses) && program.courses.length > 0) {
-        console.log("Loading courses with IDs:", program.courses)
-        const coursesData = await getCoursesFromIds(program.courses)
+      // Load courses from the courses column - ensure it's treated as an array
+      let courseIds: string[] = []
+
+      if (program.courses) {
+        if (Array.isArray(program.courses)) {
+          courseIds = program.courses
+        } else if (typeof program.courses === "string") {
+          // Handle case where it might be stored as a JSON string
+          try {
+            const parsed = JSON.parse(program.courses)
+            courseIds = Array.isArray(parsed) ? parsed : []
+          } catch {
+            // If it's not JSON, treat as single ID
+            courseIds = [program.courses]
+          }
+        }
+      }
+
+      console.log("Course IDs to load:", courseIds)
+
+      if (courseIds.length > 0) {
+        const coursesData = await getCoursesFromIds(courseIds)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No courses found in program or courses is not an array:", program.courses)
+        console.log("No course IDs found")
         setCourses([])
       }
 
@@ -173,6 +199,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const count = studentSelections.filter(
       (selection) =>
         selection.selected_ids &&
+        Array.isArray(selection.selected_ids) &&
         selection.selected_ids.includes(courseId) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
@@ -322,8 +349,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       // Define column headers based on language
       const headers = {
-        en: ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"],
-        ru: ["Имя студента", "Электронная почта", "Группа", "Программа", "Статус", "Дата выбора"],
+        en: ["Student Name", "Student ID", "Email", "Group", "Program", "Status", "Selection Date"],
+        ru: ["Имя студента", "ID студента", "Электронная почта", "Группа", "Программа", "Статус", "Дата выбора"],
       }
 
       // Create CSV content
@@ -345,6 +372,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         const row = [
           `"${selection.profiles?.full_name || "N/A"}"`,
+          `"${selection.student_id}"`,
           `"${selection.profiles?.email || "N/A"}"`,
           `"${groupName}"`,
           `"${programName}"`,
@@ -567,7 +595,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No courses configured for this program</div>
+                  <div className="text-center py-8 text-muted-foreground">
+                    No courses configured for this program
+                    <div className="text-xs mt-2">
+                      Debug: Course IDs in program: {JSON.stringify(electiveCourse.courses)}
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-md border">
                     <table className="w-full">
@@ -576,6 +609,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
                           <th className="py-3 px-4 text-left text-sm font-medium">Code</th>
                           <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Degree</th>
                           <th className="py-3 px-4 text-left text-sm font-medium">
                             {t("manager.courseDetails.enrollment")}
                           </th>
@@ -590,10 +624,28 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           return (
                             <tr key={course.id} className="border-b">
                               <td className="py-3 px-4 text-sm">
-                                {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                <div>
+                                  <div className="font-medium">
+                                    {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                  </div>
+                                  {course.description && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      {language === "ru" && course.description_ru
+                                        ? course.description_ru
+                                        : course.description}
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-sm">{course.code}</td>
                               <td className="py-3 px-4 text-sm">{course.credits}</td>
+                              <td className="py-3 px-4 text-sm">
+                                {course.degrees
+                                  ? language === "ru" && course.degrees.name_ru
+                                    ? course.degrees.name_ru
+                                    : course.degrees.name
+                                  : "N/A"}
+                              </td>
                               <td className="py-3 px-4 text-sm">
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
@@ -649,6 +701,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Student ID</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Program</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">
@@ -664,7 +717,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <tbody>
                       {filteredStudentSelections.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                          <td colSpan={8} className="py-8 text-center text-muted-foreground">
                             {searchTerm ? "No students found matching your search" : "No student selections yet"}
                           </td>
                         </tr>
@@ -676,6 +729,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           return (
                             <tr key={selection.id} className="border-b">
                               <td className="py-3 px-4 text-sm">{selection.profiles?.full_name || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm font-mono text-xs">{selection.student_id}</td>
                               <td className="py-3 px-4 text-sm">{groupName}</td>
                               <td className="py-3 px-4 text-sm">{programName}</td>
                               <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
@@ -790,7 +844,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                          <span>{selectedStudent.student_id}</span>
+                          <span className="font-mono text-xs">{selectedStudent.student_id}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.email")}:</span>
