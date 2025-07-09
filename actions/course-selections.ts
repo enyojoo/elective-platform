@@ -46,6 +46,8 @@ export async function getElectiveCoursesPack(packId: string) {
   const supabase = createServerComponentClient({ cookies })
 
   try {
+    console.log("Fetching courses for elective pack ID:", packId)
+
     // Get the elective_courses record to get the courses array
     const { data: packData, error: packError } = await supabase
       .from("elective_courses")
@@ -55,12 +57,18 @@ export async function getElectiveCoursesPack(packId: string) {
 
     if (packError) {
       console.error("Error fetching elective courses pack:", packError)
+      console.error("Pack ID:", packId)
       return []
     }
 
+    console.log("Pack data:", packData)
+
     if (!packData?.courses || !Array.isArray(packData.courses) || packData.courses.length === 0) {
+      console.log("No courses found in pack or courses is not an array")
       return []
     }
+
+    console.log("Course UUIDs:", packData.courses)
 
     // Then get the course details using the UUIDs from the courses array
     const { data: coursesData, error: coursesError } = await supabase
@@ -81,6 +89,7 @@ export async function getElectiveCoursesPack(packId: string) {
       return []
     }
 
+    console.log("Successfully fetched courses:", coursesData)
     return coursesData || []
   } catch (error) {
     console.error("Error in getElectiveCoursesPack:", error)
@@ -92,6 +101,8 @@ export async function getElectiveCoursesPackDetails(packId: string) {
   const supabase = createServerComponentClient({ cookies })
 
   try {
+    console.log("Fetching elective courses pack details for ID:", packId)
+
     const { data, error } = await supabase
       .from("elective_courses")
       .select(`
@@ -109,9 +120,11 @@ export async function getElectiveCoursesPackDetails(packId: string) {
 
     if (error) {
       console.error("Error fetching elective courses pack details:", error)
+      console.error("Pack ID:", packId)
       return null
     }
 
+    console.log("Successfully fetched pack details:", data)
     return data
   } catch (error) {
     console.error("Error in getElectiveCoursesPackDetails:", error)

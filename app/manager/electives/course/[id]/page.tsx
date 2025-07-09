@@ -67,20 +67,31 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const loadData = async () => {
       try {
         setLoading(true)
+        console.log("Loading data for pack ID:", params.id)
 
         // Load elective pack details from elective_courses table
         const packData = await getElectiveCoursesPackDetails(params.id)
+        console.log("Pack data received:", packData)
+
         if (!packData) {
-          throw new Error("Elective course pack not found")
+          console.error("No pack data found for ID:", params.id)
+          toast({
+            title: "Error",
+            description: `Elective course pack not found (ID: ${params.id})`,
+            variant: "destructive",
+          })
+          return
         }
         setElectivePack(packData)
 
         // Load courses for this pack from elective_courses.courses array
         const coursesData = await getElectiveCoursesPack(params.id)
+        console.log("Courses data received:", coursesData)
         setCourses(coursesData)
 
         // Load course selections
         const selectionsData = await getCourseSelections(params.id)
+        console.log("Selections data received:", selectionsData)
         setCourseSelections(selectionsData)
       } catch (error) {
         console.error("Error loading data:", error)
