@@ -7,7 +7,29 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Edit, Search, CheckCircle, XCircle, Clock } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import {
+  ArrowLeft,
+  Edit,
+  Eye,
+  MoreVertical,
+  Search,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  FileDown,
+} from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -28,6 +50,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const { language } = useLanguage()
   const { toast } = useToast()
@@ -136,21 +160,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     switch (status) {
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800">
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
             Approved
           </Badge>
         )
       case "pending":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800">
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
             Pending
           </Badge>
         )
       case "rejected":
         return (
-          <Badge className="bg-red-100 text-red-800">
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
             Rejected
           </Badge>
@@ -195,6 +219,79 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         variant: "destructive",
       })
     }
+  }
+
+  const exportCourseEnrollmentsToCSV = (course: any) => {
+    // Get students enrolled in this specific course
+    const enrolledStudents = studentSelections.filter(
+      (selection) => selection.selected_ids && selection.selected_ids.includes(course.id),
+    )
+
+    if (enrolledStudents.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No students are enrolled in this course.",
+      })
+      return
+    }
+
+    // Create CSV content
+    const headers = ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"]
+    let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
+
+    enrolledStudents.forEach((selection) => {
+      const groupName = selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"
+      const programName = selection.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"
+
+      const row = [
+        `"${selection.profiles?.full_name || "N/A"}"`,
+        `"${selection.profiles?.email || "N/A"}"`,
+        `"${groupName}"`,
+        `"${programName}"`,
+        `"${selection.status}"`,
+        `"${formatDate(selection.created_at)}"`,
+      ]
+
+      csvContent += row.join(",") + "\n"
+    })
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `course_${course.name.replace(/\s+/g, "_")}_enrollments.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    toast({
+      title: "Success",
+      description: "Course enrollment data exported successfully",
+    })
+  }
+
+  const openStudentDialog = (student: any) => {
+    setSelectedStudent(student)
+    setDialogOpen(true)
+  }
+
+  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
+    if (!fileName) {
+      toast({
+        title: "Statement not available",
+        description: `No statement file uploaded for ${studentName}`,
+      })
+      return
+    }
+
+    toast({
+      title: "Statement download",
+      description: "Statement file download started",
+    })
   }
 
   const filteredStudentSelections = studentSelections.filter((selection) => {
@@ -316,8 +413,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="courses">Courses ({courses.length})</TabsTrigger>
-            <TabsTrigger value="students">Student Selections ({studentSelections.length})</TabsTrigger>
+            <TabsTrigger value="courses">Courses</TabsTrigger>
+            <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
 
           <TabsContent value="courses" className="mt-4">
@@ -326,49 +423,60 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <CardTitle>Courses in this Program</CardTitle>
               </CardHeader>
               <CardContent>
-                {courses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No courses found for this program</p>
-                  </div>
-                ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[25%]">Name</TableHead>
+                        <TableHead className="w-[20%]">Instructor</TableHead>
+                        <TableHead className="w-[15%]">Degree</TableHead>
+                        <TableHead className="w-[15%]">Enrollment</TableHead>
+                        <TableHead className="w-[25%] text-center">Export</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {courses.length === 0 ? (
                         <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Code</TableHead>
-                          <TableHead>Credits</TableHead>
-                          <TableHead>Instructor</TableHead>
-                          <TableHead>Enrollment</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            No courses configured for this program
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {courses.map((course) => {
+                      ) : (
+                        courses.map((course) => {
                           const currentEnrollment = getCourseEnrollment(course.id)
                           return (
                             <TableRow key={course.id}>
                               <TableCell className="font-medium">
                                 {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                <div className="text-sm text-muted-foreground">
+                                  {course.code} • {course.credits} credits
+                                </div>
                               </TableCell>
-                              <TableCell>{course.code}</TableCell>
-                              <TableCell>{course.credits}</TableCell>
                               <TableCell>{course.instructor || "N/A"}</TableCell>
+                              <TableCell>{course.degree || "N/A"}</TableCell>
                               <TableCell>
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
                                 </Badge>
                               </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{course.status}</Badge>
+                              <TableCell className="text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => exportCourseEnrollmentsToCSV(course)}
+                                  className="flex items-center gap-1 mx-auto"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                  Download
+                                </Button>
                               </TableCell>
                             </TableRow>
                           )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -382,85 +490,123 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <input
+                    <Input
                       type="search"
                       placeholder="Search students..."
-                      className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
+                      className="pl-8 md:w-[200px]"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
+                  <Button variant="outline" size="sm">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export All
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {filteredStudentSelections.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    {searchTerm ? "No students found matching your search" : "No student selections yet"}
-                  </div>
-                ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[20%]">Name</TableHead>
+                        <TableHead className="w-[20%]">Email</TableHead>
+                        <TableHead className="w-[15%]">Selection Date</TableHead>
+                        <TableHead className="w-[15%]">Status</TableHead>
+                        <TableHead className="w-[10%] text-center">Statement</TableHead>
+                        <TableHead className="w-[10%] text-center">View</TableHead>
+                        <TableHead className="w-[10%] text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStudentSelections.length === 0 ? (
                         <TableRow>
-                          <TableHead>Student Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Group</TableHead>
-                          <TableHead>Selection Date</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Selected Courses</TableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableCell colSpan={7} className="h-24 text-center">
+                            {searchTerm ? "No students found matching your search" : "No student selections yet"}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredStudentSelections.map((selection) => {
+                      ) : (
+                        filteredStudentSelections.map((selection) => {
                           const studentProfile = selection.profiles
                           const groupInfo = studentProfile?.student_profiles?.[0]?.groups
 
                           return (
                             <TableRow key={selection.id}>
-                              <TableCell className="font-medium">{studentProfile?.full_name || "N/A"}</TableCell>
+                              <TableCell className="font-medium">
+                                {studentProfile?.full_name || "N/A"}
+                                <div className="text-sm text-muted-foreground">{groupInfo?.display_name || "N/A"}</div>
+                              </TableCell>
                               <TableCell>{studentProfile?.email || "N/A"}</TableCell>
-                              <TableCell>{groupInfo?.display_name || "N/A"}</TableCell>
                               <TableCell>{formatDate(selection.created_at)}</TableCell>
                               <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  {(selection.selected_ids || []).map((courseId: string) => {
-                                    const course = courses.find((c) => c.id === courseId)
-                                    return (
-                                      <div key={courseId} className="text-sm">
-                                        {course
-                                          ? language === "ru" && course.name_ru
-                                            ? course.name_ru
-                                            : course.name
-                                          : "Unknown Course"}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                              <TableCell className="text-center">
+                                {selection.statement_file ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      downloadStudentStatement(
+                                        studentProfile?.full_name || "Student",
+                                        selection.statement_file,
+                                      )
+                                    }
+                                  >
+                                    <FileDown className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                               </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  {selection.status === "pending" && (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-green-600 hover:text-green-700 bg-transparent"
-                                        onClick={() =>
-                                          handleStatusChange(
-                                            selection.id,
-                                            "approved",
-                                            studentProfile?.full_name || "Student",
-                                          )
-                                        }
-                                      >
-                                        <CheckCircle className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-red-600 hover:text-red-700 bg-transparent"
+                              <TableCell className="text-center">
+                                <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    {selection.status === "pending" && (
+                                      <>
+                                        <DropdownMenuItem
+                                          className="text-green-600"
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "approved",
+                                              studentProfile?.full_name || "Student",
+                                            )
+                                          }
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Approve
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "rejected",
+                                              studentProfile?.full_name || "Student",
+                                            )
+                                          }
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {selection.status === "approved" && (
+                                      <DropdownMenuItem
+                                        className="text-red-600"
                                         onClick={() =>
                                           handleStatusChange(
                                             selection.id,
@@ -469,39 +615,159 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                           )
                                         }
                                       >
-                                        <XCircle className="h-4 w-4" />
-                                      </Button>
-                                    </>
-                                  )}
-                                  {selection.status === "approved" && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-red-600 hover:text-red-700 bg-transparent"
-                                      onClick={() =>
-                                        handleStatusChange(
-                                          selection.id,
-                                          "rejected",
-                                          studentProfile?.full_name || "Student",
-                                        )
-                                      }
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        Withdraw
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Student Details Dialog */}
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) {
+              setTimeout(() => {
+                setSelectedStudent(null)
+              }, 300)
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px]">
+            {selectedStudent && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Student Selection Details</DialogTitle>
+                  <DialogDescription>
+                    View details for {selectedStudent.profiles?.full_name || "Student"} course selection
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium">Student Information</h3>
+                      <div className="mt-2 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-medium">Name:</span>
+                          <span>{selectedStudent.profiles?.full_name || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">ID:</span>
+                          <span>{selectedStudent.student_id}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Email:</span>
+                          <span>{selectedStudent.profiles?.email || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Group:</span>
+                          <span>{selectedStudent.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Program:</span>
+                          <span>
+                            {selectedStudent.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">Selected Courses</h3>
+                      <div className="mt-2 space-y-2">
+                        {(selectedStudent.selected_ids || []).map((courseId: string) => {
+                          const course = courses.find((c) => c.id === courseId)
+                          return (
+                            <div key={courseId} className="rounded-md border p-2">
+                              <p className="font-medium">
+                                {course
+                                  ? language === "ru" && course.name_ru
+                                    ? course.name_ru
+                                    : course.name
+                                  : "Unknown Course"}
+                              </p>
+                              {course && (
+                                <p className="text-sm text-muted-foreground">
+                                  {course.code} • {course.credits} credits
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">Selection Information</h3>
+                      <div className="mt-2 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-medium">Date:</span>
+                          <span>{formatDate(selectedStudent.created_at)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Status:</span>
+                          <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  {selectedStudent.status === "pending" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+                        onClick={() => {
+                          handleStatusChange(
+                            selectedStudent.id,
+                            "approved",
+                            selectedStudent.profiles?.full_name || "Student",
+                          )
+                          setDialogOpen(false)
+                        }}
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Approve
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                        onClick={() => {
+                          handleStatusChange(
+                            selectedStudent.id,
+                            "rejected",
+                            selectedStudent.profiles?.full_name || "Student",
+                          )
+                          setDialogOpen(false)
+                        }}
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  <DialogClose asChild>
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                      Close
+                    </Button>
+                  </DialogClose>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Toaster />
