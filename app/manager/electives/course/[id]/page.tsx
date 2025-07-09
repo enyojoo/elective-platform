@@ -430,7 +430,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives/course">
+            <Link href="/manager/electives?tab=courses">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>

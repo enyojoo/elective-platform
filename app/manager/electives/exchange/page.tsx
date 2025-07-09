@@ -7,50 +7,65 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Edit, Eye, MoreVertical, Plus, Search } from "lucide-react"
+import { Plus, Search, MoreVertical, Edit, Eye, Trash2, Archive, CheckCircle, XCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
-import { useInstitution } from "@/lib/institution-context"
 import { useToast } from "@/hooks/use-toast"
-import { Toaster } from "@/components/ui/toaster"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { useInstitution } from "@/lib/institution-context"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDataCache } from "@/lib/data-cache-context"
+import { formatDate } from "@/lib/utils"
 
 interface ExchangeProgram {
   id: string
   name: string
   name_ru: string | null
-  description: string | null
-  description_ru: string | null
+  status: string
   deadline: string
   max_selections: number
-  status: string
   universities: string[]
   created_at: string
   updated_at: string
-  institution_id: string
 }
 
 export default function ExchangeProgramsPage() {
+  const { t, language } = useLanguage()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+  const { institution } = useInstitution()
+  const { getCachedData, setCachedData, invalidateCache } = useDataCache()
+
   const [exchangePrograms, setExchangePrograms] = useState<ExchangeProgram[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("all")
 
-  const { t, language } = useLanguage()
-  const { institution } = useInstitution()
-  const { toast } = useToast()
-  const supabase = getSupabaseBrowserClient()
-
   useEffect(() => {
-    loadExchangePrograms()
+    if (institution?.id) {
+      loadExchangePrograms()
+    }
   }, [institution?.id])
 
   const loadExchangePrograms = async () => {
     if (!institution?.id) return
 
+    setIsLoading(true)
     try {
-      setLoading(true)
+      // Try to get cached data first
+      const cacheKey = `exchangePrograms_${institution.id}`
+      const cachedData = getCachedData(cacheKey)
+
+      if (cachedData) {
+        setExchangePrograms(cachedData)
+        setIsLoading(false)
+        return
+      }
+
+      console.log("Fetching exchange programs for institution:", institution.id)
+
       const { data, error } = await supabase
         .from("elective_exchange")
         .select("*")
@@ -59,15 +74,12 @@ export default function ExchangeProgramsPage() {
 
       if (error) {
         console.error("Error fetching exchange programs:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load exchange programs",
-          variant: "destructive",
-        })
-        return
+        throw error
       }
 
+      console.log("Exchange programs loaded:", data)
       setExchangePrograms(data || [])
+      setCachedData(cacheKey, data || [])
     } catch (error) {
       console.error("Error loading exchange programs:", error)
       toast({
@@ -76,108 +88,8 @@ export default function ExchangeProgramsPage() {
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }
-
-  const handleStatusChange = async (programId: string, newStatus: string, programName: string) => {
-    try {
-      const { error } = await supabase.from("elective_exchange").update({ status: newStatus }).eq("id", programId)
-
-      if (error) {
-        console.error("Error updating program status:", error)
-        toast({
-          title: "Error",
-          description: "Failed to update program status",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Update local state
-      setExchangePrograms((prev) =>
-        prev.map((program) => (program.id === programId ? { ...program, status: newStatus } : program)),
-      )
-
-      toast({
-        title: "Success",
-        description: `Program "${programName}" ${newStatus === "closed" ? "closed" : "reopened"} successfully`,
-      })
-    } catch (error) {
-      console.error("Error updating program status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update program status",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDelete = async (programId: string, programName: string) => {
-    if (!confirm(`Are you sure you want to delete "${programName}"? This action cannot be undone.`)) {
-      return
-    }
-
-    try {
-      const { error } = await supabase.from("elective_exchange").delete().eq("id", programId)
-
-      if (error) {
-        console.error("Error deleting program:", error)
-        toast({
-          title: "Error",
-          description: "Failed to delete program",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Update local state
-      setExchangePrograms((prev) => prev.filter((program) => program.id !== programId))
-
-      toast({
-        title: "Success",
-        description: `Program "${programName}" deleted successfully`,
-      })
-    } catch (error) {
-      console.error("Error deleting program:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete program",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Filter programs based on search term and active tab
-  const filteredPrograms = exchangePrograms.filter((program) => {
-    const matchesSearch =
-      program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (program.name_ru && program.name_ru.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (program.description && program.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (program.description_ru && program.description_ru.toLowerCase().includes(searchTerm.toLowerCase()))
-
-    const matchesTab = activeTab === "all" || program.status === activeTab
-
-    return matchesSearch && matchesTab
-  })
-
-  // Get counts for each status
-  const statusCounts = {
-    all: exchangePrograms.length,
-    draft: exchangePrograms.filter((p) => p.status === "draft").length,
-    published: exchangePrograms.filter((p) => p.status === "published").length,
-    closed: exchangePrograms.filter((p) => p.status === "closed").length,
-    archived: exchangePrograms.filter((p) => p.status === "archived").length,
-  }
-
-  // Format date helper
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
   }
 
   // Helper function to get status badge
@@ -196,17 +108,109 @@ export default function ExchangeProgramsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <div className="space-y-6">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-          </div>
-        </div>
-      </DashboardLayout>
-    )
+  // Handle status change
+  const handleStatusChange = async (programId: string, newStatus: string, programName: string) => {
+    try {
+      const { error } = await supabase
+        .from("elective_exchange")
+        .update({ status: newStatus })
+        .eq("id", programId)
+        .eq("institution_id", institution?.id)
+
+      if (error) throw error
+
+      // Update local state
+      setExchangePrograms((prev) =>
+        prev.map((program) => (program.id === programId ? { ...program, status: newStatus } : program)),
+      )
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`exchangePrograms_${institution.id}`)
+      }
+
+      toast({
+        title: "Status updated",
+        description: `${programName} status changed to ${newStatus}`,
+      })
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update program status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle delete
+  const handleDelete = async (programId: string, programName: string) => {
+    if (!confirm(`Are you sure you want to delete "${programName}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from("elective_exchange")
+        .delete()
+        .eq("id", programId)
+        .eq("institution_id", institution?.id)
+
+      if (error) throw error
+
+      // Update local state
+      setExchangePrograms((prev) => prev.filter((program) => program.id !== programId))
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`exchangePrograms_${institution.id}`)
+      }
+
+      toast({
+        title: "Program deleted",
+        description: `${programName} has been deleted`,
+      })
+    } catch (error) {
+      console.error("Error deleting program:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete program",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Filter programs based on search term and active tab
+  const filteredPrograms = exchangePrograms.filter((program) => {
+    const matchesSearch =
+      !searchTerm ||
+      program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (program.name_ru && program.name_ru.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "draft" && program.status === "draft") ||
+      (activeTab === "published" && program.status === "published") ||
+      (activeTab === "closed" && program.status === "closed") ||
+      (activeTab === "archived" && program.status === "archived")
+
+    return matchesSearch && matchesTab
+  })
+
+  // Get program counts for tabs
+  const programCounts = {
+    all: exchangePrograms.length,
+    draft: exchangePrograms.filter((p) => p.status === "draft").length,
+    published: exchangePrograms.filter((p) => p.status === "published").length,
+    closed: exchangePrograms.filter((p) => p.status === "closed").length,
+    archived: exchangePrograms.filter((p) => p.status === "archived").length,
+  }
+
+  const getLocalizedName = (program: ExchangeProgram) => {
+    if (language === "ru" && program.name_ru) {
+      return program.name_ru
+    }
+    return program.name
   }
 
   return (
@@ -218,136 +222,102 @@ export default function ExchangeProgramsPage() {
         </div>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder="Search programs..."
-                className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search programs..."
+                  className="pl-8 md:w-[200px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button asChild>
+                <Link href="/manager/electives/exchange-builder">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Exchange Program
+                </Link>
+              </Button>
             </div>
-            <Button asChild>
-              <Link href="/manager/electives/exchange/new">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Exchange Program
-              </Link>
-            </Button>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="all" className="relative">
-                  All
-                  {statusCounts.all > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                      {statusCounts.all}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="draft" className="relative">
-                  Draft
-                  {statusCounts.draft > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                      {statusCounts.draft}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="published" className="relative">
-                  Published
-                  {statusCounts.published > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                      {statusCounts.published}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="closed" className="relative">
-                  Closed
-                  {statusCounts.closed > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                      {statusCounts.closed}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="archived" className="relative">
-                  Archived
-                  {statusCounts.archived > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                      {statusCounts.archived}
-                    </Badge>
-                  )}
-                </TabsTrigger>
+                <TabsTrigger value="all">All ({programCounts.all})</TabsTrigger>
+                <TabsTrigger value="draft">Draft ({programCounts.draft})</TabsTrigger>
+                <TabsTrigger value="published">Published ({programCounts.published})</TabsTrigger>
+                <TabsTrigger value="closed">Closed ({programCounts.closed})</TabsTrigger>
+                <TabsTrigger value="archived">Archived ({programCounts.archived})</TabsTrigger>
               </TabsList>
 
-              <TabsContent value={activeTab} className="mt-4">
-                {filteredPrograms.length === 0 ? (
-                  <div className="text-center py-8">
-                    {searchTerm ? (
-                      <div>
-                        <p className="text-muted-foreground mb-4">No programs found matching your search</p>
-                        <Button variant="outline" onClick={() => setSearchTerm("")}>
-                          Clear search
-                        </Button>
+              <TabsContent value={activeTab} className="mt-6">
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-6 w-16" />
+                          <Skeleton className="h-8 w-8" />
+                        </div>
                       </div>
-                    ) : exchangePrograms.length === 0 ? (
-                      <div>
-                        <p className="text-muted-foreground mb-4">No exchange programs yet</p>
-                        <Button asChild>
-                          <Link href="/manager/electives/exchange/new">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Create your first exchange program
-                          </Link>
-                        </Button>
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground">No programs in this category</p>
+                    ))}
+                  </div>
+                ) : filteredPrograms.length === 0 ? (
+                  <div className="text-center py-12">
+                    <h3 className="text-lg font-medium mb-2">
+                      {searchTerm ? "No programs found" : "No exchange programs yet"}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {searchTerm
+                        ? "Try adjusting your search terms"
+                        : "Create your first exchange program to get started"}
+                    </p>
+                    {!searchTerm && (
+                      <Button asChild>
+                        <Link href="/manager/electives/exchange-builder">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Exchange Program
+                        </Link>
+                      </Button>
                     )}
                   </div>
                 ) : (
-                  <div className="grid gap-4">
-                    {filteredPrograms.map((program) => (
-                      <Card key={program.id}>
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <h3 className="text-lg font-semibold">
-                                  {language === "ru" && program.name_ru ? program.name_ru : program.name}
-                                </h3>
-                                {getStatusBadge(program.status)}
-                              </div>
-                              {program.description && (
-                                <p className="text-muted-foreground mb-3">
-                                  {language === "ru" && program.description_ru
-                                    ? program.description_ru
-                                    : program.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                                <div>
-                                  <span className="font-medium">Deadline:</span> {formatDate(program.deadline)}
-                                </div>
-                                <div>
-                                  <span className="font-medium">Universities:</span>{" "}
-                                  {program.universities ? program.universities.length : 0}
-                                </div>
-                                <div>
-                                  <span className="font-medium">Max Selections:</span> {program.max_selections}
-                                </div>
-                                <div>
-                                  <span className="font-medium">Created:</span> {formatDate(program.created_at)}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" asChild>
-                                <Link href={`/manager/electives/exchange/${program.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View
-                                </Link>
-                              </Button>
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">Program Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Deadline</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Universities</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Max Selections</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Created</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPrograms.map((program) => (
+                          <tr key={program.id} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-4 text-sm">
+                              <Link
+                                href={`/manager/electives/exchange/${program.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {getLocalizedName(program)}
+                              </Link>
+                            </td>
+                            <td className="py-3 px-4 text-sm">{getStatusBadge(program.status)}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(program.deadline)}</td>
+                            <td className="py-3 px-4 text-sm">{program.universities?.length || 0}</td>
+                            <td className="py-3 px-4 text-sm">{program.max_selections}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(program.created_at)}</td>
+                            <td className="py-3 px-4 text-sm text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
@@ -356,6 +326,12 @@ export default function ExchangeProgramsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/exchange/${program.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
                                     <Link href={`/manager/electives/exchange/${program.id}/edit`}>
                                       <Edit className="mr-2 h-4 w-4" />
                                       Edit
@@ -363,59 +339,50 @@ export default function ExchangeProgramsPage() {
                                   </DropdownMenuItem>
                                   {program.status === "published" && (
                                     <DropdownMenuItem
+                                      className="text-red-600"
                                       onClick={() =>
-                                        handleStatusChange(
-                                          program.id,
-                                          "closed",
-                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                        )
+                                        handleStatusChange(program.id, "closed", getLocalizedName(program))
                                       }
                                     >
-                                      Close
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Close Program
                                     </DropdownMenuItem>
                                   )}
                                   {program.status === "closed" && (
                                     <DropdownMenuItem
+                                      className="text-green-600"
                                       onClick={() =>
-                                        handleStatusChange(
-                                          program.id,
-                                          "published",
-                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                        )
+                                        handleStatusChange(program.id, "published", getLocalizedName(program))
                                       }
                                     >
-                                      Reopen
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Reopen Program
+                                    </DropdownMenuItem>
+                                  )}
+                                  {(program.status === "draft" || program.status === "closed") && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(program.id, "archived", getLocalizedName(program))
+                                      }
+                                    >
+                                      <Archive className="mr-2 h-4 w-4" />
+                                      Archive
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      handleStatusChange(
-                                        program.id,
-                                        "archived",
-                                        language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                      )
-                                    }
-                                  >
-                                    Archive
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
                                     className="text-red-600"
-                                    onClick={() =>
-                                      handleDelete(
-                                        program.id,
-                                        language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                      )
-                                    }
+                                    onClick={() => handleDelete(program.id, getLocalizedName(program))}
                                   >
+                                    <Trash2 className="mr-2 h-4 w-4" />
                                     Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </TabsContent>
@@ -423,8 +390,6 @@ export default function ExchangeProgramsPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Toaster />
     </DashboardLayout>
   )
 }

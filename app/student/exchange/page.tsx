@@ -2,17 +2,16 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Calendar, MapPin, Users, Inbox, AlertCircle } from "lucide-react"
+import { Calendar, MapPin, Users, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useInstitution } from "@/lib/institution-context"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ExchangeProgram {
   id: string
@@ -34,7 +33,6 @@ export default function StudentExchangePage() {
 
   const [exchangePrograms, setExchangePrograms] = useState<ExchangeProgram[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     if (institution?.id) {
@@ -46,7 +44,6 @@ export default function StudentExchangePage() {
     if (!institution?.id) return
 
     setIsLoading(true)
-    setFetchError(null)
     try {
       console.log("Fetching exchange programs for student view")
 
@@ -65,9 +62,8 @@ export default function StudentExchangePage() {
 
       console.log("Exchange programs loaded for student:", data)
       setExchangePrograms(data || [])
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error loading exchange programs:", error)
-      setFetchError(error.message || "Failed to load exchange programs")
     } finally {
       setIsLoading(false)
     }
@@ -78,7 +74,7 @@ export default function StudentExchangePage() {
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
     })
   }
@@ -92,41 +88,18 @@ export default function StudentExchangePage() {
 
   // Get status badge for students
   const getStatusBadge = (program: ExchangeProgram) => {
-    const now = new Date()
-    const deadline = new Date(program.deadline)
-    const isSelectable = isProgramSelectable(program)
-
     if (program.status === "closed") {
       return <Badge variant="destructive">Closed</Badge>
     }
 
+    const now = new Date()
+    const deadline = new Date(program.deadline)
+
     if (deadline < now) {
-      return <Badge variant="destructive">Deadline Passed</Badge>
+      return <Badge variant="outline">Deadline Passed</Badge>
     }
 
-    if (isSelectable) {
-      return <Badge variant="secondary">Open</Badge>
-    }
-
-    return <Badge variant="outline">Coming Soon</Badge>
-  }
-
-  const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
-
-  if (isLoading) {
-    return (
-      <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Exchange Programs</h1>
-            <p className="text-muted-foreground">
-              Explore international exchange opportunities and apply to partner universities
-            </p>
-          </div>
-          <TableSkeleton numberOfRows={3} />
-        </div>
-      </DashboardLayout>
-    )
+    return <Badge variant="secondary">Open for Applications</Badge>
   }
 
   return (
@@ -139,94 +112,88 @@ export default function StudentExchangePage() {
           </p>
         </div>
 
-        {fetchError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        )}
-
-        {!fetchError && exchangePrograms.length === 0 && (
+        {isLoading ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Card key={index}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : exchangePrograms.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">No Exchange Programs Available</p>
-              <p className="text-sm text-muted-foreground mt-1">
+            <CardContent className="text-center py-12">
+              <h3 className="text-lg font-medium mb-2">No Exchange Programs Available</h3>
+              <p className="text-muted-foreground">
                 There are currently no exchange programs open for applications. Check back later for new opportunities.
               </p>
             </CardContent>
           </Card>
-        )}
-
-        {!fetchError && exchangePrograms.length > 0 && (
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {exchangePrograms.map((program) => {
               const isSelectable = isProgramSelectable(program)
-              const deadlinePassed = isDeadlinePassed(program.deadline)
-              const name = language === "ru" && program.name_ru ? program.name_ru : program.name
 
               return (
                 <Card
                   key={program.id}
-                  className={`h-full transition-all hover:shadow-md ${!isSelectable ? "opacity-75" : ""}`}
+                  className={`transition-all hover:shadow-md ${!isSelectable ? "opacity-75" : ""}`}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <CardTitle className="text-xl">{name}</CardTitle>
-                        {getStatusBadge(program)}
-                      </div>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-lg">
+                        {language === "ru" && program.name_ru ? program.name_ru : program.name}
+                      </CardTitle>
+                      {getStatusBadge(program)}
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-grow">
+                  <CardContent className="space-y-4">
                     {program.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
+                      <p className="text-sm text-muted-foreground line-clamp-3">
                         {language === "ru" && program.description_ru ? program.description_ru : program.description}
                       </p>
                     )}
-                  </CardContent>
-                  <CardFooter className="flex flex-col pt-0 pb-4 gap-4">
-                    <div className="flex flex-col gap-y-2 text-sm w-full">
-                      <div className="flex items-center gap-1.5">
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Deadline:</span>
-                        <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(program.deadline)}</span>
+                        <span>Deadline: {formatDate(program.deadline)}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 text-sm">
                         <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Max selections:</span>
-                        <span>{program.max_selections}</span>
+                        <span>Max {program.max_selections} university selections</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Universities:</span>
-                        <span>{program.universities?.length || 0}</span>
+                        <span>{program.universities?.length || 0} partner universities</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-md p-2 w-full bg-gray-100/50 dark:bg-gray-900/20">
-                      <span className="text-sm">
-                        Status:{" "}
-                        {isSelectable
-                          ? "Open for Applications"
-                          : program.status === "closed"
-                            ? "Closed"
-                            : "Application Closed"}
-                      </span>
-                      <Link href={`/student/exchange/${program.id}`}>
-                        <Button
-                          size="sm"
-                          variant={isSelectable ? "default" : "outline"}
-                          className="h-7 gap-1"
-                          disabled={!isSelectable && program.status !== "published"}
-                        >
-                          <span>View</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
+                    <div className="pt-2">
+                      {isSelectable ? (
+                        <Button asChild className="w-full">
+                          <Link href={`/student/exchange/${program.id}`}>
+                            View & Apply
+                            <ExternalLink className="ml-2 h-4 w-4" />
+                          </Link>
                         </Button>
-                      </Link>
+                      ) : (
+                        <Button variant="outline" className="w-full bg-transparent" disabled>
+                          {program.status === "closed" ? "Program Closed" : "Application Closed"}
+                        </Button>
+                      )}
                     </div>
-                  </CardFooter>
+                  </CardContent>
                 </Card>
               )
             })}
