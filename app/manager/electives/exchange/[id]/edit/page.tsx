@@ -136,18 +136,13 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
         setSemesters(semestersData)
         setYears(yearsData)
 
-        // Format the deadline date for the input field (YYYY-MM-DD format)
-        const formattedDeadline = exchangeData.deadline
-          ? new Date(exchangeData.deadline).toISOString().split("T")[0]
-          : ""
-
         // Pre-populate form data
         setFormData({
           semester: exchangeData.semester || "",
           year: exchangeData.academic_year || "",
           group: exchangeData.group_id || "",
           maxSelections: exchangeData.max_selections || 2,
-          endDate: formattedDeadline,
+          endDate: exchangeData.deadline || "",
           status: exchangeData.status || "draft",
           statementTemplateUrl: exchangeData.statement_template_url || "",
         })

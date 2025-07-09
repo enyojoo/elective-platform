@@ -1,130 +1,260 @@
 "use server"
 
 import { createClient } from "@supabase/supabase-js"
+import { revalidatePath } from "next/cache"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+export async function getExchangeProgram(id: string) {
+  try {
+    const { data, error } = await supabase.from("elective_exchange").select("*").eq("id", id).single()
+
+    if (error) {
+      console.error("Error fetching exchange program:", error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in getExchangeProgram:", error)
+    return null
+  }
+}
+
+export async function getUniversitiesFromIds(universityIds: string[]) {
+  if (!universityIds || universityIds.length === 0) {
+    return []
+  }
+
+  try {
+    // First get universities
+    const { data: universities, error: univError } = await supabase
+      .from("universities")
+      .select("*")
+      .in("id", universityIds)
+      .order("name")
+
+    if (univError) {
+      console.error("Error fetching universities:", univError)
+      return []
+    }
+
+    // Then get languages for each university from university_languages column
+    const universitiesWithLanguages = (universities || []).map((university) => {
+      // Parse the university_languages column if it exists and is a string
+      let languages = []
+      if (university.university_languages) {
+        try {
+          // If it's already an array, use it directly
+          if (Array.isArray(university.university_languages)) {
+            languages = university.university_languages
+          } else if (typeof university.university_languages === "string") {
+            // If it's a string, try to parse it as JSON
+            languages = JSON.parse(university.university_languages)
+          }
+        } catch (error) {
+          console.error("Error parsing university languages:", error)
+          languages = []
+        }
+      }
+
+      return {
+        ...university,
+        university_languages: languages,
+      }
+    })
+
+    return universitiesWithLanguages
+  } catch (error) {
+    console.error("Error in getUniversitiesFromIds:", error)
+    return []
+  }
+}
+
 export async function getExchangeSelections(exchangeId: string) {
   try {
-    console.log("Fetching exchange selections for:", exchangeId)
-
-    // Fetch exchange selections with student profile data
+    // First get the selections
     const { data: selections, error: selectionsError } = await supabase
       .from("exchange_selections")
-      .select(`
-        id,
-        student_id,
-        exchange_id,
-        selected_universities,
-        statement_url,
-        status,
-        priority_order,
-        created_at,
-        updated_at,
-        profiles!exchange_selections_student_id_fkey (
-          id,
-          full_name,
-          email,
-          academic_year,
-          degrees:degree_id(id, name),
-          groups:group_id(id, name)
-        )
-      `)
-      .eq("exchange_id", exchangeId)
+      .select("*")
+      .eq("elective_exchange_id", exchangeId)
       .order("created_at", { ascending: false })
 
     if (selectionsError) {
       console.error("Error fetching exchange selections:", selectionsError)
-      throw selectionsError
+      return []
     }
 
-    console.log("Raw selections data:", selections)
+    // Then get profile data for each selection
+    const selectionsWithProfiles = await Promise.all(
+      (selections || []).map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .eq("id", selection.student_id)
+            .single()
 
-    // Process the data to flatten the structure
-    const processedSelections =
-      selections?.map((selection) => ({
-        ...selection,
-        student_name: selection.profiles?.full_name || "N/A",
-        student_email: selection.profiles?.email || "N/A",
-        degree: selection.profiles?.degrees?.name || "N/A",
-        year: selection.profiles?.academic_year || "N/A",
-        group: selection.profiles?.groups?.name || "N/A",
-      })) || []
+          if (profileError) {
+            console.error("Error fetching profile for student:", selection.student_id, profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
 
-    console.log("Processed selections:", processedSelections)
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing selection profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
 
-    return {
-      success: true,
-      data: processedSelections,
-    }
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getExchangeSelections:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    }
+    return []
   }
 }
 
-export async function getUniversitySelectionData(exchangeId: string, universityId: string) {
+export async function getUniversitySelectionData(universityId: string, exchangeId: string) {
   try {
-    console.log("Fetching university selection data for:", { exchangeId, universityId })
-
-    // Fetch selections that include this university
+    // Get all selections for this exchange
     const { data: selections, error: selectionsError } = await supabase
       .from("exchange_selections")
-      .select(`
-        id,
-        student_id,
-        exchange_id,
-        selected_universities,
-        statement_url,
-        status,
-        priority_order,
-        created_at,
-        updated_at,
-        profiles!exchange_selections_student_id_fkey (
-          id,
-          full_name,
-          email,
-          academic_year,
-          degrees:degree_id(id, name),
-          groups:group_id(id, name)
-        )
-      `)
-      .eq("exchange_id", exchangeId)
-      .contains("selected_universities", [universityId])
-      .order("created_at", { ascending: false })
+      .select("*")
+      .eq("elective_exchange_id", exchangeId)
 
     if (selectionsError) {
-      console.error("Error fetching university selections:", selectionsError)
-      throw selectionsError
+      console.error("Error fetching selections:", selectionsError)
+      return []
     }
 
-    console.log("Raw university selections:", selections)
+    // Filter selections that include this university
+    const filteredSelections = (selections || []).filter(
+      (selection) =>
+        selection.selected_university_ids &&
+        Array.isArray(selection.selected_university_ids) &&
+        selection.selected_university_ids.includes(universityId),
+    )
 
-    // Process the data to flatten the structure
-    const processedSelections =
-      selections?.map((selection) => ({
-        ...selection,
-        student_name: selection.profiles?.full_name || "N/A",
-        student_email: selection.profiles?.email || "N/A",
-        degree: selection.profiles?.degrees?.name || "N/A",
-        year: selection.profiles?.academic_year || "N/A",
-        group: selection.profiles?.groups?.name || "N/A",
-      })) || []
+    // Get profile data for filtered selections
+    const selectionsWithProfiles = await Promise.all(
+      filteredSelections.map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .eq("id", selection.student_id)
+            .single()
 
-    console.log("Processed university selections:", processedSelections)
+          if (profileError) {
+            console.error("Error fetching profile:", profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
 
-    return {
-      success: true,
-      data: processedSelections,
-    }
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
+
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getUniversitySelectionData:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+    return []
+  }
+}
+
+export async function downloadStatementFile(statementUrl: string) {
+  try {
+    // Extract the file path from the full URL if needed
+    let filePath = statementUrl
+    if (statementUrl.includes("/storage/v1/object/public/statements/")) {
+      filePath = statementUrl.split("/storage/v1/object/public/statements/")[1]
+    } else if (statementUrl.includes("/statements/")) {
+      filePath = statementUrl.split("/statements/")[1]
     }
+
+    const { data, error } = await supabase.storage.from("statements").download(filePath)
+
+    if (error) {
+      console.error("Error downloading statement:", error)
+      throw new Error("Failed to download statement file")
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in downloadStatementFile:", error)
+    throw new Error("Failed to download statement file")
+  }
+}
+
+export async function updateSelectionStatus(selectionId: string, status: "approved" | "rejected") {
+  try {
+    const { data, error } = await supabase
+      .from("exchange_selections")
+      .update({ status })
+      .eq("id", selectionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating selection status:", error)
+      throw new Error("Failed to update selection status")
+    }
+
+    revalidatePath("/manager/electives/exchange")
+    return data
+  } catch (error) {
+    console.error("Error in updateSelectionStatus:", error)
+    throw new Error("Failed to update selection status")
+  }
+}
+
+export async function updateStudentSelection(
+  selectionId: string,
+  selectedUniversityIds: string[],
+  status: "approved" | "rejected" | "pending",
+) {
+  try {
+    const { data, error } = await supabase
+      .from("exchange_selections")
+      .update({
+        selected_university_ids: selectedUniversityIds,
+        status,
+      })
+      .eq("id", selectionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating student selection:", error)
+      throw new Error("Failed to update student selection")
+    }
+
+    revalidatePath("/manager/electives/exchange")
+    return data
+  } catch (error) {
+    console.error("Error in updateStudentSelection:", error)
+    throw new Error("Failed to update student selection")
   }
 }
