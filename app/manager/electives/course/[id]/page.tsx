@@ -36,8 +36,9 @@ import { Toaster } from "@/components/ui/toaster"
 import { getElectivePack } from "@/actions/elective-packs"
 import {
   getCourseSelections,
-  getElectiveCourses,
+  getElectiveCoursesPack,
   updateCourseSelectionStatus,
+  updateCourseSelection,
   downloadStatementFile,
 } from "@/actions/course-selections"
 
@@ -56,6 +57,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [studentToEdit, setStudentToEdit] = useState<any>(null)
+  const [searchTerm, setSearchTerm] = useState("")
 
   const { t, language } = useLanguage()
   const { toast } = useToast()
@@ -66,12 +68,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       try {
         setLoading(true)
 
-        // Load elective pack details
+        // Load elective pack details from elective_courses table
         const packData = await getElectivePack(params.id)
+        if (!packData) {
+          throw new Error("Elective course pack not found")
+        }
         setElectivePack(packData)
 
-        // Load courses for this pack
-        const coursesData = await getElectiveCourses(params.id)
+        // Load courses for this pack from elective_courses.courses array
+        const coursesData = await getElectiveCoursesPack(params.id)
         setCourses(coursesData)
 
         // Load course selections
@@ -97,13 +102,33 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     return courseSelections.filter(
       (selection) =>
         selection.selected_courses &&
+        Array.isArray(selection.selected_courses) &&
         selection.selected_courses.includes(courseName) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
   }
 
+  // Filter course selections based on search term
+  const filteredSelections = courseSelections.filter((selection) => {
+    if (!searchTerm) return true
+
+    const searchLower = searchTerm.toLowerCase()
+    const studentName = selection.students?.name?.toLowerCase() || ""
+    const studentId = selection.students?.student_id?.toLowerCase() || ""
+    const groupName = selection.students?.group_name?.toLowerCase() || ""
+    const email = selection.students?.email?.toLowerCase() || ""
+
+    return (
+      studentName.includes(searchLower) ||
+      studentId.includes(searchLower) ||
+      groupName.includes(searchLower) ||
+      email.includes(searchLower)
+    )
+  })
+
   // Format date helper
   const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A"
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
@@ -124,7 +149,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       case "archived":
         return <Badge variant="default">{t("manager.status.archived")}</Badge>
       default:
-        return null
+        return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -153,7 +178,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
           </Badge>
         )
       default:
-        return null
+        return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -173,16 +198,36 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   }
 
   // Function to handle saving edited student selection
-  const saveStudentSelection = () => {
-    console.log("Saving edited selection for student:", studentToEdit)
-    setEditDialogOpen(false)
-    toast({
-      title: t("toast.selection.updated"),
-      description: t("toast.selection.updated.course.description").replace(
-        "{0}",
-        studentToEdit.students?.name || "Student",
-      ),
-    })
+  const saveStudentSelection = async () => {
+    if (!studentToEdit) return
+
+    try {
+      await updateCourseSelection(studentToEdit.id, studentToEdit.editedCourses)
+
+      // Update local state
+      setCourseSelections((prev) =>
+        prev.map((selection) =>
+          selection.id === studentToEdit.id
+            ? { ...selection, selected_courses: studentToEdit.editedCourses }
+            : selection,
+        ),
+      )
+
+      setEditDialogOpen(false)
+      toast({
+        title: t("toast.selection.updated"),
+        description: t("toast.selection.updated.course.description").replace(
+          "{0}",
+          studentToEdit.students?.name || "Student",
+        ),
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update student selection",
+        variant: "destructive",
+      })
+    }
   }
 
   // Function to download student statement
@@ -223,7 +268,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const exportAllSelectionsToCSV = () => {
     const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}\n`
 
-    const allSelectionsContent = courseSelections
+    const allSelectionsContent = filteredSelections
       .map((selection) => {
         const translatedStatus =
           language === "ru"
@@ -240,7 +285,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             ? "Не загружено"
             : "Not uploaded"
 
-        const selectedCourses = selection.selected_courses ? selection.selected_courses.join("; ") : ""
+        const selectedCourses = Array.isArray(selection.selected_courses) ? selection.selected_courses.join("; ") : ""
 
         return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${selectedCourses}","${formatDate(selection.created_at)}","${translatedStatus}","${statementLink}"`
       })
@@ -264,7 +309,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   // Function to export course enrollments to CSV
   const exportCourseEnrollmentsToCSV = (courseName: string) => {
     const studentsInCourse = courseSelections.filter(
-      (selection) => selection.selected_courses && selection.selected_courses.includes(courseName),
+      (selection) => Array.isArray(selection.selected_courses) && selection.selected_courses.includes(courseName),
     )
 
     const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}\n`
@@ -344,6 +389,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         <div className="space-y-6">
           <div className="text-center">
             <h1 className="text-2xl font-bold">Course pack not found</h1>
+            <p className="text-muted-foreground mt-2">The requested elective course pack could not be found.</p>
+            <Button asChild className="mt-4">
+              <Link href="/manager/electives?tab=courses">Back to Electives</Link>
+            </Button>
           </div>
         </div>
       </DashboardLayout>
@@ -388,7 +437,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
                 <dd>
-                  {electivePack.max_selections} {t("manager.courseDetails.courses")}
+                  {electivePack.max_selections || 0} {t("manager.courseDetails.courses")}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -401,7 +450,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
-                <dd>{t(`manager.status.${electivePack.status}`)}</dd>
+                <dd>{electivePack.status}</dd>
               </div>
             </dl>
           </CardContent>
@@ -420,51 +469,59 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.professor")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.enrollment")}
-                        </th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">
-                          {t("manager.courseDetails.export")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {courses.map((course) => {
-                        const enrollmentCount = getEnrollmentCount(course.name)
-                        return (
-                          <tr key={course.id} className="border-b">
-                            <td className="py-3 px-4 text-sm">{course.name}</td>
-                            <td className="py-3 px-4 text-sm">{course.professor}</td>
-                            <td className="py-3 px-4 text-sm">
-                              <Badge variant={enrollmentCount >= course.max_students ? "destructive" : "secondary"}>
-                                {enrollmentCount}/{course.max_students}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => exportCourseEnrollmentsToCSV(course.name)}
-                                className="flex items-center gap-1 mx-auto"
-                              >
-                                <FileDown className="h-4 w-4" />
-                                {t("manager.courseDetails.download")}
-                              </Button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {courses.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No courses found for this elective pack.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.professor")}
+                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.enrollment")}
+                          </th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">
+                            {t("manager.courseDetails.export")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courses.map((course) => {
+                          const enrollmentCount = getEnrollmentCount(course.name)
+                          return (
+                            <tr key={course.id} className="border-b">
+                              <td className="py-3 px-4 text-sm">{course.name}</td>
+                              <td className="py-3 px-4 text-sm">{course.professor || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">
+                                <Badge
+                                  variant={enrollmentCount >= (course.max_students || 0) ? "destructive" : "secondary"}
+                                >
+                                  {enrollmentCount}/{course.max_students || 0}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => exportCourseEnrollmentsToCSV(course.name)}
+                                  className="flex items-center gap-1 mx-auto"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                  {t("manager.courseDetails.download")}
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -480,6 +537,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <input
                       type="search"
                       placeholder={t("manager.courseDetails.searchStudents")}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                     />
                   </div>
@@ -490,80 +549,109 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.selectionDate")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">
-                          {t("manager.courseDetails.actions")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {courseSelections.map((selection) => (
-                        <tr key={selection.id} className="border-b">
-                          <td className="py-3 px-4 text-sm">{selection.students?.name || "Unknown"}</td>
-                          <td className="py-3 px-4 text-sm">{selection.students?.group_name || "Unknown"}</td>
-                          <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
-                          <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            {selection.statement_file_url ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                  downloadStudentStatement(
-                                    selection.students?.name || "Student",
-                                    selection.statement_file_url,
-                                  )
-                                }
-                              >
-                                <FileDown className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-center">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
+                {filteredSelections.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      {searchTerm ? "No students found matching your search." : "No student selections found."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.group")}
+                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.selectionDate")}
+                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">
+                            {t("manager.courseDetails.status")}
+                          </th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">
+                            {t("manager.courseDetails.view")}
+                          </th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">
+                            {t("manager.courseDetails.actions")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSelections.map((selection) => (
+                          <tr key={selection.id} className="border-b">
+                            <td className="py-3 px-4 text-sm">{selection.students?.name || "Unknown"}</td>
+                            <td className="py-3 px-4 text-sm">{selection.students?.group_name || "Unknown"}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
+                            <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              {selection.statement_file_url ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    downloadStudentStatement(
+                                      selection.students?.name || "Student",
+                                      selection.statement_file_url,
+                                    )
+                                  }
+                                >
+                                  <FileDown className="h-4 w-4" />
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  {t("manager.courseDetails.edit")}
-                                </DropdownMenuItem>
-                                {selection.status === "pending" && (
-                                  <>
-                                    <DropdownMenuItem
-                                      className="text-green-600"
-                                      onClick={() =>
-                                        handleStatusUpdate(
-                                          selection.id,
-                                          "approved",
-                                          selection.students?.name || "Student",
-                                        )
-                                      }
-                                    >
-                                      <CheckCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.approve")}
-                                    </DropdownMenuItem>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditDialog(selection)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    {t("manager.courseDetails.edit")}
+                                  </DropdownMenuItem>
+                                  {selection.status === "pending" && (
+                                    <>
+                                      <DropdownMenuItem
+                                        className="text-green-600"
+                                        onClick={() =>
+                                          handleStatusUpdate(
+                                            selection.id,
+                                            "approved",
+                                            selection.students?.name || "Student",
+                                          )
+                                        }
+                                      >
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        {t("manager.exchangeDetails.approve")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={() =>
+                                          handleStatusUpdate(
+                                            selection.id,
+                                            "rejected",
+                                            selection.students?.name || "Student",
+                                          )
+                                        }
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        {t("manager.exchangeDetails.reject")}
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {selection.status === "approved" && (
                                     <DropdownMenuItem
                                       className="text-red-600"
                                       onClick={() =>
@@ -575,33 +663,18 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                       }
                                     >
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.exchangeDetails.reject")}
+                                      {t("manager.courseDetails.withdraw")}
                                     </DropdownMenuItem>
-                                  </>
-                                )}
-                                {selection.status === "approved" && (
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() =>
-                                      handleStatusUpdate(
-                                        selection.id,
-                                        "rejected",
-                                        selection.students?.name || "Student",
-                                      )
-                                    }
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    {t("manager.courseDetails.withdraw")}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -636,34 +709,39 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                          <span>{selectedStudent.students?.name}</span>
+                          <span>{selectedStudent.students?.name || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                          <span>{selectedStudent.students?.student_id}</span>
+                          <span>{selectedStudent.students?.student_id || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.email")}:</span>
-                          <span>{selectedStudent.students?.email}</span>
+                          <span>{selectedStudent.students?.email || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                          <span>{selectedStudent.students?.group_name}</span>
+                          <span>{selectedStudent.students?.group_name || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                          <span>{selectedStudent.students?.degree_program}</span>
+                          <span>{selectedStudent.students?.degree_program || "N/A"}</span>
                         </div>
                       </div>
                     </div>
                     <div>
                       <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
                       <div className="mt-2 space-y-2">
-                        {selectedStudent.selected_courses?.map((course: string, index: number) => (
-                          <div key={index} className="rounded-md border p-2">
-                            <p className="font-medium">{course}</p>
-                          </div>
-                        )) || <p className="text-sm text-muted-foreground">No courses selected</p>}
+                        {Array.isArray(selectedStudent.selected_courses) &&
+                        selectedStudent.selected_courses.length > 0 ? (
+                          selectedStudent.selected_courses.map((course: string, index: number) => (
+                            <div key={index} className="rounded-md border p-2">
+                              <p className="font-medium">{course}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No courses selected</p>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -710,7 +788,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       <div className="mt-2">
                         <p className="text-sm">
                           <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
-                          {selectedStudent.students?.name}
+                          {selectedStudent.students?.name || "Student"}
                         </p>
                       </div>
                     </div>
@@ -805,7 +883,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <div>
                       <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
                       <p className="text-sm text-muted-foreground mt-1 mb-2">
-                        {t("manager.courseDetails.selectUpTo")} {electivePack.max_selections}{" "}
+                        {t("manager.courseDetails.selectUpTo")} {electivePack.max_selections || 0}{" "}
                         {t("manager.courseDetails.courses")}
                       </p>
                       <div className="mt-2 space-y-2">
@@ -817,7 +895,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               checked={studentToEdit.editedCourses.includes(course.name)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  if (studentToEdit.editedCourses.length < electivePack.max_selections) {
+                                  if (studentToEdit.editedCourses.length < (electivePack.max_selections || 0)) {
                                     setStudentToEdit({
                                       ...studentToEdit,
                                       editedCourses: [...studentToEdit.editedCourses, course.name],
@@ -835,12 +913,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
                               disabled={
                                 !studentToEdit.editedCourses.includes(course.name) &&
-                                studentToEdit.editedCourses.length >= electivePack.max_selections
+                                studentToEdit.editedCourses.length >= (electivePack.max_selections || 0)
                               }
                             />
                             <label htmlFor={`course-${course.id}`} className="text-sm font-medium">
                               {course.name}
-                              <span className="text-xs text-muted-foreground ml-1">({course.professor})</span>
+                              <span className="text-xs text-muted-foreground ml-1">({course.professor || "N/A"})</span>
                             </label>
                           </div>
                         ))}

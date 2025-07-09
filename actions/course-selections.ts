@@ -6,88 +6,152 @@ import { cookies } from "next/headers"
 export async function getCourseSelections(packId: string) {
   const supabase = createServerComponentClient({ cookies })
 
-  const { data, error } = await supabase
-    .from("course_selections")
-    .select(`
-      id,
-      student_id,
-      elective_pack_id,
-      selected_courses,
-      statement_file_url,
-      status,
-      created_at,
-      updated_at,
-      students (
+  try {
+    const { data, error } = await supabase
+      .from("course_selections")
+      .select(`
         id,
-        name,
-        email,
         student_id,
-        group_name,
-        degree_program
-      )
-    `)
-    .eq("elective_pack_id", packId)
-    .order("created_at", { ascending: false })
+        elective_pack_id,
+        selected_courses,
+        statement_file_url,
+        status,
+        created_at,
+        updated_at,
+        students (
+          id,
+          name,
+          email,
+          student_id,
+          group_name,
+          degree_program
+        )
+      `)
+      .eq("elective_pack_id", packId)
+      .order("created_at", { ascending: false })
 
-  if (error) {
-    console.error("Error fetching course selections:", error)
-    throw new Error("Failed to fetch course selections")
+    if (error) {
+      console.error("Error fetching course selections:", error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error("Error in getCourseSelections:", error)
+    return []
   }
-
-  return data
 }
 
-export async function getElectiveCourses(packId: string) {
+export async function getElectiveCoursesPack(packId: string) {
   const supabase = createServerComponentClient({ cookies })
 
-  const { data, error } = await supabase
-    .from("elective_courses")
-    .select(`
-      id,
-      name,
-      description,
-      professor,
-      credits,
-      max_students,
-      elective_pack_id
-    `)
-    .eq("elective_pack_id", packId)
-    .order("name", { ascending: true })
+  try {
+    // First get the elective_courses record to get the courses array
+    const { data: packData, error: packError } = await supabase
+      .from("elective_courses")
+      .select("courses")
+      .eq("id", packId)
+      .single()
 
-  if (error) {
-    console.error("Error fetching elective courses:", error)
-    throw new Error("Failed to fetch elective courses")
+    if (packError) {
+      console.error("Error fetching elective courses pack:", packError)
+      return []
+    }
+
+    if (!packData?.courses || !Array.isArray(packData.courses) || packData.courses.length === 0) {
+      return []
+    }
+
+    // Then get the course details using the UUIDs from the courses array
+    const { data: coursesData, error: coursesError } = await supabase
+      .from("courses")
+      .select(`
+        id,
+        name,
+        description,
+        professor,
+        credits,
+        max_students
+      `)
+      .in("id", packData.courses)
+      .order("name", { ascending: true })
+
+    if (coursesError) {
+      console.error("Error fetching courses:", coursesError)
+      return []
+    }
+
+    return coursesData || []
+  } catch (error) {
+    console.error("Error in getElectiveCoursesPack:", error)
+    return []
   }
-
-  return data
 }
 
 export async function downloadStatementFile(fileUrl: string) {
   const supabase = createServerComponentClient({ cookies })
 
-  const { data, error } = await supabase.storage.from("statements").download(fileUrl)
+  try {
+    const { data, error } = await supabase.storage.from("statements").download(fileUrl)
 
-  if (error) {
-    console.error("Error downloading statement file:", error)
-    throw new Error("Failed to download statement file")
+    if (error) {
+      console.error("Error downloading statement file:", error)
+      throw new Error("Failed to download statement file")
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in downloadStatementFile:", error)
+    throw error
   }
-
-  return data
 }
 
 export async function updateCourseSelectionStatus(selectionId: string, status: string) {
   const supabase = createServerComponentClient({ cookies })
 
-  const { data, error } = await supabase
-    .from("course_selections")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", selectionId)
-    .select()
+  try {
+    const { data, error } = await supabase
+      .from("course_selections")
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectionId)
+      .select()
 
-  if (error) {
-    console.error("Error updating course selection status:", error)
-    throw new Error("Failed to update course selection status")
+    if (error) {
+      console.error("Error updating course selection status:", error)
+      throw new Error("Failed to update course selection status")
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in updateCourseSelectionStatus:", error)
+    throw error
   }
+}
 
-  return data
+export async function updateCourseSelection(selectionId: string, selectedCourses: string[]) {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const { data, error } = await supabase
+      .from("course_selections")
+      .update({
+        selected_courses: selectedCourses,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectionId)
+      .select()
+
+    if (error) {
+      console.error("Error updating course selection:", error)
+      throw new Error("Failed to update course selection")
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in updateCourseSelection:", error)
+    throw error
+  }
 }
