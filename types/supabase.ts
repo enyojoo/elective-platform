@@ -607,6 +607,189 @@ export interface Database {
           },
         ]
       }
+      elective_exchange: {
+        Row: {
+          id: string
+          institution_id: string
+          name: string
+          name_ru: string | null
+          description: string | null
+          description_ru: string | null
+          deadline: string
+          max_selections: number
+          status: string
+          universities: string[] // Array of university IDs
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          institution_id: string
+          name: string
+          name_ru?: string | null
+          description?: string | null
+          description_ru?: string | null
+          deadline: string
+          max_selections: number
+          status?: string
+          universities: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          institution_id?: string
+          name?: string
+          name_ru?: string | null
+          description?: string | null
+          description_ru?: string | null
+          deadline?: string
+          max_selections?: number
+          status?: string
+          universities?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "elective_exchange_institution_id_fkey"
+            columns: ["institution_id"]
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exchange_universities: {
+        Row: {
+          id: string
+          elective_pack_id: string | null
+          name: string
+          name_ru: string | null
+          country: string
+          city: string
+          language: string | null
+          max_students: number
+          website: string | null
+          description: string | null
+          description_ru: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          elective_pack_id?: string | null
+          name: string
+          name_ru?: string | null
+          country: string
+          city: string
+          language?: string | null
+          max_students: number
+          website?: string | null
+          description?: string | null
+          description_ru?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          elective_pack_id?: string | null
+          name?: string
+          name_ru?: string | null
+          country?: string
+          city?: string
+          language?: string | null
+          max_students?: number
+          website?: string | null
+          description?: string | null
+          description_ru?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exchange_universities_elective_pack_id_fkey"
+            columns: ["elective_pack_id"]
+            referencedRelation: "elective_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exchange_selections: {
+        Row: {
+          id: string
+          student_id: string
+          elective_exchange_id: string
+          selected_universities: string[] // Array of university IDs
+          statement_url: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          elective_exchange_id: string
+          selected_universities: string[]
+          statement_url?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          elective_exchange_id?: string
+          selected_universities?: string[]
+          statement_url?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exchange_selections_student_id_fkey"
+            columns: ["student_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exchange_selections_elective_exchange_id_fkey"
+            columns: ["elective_exchange_id"]
+            referencedRelation: "elective_exchange"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      countries: {
+        Row: {
+          id: string
+          name: string
+          name_ru: string | null
+          code: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          name_ru?: string | null
+          code: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          name_ru?: string | null
+          code?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
