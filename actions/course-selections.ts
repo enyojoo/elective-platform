@@ -46,7 +46,7 @@ export async function getElectiveCoursesPack(packId: string) {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    // First get the elective_courses record to get the courses array
+    // Get the elective_courses record to get the courses array
     const { data: packData, error: packError } = await supabase
       .from("elective_courses")
       .select("courses")
@@ -85,6 +85,37 @@ export async function getElectiveCoursesPack(packId: string) {
   } catch (error) {
     console.error("Error in getElectiveCoursesPack:", error)
     return []
+  }
+}
+
+export async function getElectiveCoursesPackDetails(packId: string) {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const { data, error } = await supabase
+      .from("elective_courses")
+      .select(`
+        id,
+        name,
+        description,
+        status,
+        deadline,
+        max_selections,
+        created_at,
+        updated_at
+      `)
+      .eq("id", packId)
+      .single()
+
+    if (error) {
+      console.error("Error fetching elective courses pack details:", error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in getElectiveCoursesPackDetails:", error)
+    return null
   }
 }
 

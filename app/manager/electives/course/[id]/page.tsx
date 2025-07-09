@@ -33,10 +33,10 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { getElectivePack } from "@/actions/elective-packs"
 import {
   getCourseSelections,
   getElectiveCoursesPack,
+  getElectiveCoursesPackDetails,
   updateCourseSelectionStatus,
   updateCourseSelection,
   downloadStatementFile,
@@ -69,7 +69,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         setLoading(true)
 
         // Load elective pack details from elective_courses table
-        const packData = await getElectivePack(params.id)
+        const packData = await getElectiveCoursesPackDetails(params.id)
         if (!packData) {
           throw new Error("Elective course pack not found")
         }
