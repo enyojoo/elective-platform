@@ -16,22 +16,26 @@ export async function getExchangeProgram(id: string) {
   return data
 }
 
-export async function getExchangeProgramUniversities(universityIds: string[]) {
+export async function getUniversitiesFromIds(universityIds: string[]) {
+  if (!universityIds || universityIds.length === 0) {
+    return []
+  }
+
   const supabase = createServerComponentClient({ cookies })
 
   const { data, error } = await supabase
-    .from("exchange_universities")
+    .from("universities")
     .select("*, countries(name, name_ru)")
     .in("id", universityIds)
     .eq("status", "active")
     .order("name")
 
   if (error) {
-    console.error("Error fetching exchange universities:", error)
-    throw new Error("Failed to fetch exchange universities")
+    console.error("Error fetching universities:", error)
+    throw new Error("Failed to fetch universities")
   }
 
-  return data
+  return data || []
 }
 
 export async function getExchangeSelections(exchangeId: string) {
@@ -70,7 +74,7 @@ export async function getExchangeSelections(exchangeId: string) {
     throw new Error("Failed to fetch exchange selections")
   }
 
-  return data
+  return data || []
 }
 
 export async function getUniversitySelectionData(universityId: string, exchangeId: string) {
@@ -109,7 +113,7 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
     throw new Error("Failed to fetch university selection data")
   }
 
-  return data
+  return data || []
 }
 
 export async function downloadStatementFile(statementUrl: string) {
