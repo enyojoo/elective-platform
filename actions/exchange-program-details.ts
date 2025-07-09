@@ -146,9 +146,9 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
     // Filter selections that include this university
     const filteredSelections = (selections || []).filter(
       (selection) =>
-        selection.selected_universities &&
-        Array.isArray(selection.selected_universities) &&
-        selection.selected_universities.includes(universityId),
+        selection.selected_university_ids &&
+        Array.isArray(selection.selected_university_ids) &&
+        selection.selected_university_ids.includes(universityId),
     )
 
     // Get profile data for filtered selections
@@ -233,5 +233,34 @@ export async function updateSelectionStatus(selectionId: string, status: "approv
   } catch (error) {
     console.error("Error in updateSelectionStatus:", error)
     throw new Error("Failed to update selection status")
+  }
+}
+
+export async function updateStudentSelection(
+  selectionId: string,
+  selectedUniversityIds: string[],
+  status: "approved" | "rejected" | "pending",
+) {
+  try {
+    const { data, error } = await supabase
+      .from("exchange_selections")
+      .update({
+        selected_university_ids: selectedUniversityIds,
+        status,
+      })
+      .eq("id", selectionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating student selection:", error)
+      throw new Error("Failed to update student selection")
+    }
+
+    revalidatePath("/manager/electives/exchange")
+    return data
+  } catch (error) {
+    console.error("Error in updateStudentSelection:", error)
+    throw new Error("Failed to update student selection")
   }
 }

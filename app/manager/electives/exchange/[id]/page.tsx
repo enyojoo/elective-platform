@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   ArrowLeft,
   Edit,
@@ -34,6 +35,7 @@ import {
   getUniversitySelectionData,
   downloadStatementFile,
   updateSelectionStatus,
+  updateStudentSelection,
 } from "@/actions/exchange-program-details"
 
 interface ExchangeProgramDetailPageProps {
@@ -74,7 +76,7 @@ interface University {
 
 interface StudentSelection {
   id: string
-  selected_universities: string[]
+  selected_university_ids: string[]
   statement_url: string | null
   status: string
   created_at: string
@@ -98,6 +100,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
   const [editingStudent, setEditingStudent] = useState<StudentSelection | null>(null)
   const [editStatus, setEditStatus] = useState("")
+  const [editSelectedUniversities, setEditSelectedUniversities] = useState<string[]>([])
 
   const { t, language } = useLanguage()
   const { toast } = useToast()
@@ -151,8 +154,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const getUniversityEnrollment = (universityId: string) => {
     const count = studentSelections.filter(
       (selection) =>
-        selection.selected_universities &&
-        selection.selected_universities.includes(universityId) &&
+        selection.selected_university_ids &&
+        selection.selected_university_ids.includes(universityId) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
     console.log(`University ${universityId} enrollment:`, count)
@@ -334,7 +337,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       .map((selection) => {
         // Get university names for selected universities
         const selectedUniversityNames =
-          selection.selected_universities
+          selection.selected_university_ids
             ?.map((id) => {
               const university = universities.find((u) => u.id === id)
               return university
@@ -406,25 +409,32 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
   // Function to handle edit save
   const handleEditSave = async () => {
-    if (!editingStudent || !editStatus) return
+    if (!editingStudent) return
 
     try {
-      await updateSelectionStatus(editingStudent.id, editStatus as "approved" | "rejected")
+      await updateStudentSelection(
+        editingStudent.id,
+        editSelectedUniversities,
+        editStatus as "approved" | "rejected" | "pending",
+      )
 
       // Update local state
       setStudentSelections((prev) =>
         prev.map((selection) =>
-          selection.id === editingStudent.id ? { ...selection, status: editStatus } : selection,
+          selection.id === editingStudent.id
+            ? { ...selection, selected_university_ids: editSelectedUniversities, status: editStatus }
+            : selection,
         ),
       )
 
       setEditDialogOpen(false)
       setEditingStudent(null)
       setEditStatus("")
+      setEditSelectedUniversities([])
 
       toast({
         title: "Selection updated",
-        description: `Selection status updated to ${editStatus}`,
+        description: `Student selection updated successfully`,
       })
     } catch (error) {
       console.error("Error updating selection:", error)
@@ -433,6 +443,15 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
         description: "Failed to update selection",
         variant: "destructive",
       })
+    }
+  }
+
+  // Function to handle university selection change in edit dialog
+  const handleUniversityToggle = (universityId: string, checked: boolean) => {
+    if (checked) {
+      setEditSelectedUniversities((prev) => [...prev, universityId])
+    } else {
+      setEditSelectedUniversities((prev) => prev.filter((id) => id !== universityId))
     }
   }
 
@@ -734,7 +753,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                         <div>
                                           <Label className="text-sm font-medium">Selected Universities</Label>
                                           <div className="mt-2 space-y-2">
-                                            {selectedStudent.selected_universities?.map((univId) => {
+                                            {selectedStudent.selected_university_ids?.map((univId) => {
                                               const university = universities.find((u) => u.id === univId)
                                               return (
                                                 <div
@@ -803,6 +822,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                       onClick={() => {
                                         setEditingStudent(selection)
                                         setEditStatus(selection.status)
+                                        setEditSelectedUniversities(selection.selected_university_ids || [])
                                         setEditDialogOpen(true)
                                       }}
                                     >
@@ -871,7 +891,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
         {/* Edit Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Edit Student Selection</DialogTitle>
             </DialogHeader>
@@ -880,6 +900,24 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                 <div>
                   <Label className="text-sm font-medium">Student</Label>
                   <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Selected Universities</Label>
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {universities.map((university) => (
+                      <div key={university.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={university.id}
+                          checked={editSelectedUniversities.includes(university.id)}
+                          onCheckedChange={(checked) => handleUniversityToggle(university.id, checked as boolean)}
+                        />
+                        <Label htmlFor={university.id} className="text-sm">
+                          {language === "ru" && university.name_ru ? university.name_ru : university.name} -{" "}
+                          {university.city}, {university.country}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="status">Status</Label>
