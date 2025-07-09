@@ -7,7 +7,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  ArrowLeft,
+  Edit,
+  Eye,
+  MoreVertical,
+  Search,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  ExternalLink,
+} from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -79,6 +93,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
+  const [editingStudent, setEditingStudent] = useState<StudentSelection | null>(null)
+  const [editStatus, setEditStatus] = useState("")
 
   const { t, language } = useLanguage()
   const { toast } = useToast()
@@ -308,7 +327,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   // Function to export all student selections to CSV
   const exportStudentSelectionsToCSV = () => {
     // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление URL" : "Statement URL"}"\n`
 
     // Create CSV content with translated status
     const selectionsContent = studentSelections
@@ -336,17 +355,11 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                 : "Отклонено"
             : selection.status
 
-        // Statement availability
-        const statementStatus = selection.statement_url
-          ? language === "ru"
-            ? "Загружено"
-            : "Uploaded"
-          : language === "ru"
-            ? "Не загружено"
-            : "Not uploaded"
+        // Statement URL
+        const statementUrl = selection.statement_url || ""
 
         // Escape fields that might contain commas
-        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementStatus}"`
+        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementUrl}"`
       })
       .join("\n")
 
@@ -386,6 +399,38 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       toast({
         title: "Error",
         description: `Failed to ${newStatus} selection`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to handle edit save
+  const handleEditSave = async () => {
+    if (!editingStudent || !editStatus) return
+
+    try {
+      await updateSelectionStatus(editingStudent.id, editStatus as "approved" | "rejected")
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) =>
+          selection.id === editingStudent.id ? { ...selection, status: editStatus } : selection,
+        ),
+      )
+
+      setEditDialogOpen(false)
+      setEditingStudent(null)
+      setEditStatus("")
+
+      toast({
+        title: "Selection updated",
+        description: `Selection status updated to ${editStatus}`,
+      })
+    } catch (error) {
+      console.error("Error updating selection:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update selection",
         variant: "destructive",
       })
     }
@@ -654,9 +699,97 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                 )}
                               </td>
                               <td className="py-3 px-4 text-sm text-center">
-                                <Button variant="ghost" size="icon" disabled>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+                                  <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => setSelectedStudent(selection)}>
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                      <DialogTitle>Student Selection Details</DialogTitle>
+                                    </DialogHeader>
+                                    {selectedStudent && (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                            <Label className="text-sm font-medium">Student Name</Label>
+                                            <p className="text-sm">{selectedStudent.profiles?.full_name || "N/A"}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Email</Label>
+                                            <p className="text-sm">{selectedStudent.profiles?.email || "N/A"}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Selection Date</Label>
+                                            <p className="text-sm">{formatDate(selectedStudent.created_at)}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Status</Label>
+                                            <div className="mt-1">
+                                              {getSelectionStatusBadge(selectedStudent.status)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <Label className="text-sm font-medium">Selected Universities</Label>
+                                          <div className="mt-2 space-y-2">
+                                            {selectedStudent.selected_universities?.map((univId) => {
+                                              const university = universities.find((u) => u.id === univId)
+                                              return (
+                                                <div
+                                                  key={univId}
+                                                  className="flex items-center justify-between p-2 border rounded"
+                                                >
+                                                  <span className="text-sm">
+                                                    {university
+                                                      ? language === "ru" && university.name_ru
+                                                        ? university.name_ru
+                                                        : university.name
+                                                      : "Unknown University"}
+                                                  </span>
+                                                  {university && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                      {university.city}, {university.country}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                        {selectedStudent.statement_url && (
+                                          <div>
+                                            <Label className="text-sm font-medium">Statement</Label>
+                                            <div className="mt-2 flex items-center gap-2">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                  downloadStudentStatement(
+                                                    selectedStudent.profiles?.full_name || "Student",
+                                                    selectedStudent.statement_url,
+                                                  )
+                                                }
+                                              >
+                                                <Download className="h-4 w-4 mr-2" />
+                                                Download Statement
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => window.open(selectedStudent.statement_url!, "_blank")}
+                                              >
+                                                <ExternalLink className="h-4 w-4 mr-2" />
+                                                View Online
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </DialogContent>
+                                </Dialog>
                               </td>
                               <td className="py-3 px-4 text-sm text-center">
                                 <DropdownMenu>
@@ -666,7 +799,13 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem disabled>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingStudent(selection)
+                                        setEditStatus(selection.status)
+                                        setEditDialogOpen(true)
+                                      }}
+                                    >
                                       <Edit className="mr-2 h-4 w-4" />
                                       Edit
                                     </DropdownMenuItem>
@@ -729,6 +868,42 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Student Selection</DialogTitle>
+            </DialogHeader>
+            {editingStudent && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Student</Label>
+                  <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleEditSave}>Save Changes</Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Toaster />

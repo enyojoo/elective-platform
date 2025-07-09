@@ -192,7 +192,15 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
 
 export async function downloadStatementFile(statementUrl: string) {
   try {
-    const { data, error } = await supabase.storage.from("statements").download(statementUrl)
+    // Extract the file path from the full URL if needed
+    let filePath = statementUrl
+    if (statementUrl.includes("/storage/v1/object/public/statements/")) {
+      filePath = statementUrl.split("/storage/v1/object/public/statements/")[1]
+    } else if (statementUrl.includes("/statements/")) {
+      filePath = statementUrl.split("/statements/")[1]
+    }
+
+    const { data, error } = await supabase.storage.from("statements").download(filePath)
 
     if (error) {
       console.error("Error downloading statement:", error)
