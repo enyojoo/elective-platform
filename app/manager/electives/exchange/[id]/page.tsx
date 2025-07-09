@@ -1,21 +1,11 @@
 "use client"
 
-import { DialogClose } from "@/components/ui/dialog"
-
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
@@ -27,6 +17,7 @@ import {
   getExchangeProgram,
   getUniversitiesFromIds,
   getExchangeSelections,
+  getExchangeSelectionsWithProfiles,
   getUniversitySelectionData,
   downloadStatementFile,
 } from "@/actions/exchange-program-details"
@@ -63,10 +54,6 @@ interface University {
   description: string | null
   description_ru: string | null
   status: string
-  countries?: {
-    name: string
-    name_ru: string | null
-  }
 }
 
 interface StudentSelection {
@@ -75,23 +62,11 @@ interface StudentSelection {
   statement_url: string | null
   status: string
   created_at: string
-  profiles: {
+  student_id: string
+  profiles?: {
     id: string
     full_name: string | null
     email: string
-    student_profiles:
-      | {
-          enrollment_year: string
-          groups: {
-            name: string
-            display_name: string
-            programs: {
-              name: string
-              name_ru: string | null
-            }
-          } | null
-        }[]
-      | null
   } | null
 }
 
@@ -100,6 +75,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const [universities, setUniversities] = useState<University[]>([])
   const [studentSelections, setStudentSelections] = useState<StudentSelection[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -116,22 +92,41 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const loadData = async () => {
     try {
       setLoading(true)
+      setError(null)
+
+      console.log("Loading exchange program with ID:", params.id)
 
       // Load exchange program
       const program = await getExchangeProgram(params.id)
+      console.log("Exchange program loaded:", program)
       setExchangeProgram(program)
 
       // Load universities from the universities column
       if (program.universities && program.universities.length > 0) {
+        console.log("Loading universities with IDs:", program.universities)
         const universitiesData = await getUniversitiesFromIds(program.universities)
+        console.log("Universities loaded:", universitiesData)
         setUniversities(universitiesData)
+      } else {
+        console.log("No universities found in program")
+        setUniversities([])
       }
 
       // Load student selections
-      const selections = await getExchangeSelections(params.id)
-      setStudentSelections(selections)
+      console.log("Loading student selections for exchange ID:", params.id)
+      try {
+        const selections = await getExchangeSelectionsWithProfiles(params.id)
+        console.log("Student selections loaded:", selections)
+        setStudentSelections(selections)
+      } catch (selectionError) {
+        console.error("Error loading selections with profiles, trying simple query:", selectionError)
+        const simpleSelections = await getExchangeSelections(params.id)
+        console.log("Simple student selections loaded:", simpleSelections)
+        setStudentSelections(simpleSelections)
+      }
     } catch (error) {
       console.error("Error loading data:", error)
+      setError(error instanceof Error ? error.message : "Failed to load exchange program data")
       toast({
         title: "Error",
         description: "Failed to load exchange program data",
@@ -144,17 +139,23 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
   // Calculate enrollment count for each university
   const getUniversityEnrollment = (universityId: string) => {
-    return studentSelections.filter(
+    const count = studentSelections.filter(
       (selection) =>
+        selection.selected_universities &&
         selection.selected_universities.includes(universityId) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
+    console.log(`University ${universityId} enrollment:`, count)
+    return count
   }
 
   // Get total students enrolled (both pending and approved)
   const getTotalStudentsEnrolled = () => {
-    return studentSelections.filter((selection) => selection.status === "approved" || selection.status === "pending")
-      .length
+    const count = studentSelections.filter(
+      (selection) => selection.status === "approved" || selection.status === "pending",
+    ).length
+    console.log("Total students enrolled:", count)
+    return count
   }
 
   // Format date helper
@@ -171,15 +172,15 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="outline">{t("manager.status.draft")}</Badge>
+        return <Badge variant="outline">Draft</Badge>
       case "published":
-        return <Badge variant="secondary">{t("manager.status.published")}</Badge>
+        return <Badge variant="secondary">Published</Badge>
       case "closed":
-        return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
+        return <Badge variant="destructive">Closed</Badge>
       case "archived":
-        return <Badge variant="default">{t("manager.status.archived")}</Badge>
+        return <Badge variant="default">Archived</Badge>
       default:
-        return null
+        return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -190,51 +191,27 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.approved")}
+            Approved
           </Badge>
         )
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.pending")}
+            Pending
           </Badge>
         )
       case "rejected":
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.rejected")}
+            Rejected
           </Badge>
         )
       default:
-        return null
+        return <Badge variant="outline">{status}</Badge>
     }
   }
-
-  // Function to open dialog with student details
-  const openStudentDialog = (student: any) => {
-    setSelectedStudent(student)
-    setDialogOpen(true)
-  }
-
-  // Add a new state for the edit dialog
-  const openEditDialog = (student: any) => {
-    setStudentToEdit({
-      ...student,
-      // Create a copy of the selected universities for editing
-      editedUniversities: [...student.selectedUniversities],
-    })
-    setEditDialogOpen(true)
-  }
-
-  // Clean up function to ensure dialogs are properly closed
-  useEffect(() => {
-    return () => {
-      setDialogOpen(false)
-      setEditDialogOpen(false)
-    }
-  }, [])
 
   // Function to export university selection data to CSV
   const exportUniversityToCSV = async (university: University) => {
@@ -243,8 +220,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
       // Define column headers based on language
       const headers = {
-        en: ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"],
-        ru: ["Имя студента", "Электронная почта", "Группа", "Программа", "Статус", "Дата выбора"],
+        en: ["Student Name", "Email", "Status", "Selection Date"],
+        ru: ["Имя студента", "Электронная почта", "Статус", "Дата выбора"],
       }
 
       // Create CSV content
@@ -252,10 +229,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
       // Add data rows
       selectionData.forEach((selection) => {
-        const student = selection.profiles
-        const group = student?.student_profiles?.[0]?.groups
-        const program = group?.programs
-
         const translatedStatus =
           language === "ru"
             ? selection.status === "approved"
@@ -266,10 +239,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
             : selection.status
 
         const row = [
-          `"${student?.full_name || "N/A"}"`,
-          `"${student?.email || "N/A"}"`,
-          `"${group?.display_name || "N/A"}"`,
-          `"${language === "ru" && program?.name_ru ? program.name_ru : program?.name || "N/A"}"`,
+          `"${selection.profiles?.full_name || "N/A"}"`,
+          `"${selection.profiles?.email || "N/A"}"`,
           `"${translatedStatus}"`,
           `"${formatDate(selection.created_at)}"`,
         ]
@@ -346,26 +317,23 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   // Function to export all student selections to CSV
   const exportStudentSelectionsToCSV = () => {
     // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
 
     // Create CSV content with translated status
     const selectionsContent = studentSelections
       .map((selection) => {
-        const student = selection.profiles
-        const group = student?.student_profiles?.[0]?.groups
-        const program = group?.programs
-
         // Get university names for selected universities
-        const selectedUniversityNames = selection.selected_universities
-          .map((id) => {
-            const university = universities.find((u) => u.id === id)
-            return university
-              ? language === "ru" && university.name_ru
-                ? university.name_ru
-                : university.name
-              : "Unknown"
-          })
-          .join("; ")
+        const selectedUniversityNames =
+          selection.selected_universities
+            ?.map((id) => {
+              const university = universities.find((u) => u.id === id)
+              return university
+                ? language === "ru" && university.name_ru
+                  ? university.name_ru
+                  : university.name
+                : "Unknown"
+            })
+            .join("; ") || ""
 
         // Translate status based on current language
         const translatedStatus =
@@ -387,7 +355,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
             : "Not uploaded"
 
         // Escape fields that might contain commas
-        return `"${student?.full_name || "N/A"}","${student?.email || "N/A"}","${group?.display_name || "N/A"}","${language === "ru" && program?.name_ru ? program.name_ru : program?.name || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementStatus}"`
+        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementStatus}"`
       })
       .join("\n")
 
@@ -408,40 +376,13 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     document.body.removeChild(link)
   }
 
-  // Function to handle saving edited student selection
-  const saveStudentSelection = () => {
-    // In a real application, this would make an API call to update the database
-    console.log("Saving edited selection for student:", studentToEdit)
-
-    // Update the local state for demo purposes
-    const updatedSelections = studentSelections.map((student) =>
-      student.id === studentToEdit.id
-        ? { ...student, selectedUniversities: studentToEdit.editedUniversities }
-        : student,
-    )
-
-    // Close the dialog
-    setEditDialogOpen(false)
-
-    // Show toast notification with translated messages
-    window.setTimeout(() => {
-      toast({
-        title: "Selection updated",
-        description: `Selection updated for ${studentToEdit.studentName}`,
-      })
-    }, 100)
-  }
-
   // Filter students based on search term
   const filteredStudentSelections = studentSelections.filter((selection) => {
-    const student = selection.profiles
-    const group = student?.student_profiles?.[0]?.groups
     const searchLower = searchTerm.toLowerCase()
-
     return (
-      student?.full_name?.toLowerCase().includes(searchLower) ||
-      student?.email?.toLowerCase().includes(searchLower) ||
-      group?.display_name?.toLowerCase().includes(searchLower)
+      selection.profiles?.full_name?.toLowerCase().includes(searchLower) ||
+      selection.profiles?.email?.toLowerCase().includes(searchLower) ||
+      selection.student_id?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -452,6 +393,22 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
             <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-red-600">Error Loading Data</h1>
+            <p className="text-muted-foreground mt-2">{error}</p>
+            <Button onClick={loadData} className="mt-4">
+              Try Again
+            </Button>
           </div>
         </div>
       </DashboardLayout>
@@ -543,8 +500,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
         <Tabs defaultValue="universities">
           <TabsList>
-            <TabsTrigger value="universities">Universities</TabsTrigger>
-            <TabsTrigger value="students">Student Selections</TabsTrigger>
+            <TabsTrigger value="universities">Universities ({universities.length})</TabsTrigger>
+            <TabsTrigger value="students">Student Selections ({studentSelections.length})</TabsTrigger>
           </TabsList>
           <TabsContent value="universities" className="mt-4">
             <Card>
@@ -577,7 +534,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                 {language === "ru" && university.name_ru ? university.name_ru : university.name}
                               </td>
                               <td className="py-3 px-4 text-sm">
-                                {university.city}, {university.countries?.name || university.country}
+                                {university.city}, {university.country}
                               </td>
                               <td className="py-3 px-4 text-sm">{university.language || "-"}</td>
                               <td className="py-3 px-4 text-sm">
@@ -637,7 +594,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Group</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Email</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
                         <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
                         <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
@@ -654,14 +611,10 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                         </tr>
                       ) : (
                         filteredStudentSelections.map((selection) => {
-                          const student = selection.profiles
-                          const group = student?.student_profiles?.[0]?.groups
-                          const program = group?.programs
-
                           return (
                             <tr key={selection.id} className="border-b">
-                              <td className="py-3 px-4 text-sm">{student?.full_name || "N/A"}</td>
-                              <td className="py-3 px-4 text-sm">{group?.display_name || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{selection.profiles?.full_name || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{selection.profiles?.email || "N/A"}</td>
                               <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
                               <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
                               <td className="py-3 px-4 text-sm text-center">
@@ -670,7 +623,10 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                     variant="ghost"
                                     size="icon"
                                     onClick={() =>
-                                      downloadStudentStatement(student?.full_name || "Student", selection.statement_url)
+                                      downloadStudentStatement(
+                                        selection.profiles?.full_name || "Student",
+                                        selection.statement_url,
+                                      )
                                     }
                                   >
                                     <Download className="h-4 w-4" />
@@ -703,7 +659,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                           onClick={() => {
                                             toast({
                                               title: "Selection approved",
-                                              description: `Selection approved for ${student?.full_name}`,
+                                              description: `Selection approved for ${selection.profiles?.full_name}`,
                                             })
                                           }}
                                         >
@@ -715,7 +671,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                           onClick={() => {
                                             toast({
                                               title: "Selection rejected",
-                                              description: `Selection rejected for ${student?.full_name}`,
+                                              description: `Selection rejected for ${selection.profiles?.full_name}`,
                                             })
                                           }}
                                         >
@@ -730,7 +686,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                         onClick={() => {
                                           toast({
                                             title: "Selection withdrawn",
-                                            description: `Selection withdrawn for ${student?.full_name}`,
+                                            description: `Selection withdrawn for ${selection.profiles?.full_name}`,
                                           })
                                         }}
                                       >
@@ -753,246 +709,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Student Details Dialog */}
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) {
-            setTimeout(() => {
-              setSelectedStudent(null)
-            }, 300)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[500px]">
-          {selectedStudent && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Student Details</DialogTitle>
-                <DialogDescription>View details for {selectedStudent.studentName} exchange selection</DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">Student Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Name:</span>
-                        <span>{selectedStudent.studentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">ID:</span>
-                        <span>{selectedStudent.studentId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Email:</span>
-                        <span>{selectedStudent.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Group:</span>
-                        <span>{selectedStudent.group}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Program:</span>
-                        <span>{selectedStudent.program}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Selected Universities</h3>
-                    <div className="mt-2 space-y-2">
-                      {selectedStudent.selectedUniversities.map((university: string, index: number) => (
-                        <div key={index} className="rounded-md border p-2">
-                          <p className="font-medium">{university}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {universities.find((u) => u.name === university)?.city},{" "}
-                            {universities.find((u) => u.name === university)?.country}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Selection Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Date:</span>
-                        <span>{formatDate(selectedStudent.selectionDate)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Status:</span>
-                        <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-medium">Statement File</h3>
-                    <div className="mt-2">
-                      {selectedStudent.statementFile ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full flex items-center gap-2 bg-transparent"
-                          onClick={() =>
-                            downloadStudentStatement(selectedStudent.studentName, selectedStudent.statementFile)
-                          }
-                        >
-                          <Download className="h-4 w-4" />
-                          Download Statement
-                        </Button>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium">Digital Authorization</h3>
-                    <div className="mt-2">
-                      <p className="text-sm">
-                        <span className="font-medium">Authorized by:</span> {selectedStudent.studentName}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                  onClick={() => {
-                    toast({
-                      title: "Selection approved",
-                      description: `Selection approved for ${selectedStudent.studentName}`,
-                    })
-                    setDialogOpen(false)
-                  }}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve
-                </Button>
-                <Button
-                  variant="outline"
-                  className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                  onClick={() => {
-                    toast({
-                      title: "Selection rejected",
-                      description: `Selection rejected for ${selectedStudent.studentName}`,
-                    })
-                    setDialogOpen(false)
-                  }}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Reject
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Student Selection Edit Dialog */}
-      <Dialog
-        open={editDialogOpen}
-        onOpenChange={(open) => {
-          setEditDialogOpen(open)
-          if (!open) {
-            setTimeout(() => {
-              setStudentToEdit(null)
-            }, 300)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[500px]">
-          {studentToEdit && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Edit Student Selection</DialogTitle>
-                <DialogDescription>Edit selection for {studentToEdit.studentName}</DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">Student Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Name:</span>
-                        <span>{studentToEdit.studentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">ID:</span>
-                        <span>{studentToEdit.studentId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Group:</span>
-                        <span>{studentToEdit.group}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Edit Universities</h3>
-                    <p className="text-sm text-muted-foreground mt-1 mb-2">
-                      Select up to {exchangeProgram.max_selections} universities
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      {universities.map((university) => (
-                        <div key={university.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`university-${university.id}`}
-                            checked={studentToEdit.editedUniversities.includes(university.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                if (studentToEdit.editedUniversities.length < exchangeProgram.max_selections) {
-                                  setStudentToEdit({
-                                    ...studentToEdit,
-                                    editedUniversities: [...studentToEdit.editedUniversities, university.name],
-                                  })
-                                }
-                              } else {
-                                setStudentToEdit({
-                                  ...studentToEdit,
-                                  editedUniversities: studentToEdit.editedUniversities.filter(
-                                    (name: string) => name !== university.name,
-                                  ),
-                                })
-                              }
-                            }}
-                            className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
-                            disabled={
-                              !studentToEdit.editedUniversities.includes(university.name) &&
-                              studentToEdit.editedUniversities.length >= exchangeProgram.max_selections
-                            }
-                          />
-                          <label htmlFor={`university-${university.id}`} className="text-sm font-medium">
-                            {university.name}
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({university.city}, {university.country})
-                            </span>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button onClick={saveStudentSelection} disabled={studentToEdit.editedUniversities.length === 0}>
-                  Save Changes
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Toaster />
     </DashboardLayout>
