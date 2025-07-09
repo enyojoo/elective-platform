@@ -135,13 +135,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       setElectiveCourse(program)
 
       // Load courses from the courses column
-      if (program?.courses && program.courses.length > 0) {
+      if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
         console.log("Loading courses with IDs:", program.courses)
         const coursesData = await getCoursesFromIds(program.courses)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No courses found in program")
+        console.log("No courses found in program or courses is not an array:", program?.courses)
         setCourses([])
       }
 
@@ -535,10 +535,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
                 <dd>{formatDate(electiveCourse.created_at)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
-                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
               </div>
               {electiveCourse.description && (
                 <div className="flex flex-col gap-1">
