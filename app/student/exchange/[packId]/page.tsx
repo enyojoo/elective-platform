@@ -1,23 +1,43 @@
 "use client"
 
 import type React from "react"
-
+import { useEffect, useState, useCallback } from "react"
+import {
+  Download,
+  CheckCircle,
+  Info,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  FileText,
+  UploadCloud,
+  Users,
+  Calendar,
+  MapPin,
+} from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter as ShadDialogFooter,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Calendar, MapPin, Users, FileText, ExternalLink } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useInstitution } from "@/lib/institution-context"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 interface ExchangeProgram {
   id: string
@@ -65,25 +85,28 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasExistingApplication, setHasExistingApplication] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [studentName, setStudentName] = useState("")
+  const [isUploadingStatement, setIsUploadingStatement] = useState(false)
+  const [downloadingStatement, setDownloadingStatement] = useState(false)
+  const [viewingUniversity, setViewingUniversity] = useState<University | null>(null)
 
-  useEffect(() => {
-    if (params.packId && institution?.id) {
-      loadExchangeProgram()
-    }
-  }, [params.packId, institution?.id])
+  const packId = params.packId
 
-  const loadExchangeProgram = async () => {
-    if (!params.packId || !institution?.id) return
+  const loadData = useCallback(async () => {
+    if (!packId || !institution?.id) return
 
     setIsLoading(true)
+    setFetchError(null)
     try {
-      console.log("Loading exchange program:", params.packId)
+      console.log("Loading exchange program:", packId)
 
       // Load exchange program
       const { data: program, error: programError } = await supabase
         .from("elective_exchange")
         .select("*")
-        .eq("id", params.packId)
+        .eq("id", packId)
         .eq("institution_id", institution.id)
         .single()
 
@@ -116,8 +139,9 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
       // Check for existing application
       // This would require getting the current user's ID and checking exchange_selections table
       // For now, we'll skip this check
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading exchange program:", error)
+      setFetchError(error.message || "Failed to load exchange program details")
       toast({
         title: "Error",
         description: "Failed to load exchange program details",
@@ -126,14 +150,18 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [packId, institution?.id, supabase, toast])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   // Format date helper
-  const formatDate = (dateString: string) => {
+  const formatDateDisplay = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     })
   }
@@ -146,27 +174,8 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
     return exchangeProgram.status === "published" && deadline > now && !hasExistingApplication
   }
 
-  // Get status message
-  const getStatusMessage = () => {
-    if (!exchangeProgram) return ""
-
-    if (exchangeProgram.status === "closed") {
-      return "This exchange program has been closed by the program manager."
-    }
-
-    const now = new Date()
-    const deadline = new Date(exchangeProgram.deadline)
-
-    if (deadline < now) {
-      return "The application deadline for this program has passed."
-    }
-
-    if (hasExistingApplication) {
-      return "You have already submitted an application for this program."
-    }
-
-    return ""
-  }
+  const isDeadlinePassed = exchangeProgram?.deadline ? new Date(exchangeProgram.deadline) < new Date() : false
+  const canSubmit = !isDeadlinePassed && exchangeProgram?.status !== "draft" && !hasExistingApplication
 
   // Handle university selection
   const handleUniversityToggle = (universityId: string) => {
@@ -181,6 +190,7 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
         toast({
           title: "Selection limit reached",
           description: `You can only select up to ${exchangeProgram?.max_selections} universities`,
+          variant: "destructive",
         })
         return prev
       }
@@ -188,7 +198,7 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
   }
 
   // Handle file upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       if (file.type !== "application/pdf") {
@@ -209,6 +219,22 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
         return
       }
       setStatementFile(file)
+      toast({ title: "File selected", description: `"${file.name}" ready for upload.` })
+    }
+  }
+
+  const handleDownloadStatementTemplate = async () => {
+    if (!exchangeProgram?.statement_template_url) {
+      toast({ title: "No template", description: "Statement template is not available.", variant: "destructive" })
+      return
+    }
+    setDownloadingStatement(true)
+    try {
+      window.open(exchangeProgram.statement_template_url, "_blank")
+    } catch (error) {
+      toast({ title: "Download failed", variant: "destructive" })
+    } finally {
+      setDownloadingStatement(false)
     }
   }
 
@@ -236,6 +262,7 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
 
     setIsSubmitting(true)
     try {
+      setIsUploadingStatement(true)
       // Upload statement file
       const fileExt = statementFile.name.split(".").pop()
       const fileName = `statements/${Date.now()}.${fileExt}`
@@ -243,6 +270,7 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
       const { error: uploadError } = await supabase.storage.from("statements").upload(fileName, statementFile)
 
       if (uploadError) throw uploadError
+      setIsUploadingStatement(false)
 
       // Get public URL
       const { data: urlData } = supabase.storage.from("statements").getPublicUrl(fileName)
@@ -258,7 +286,8 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
       setSelectedUniversities([])
       setStatementFile(null)
       setHasExistingApplication(true)
-    } catch (error) {
+      window.location.href = "/student/exchange"
+    } catch (error: any) {
       console.error("Error submitting application:", error)
       toast({
         title: "Submission failed",
@@ -267,19 +296,82 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
       })
     } finally {
       setIsSubmitting(false)
+      setIsUploadingStatement(false)
+      setConfirmDialogOpen(false)
     }
+  }
+
+  const selectionProgress =
+    exchangeProgram?.max_selections && exchangeProgram.max_selections > 0
+      ? (selectedUniversities.length / exchangeProgram.max_selections) * 100
+      : 0
+
+  const getStatusAlert = () => {
+    if (hasExistingApplication) {
+      return (
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>Application Submitted</AlertTitle>
+          <AlertDescription>You have already submitted an application for this program.</AlertDescription>
+        </Alert>
+      )
+    }
+    if (exchangeProgram?.status === "closed") {
+      return (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Program Closed</AlertTitle>
+          <AlertDescription>This exchange program has been closed by the program manager.</AlertDescription>
+        </Alert>
+      )
+    }
+    if (exchangeProgram?.status === "draft") {
+      return (
+        <Alert className="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Coming Soon</AlertTitle>
+          <AlertDescription>This exchange program is not yet available for applications.</AlertDescription>
+        </Alert>
+      )
+    }
+    if (isDeadlinePassed) {
+      return (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Deadline Passed</AlertTitle>
+          <AlertDescription>The application deadline for this program has passed.</AlertDescription>
+        </Alert>
+      )
+    }
+    return (
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Application Period Active</AlertTitle>
+        <AlertDescription>
+          You can select up to {exchangeProgram?.max_selections} universities until{" "}
+          {exchangeProgram?.deadline && formatDateDisplay(exchangeProgram.deadline)}.
+        </AlertDescription>
+      </Alert>
+    )
   }
 
   if (isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <Skeleton className="h-8 w-64" />
-          </div>
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-96 w-full" />
+        <PageSkeleton />
+      </DashboardLayout>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <DashboardLayout userRole={UserRole.STUDENT}>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Page</AlertTitle>
+            <AlertDescription>{fetchError}</AlertDescription>
+          </Alert>
         </div>
       </DashboardLayout>
     )
@@ -288,54 +380,52 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
   if (!exchangeProgram) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <h2 className="text-2xl font-bold mb-2">Exchange Program Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            The exchange program you're looking for doesn't exist or is no longer available.
-          </p>
-          <Link href="/student/exchange">
-            <Button>Back to Exchange Programs</Button>
-          </Link>
-        </div>
+        <div className="p-4 text-center">Exchange program not found</div>
       </DashboardLayout>
     )
   }
 
-  const statusMessage = getStatusMessage()
-  const isSelectable = isProgramSelectable()
+  const exchangeProgramName =
+    language === "ru" && exchangeProgram.name_ru ? exchangeProgram.name_ru : exchangeProgram.name
+  const statementRequiredForProgram = !!exchangeProgram?.statement_template_url
+  const isStatementHandled = !statementRequiredForProgram || !!statementFile
+  const areUniversitiesSelected = selectedUniversities.length > 0
 
   return (
     <DashboardLayout userRole={UserRole.STUDENT}>
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Link href="/student/exchange">
-            <Button variant="ghost" size="icon">
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <div className="flex items-center gap-3">
+          <Link href="/student/exchange" passHref>
+            <Button variant="outline" size="icon" aria-label="Back to Exchange Programs">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {language === "ru" && exchangeProgram.name_ru ? exchangeProgram.name_ru : exchangeProgram.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant={isSelectable ? "secondary" : "destructive"}>
-                {isSelectable
-                  ? "Open for Applications"
-                  : exchangeProgram.status === "closed"
-                    ? "Closed"
-                    : "Application Closed"}
-              </Badge>
-            </div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{exchangeProgramName}</h1>
+            <p className="text-sm text-muted-foreground">Select partner universities for exchange</p>
           </div>
         </div>
 
-        {statusMessage && (
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="pt-6">
-              <p className="text-sm text-yellow-800">{statusMessage}</p>
-            </CardContent>
-          </Card>
-        )}
+        {getStatusAlert()}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Selection Progress</CardTitle>
+            <CardDescription>
+              Selected {selectedUniversities.length} of {exchangeProgram.max_selections || 0} allowed universities
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Progress value={selectionProgress} className="h-3" />
+            {(exchangeProgram.max_selections || 0) > 0 && (
+              <p className="mt-2.5 text-sm text-muted-foreground">
+                {selectedUniversities.length === exchangeProgram.max_selections
+                  ? "Maximum selections reached"
+                  : `You can select ${exchangeProgram.max_selections - selectedUniversities.length} more ${exchangeProgram.max_selections - selectedUniversities.length === 1 ? "university" : "universities"}`}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -355,7 +445,7 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium">Application Deadline</p>
-                  <p className="text-sm text-muted-foreground">{formatDate(exchangeProgram.deadline)}</p>
+                  <p className="text-sm text-muted-foreground">{formatDateDisplay(exchangeProgram.deadline)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -373,132 +463,283 @@ export default function StudentExchangePage({ params }: StudentExchangePageProps
                 </div>
               </div>
             </div>
-
-            {exchangeProgram.statement_template_url && (
-              <div className="pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Statement Template</p>
-                    <p className="text-sm text-muted-foreground">Download the template to prepare your statement</p>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={exchangeProgram.statement_template_url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Download
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Partner Universities</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Select up to {exchangeProgram.max_selections} universities you're interested in
-            </p>
-          </CardHeader>
-          <CardContent>
-            {universities.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">No universities available for this program</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {universities.map((university) => (
-                  <div
-                    key={university.id}
-                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                      selectedUniversities.includes(university.id)
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    } ${!isSelectable ? "opacity-50 cursor-not-allowed" : ""}`}
-                    onClick={() => handleUniversityToggle(university.id)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={selectedUniversities.includes(university.id)}
-                        disabled={!isSelectable}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-medium">
-                          {language === "ru" && university.name_ru ? university.name_ru : university.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {university.city}, {university.country}
-                        </p>
-                        {university.description && (
-                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                            {language === "ru" && university.description_ru
-                              ? university.description_ru
-                              : university.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                          <span>Max {university.max_students} students</span>
-                          {university.university_languages && university.university_languages.length > 0 && (
-                            <span>Languages: {university.university_languages.join(", ")}</span>
-                          )}
-                        </div>
-                        {university.website && (
-                          <a
-                            href={university.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline mt-1 inline-block"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Visit website
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {isSelectable && (
+        {statementRequiredForProgram && (
           <Card>
             <CardHeader>
-              <CardTitle>Submit Application</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Statement of Purpose
+              </CardTitle>
+              <CardDescription>Upload your statement of purpose for the exchange program</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="statement">Statement of Purpose (PDF)</Label>
-                <div className="mt-2">
+              {exchangeProgram.statement_template_url && (
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto bg-transparent"
+                  onClick={handleDownloadStatementTemplate}
+                  disabled={downloadingStatement || exchangeProgram.status === "draft"}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloadingStatement ? "Downloading..." : "Download Template"}
+                </Button>
+              )}
+              <div className="relative">
+                <Label
+                  htmlFor="statement-upload"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="mb-1 text-sm text-muted-foreground">
+                      <span className="font-semibold">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs text-muted-foreground">PDF only (max 10MB)</p>
+                  </div>
                   <Input
-                    id="statement"
+                    id="statement-upload"
                     type="file"
                     accept=".pdf"
-                    onChange={handleFileChange}
-                    className="cursor-pointer"
+                    onChange={handleFileUpload}
+                    disabled={isUploadingStatement || !canSubmit}
+                    className="sr-only"
                   />
-                  {statementFile && (
-                    <p className="text-sm text-muted-foreground mt-1">Selected: {statementFile.name}</p>
-                  )}
-                </div>
+                </Label>
+                {isUploadingStatement && (
+                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Uploading...
+                  </div>
+                )}
               </div>
 
-              <div className="pt-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Selected universities: {selectedUniversities.length} of {exchangeProgram.max_selections}
-                </p>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || selectedUniversities.length === 0 || !statementFile}
-                  className="w-full"
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Application"}
-                </Button>
-              </div>
+              {statementFile && (
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>File Ready</AlertTitle>
+                  <AlertDescription>"{statementFile.name}" ready for upload.</AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         )}
+
+        {universities.length > 0 ? (
+          <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {universities.map((university) => {
+              const isSelected = selectedUniversities.includes(university.id)
+              const isDisabledByMax =
+                !isSelected &&
+                selectedUniversities.length >= (exchangeProgram.max_selections || Number.POSITIVE_INFINITY)
+              return (
+                <Card
+                  key={university.id}
+                  className={`flex flex-col h-full transition-all hover:shadow-md ${
+                    isSelected ? "border-primary ring-2 ring-primary/50" : "border-border"
+                  } ${isDisabledByMax ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-lg leading-tight">
+                        {language === "ru" && university.name_ru ? university.name_ru : university.name}
+                      </CardTitle>
+                      <span className="text-xs whitespace-nowrap text-muted-foreground bg-muted px-2 py-1 rounded-full flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {university.max_students} max
+                      </span>
+                    </div>
+                    <CardDescription className="text-xs">
+                      {university.city}, {university.country}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow pb-3">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="p-0 h-auto text-sm text-primary hover:text-primary/80"
+                      onClick={() => setViewingUniversity(university)}
+                    >
+                      <Info className="h-3.5 w-3.5 mr-1.5" />
+                      View Details
+                    </Button>
+                  </CardContent>
+                  {canSubmit && (
+                    <CardFooter className="pt-0 border-t mt-auto pt-3">
+                      <div className="flex items-center space-x-2 w-full">
+                        <Checkbox
+                          id={`university-${university.id}`}
+                          checked={isSelected}
+                          onCheckedChange={() => handleUniversityToggle(university.id)}
+                          disabled={isDisabledByMax || !canSubmit}
+                        />
+                        <Label
+                          htmlFor={`university-${university.id}`}
+                          className={`text-sm font-medium leading-none ${isDisabledByMax || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                        >
+                          {isSelected ? "Selected" : "Select"}
+                        </Label>
+                      </div>
+                    </CardFooter>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-10 text-center">
+              <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">No universities available for this program</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {canSubmit && (
+          <div className="flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
+            <Button
+              onClick={() => {
+                if (!areUniversitiesSelected) {
+                  toast({ title: "Select at least one university", variant: "destructive" })
+                } else if (!isStatementHandled) {
+                  toast({
+                    title: "Statement Required",
+                    description: "Please upload your statement of purpose",
+                    variant: "destructive",
+                  })
+                } else {
+                  setConfirmDialogOpen(true)
+                }
+              }}
+              disabled={isSubmitting || isUploadingStatement || !areUniversitiesSelected || !isStatementHandled}
+              className="w-full sm:w-auto px-8 py-3 text-base"
+              size="lg"
+            >
+              {isSubmitting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
+              Submit Application
+            </Button>
+          </div>
+        )}
+
+        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Your Application</DialogTitle>
+              <DialogDescription>Please review your selection before submitting</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <h4 className="text-sm font-medium mb-2">Selected Universities:</h4>
+                {selectedUniversities.length > 0 ? (
+                  <ul className="space-y-1 list-disc list-inside pl-1">
+                    {selectedUniversities.map((id) => {
+                      const university = universities.find((u) => u.id === id)
+                      return (
+                        <li key={id} className="text-sm">
+                          {language === "ru" && university?.name_ru ? university.name_ru : university?.name}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No universities selected yet</p>
+                )}
+              </div>
+              {statementRequiredForProgram && (
+                <div className="mt-4 pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-2">Statement of Purpose:</h4>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    <span>
+                      {statementFile
+                        ? `File ready to submit: ${statementFile.name} (${Math.round(statementFile.size / 1024)}KB)`
+                        : "Statement file ready"}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2 pt-4 border-t mt-4">
+                <Label htmlFor="student-name">Your Full Name (for authorization)</Label>
+                <Input
+                  id="student-name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  placeholder="Enter your full name"
+                  aria-required="true"
+                />
+              </div>
+            </div>
+            <ShadDialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={
+                  !studentName.trim() ||
+                  isSubmitting ||
+                  isUploadingStatement ||
+                  !areUniversitiesSelected ||
+                  !isStatementHandled
+                }
+              >
+                {isSubmitting || isUploadingStatement ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Submit Application
+              </Button>
+            </ShadDialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!viewingUniversity} onOpenChange={(open) => !open && setViewingUniversity(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-xl">
+                {language === "ru" && viewingUniversity?.name_ru ? viewingUniversity.name_ru : viewingUniversity?.name}
+              </DialogTitle>
+              <DialogDescription>
+                {viewingUniversity?.city}, {viewingUniversity?.country}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 max-h-[60vh] overflow-y-auto prose prose-sm dark:prose-invert">
+              {viewingUniversity && selectedUniversities.includes(viewingUniversity.id) && (
+                <Alert variant="info" className="mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>Currently selected for your application</AlertDescription>
+                </Alert>
+              )}
+              <p className="whitespace-pre-wrap">
+                {language === "ru" && viewingUniversity?.description_ru
+                  ? viewingUniversity.description_ru
+                  : viewingUniversity?.description || "No description available"}
+              </p>
+              {viewingUniversity?.university_languages && viewingUniversity.university_languages.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium">Languages:</p>
+                  <p className="text-sm text-muted-foreground">{viewingUniversity.university_languages.join(", ")}</p>
+                </div>
+              )}
+              {viewingUniversity?.website && (
+                <div className="mt-4">
+                  <a
+                    href={viewingUniversity.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Visit university website
+                  </a>
+                </div>
+              )}
+            </div>
+            <ShadDialogFooter>
+              <Button variant="outline" onClick={() => setViewingUniversity(null)}>
+                Close
+              </Button>
+            </ShadDialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   )
