@@ -39,13 +39,8 @@ export async function getCoursesFromIds(courseIds: string[]) {
         credits,
         max_students,
         status,
-        semester,
-        year,
-        degree_id,
-        degrees(
-          name,
-          name_ru
-        )
+        instructor,
+        degree
       `)
       .in("id", courseIds)
       .order("name")

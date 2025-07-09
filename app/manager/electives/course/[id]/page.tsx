@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -72,13 +73,8 @@ interface Course {
   credits: number
   max_students: number
   status: string
-  semester?: string
-  year?: number
-  degree_id?: string
-  degrees?: {
-    name: string
-    name_ru: string | null
-  }
+  instructor: string | null
+  degree: string | null
 }
 
 interface StudentSelection {
@@ -87,6 +83,7 @@ interface StudentSelection {
   status: string
   created_at: string
   student_id: string
+  statement_file: string | null
   profiles: {
     id: string
     full_name: string | null
@@ -147,32 +144,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       setElectiveCourse(program)
 
-      // Load courses from the courses column - ensure it's treated as an array
-      let courseIds: string[] = []
-
-      if (program.courses) {
-        if (Array.isArray(program.courses)) {
-          courseIds = program.courses
-        } else if (typeof program.courses === "string") {
-          // Handle case where it might be stored as a JSON string
-          try {
-            const parsed = JSON.parse(program.courses)
-            courseIds = Array.isArray(parsed) ? parsed : []
-          } catch {
-            // If it's not JSON, treat as single ID
-            courseIds = [program.courses]
-          }
-        }
-      }
-
-      console.log("Course IDs to load:", courseIds)
-
-      if (courseIds.length > 0) {
-        const coursesData = await getCoursesFromIds(courseIds)
+      // Load courses from the courses column
+      if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
+        console.log("Loading courses with IDs:", program.courses)
+        const coursesData = await getCoursesFromIds(program.courses)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No course IDs found")
+        console.log("No courses found in program or courses is not an array:", program?.courses)
         setCourses([])
       }
 
@@ -199,7 +178,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const count = studentSelections.filter(
       (selection) =>
         selection.selected_ids &&
-        Array.isArray(selection.selected_ids) &&
         selection.selected_ids.includes(courseId) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
@@ -349,8 +327,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       // Define column headers based on language
       const headers = {
-        en: ["Student Name", "Student ID", "Email", "Group", "Program", "Status", "Selection Date"],
-        ru: ["Имя студента", "ID студента", "Электронная почта", "Группа", "Программа", "Статус", "Дата выбора"],
+        en: ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"],
+        ru: ["Имя студента", "Электронная почта", "Группа", "Программа", "Статус", "Дата выбора"],
       }
 
       // Create CSV content
@@ -372,7 +350,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         const row = [
           `"${selection.profiles?.full_name || "N/A"}"`,
-          `"${selection.student_id}"`,
           `"${selection.profiles?.email || "N/A"}"`,
           `"${groupName}"`,
           `"${programName}"`,
@@ -459,6 +436,24 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // Function to download student statement
+  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
+    if (!fileName) {
+      toast({
+        title: "Statement not available",
+        description: `No statement file uploaded for ${studentName}`,
+      })
+      return
+    }
+
+    // In a real app, this would download the actual file
+    // For this demo, we'll just show a toast
+    toast({
+      title: "Statement download",
+      description: "Statement file download started",
+    })
   }
 
   // Filter students based on search term
@@ -595,63 +590,38 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No courses configured for this program
-                    <div className="text-xs mt-2">
-                      Debug: Course IDs in program: {JSON.stringify(electiveCourse.courses)}
-                    </div>
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No courses configured for this program</div>
                 ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">Code</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">Credits</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">Degree</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.enrollment")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.export")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[25%]">{t("manager.courseDetails.name")}</TableHead>
+                          <TableHead className="w-[20%]">Instructor</TableHead>
+                          <TableHead className="w-[15%]">Degree</TableHead>
+                          <TableHead className="w-[15%]">{t("manager.courseDetails.enrollment")}</TableHead>
+                          <TableHead className="w-[25%] text-center">{t("manager.courseDetails.export")}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {courses.map((course) => {
                           const currentEnrollment = getCourseEnrollment(course.id)
                           return (
-                            <tr key={course.id} className="border-b">
-                              <td className="py-3 px-4 text-sm">
-                                <div>
-                                  <div className="font-medium">
-                                    {language === "ru" && course.name_ru ? course.name_ru : course.name}
-                                  </div>
-                                  {course.description && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {language === "ru" && course.description_ru
-                                        ? course.description_ru
-                                        : course.description}
-                                    </div>
-                                  )}
+                            <TableRow key={course.id}>
+                              <TableCell className="font-medium">
+                                {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                <div className="text-sm text-muted-foreground">
+                                  {course.code} • {course.credits} credits
                                 </div>
-                              </td>
-                              <td className="py-3 px-4 text-sm">{course.code}</td>
-                              <td className="py-3 px-4 text-sm">{course.credits}</td>
-                              <td className="py-3 px-4 text-sm">
-                                {course.degrees
-                                  ? language === "ru" && course.degrees.name_ru
-                                    ? course.degrees.name_ru
-                                    : course.degrees.name
-                                  : "N/A"}
-                              </td>
-                              <td className="py-3 px-4 text-sm">
+                              </TableCell>
+                              <TableCell>{course.instructor || "N/A"}</TableCell>
+                              <TableCell>{course.degree || "N/A"}</TableCell>
+                              <TableCell>
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
                                 </Badge>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center">
+                              </TableCell>
+                              <TableCell className="text-center">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -661,12 +631,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                   <FileDown className="h-4 w-4" />
                                   {t("manager.courseDetails.download")}
                                 </Button>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
                         })}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
@@ -696,50 +666,63 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Student ID</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">Program</th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">
-                          {t("manager.courseDetails.selectionDate")}
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
-                        <th className="py-3 px-4 text-center text-sm font-medium">
-                          {t("manager.courseDetails.actions")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[20%]">{t("manager.courseDetails.name")}</TableHead>
+                        <TableHead className="w-[20%]">Email</TableHead>
+                        <TableHead className="w-[15%]">{t("manager.courseDetails.selectionDate")}</TableHead>
+                        <TableHead className="w-[15%]">{t("manager.courseDetails.status")}</TableHead>
+                        <TableHead className="w-[10%] text-center">Statement</TableHead>
+                        <TableHead className="w-[10%] text-center">{t("manager.courseDetails.view")}</TableHead>
+                        <TableHead className="w-[10%] text-center">{t("manager.courseDetails.actions")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredStudentSelections.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-24 text-center">
                             {searchTerm ? "No students found matching your search" : "No student selections yet"}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ) : (
                         filteredStudentSelections.map((selection) => {
-                          const groupName = selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"
-                          const programName = selection.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"
-
                           return (
-                            <tr key={selection.id} className="border-b">
-                              <td className="py-3 px-4 text-sm">{selection.profiles?.full_name || "N/A"}</td>
-                              <td className="py-3 px-4 text-sm font-mono text-xs">{selection.student_id}</td>
-                              <td className="py-3 px-4 text-sm">{groupName}</td>
-                              <td className="py-3 px-4 text-sm">{programName}</td>
-                              <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
-                              <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                              <td className="py-3 px-4 text-sm text-center">
+                            <TableRow key={selection.id}>
+                              <TableCell className="font-medium">
+                                {selection.profiles?.full_name || "N/A"}
+                                <div className="text-sm text-muted-foreground">
+                                  {selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}
+                                </div>
+                              </TableCell>
+                              <TableCell>{selection.profiles?.email || "N/A"}</TableCell>
+                              <TableCell>{formatDate(selection.created_at)}</TableCell>
+                              <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
+                              <TableCell className="text-center">
+                                {selection.statement_file ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      downloadStudentStatement(
+                                        selection.profiles?.full_name || "Student",
+                                        selection.statement_file,
+                                      )
+                                    }
+                                  >
+                                    <FileDown className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
                                 <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center">
+                              </TableCell>
+                              <TableCell className="text-center">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon">
@@ -798,13 +781,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
                         })
                       )}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
@@ -844,7 +827,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                          <span className="font-mono text-xs">{selectedStudent.student_id}</span>
+                          <span>{selectedStudent.student_id}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.email")}:</span>
