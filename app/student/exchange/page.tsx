@@ -64,13 +64,14 @@ export default function ExchangePage() {
         profile.group.id,
       )
       try {
-        // Fetch exchange programs for the institution and group
+        // Fetch exchange programs for the institution and group - only show published and closed programs
         console.log("ExchangePage: Fetching elective_exchange...")
         const { data: exchangeData, error: exchangeError } = await supabaseClient
           .from("elective_exchange")
           .select("*")
           .eq("institution_id", profile.institution_id)
           .eq("group_id", profile.group.id)
+          .in("status", ["published", "closed"]) // Only show published and closed programs to students
           .order("deadline", { ascending: false })
 
         if (exchangeError) {
@@ -159,6 +160,20 @@ export default function ExchangePage() {
 
   const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date()
 
+  // Check if exchange program is selectable
+  const isExchangeSelectable = (exchange: any) => {
+    // Not selectable if status is closed
+    if (exchange.status === "closed") return false
+
+    // Not selectable if deadline has passed
+    if (isDeadlinePassed(exchange.deadline)) return false
+
+    // Not selectable if status is draft (but students shouldn't see draft anyway)
+    if (exchange.status === "draft") return false
+
+    return true
+  }
+
   if (profileLoading || isLoading) {
     return (
       <DashboardLayout userRole={UserRole.STUDENT}>
@@ -206,6 +221,7 @@ export default function ExchangePage() {
               const selectedCount = getSelectedUniversitiesCount(exchange.id)
               const deadlinePassed = isDeadlinePassed(exchange.deadline)
               const name = language === "ru" && exchange.name_ru ? exchange.name_ru : exchange.name
+              const isSelectable = isExchangeSelectable(exchange)
 
               return (
                 <Card
@@ -240,8 +256,8 @@ export default function ExchangePage() {
                           </Badge>
                         )}
                       </div>
-                      {exchange.status === "draft" ? (
-                        <Badge variant="outline">{t("student.exchange.comingSoon")}</Badge>
+                      {exchange.status === "closed" ? (
+                        <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
                       ) : deadlinePassed ? (
                         <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
                       ) : (
@@ -254,7 +270,9 @@ export default function ExchangePage() {
                     <div className="flex flex-col gap-y-2 text-sm w-full">
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground">{t("student.exchange.deadline")}:</span>
-                        <span className={deadlinePassed ? "text-red-600" : ""}>{formatDate(exchange.deadline)}</span>
+                        <span className={deadlinePassed || exchange.status === "closed" ? "text-red-600" : ""}>
+                          {formatDate(exchange.deadline)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5">
@@ -280,7 +298,7 @@ export default function ExchangePage() {
                         <Button
                           size="sm"
                           variant={
-                            exchange.status === "draft" ||
+                            !isSelectable ||
                             (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
                               ? "outline"
                               : selectionStatus === "approved"
@@ -292,12 +310,12 @@ export default function ExchangePage() {
                           className={`h-7 gap-1 ${
                             selectionStatus === "approved"
                               ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
-                              : exchange.status === "draft" ||
+                              : !isSelectable ||
                                   (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
                                 ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
                                 : ""
                           }`}
-                          disabled={exchange.status === "draft"}
+                          disabled={!isSelectable && selectionStatus !== "approved" && selectionStatus !== "pending"}
                         >
                           <>
                             <span>{t("student.exchange.view")}</span>

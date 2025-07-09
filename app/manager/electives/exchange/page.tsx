@@ -305,8 +305,12 @@ export default function ManagerExchangeElectivesPage() {
                       <TableSkeleton columns={5} rows={5} />
                     ) : filteredPacks.length > 0 ? (
                       filteredPacks.map((pack) => (
-                        <TableRow key={pack.id}>
-                          <TableCell className="font-medium">{getLocalizedName(pack)}</TableCell>
+                        <TableRow key={pack.id} className="cursor-pointer hover:bg-muted/50">
+                          <TableCell className="font-medium">
+                            <Link href={`/manager/electives/exchange/${pack.id}`} className="hover:underline">
+                              {getLocalizedName(pack)}
+                            </Link>
+                          </TableCell>
                           <TableCell>
                             {pack.deadline ? (
                               formatDate(pack.deadline)
@@ -338,6 +342,10 @@ export default function ManagerExchangeElectivesPage() {
                                 {pack.status === "published" ? (
                                   <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "closed")}>
                                     {t("manager.electives.deactivate", "Deactivate")}
+                                  </DropdownMenuItem>
+                                ) : pack.status === "closed" ? (
+                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
+                                    {t("manager.electives.activate", "Activate")}
                                   </DropdownMenuItem>
                                 ) : (
                                   <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>

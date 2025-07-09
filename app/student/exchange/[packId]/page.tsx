@@ -331,6 +331,20 @@ export default function ExchangePage({ params }: ExchangePageProps) {
   const isDeadlinePassed = exchangePackData?.deadline ? new Date(exchangePackData.deadline) < new Date() : false
   const currentSelectionStatus = existingSelection?.status as SelectionStatus | undefined
 
+  // Check if the exchange program is selectable
+  const isExchangeSelectable = () => {
+    // Not selectable if status is closed
+    if (exchangePackData?.status === "closed") return false
+
+    // Not selectable if deadline has passed
+    if (isDeadlinePassed) return false
+
+    // Not selectable if status is draft
+    if (exchangePackData?.status === "draft") return false
+
+    return true
+  }
+
   const getStatusAlert = () => {
     if (currentSelectionStatus === SelectionStatus.APPROVED)
       return (
@@ -362,6 +376,14 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           <Info className="h-4 w-4" />
           <AlertTitle>{t("student.exchange.comingSoon")}</AlertTitle>
           <AlertDescription>{t("student.exchange.comingSoonDesc")}</AlertDescription>
+        </Alert>
+      )
+    if (exchangePackData?.status === "closed")
+      return (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.exchange.programClosed")}</AlertTitle>
+          <AlertDescription>{t("student.exchange.programClosedDesc")}</AlertDescription>
         </Alert>
       )
     if (isDeadlinePassed)
@@ -410,8 +432,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
     )
 
   const packName = language === "ru" && exchangePackData.name_ru ? exchangePackData.name_ru : exchangePackData.name
-  const canSubmit =
-    !isDeadlinePassed && exchangePackData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
+  const canSubmit = isExchangeSelectable() && currentSelectionStatus !== SelectionStatus.APPROVED
   const statementRequired = !!exchangePackData?.statement_template_url
   const isStatementHandled = !statementRequired || !!uploadedStatement || !!existingSelection?.statement_url
   const areUnisSelected = selectedUniversityIds.length > 0
@@ -477,7 +498,7 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                   variant="outline"
                   className="w-full sm:w-auto bg-transparent"
                   onClick={handleDownloadStatementTemplate}
-                  disabled={downloadingStatement || exchangePackData.status === "draft"}
+                  disabled={downloadingStatement || !isExchangeSelectable()}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {downloadingStatement ? t("student.statement.downloading") : t("student.statement.downloadTemplate")}
@@ -538,7 +559,8 @@ export default function ExchangePage({ params }: ExchangePageProps) {
             const isAtCapacity = uni.max_students && uni.current_students >= uni.max_students
             const isDisabled =
               (!isSelected && selectedUniversityIds.length >= exchangePackData.max_selections) ||
-              (!isSelected && isAtCapacity)
+              (!isSelected && isAtCapacity) ||
+              !canSubmit
             return (
               <Card
                 key={uni.id}
@@ -584,11 +606,11 @@ export default function ExchangePage({ params }: ExchangePageProps) {
                         id={`uni-${uni.id}`}
                         checked={isSelected}
                         onCheckedChange={() => toggleUniversitySelection(uni.id)}
-                        disabled={isDisabled || !canSubmit}
+                        disabled={isDisabled}
                       />
                       <label
                         htmlFor={`uni-${uni.id}`}
-                        className={`text-sm font-medium leading-none ${isDisabled || !canSubmit ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                        className={`text-sm font-medium leading-none ${isDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                       >
                         {isSelected ? t("student.exchange.selected") : t("student.exchange.select")}
                       </label>
