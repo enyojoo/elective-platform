@@ -5,7 +5,7 @@ import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,12 @@ import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { getElectivePack } from "@/actions/elective-packs"
-import { getCourseSelections, getElectiveCourses, updateCourseSelectionStatus } from "@/actions/course-selections"
+import {
+  getCourseSelections,
+  getElectiveCourses,
+  updateCourseSelectionStatus,
+  downloadStatementFile,
+} from "@/actions/course-selections"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -181,7 +186,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   }
 
   // Function to download student statement
-  const downloadStatementFile = async (studentName: string, fileUrl: string | null) => {
+  const downloadStudentStatement = async (studentName: string, fileUrl: string | null) => {
     if (!fileUrl) {
       toast({
         title: t("toast.statement.notAvailable"),
@@ -515,7 +520,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                 variant="ghost"
                                 size="icon"
                                 onClick={() =>
-                                  downloadStatementFile(
+                                  downloadStudentStatement(
                                     selection.students?.name || "Student",
                                     selection.statement_file_url,
                                   )
@@ -685,7 +690,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                             size="sm"
                             className="w-full flex items-center gap-2 bg-transparent"
                             onClick={() =>
-                              downloadStatementFile(
+                              downloadStudentStatement(
                                 selectedStudent.students?.name || "Student",
                                 selectedStudent.statement_file_url,
                               )
