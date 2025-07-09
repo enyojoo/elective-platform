@@ -85,13 +85,20 @@ export async function getExchangeSelections(exchangeId: string) {
       return []
     }
 
-    // Then get profile data for each selection with additional student info
+    // Then get profile data for each selection with proper relationships
     const selectionsWithProfiles = await Promise.all(
       (selections || []).map(async (selection) => {
         try {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("id, full_name, email, degree, year, group")
+            .select(`
+              id, 
+              full_name, 
+              email, 
+              academic_year,
+              degrees:degree_id(id, name),
+              groups:group_id(id, name)
+            `)
             .eq("id", selection.student_id)
             .single()
 
@@ -103,9 +110,21 @@ export async function getExchangeSelections(exchangeId: string) {
             }
           }
 
+          console.log("Fetched profile for student:", selection.student_id, profile)
+
+          // Process the profile data to match the expected structure
+          const processedProfile = {
+            id: profile.id,
+            full_name: profile.full_name,
+            email: profile.email,
+            degree: profile.degrees?.name || null,
+            year: profile.academic_year || null,
+            group: profile.groups?.name || null,
+          }
+
           return {
             ...selection,
-            profiles: profile,
+            profiles: processedProfile,
           }
         } catch (error) {
           console.error("Error processing selection profile:", error)
@@ -145,13 +164,20 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
         selection.selected_university_ids.includes(universityId),
     )
 
-    // Get profile data for filtered selections with additional student info
+    // Get profile data for filtered selections with proper relationships
     const selectionsWithProfiles = await Promise.all(
       filteredSelections.map(async (selection) => {
         try {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("id, full_name, email, degree, year, group")
+            .select(`
+              id, 
+              full_name, 
+              email, 
+              academic_year,
+              degrees:degree_id(id, name),
+              groups:group_id(id, name)
+            `)
             .eq("id", selection.student_id)
             .single()
 
@@ -163,9 +189,21 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
             }
           }
 
+          console.log("Fetched profile for student:", selection.student_id, profile)
+
+          // Process the profile data to match the expected structure
+          const processedProfile = {
+            id: profile.id,
+            full_name: profile.full_name,
+            email: profile.email,
+            degree: profile.degrees?.name || null,
+            year: profile.academic_year || null,
+            group: profile.groups?.name || null,
+          }
+
           return {
             ...selection,
-            profiles: profile,
+            profiles: processedProfile,
           }
         } catch (error) {
           console.error("Error processing profile:", error)

@@ -79,10 +79,11 @@ interface StudentSelection {
   status: string
   created_at: string
   student_id: string
+  elective_exchange_id: string
   profiles: {
     id: string
     full_name: string | null
-    email: string
+    email: string | null
     degree: string | null
     year: number | null
     group: string | null
@@ -137,6 +138,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
       console.log("Loading student selections for exchange ID:", params.id)
       const selections = await getExchangeSelections(params.id)
       console.log("Student selections loaded:", selections)
+      selections.forEach((selection) => {
+        console.log("Selection profile:", selection.profiles)
+      })
       setStudentSelections(selections)
     } catch (error) {
       console.error("Error loading data:", error)
