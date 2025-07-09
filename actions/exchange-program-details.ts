@@ -85,13 +85,13 @@ export async function getExchangeSelections(exchangeId: string) {
       return []
     }
 
-    // Then get profile data for each selection
+    // Then get profile data for each selection with additional student info
     const selectionsWithProfiles = await Promise.all(
       (selections || []).map(async (selection) => {
         try {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("id, full_name, email")
+            .select("id, full_name, email, degree, year, group")
             .eq("id", selection.student_id)
             .single()
 
@@ -145,13 +145,13 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
         selection.selected_university_ids.includes(universityId),
     )
 
-    // Get profile data for filtered selections
+    // Get profile data for filtered selections with additional student info
     const selectionsWithProfiles = await Promise.all(
       filteredSelections.map(async (selection) => {
         try {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("id, full_name, email")
+            .select("id, full_name, email, degree, year, group")
             .eq("id", selection.student_id)
             .single()
 

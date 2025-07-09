@@ -1,423 +1,416 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { UserRole } from "@/lib/types"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus, MoreHorizontal, AlertTriangle } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Search, MoreVertical, Edit, Eye, Trash2, Archive, CheckCircle, XCircle } from "lucide-react"
 import Link from "next/link"
+import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useInstitution } from "@/lib/institution-context"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { formatDate } from "@/lib/utils"
-import { useDialogState } from "@/hooks/use-dialog-state"
-import { cleanupDialogEffects } from "@/lib/dialog-utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
 
-interface ElectivePack {
+interface ExchangeProgram {
   id: string
   name: string
   name_ru: string | null
   status: string
-  deadline: string | null
+  deadline: string
+  max_selections: number
+  universities: string[]
   created_at: string
   updated_at: string
-  max_selections: number
-  university_count?: number
 }
 
-export default function ManagerExchangeElectivesPage() {
-  const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
-  const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+export default function ExchangeProgramsPage() {
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
   const { institution } = useInstitution()
   const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
-  // Delete confirmation dialog state
-  const [packToDelete, setPackToDelete] = useState<string | null>(null)
-  const {
-    isOpen: isDeleteDialogOpen,
-    openDialog: openDeleteDialog,
-    closeDialog: closeDeleteDialog,
-  } = useDialogState(false)
+  const [exchangePrograms, setExchangePrograms] = useState<ExchangeProgram[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [activeTab, setActiveTab] = useState("all")
 
   useEffect(() => {
-    const fetchElectivePacks = async () => {
-      if (!institution?.id) return
+    if (institution?.id) {
+      loadExchangePrograms()
+    }
+  }, [institution?.id])
 
-      try {
-        setIsLoading(true)
-        const cacheKey = "exchangePrograms"
+  const loadExchangePrograms = async () => {
+    if (!institution?.id) return
 
-        const cachedData = getCachedData<ElectivePack[]>(cacheKey, institution.id)
+    setIsLoading(true)
+    try {
+      // Try to get cached data first
+      const cacheKey = `exchangePrograms_${institution.id}`
+      const cachedData = getCachedData(cacheKey)
 
-        if (cachedData) {
-          setElectivePacks(cachedData)
-          setFilteredPacks(cachedData)
-          setIsLoading(false)
-          return
-        }
-
-        const { data: packs, error } = await supabase
-          .from("elective_exchange")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .order("created_at", { ascending: false })
-
-        if (error) {
-          console.error("Error fetching exchange programs:", error)
-          throw error
-        }
-
-        const processedPacks = (packs || []).map((pack) => ({
-          ...pack,
-          university_count: pack.universities?.length || 0,
-        }))
-
-        setCachedData(cacheKey, institution.id, processedPacks)
-        setElectivePacks(processedPacks)
-        setFilteredPacks(processedPacks)
-      } catch (error) {
-        console.error("Error fetching elective packs:", error)
-        toast({
-          title: t("manager.electives.error", "Error"),
-          description: t("manager.electives.errorFetching", "Failed to fetch elective packs"),
-          variant: "destructive",
-        })
-      } finally {
+      if (cachedData) {
+        setExchangePrograms(cachedData)
         setIsLoading(false)
+        return
       }
+
+      console.log("Fetching exchange programs for institution:", institution.id)
+
+      const { data, error } = await supabase
+        .from("elective_exchange")
+        .select("*")
+        .eq("institution_id", institution.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching exchange programs:", error)
+        throw error
+      }
+
+      console.log("Exchange programs loaded:", data)
+      setExchangePrograms(data || [])
+      setCachedData(cacheKey, data || [])
+    } catch (error) {
+      console.error("Error loading exchange programs:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load exchange programs",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t, getCachedData, setCachedData])
-
-  useEffect(() => {
-    let result = [...electivePacks]
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      result = result.filter(
-        (pack) =>
-          (pack.name && pack.name.toLowerCase().includes(term)) ||
-          (pack.name_ru && pack.name_ru.toLowerCase().includes(term)),
-      )
-    }
-
-    if (statusFilter !== "all") {
-      result = result.filter((pack) => pack.status === statusFilter)
-    }
-
-    setFilteredPacks(result)
-  }, [searchTerm, statusFilter, electivePacks])
-
-  const getLocalizedName = (pack: ElectivePack) => {
-    if (language === "ru" && pack.name_ru) {
-      return pack.name_ru
-    }
-    return pack.name
   }
 
+  // Format date helper
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  }
+
+  // Helper function to get status badge
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "published":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("manager.status.published", "Published")}
-          </Badge>
-        )
       case "draft":
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("manager.status.draft", "Draft")}
-          </Badge>
-        )
+        return <Badge variant="outline">Draft</Badge>
+      case "published":
+        return <Badge variant="secondary">Published</Badge>
       case "closed":
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("manager.status.closed", "Closed")}
-          </Badge>
-        )
+        return <Badge variant="destructive">Closed</Badge>
       case "archived":
-        return (
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
-            {t("manager.status.archived", "Archived")}
-          </Badge>
-        )
+        return <Badge variant="default">Archived</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
   }
 
-  const handleStatusChange = async (packId: string, newStatus: string) => {
-    if (!institution?.id) return
+  // Handle status change
+  const handleStatusChange = async (programId: string, newStatus: string, programName: string) => {
     try {
       const { error } = await supabase
         .from("elective_exchange")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", packId)
+        .update({ status: newStatus })
+        .eq("id", programId)
+        .eq("institution_id", institution?.id)
 
       if (error) throw error
 
-      invalidateCache("exchangePrograms", institution.id)
-      setElectivePacks((prev) => prev.map((pack) => (pack.id === packId ? { ...pack, status: newStatus } : pack)))
+      // Update local state
+      setExchangePrograms((prev) =>
+        prev.map((program) => (program.id === programId ? { ...program, status: newStatus } : program)),
+      )
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`exchangePrograms_${institution.id}`)
+      }
 
       toast({
-        title: t("manager.electives.statusUpdated", "Status updated"),
-        description: t("manager.electives.statusUpdatedDesc", "Exchange program status has been updated successfully"),
+        title: "Status updated",
+        description: `${programName} status changed to ${newStatus}`,
       })
-    } catch (error: any) {
+    } catch (error) {
+      console.error("Error updating status:", error)
       toast({
-        title: t("manager.electives.error", "Error"),
-        description:
-          t("manager.electives.errorUpdatingStatus", "Failed to update exchange program status") + ": " + error.message,
+        title: "Error",
+        description: "Failed to update program status",
         variant: "destructive",
       })
     }
   }
 
-  const handleDelete = (packId: string) => {
-    setPackToDelete(packId)
-    openDeleteDialog()
-  }
-
-  const handleCloseDeleteDialog = () => {
-    closeDeleteDialog()
-    setTimeout(() => {
-      setPackToDelete(null)
-      cleanupDialogEffects()
-    }, 300)
-  }
-
-  const confirmDelete = async () => {
-    if (!packToDelete || !institution?.id) return
+  // Handle delete
+  const handleDelete = async (programId: string, programName: string) => {
+    if (!confirm(`Are you sure you want to delete "${programName}"? This action cannot be undone.`)) {
+      return
+    }
 
     try {
-      const { error } = await supabase.from("elective_exchange").delete().eq("id", packToDelete)
+      const { error } = await supabase
+        .from("elective_exchange")
+        .delete()
+        .eq("id", programId)
+        .eq("institution_id", institution?.id)
 
       if (error) throw error
 
-      invalidateCache("exchangePrograms", institution.id)
-      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
-      setFilteredPacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
+      // Update local state
+      setExchangePrograms((prev) => prev.filter((program) => program.id !== programId))
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`exchangePrograms_${institution.id}`)
+      }
 
       toast({
-        title: t("manager.electives.deleteSuccess", "Exchange program deleted"),
-        description: t("manager.electives.deleteSuccessDesc", "Exchange program has been deleted successfully"),
+        title: "Program deleted",
+        description: `${programName} has been deleted`,
       })
-
-      handleCloseDeleteDialog()
-    } catch (error: any) {
-      console.error("Error deleting exchange program:", error)
+    } catch (error) {
+      console.error("Error deleting program:", error)
       toast({
-        title: t("manager.electives.error", "Error"),
-        description: t("manager.electives.errorDeleting", "Failed to delete exchange program") + ": " + error.message,
+        title: "Error",
+        description: "Failed to delete program",
         variant: "destructive",
       })
-      handleCloseDeleteDialog()
     }
+  }
+
+  // Filter programs based on search term and active tab
+  const filteredPrograms = exchangePrograms.filter((program) => {
+    const matchesSearch =
+      !searchTerm ||
+      program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (program.name_ru && program.name_ru.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "draft" && program.status === "draft") ||
+      (activeTab === "published" && program.status === "published") ||
+      (activeTab === "closed" && program.status === "closed") ||
+      (activeTab === "archived" && program.status === "archived")
+
+    return matchesSearch && matchesTab
+  })
+
+  // Get program counts for tabs
+  const programCounts = {
+    all: exchangePrograms.length,
+    draft: exchangePrograms.filter((p) => p.status === "draft").length,
+    published: exchangePrograms.filter((p) => p.status === "published").length,
+    closed: exchangePrograms.filter((p) => p.status === "closed").length,
+    archived: exchangePrograms.filter((p) => p.status === "archived").length,
   }
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+    <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {t("manager.electives.exchangePrograms", "Exchange Programs")}
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              {t("manager.electives.subtitle", "Manage exchange programs for student mobility")}
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight">Exchange Programs</h1>
+            <p className="text-muted-foreground">Manage student exchange programs and university partnerships</p>
           </div>
-          <Link href="/manager/electives/exchange-builder">
-            <Button>
+          <Button asChild>
+            <Link href="/manager/electives/exchange-builder">
               <Plus className="mr-2 h-4 w-4" />
-              {t("manager.electives.create", "Create Exchange")}
-            </Button>
-          </Link>
+              Create Exchange Program
+            </Link>
+          </Button>
         </div>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder={t("manager.electives.searchExchange", "Search exchange programs...")}
-                    className="pl-8"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[130px]">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder={t("manager.electives.status", "Status")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("manager.electives.allStatus", "All Status")}</SelectItem>
-                      <SelectItem value="published">{t("manager.electives.active", "Active")}</SelectItem>
-                      <SelectItem value="draft">{t("manager.electives.draft", "Draft")}</SelectItem>
-                      <SelectItem value="closed">{t("manager.electives.inactive", "Inactive")}</SelectItem>
-                      <SelectItem value="archived">{t("manager.status.archived", "Archived")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[30%]">{t("manager.electives.name", "Name")}</TableHead>
-                      <TableHead>{t("manager.electives.deadline", "Deadline")}</TableHead>
-                      <TableHead>{t("manager.electives.universities", "Universities")}</TableHead>
-                      <TableHead>{t("manager.electives.status", "Status")}</TableHead>
-                      <TableHead className="w-[80px]">{t("manager.electives.action", "Action")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableSkeleton columns={5} rows={5} />
-                    ) : filteredPacks.length > 0 ? (
-                      filteredPacks.map((pack) => (
-                        <TableRow key={pack.id} className="cursor-pointer hover:bg-muted/50">
-                          <TableCell className="font-medium">
-                            <Link href={`/manager/electives/exchange/${pack.id}`} className="hover:underline">
-                              {getLocalizedName(pack)}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            {pack.deadline ? (
-                              formatDate(pack.deadline)
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{pack.university_count || 0}</TableCell>
-                          <TableCell>{getStatusBadge(pack.status)}</TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <span className="sr-only">Open menu</span>
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                  <Link href={`/manager/electives/exchange/${pack.id}`} className="w-full">
-                                    {t("manager.electives.view", "View Details")}
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Link href={`/manager/electives/exchange/${pack.id}/edit`} className="w-full">
-                                    {t("manager.electives.edit", "Edit")}
-                                  </Link>
-                                </DropdownMenuItem>
-                                {pack.status === "published" ? (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "closed")}>
-                                    {t("manager.electives.deactivate", "Deactivate")}
-                                  </DropdownMenuItem>
-                                ) : pack.status === "closed" ? (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
-                                    {t("manager.electives.activate", "Activate")}
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
-                                    {t("manager.electives.activate", "Activate")}
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(pack.id)}>
-                                  {t("manager.electives.delete", "Delete")}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          {t("manager.electives.noExchangePrograms", "No exchange programs found.")}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <CardTitle>Exchange Programs</CardTitle>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="search"
+                  placeholder="Search programs..."
+                  className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="all">All ({programCounts.all})</TabsTrigger>
+                <TabsTrigger value="draft">Draft ({programCounts.draft})</TabsTrigger>
+                <TabsTrigger value="published">Published ({programCounts.published})</TabsTrigger>
+                <TabsTrigger value="closed">Closed ({programCounts.closed})</TabsTrigger>
+                <TabsTrigger value="archived">Archived ({programCounts.archived})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value={activeTab} className="mt-6">
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-6 w-16" />
+                          <Skeleton className="h-8 w-8" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredPrograms.length === 0 ? (
+                  <div className="text-center py-12">
+                    <h3 className="text-lg font-medium mb-2">
+                      {searchTerm ? "No programs found" : "No exchange programs yet"}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {searchTerm
+                        ? "Try adjusting your search terms"
+                        : "Create your first exchange program to get started"}
+                    </p>
+                    {!searchTerm && (
+                      <Button asChild>
+                        <Link href="/manager/electives/exchange-builder">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Exchange Program
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">Program Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Deadline</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Universities</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Max Selections</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Created</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPrograms.map((program) => (
+                          <tr key={program.id} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-4 text-sm">
+                              <Link
+                                href={`/manager/electives/exchange/${program.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {language === "ru" && program.name_ru ? program.name_ru : program.name}
+                              </Link>
+                            </td>
+                            <td className="py-3 px-4 text-sm">{getStatusBadge(program.status)}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(program.deadline)}</td>
+                            <td className="py-3 px-4 text-sm">{program.universities?.length || 0}</td>
+                            <td className="py-3 px-4 text-sm">{program.max_selections}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(program.created_at)}</td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/exchange/${program.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/exchange/${program.id}/edit`}>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  {program.status === "published" && (
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          program.id,
+                                          "closed",
+                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                        )
+                                      }
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Close Program
+                                    </DropdownMenuItem>
+                                  )}
+                                  {program.status === "closed" && (
+                                    <DropdownMenuItem
+                                      className="text-green-600"
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          program.id,
+                                          "published",
+                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                        )
+                                      }
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Reopen Program
+                                    </DropdownMenuItem>
+                                  )}
+                                  {(program.status === "draft" || program.status === "closed") && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          program.id,
+                                          "archived",
+                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                        )
+                                      }
+                                    >
+                                      <Archive className="mr-2 h-4 w-4" />
+                                      Archive
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() =>
+                                      handleDelete(
+                                        program.id,
+                                        language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                      )
+                                    }
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={isDeleteDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) handleCloseDeleteDialog()
-        }}
-      >
-        <DialogContent
-          className="sm:max-w-[425px]"
-          onEscapeKeyDown={(e) => {
-            e.stopPropagation()
-            handleCloseDeleteDialog()
-          }}
-          onPointerDownOutside={(e) => {
-            e.preventDefault()
-            handleCloseDeleteDialog()
-          }}
-          onInteractOutside={(e) => {
-            e.preventDefault()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              {t("manager.electives.deleteConfirmTitle", "Delete Exchange Program")}
-            </DialogTitle>
-            <DialogDescription className="pt-2">
-              {t(
-                "manager.electives.deleteConfirmMessage",
-                "Are you sure you want to delete this exchange program? This action cannot be undone.",
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={handleCloseDeleteDialog}>
-              {t("manager.electives.cancelDelete", "Cancel")}
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              {t("manager.electives.confirmDelete", "Delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   )
 }

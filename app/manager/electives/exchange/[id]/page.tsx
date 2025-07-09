@@ -83,6 +83,9 @@ interface StudentSelection {
     id: string
     full_name: string | null
     email: string
+    degree: string | null
+    year: number | null
+    group: string | null
   } | null
 }
 
@@ -231,8 +234,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
       // Define column headers based on language
       const headers = {
-        en: ["Student Name", "Email", "Status", "Selection Date"],
-        ru: ["Имя студента", "Электронная почта", "Статус", "Дата выбора"],
+        en: ["Student Name", "Degree", "Year", "Group", "Email", "Status", "Selection Date"],
+        ru: ["Имя студента", "Степень", "Курс", "Группа", "Электронная почта", "Статус", "Дата выбора"],
       }
 
       // Create CSV content
@@ -251,6 +254,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
         const row = [
           `"${selection.profiles?.full_name || "N/A"}"`,
+          `"${selection.profiles?.degree || "N/A"}"`,
+          `"${selection.profiles?.year || "N/A"}"`,
+          `"${selection.profiles?.group || "N/A"}"`,
           `"${selection.profiles?.email || "N/A"}"`,
           `"${translatedStatus}"`,
           `"${formatDate(selection.created_at)}"`,
@@ -328,7 +334,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   // Function to export all student selections to CSV
   const exportStudentSelectionsToCSV = () => {
     // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление URL" : "Statement URL"}"\n`
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Степень" : "Degree"}","${language === "ru" ? "Курс" : "Year"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные университеты" : "Selected Universities"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление URL" : "Statement URL"}"\n`
 
     // Create CSV content with translated status
     const selectionsContent = studentSelections
@@ -360,7 +366,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
         const statementUrl = selection.statement_url || ""
 
         // Escape fields that might contain commas
-        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementUrl}"`
+        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.degree || "N/A"}","${selection.profiles?.year || "N/A"}","${selection.profiles?.group || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedUniversityNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementUrl}"`
       })
       .join("\n")
 
@@ -725,23 +731,28 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                     </DialogHeader>
                                     {selectedStudent && (
                                       <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                          <div>
-                                            <Label className="text-sm font-medium">Student Name</Label>
-                                            <p className="text-sm">{selectedStudent.profiles?.full_name || "N/A"}</p>
-                                          </div>
-                                          <div>
-                                            <Label className="text-sm font-medium">Email</Label>
-                                            <p className="text-sm">{selectedStudent.profiles?.email || "N/A"}</p>
-                                          </div>
-                                          <div>
-                                            <Label className="text-sm font-medium">Selection Date</Label>
-                                            <p className="text-sm">{formatDate(selectedStudent.created_at)}</p>
-                                          </div>
-                                          <div>
-                                            <Label className="text-sm font-medium">Status</Label>
-                                            <div className="mt-1">
-                                              {getSelectionStatusBadge(selectedStudent.status)}
+                                        <div>
+                                          <h3 className="text-sm font-medium mb-3">Student Information</h3>
+                                          <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                              <Label className="text-sm font-medium">Name</Label>
+                                              <p className="text-sm">{selectedStudent.profiles?.full_name || "N/A"}</p>
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm font-medium">Degree</Label>
+                                              <p className="text-sm">{selectedStudent.profiles?.degree || "N/A"}</p>
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm font-medium">Year</Label>
+                                              <p className="text-sm">{selectedStudent.profiles?.year || "N/A"}</p>
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm font-medium">Group</Label>
+                                              <p className="text-sm">{selectedStudent.profiles?.group || "N/A"}</p>
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm font-medium">Email</Label>
+                                              <p className="text-sm">{selectedStudent.profiles?.email || "N/A"}</p>
                                             </div>
                                           </div>
                                         </div>
@@ -772,6 +783,21 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                             })}
                                           </div>
                                         </div>
+                                        <div>
+                                          <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                              <Label className="text-sm font-medium">Selection Date</Label>
+                                              <p className="text-sm">{formatDate(selectedStudent.created_at)}</p>
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm font-medium">Status</Label>
+                                              <div className="mt-1">
+                                                {getSelectionStatusBadge(selectedStudent.status)}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
                                         {selectedStudent.statement_url && (
                                           <div>
                                             <Label className="text-sm font-medium">Statement</Label>
@@ -893,8 +919,29 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
             {editingStudent && (
               <div className="space-y-4">
                 <div>
-                  <Label className="text-sm font-medium">Student</Label>
-                  <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                  <h3 className="text-sm font-medium mb-3">Student Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Name</Label>
+                      <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Degree</Label>
+                      <p className="text-sm">{editingStudent.profiles?.degree || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Year</Label>
+                      <p className="text-sm">{editingStudent.profiles?.year || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Group</Label>
+                      <p className="text-sm">{editingStudent.profiles?.group || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Email</Label>
+                      <p className="text-sm">{editingStudent.profiles?.email || "N/A"}</p>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Selected Universities</Label>
