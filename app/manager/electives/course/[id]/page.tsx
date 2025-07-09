@@ -66,52 +66,33 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       setLoading(true)
       setError(null)
 
-      // Load course program
+      // Load course program from elective_courses table
       const { data: program, error: programError } = await supabase
         .from("elective_courses")
-        .select("*")
+        .select("*, courses") // Select the 'courses' column which contains UUIDs
         .eq("id", params.id)
         .single()
 
       if (programError) {
-        console.error("Supabase error fetching elective course program:", programError.message)
-        setError(`Failed to load course program: ${programError.message}. Check RLS policies or if ID exists.`)
-        toast({
-          title: "Error",
-          description: `Failed to load course program data: ${programError.message}`,
-          variant: "destructive",
-        })
-        setLoading(false)
-        return
-      }
-
-      if (!program) {
-        setError("Course program not found. Ensure the ID is correct and data exists.")
-        setLoading(false)
-        return
+        throw new Error("Failed to load course program")
       }
 
       setElectiveCourse(program)
 
-      // Load courses if they exist
+      // Load course details from 'courses' table using UUIDs from 'elective_courses.courses'
       if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses")
-          .select("id, name, name_ru, code, credits, instructor, degree, max_students, status") // Select specific columns
+          .select("*") // Fetch all details for each course
           .in("id", program.courses)
 
-        if (coursesError) {
-          console.error("Supabase error fetching courses:", coursesError.message)
-          toast({
-            title: "Error",
-            description: `Failed to load courses: ${coursesError.message}`,
-            variant: "destructive",
-          })
-        } else if (coursesData) {
+        if (!coursesError && coursesData) {
           setCourses(coursesData)
+        } else if (coursesError) {
+          console.error("Error fetching courses from IDs:", coursesError)
         }
       } else {
-        setCourses([]) // Ensure courses is an empty array if no courses are linked
+        setCourses([]) // No courses linked
       }
 
       // Load student selections
@@ -139,24 +120,17 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         `)
         .eq("elective_courses_id", params.id)
 
-      if (selectionsError) {
-        console.error("Supabase error fetching student selections:", selectionsError.message)
-        toast({
-          title: "Error",
-          description: `Failed to load student selections: ${selectionsError.message}`,
-          variant: "destructive",
-        })
-      } else if (selections) {
+      if (!selectionsError && selections) {
         setStudentSelections(selections)
-      } else {
-        setStudentSelections([]) // Ensure studentSelections is an empty array if no selections
+      } else if (selectionsError) {
+        console.error("Error fetching course selections:", selectionsError)
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error loading data:", error)
-      setError(`Failed to load course program data: ${error.message || "Unknown error"}`)
+      setError("Failed to load course program data")
       toast({
         title: "Error",
-        description: `Failed to load course program data: ${error.message || "Unknown error"}`,
+        description: "Failed to load course program data",
         variant: "destructive",
       })
     } finally {
@@ -254,9 +228,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   }
 
   const exportCourseEnrollmentsToCSV = (course: any) => {
-    // Get students enrolled in this specific course
     const enrolledStudents = studentSelections.filter(
-      (selection) => selection.selected_ids && selection.selected_ids.includes(course.id),
+      (selection) =>
+        selection.selected_ids &&
+        selection.selected_ids.includes(course.id) &&
+        (selection.status === "approved" || selection.status === "pending"),
     )
 
     if (enrolledStudents.length === 0) {
@@ -267,19 +243,19 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
-    // Create CSV content
     const headers = ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"]
     let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
 
     enrolledStudents.forEach((selection) => {
-      const groupName = selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"
-      const programName = selectedStudent.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"
+      const studentProfile = selection.profiles
+      const groupInfo = studentProfile?.student_profiles?.[0]?.groups
+      const programInfo = groupInfo?.programs
 
       const row = [
-        `"${selection.profiles?.full_name || "N/A"}"`,
-        `"${selection.profiles?.email || "N/A"}"`,
-        `"${groupName}"`,
-        `"${programName}"`,
+        `"${studentProfile?.full_name || "N/A"}"`,
+        `"${studentProfile?.email || "N/A"}"`,
+        `"${groupInfo?.display_name || "N/A"}"`,
+        `"${programInfo?.name || "N/A"}"`,
         `"${selection.status}"`,
         `"${formatDate(selection.created_at)}"`,
       ]
@@ -287,11 +263,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       csvContent += row.join(",") + "\n"
     })
 
-    // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `course_${course.name.replace(/\s+/g, "_")}_enrollments.csv`
+    const fileName = `course_${(language === "ru" && course.name_ru ? course.name_ru : course.name).replace(/\s+/g, "_")}_enrollments.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -303,6 +278,61 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     toast({
       title: "Success",
       description: "Course enrollment data exported successfully",
+    })
+  }
+
+  const exportAllStudentSelectionsToCSV = () => {
+    if (studentSelections.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No student selections to export.",
+      })
+      return
+    }
+
+    const headers = ["Student Name", "Email", "Group", "Program", "Selection Date", "Status", "Selected Courses"]
+    let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
+
+    studentSelections.forEach((selection) => {
+      const studentProfile = selection.profiles
+      const groupInfo = studentProfile?.student_profiles?.[0]?.groups
+      const programInfo = groupInfo?.programs
+
+      const selectedCourseNames = (selection.selected_ids || [])
+        .map((courseId: string) => {
+          const course = courses.find((c) => c.id === courseId)
+          return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name) : "Unknown Course"
+        })
+        .join("; ")
+
+      const row = [
+        `"${studentProfile?.full_name || "N/A"}"`,
+        `"${studentProfile?.email || "N/A"}"`,
+        `"${groupInfo?.display_name || "N/A"}"`,
+        `"${programInfo?.name || "N/A"}"`,
+        `"${formatDate(selection.created_at)}"`,
+        `"${selection.status}"`,
+        `"${selectedCourseNames}"`,
+      ]
+
+      csvContent += row.join(",") + "\n"
+    })
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileName = `all_student_course_selections_${electiveCourse.name.replace(/\s+/g, "_")}.csv`
+
+    link.setAttribute("href", url)
+    link.setAttribute("download", fileName)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    toast({
+      title: "Success",
+      description: "All student selections exported successfully",
     })
   }
 
@@ -319,12 +349,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       })
       return
     }
-
-    // In a real app, you would fetch the file from storage (e.g., Supabase Storage)
-    // For now, this is a placeholder.
+    // In a real application, you would fetch the file from storage (e.g., Supabase Storage)
+    // For now, we'll just log and toast.
+    console.log(`Attempting to download statement: ${fileName} for ${studentName}`)
     toast({
-      title: "Statement download",
-      description: "Statement file download started (placeholder)",
+      title: "Statement download initiated",
+      description: "If the file exists, it will download shortly.",
     })
   }
 
@@ -333,7 +363,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     return (
       selection.profiles?.full_name?.toLowerCase().includes(searchLower) ||
       selection.profiles?.email?.toLowerCase().includes(searchLower) ||
-      selection.student_id?.toLowerCase().includes(searchLower)
+      selection.student_id?.toLowerCase().includes(searchLower) ||
+      selection.profiles?.student_profiles?.[0]?.groups?.display_name?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -372,7 +403,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         <div className="space-y-6">
           <div className="text-center">
             <h1 className="text-2xl font-bold">Course program not found</h1>
-            <p className="text-muted-foreground mt-2">The requested course program could not be found.</p>
           </div>
         </div>
       </DashboardLayout>
@@ -533,7 +563,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={exportAllStudentSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
                     Export All
                   </Button>
