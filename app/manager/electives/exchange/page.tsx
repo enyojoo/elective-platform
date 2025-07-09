@@ -2,12 +2,13 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { UserRole } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Search, MoreVertical, Edit, Eye, Trash2, Archive, CheckCircle, XCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -16,6 +17,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useInstitution } from "@/lib/institution-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
+import { formatDate } from "@/lib/utils"
 
 interface ExchangeProgram {
   id: string
@@ -88,16 +90,6 @@ export default function ExchangeProgramsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // Format date helper
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
   }
 
   // Helper function to get status badge
@@ -214,36 +206,40 @@ export default function ExchangeProgramsPage() {
     archived: exchangePrograms.filter((p) => p.status === "archived").length,
   }
 
+  const getLocalizedName = (program: ExchangeProgram) => {
+    if (language === "ru" && program.name_ru) {
+      return program.name_ru
+    }
+    return program.name
+  }
+
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Exchange Programs</h1>
-            <p className="text-muted-foreground">Manage student exchange programs and university partnerships</p>
-          </div>
-          <Button asChild>
-            <Link href="/manager/electives/exchange-builder">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Exchange Program
-            </Link>
-          </Button>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Exchange Programs</h1>
+          <p className="text-muted-foreground">Manage student exchange programs and university partnerships</p>
         </div>
 
         <Card>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <CardTitle>Exchange Programs</CardTitle>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <input
+                <Input
                   type="search"
                   placeholder="Search programs..."
-                  className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
+                  className="pl-8 md:w-[200px]"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              <Button asChild>
+                <Link href="/manager/electives/exchange-builder">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Exchange Program
+                </Link>
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -313,7 +309,7 @@ export default function ExchangeProgramsPage() {
                                 href={`/manager/electives/exchange/${program.id}`}
                                 className="font-medium hover:underline"
                               >
-                                {language === "ru" && program.name_ru ? program.name_ru : program.name}
+                                {getLocalizedName(program)}
                               </Link>
                             </td>
                             <td className="py-3 px-4 text-sm">{getStatusBadge(program.status)}</td>
@@ -345,11 +341,7 @@ export default function ExchangeProgramsPage() {
                                     <DropdownMenuItem
                                       className="text-red-600"
                                       onClick={() =>
-                                        handleStatusChange(
-                                          program.id,
-                                          "closed",
-                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                        )
+                                        handleStatusChange(program.id, "closed", getLocalizedName(program))
                                       }
                                     >
                                       <XCircle className="mr-2 h-4 w-4" />
@@ -360,11 +352,7 @@ export default function ExchangeProgramsPage() {
                                     <DropdownMenuItem
                                       className="text-green-600"
                                       onClick={() =>
-                                        handleStatusChange(
-                                          program.id,
-                                          "published",
-                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                        )
+                                        handleStatusChange(program.id, "published", getLocalizedName(program))
                                       }
                                     >
                                       <CheckCircle className="mr-2 h-4 w-4" />
@@ -374,11 +362,7 @@ export default function ExchangeProgramsPage() {
                                   {(program.status === "draft" || program.status === "closed") && (
                                     <DropdownMenuItem
                                       onClick={() =>
-                                        handleStatusChange(
-                                          program.id,
-                                          "archived",
-                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                        )
+                                        handleStatusChange(program.id, "archived", getLocalizedName(program))
                                       }
                                     >
                                       <Archive className="mr-2 h-4 w-4" />
@@ -387,12 +371,7 @@ export default function ExchangeProgramsPage() {
                                   )}
                                   <DropdownMenuItem
                                     className="text-red-600"
-                                    onClick={() =>
-                                      handleDelete(
-                                        program.id,
-                                        language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                      )
-                                    }
+                                    onClick={() => handleDelete(program.id, getLocalizedName(program))}
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Delete

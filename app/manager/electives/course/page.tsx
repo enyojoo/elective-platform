@@ -3,29 +3,20 @@
 import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Plus, MoreHorizontal } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Search, Plus, MoreVertical, Edit, Eye, Trash2, Archive, CheckCircle, XCircle } from "lucide-react"
 import Link from "next/link"
 import { useLanguage } from "@/lib/language-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useInstitution } from "@/lib/institution-context"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
-import { formatDate } from "@/lib/utils"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useDataCache } from "@/lib/data-cache-context"
+import { formatDate } from "@/lib/utils"
 
 interface ElectivePack {
   id: string
@@ -45,13 +36,9 @@ interface ElectivePack {
 
 export default function ManagerCourseElectivesPage() {
   const [electivePacks, setElectivePacks] = useState<ElectivePack[]>([])
-  const [filteredPacks, setFilteredPacks] = useState<ElectivePack[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [packToDelete, setPackToDelete] = useState<string | null>(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [activeTab, setActiveTab] = useState("all")
   const { t, language } = useLanguage()
   const { toast } = useToast()
   const supabase = getSupabaseBrowserClient()
@@ -59,70 +46,170 @@ export default function ManagerCourseElectivesPage() {
   const { getCachedData, setCachedData, invalidateCache } = useDataCache()
 
   useEffect(() => {
-    const fetchElectivePacks = async () => {
-      if (!institution?.id) return
+    if (institution?.id) {
+      loadElectivePacks()
+    }
+  }, [institution?.id])
 
-      try {
-        setIsLoading(true)
-        const cacheKey = "coursePrograms"
+  const loadElectivePacks = async () => {
+    if (!institution?.id) return
 
-        const cachedData = getCachedData<ElectivePack[]>(cacheKey, institution.id)
-        if (cachedData) {
-          setElectivePacks(cachedData)
-          setFilteredPacks(cachedData)
-          setIsLoading(false)
-          return
-        }
+    setIsLoading(true)
+    try {
+      // Try to get cached data first
+      const cacheKey = `coursePrograms_${institution.id}`
+      const cachedData = getCachedData(cacheKey)
 
-        const { data: packs, error } = await supabase
-          .from("elective_courses")
-          .select("*")
-          .eq("institution_id", institution.id)
-          .order("created_at", { ascending: false })
-
-        if (error) throw error
-
-        const packsWithCounts = (packs || []).map((pack) => ({
-          ...pack,
-          course_count: pack.courses?.length || 0,
-        }))
-
-        setElectivePacks(packsWithCounts)
-        setFilteredPacks(packsWithCounts)
-        setCachedData(cacheKey, institution.id, packsWithCounts)
-      } catch (error) {
-        console.error("Error fetching elective packs:", error)
-        toast({
-          title: t("manager.electives.error", "Error"),
-          description: t("manager.electives.errorFetching", "Failed to fetch elective packs"),
-          variant: "destructive",
-        })
-      } finally {
+      if (cachedData) {
+        setElectivePacks(cachedData)
         setIsLoading(false)
+        return
       }
+
+      console.log("Fetching course elective packs for institution:", institution.id)
+
+      const { data, error } = await supabase
+        .from("elective_courses")
+        .select("*")
+        .eq("institution_id", institution.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching elective packs:", error)
+        throw error
+      }
+
+      const packsWithCounts = (data || []).map((pack) => ({
+        ...pack,
+        course_count: pack.courses?.length || 0,
+      }))
+
+      console.log("Course elective packs loaded:", packsWithCounts)
+      setElectivePacks(packsWithCounts)
+      setCachedData(cacheKey, packsWithCounts)
+    } catch (error) {
+      console.error("Error loading elective packs:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load course elective packs",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Helper function to get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "draft":
+        return <Badge variant="outline">Draft</Badge>
+      case "published":
+        return <Badge variant="secondary">Published</Badge>
+      case "closed":
+        return <Badge variant="destructive">Closed</Badge>
+      case "archived":
+        return <Badge variant="default">Archived</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  // Handle status change
+  const handleStatusChange = async (packId: string, newStatus: string, packName: string) => {
+    try {
+      const { error } = await supabase
+        .from("elective_courses")
+        .update({ status: newStatus })
+        .eq("id", packId)
+        .eq("institution_id", institution?.id)
+
+      if (error) throw error
+
+      // Update local state
+      setElectivePacks((prev) => prev.map((pack) => (pack.id === packId ? { ...pack, status: newStatus } : pack)))
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`coursePrograms_${institution.id}`)
+      }
+
+      toast({
+        title: "Status updated",
+        description: `${packName} status changed to ${newStatus}`,
+      })
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update pack status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle delete
+  const handleDelete = async (packId: string, packName: string) => {
+    if (!confirm(`Are you sure you want to delete "${packName}"? This action cannot be undone.`)) {
+      return
     }
 
-    fetchElectivePacks()
-  }, [supabase, institution?.id, toast, t, getCachedData, setCachedData])
+    try {
+      const { error } = await supabase
+        .from("elective_courses")
+        .delete()
+        .eq("id", packId)
+        .eq("institution_id", institution?.id)
 
-  useEffect(() => {
-    let result = [...electivePacks]
+      if (error) throw error
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      result = result.filter(
-        (pack) =>
-          (pack.name && pack.name.toLowerCase().includes(term)) ||
-          (pack.name_ru && pack.name_ru.toLowerCase().includes(term)),
-      )
+      // Update local state
+      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packId))
+
+      // Invalidate cache
+      if (institution?.id) {
+        invalidateCache(`coursePrograms_${institution.id}`)
+      }
+
+      toast({
+        title: "Pack deleted",
+        description: `${packName} has been deleted`,
+      })
+    } catch (error) {
+      console.error("Error deleting pack:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete pack",
+        variant: "destructive",
+      })
     }
+  }
 
-    if (statusFilter !== "all") {
-      result = result.filter((pack) => pack.status === statusFilter)
-    }
+  // Filter packs based on search term and active tab
+  const filteredPacks = electivePacks.filter((pack) => {
+    const matchesSearch =
+      !searchTerm ||
+      pack.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (pack.name_ru && pack.name_ru.toLowerCase().includes(searchTerm.toLowerCase()))
 
-    setFilteredPacks(result)
-  }, [searchTerm, statusFilter, electivePacks])
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "draft" && pack.status === "draft") ||
+      (activeTab === "published" && pack.status === "published") ||
+      (activeTab === "closed" && pack.status === "closed") ||
+      (activeTab === "archived" && pack.status === "archived")
+
+    return matchesSearch && matchesTab
+  })
+
+  // Get pack counts for tabs
+  const packCounts = {
+    all: electivePacks.length,
+    draft: electivePacks.filter((p) => p.status === "draft").length,
+    published: electivePacks.filter((p) => p.status === "published").length,
+    closed: electivePacks.filter((p) => p.status === "closed").length,
+    archived: electivePacks.filter((p) => p.status === "archived").length,
+  }
 
   const getLocalizedName = (pack: ElectivePack) => {
     if (language === "ru" && pack.name_ru) {
@@ -131,248 +218,183 @@ export default function ManagerCourseElectivesPage() {
     return pack.name
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "published":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
-            {t("manager.status.published", "Published")}
-          </Badge>
-        )
-      case "draft":
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
-            {t("manager.status.draft", "Draft")}
-          </Badge>
-        )
-      case "closed":
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
-            {t("manager.status.closed", "Closed")}
-          </Badge>
-        )
-      case "archived":
-        return (
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
-            {t("manager.status.archived", "Archived")}
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    if (!institution?.id) return
-    try {
-      const { error } = await supabase.from("elective_courses").update({ status: newStatus }).eq("id", id)
-
-      if (error) throw error
-
-      invalidateCache("coursePrograms", institution.id)
-      setElectivePacks((prev) => prev.map((pack) => (pack.id === id ? { ...pack, status: newStatus } : pack)))
-
-      toast({
-        title: t("manager.electives.success", "Success"),
-        description: t("manager.electives.statusUpdated", "Status updated successfully"),
-      })
-    } catch (error) {
-      console.error("Error updating status:", error)
-      toast({
-        title: t("manager.electives.error", "Error"),
-        description: t("manager.electives.errorUpdatingStatus", "Failed to update status"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  const openDeleteDialog = (id: string) => {
-    setPackToDelete(id)
-    setIsDeleteDialogOpen(true)
-  }
-
-  const handleDelete = async () => {
-    if (!packToDelete || !institution?.id) return
-
-    try {
-      setIsDeleting(true)
-      const { error } = await supabase.from("elective_courses").delete().eq("id", packToDelete)
-
-      if (error) throw error
-
-      invalidateCache("coursePrograms", institution.id)
-      setElectivePacks((prev) => prev.filter((pack) => pack.id !== packToDelete))
-
-      toast({
-        title: t("manager.electives.success", "Success"),
-        description: t("manager.electives.deleted", "Elective pack deleted successfully"),
-      })
-    } catch (error) {
-      console.error("Error deleting elective pack:", error)
-      toast({
-        title: t("manager.electives.error", "Error"),
-        description: t("manager.electives.errorDeleting", "Failed to delete elective pack"),
-        variant: "destructive",
-      })
-    } finally {
-      setIsDeleting(false)
-      setIsDeleteDialogOpen(false)
-      setPackToDelete(null)
-    }
-  }
-
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {t("manager.electives.courseElectives", "Course Electives")}
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              {t("manager.electives.subtitle", "Manage elective courses for students")}
-            </p>
-          </div>
-          <Link href="/manager/electives/course-builder">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("manager.electives.create", "Create")}
-            </Button>
-          </Link>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Course Electives</h1>
+          <p className="text-muted-foreground">Manage elective courses for students</p>
         </div>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder={t("manager.electives.searchCourses", "Search course electives...")}
-                    className="pl-8"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[130px]">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder={t("manager.electives.status", "Status")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("manager.electives.allStatus", "All Status")}</SelectItem>
-                      <SelectItem value="published">{t("manager.electives.active", "Active")}</SelectItem>
-                      <SelectItem value="draft">{t("manager.electives.draft", "Draft")}</SelectItem>
-                      <SelectItem value="closed">{t("manager.electives.inactive", "Inactive")}</SelectItem>
-                      <SelectItem value="archived">{t("manager.status.archived", "Archived")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search packs..."
+                  className="pl-8 md:w-[200px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[30%]">{t("manager.electives.name", "Name")}</TableHead>
-                      <TableHead>{t("manager.electives.deadline", "Deadline")}</TableHead>
-                      <TableHead>{t("manager.electives.courses", "Courses")}</TableHead>
-                      <TableHead>{t("manager.electives.status", "Status")}</TableHead>
-                      <TableHead className="text-right w-[100px]">{t("manager.electives.action", "Action")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableSkeleton columns={5} rows={5} />
-                    ) : filteredPacks.length > 0 ? (
-                      filteredPacks.map((pack) => (
-                        <TableRow key={pack.id}>
-                          <TableCell className="font-medium">{getLocalizedName(pack)}</TableCell>
-                          <TableCell>
-                            {pack.deadline ? (
-                              formatDate(pack.deadline)
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{pack.course_count || 0}</TableCell>
-                          <TableCell>{getStatusBadge(pack.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <span className="sr-only">{t("common.openMenu", "Open menu")}</span>
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/course/${pack.id}`}>{t("common.view", "View")}</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/course/${pack.id}/edit`}>
-                                    {t("common.edit", "Edit")}
-                                  </Link>
-                                </DropdownMenuItem>
-                                {pack.status === "published" ? (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "closed")}>
-                                    {t("common.deactivate", "Deactivate")}
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(pack.id, "published")}>
-                                    {t("common.activate", "Activate")}
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  onClick={() => openDeleteDialog(pack.id)}
-                                  className="text-red-600 focus:text-red-600"
-                                >
-                                  {t("common.delete", "Delete")}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          {t("manager.electives.noCourseElectives", "No course elective packs found.")}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              <Button asChild>
+                <Link href="/manager/electives/course-builder">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Course Elective
+                </Link>
+              </Button>
             </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="all">All ({packCounts.all})</TabsTrigger>
+                <TabsTrigger value="draft">Draft ({packCounts.draft})</TabsTrigger>
+                <TabsTrigger value="published">Published ({packCounts.published})</TabsTrigger>
+                <TabsTrigger value="closed">Closed ({packCounts.closed})</TabsTrigger>
+                <TabsTrigger value="archived">Archived ({packCounts.archived})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value={activeTab} className="mt-6">
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-6 w-16" />
+                          <Skeleton className="h-8 w-8" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredPacks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <h3 className="text-lg font-medium mb-2">
+                      {searchTerm ? "No packs found" : "No course elective packs yet"}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {searchTerm
+                        ? "Try adjusting your search terms"
+                        : "Create your first course elective pack to get started"}
+                    </p>
+                    {!searchTerm && (
+                      <Button asChild>
+                        <Link href="/manager/electives/course-builder">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Course Elective
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">Pack Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Deadline</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Courses</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Max Selections</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Created</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPacks.map((pack) => (
+                          <tr key={pack.id} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-4 text-sm">
+                              <Link
+                                href={`/manager/electives/course/${pack.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {getLocalizedName(pack)}
+                              </Link>
+                            </td>
+                            <td className="py-3 px-4 text-sm">{getStatusBadge(pack.status)}</td>
+                            <td className="py-3 px-4 text-sm">
+                              {pack.deadline ? (
+                                formatDate(pack.deadline)
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm">{pack.course_count || 0}</td>
+                            <td className="py-3 px-4 text-sm">{pack.max_selections}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(pack.created_at)}</td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/course/${pack.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/course/${pack.id}/edit`}>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  {pack.status === "published" && (
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() => handleStatusChange(pack.id, "closed", getLocalizedName(pack))}
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Close Pack
+                                    </DropdownMenuItem>
+                                  )}
+                                  {pack.status === "closed" && (
+                                    <DropdownMenuItem
+                                      className="text-green-600"
+                                      onClick={() => handleStatusChange(pack.id, "published", getLocalizedName(pack))}
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Reopen Pack
+                                    </DropdownMenuItem>
+                                  )}
+                                  {(pack.status === "draft" || pack.status === "closed") && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleStatusChange(pack.id, "archived", getLocalizedName(pack))}
+                                    >
+                                      <Archive className="mr-2 h-4 w-4" />
+                                      Archive
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => handleDelete(pack.id, getLocalizedName(pack))}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("manager.electives.confirmDelete", "Confirm Deletion")}</DialogTitle>
-            <DialogDescription>
-              {t(
-                "manager.electives.deleteWarning",
-                "Are you sure you want to delete this elective pack? This action cannot be undone.",
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-              {t("common.cancel", "Cancel")}
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-              {isDeleting ? t("common.deleting", "Deleting...") : t("common.delete", "Delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   )
 }
