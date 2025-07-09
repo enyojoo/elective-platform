@@ -7,12 +7,17 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function getCourseProgram(id: string) {
   try {
+    console.log("Fetching course program with ID:", id)
     const { data, error } = await supabase.from("elective_courses").select("*").eq("id", id).single()
 
     if (error) {
       console.error("Error fetching course program:", error)
       return null
     }
+
+    console.log("Raw course program data:", data)
+    console.log("Courses field type:", typeof data?.courses)
+    console.log("Courses field value:", data?.courses)
 
     return data
   } catch (error) {
@@ -59,10 +64,34 @@ export async function getCoursesFromIds(courseIds: string[]) {
 
 export async function getCourseSelections(electiveCourseId: string) {
   try {
-    // First get the selections
+    console.log("Fetching course selections for elective_courses_id:", electiveCourseId)
+
     const { data: selections, error: selectionsError } = await supabase
       .from("course_selections")
-      .select("*")
+      .select(`
+        *,
+        profiles!inner(
+          id,
+          full_name,
+          email,
+          student_profiles!inner(
+            group_id,
+            enrollment_year,
+            groups(
+              name,
+              display_name,
+              programs(
+                name,
+                name_ru,
+                degrees(
+                  name,
+                  name_ru
+                )
+              )
+            )
+          )
+        )
+      `)
       .eq("elective_courses_id", electiveCourseId)
       .order("created_at", { ascending: false })
 
@@ -71,59 +100,10 @@ export async function getCourseSelections(electiveCourseId: string) {
       return []
     }
 
-    // Then get profile data for each selection
-    const selectionsWithProfiles = await Promise.all(
-      (selections || []).map(async (selection) => {
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select(`
-              id, 
-              full_name, 
-              email,
-              student_profiles!inner(
-                group_id,
-                enrollment_year,
-                groups(
-                  name,
-                  display_name,
-                  programs(
-                    name,
-                    name_ru,
-                    degrees(
-                      name,
-                      name_ru
-                    )
-                  )
-                )
-              )
-            `)
-            .eq("id", selection.student_id)
-            .single()
+    console.log("Course selections fetched:", selections?.length || 0)
+    console.log("Sample selection:", selections?.[0])
 
-          if (profileError) {
-            console.error("Error fetching profile for student:", selection.student_id, profileError)
-            return {
-              ...selection,
-              profiles: null,
-            }
-          }
-
-          return {
-            ...selection,
-            profiles: profile,
-          }
-        } catch (error) {
-          console.error("Error processing selection profile:", error)
-          return {
-            ...selection,
-            profiles: null,
-          }
-        }
-      }),
-    )
-
-    return selectionsWithProfiles
+    return selections || []
   } catch (error) {
     console.error("Error in getCourseSelections:", error)
     return []

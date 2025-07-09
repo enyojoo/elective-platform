@@ -104,7 +104,7 @@ interface StudentSelection {
         }
       }
     }[]
-  } | null
+  }
 }
 
 export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
@@ -144,14 +144,31 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       setElectiveCourse(program)
 
+      // Handle courses array - it might be stored as JSON string or array
+      let courseIds: string[] = []
+      if (program.courses) {
+        if (typeof program.courses === "string") {
+          try {
+            courseIds = JSON.parse(program.courses)
+          } catch (e) {
+            console.error("Error parsing courses JSON:", e)
+            courseIds = []
+          }
+        } else if (Array.isArray(program.courses)) {
+          courseIds = program.courses
+        }
+      }
+
+      console.log("Processed course IDs:", courseIds)
+
       // Load courses from the courses column
-      if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
-        console.log("Loading courses with IDs:", program.courses)
-        const coursesData = await getCoursesFromIds(program.courses)
+      if (courseIds && courseIds.length > 0) {
+        console.log("Loading courses with IDs:", courseIds)
+        const coursesData = await getCoursesFromIds(courseIds)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No courses found in program or courses is not an array:", program?.courses)
+        console.log("No courses found in program")
         setCourses([])
       }
 
@@ -688,15 +705,16 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         </TableRow>
                       ) : (
                         filteredStudentSelections.map((selection) => {
+                          const studentProfile = selection.profiles
+                          const groupInfo = studentProfile?.student_profiles?.[0]?.groups
+
                           return (
                             <TableRow key={selection.id}>
                               <TableCell className="font-medium">
-                                {selection.profiles?.full_name || "N/A"}
-                                <div className="text-sm text-muted-foreground">
-                                  {selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}
-                                </div>
+                                {studentProfile?.full_name || "N/A"}
+                                <div className="text-sm text-muted-foreground">{groupInfo?.display_name || "N/A"}</div>
                               </TableCell>
-                              <TableCell>{selection.profiles?.email || "N/A"}</TableCell>
+                              <TableCell>{studentProfile?.email || "N/A"}</TableCell>
                               <TableCell>{formatDate(selection.created_at)}</TableCell>
                               <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
                               <TableCell className="text-center">
@@ -706,7 +724,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                     size="icon"
                                     onClick={() =>
                                       downloadStudentStatement(
-                                        selection.profiles?.full_name || "Student",
+                                        studentProfile?.full_name || "Student",
                                         selection.statement_file,
                                       )
                                     }
@@ -742,7 +760,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                             handleStatusChange(
                                               selection.id,
                                               "approved",
-                                              selection.profiles?.full_name || "Student",
+                                              studentProfile?.full_name || "Student",
                                             )
                                           }
                                         >
@@ -755,7 +773,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                             handleStatusChange(
                                               selection.id,
                                               "rejected",
-                                              selection.profiles?.full_name || "Student",
+                                              studentProfile?.full_name || "Student",
                                             )
                                           }
                                         >
@@ -771,7 +789,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                           handleStatusChange(
                                             selection.id,
                                             "rejected",
-                                            selection.profiles?.full_name || "Student",
+                                            studentProfile?.full_name || "Student",
                                           )
                                         }
                                       >
