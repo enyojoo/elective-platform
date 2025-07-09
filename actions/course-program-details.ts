@@ -15,10 +15,7 @@ export async function getCourseProgram(id: string) {
       return null
     }
 
-    console.log("Raw course program data:", data)
-    console.log("Courses field type:", typeof data?.courses)
-    console.log("Courses field value:", data?.courses)
-
+    console.log("Course program data:", data)
     return data
   } catch (error) {
     console.error("Error in getCourseProgram:", error)
@@ -28,10 +25,12 @@ export async function getCourseProgram(id: string) {
 
 export async function getCoursesFromIds(courseIds: string[]) {
   if (!courseIds || courseIds.length === 0) {
+    console.log("No course IDs provided")
     return []
   }
 
   try {
+    console.log("Fetching courses with IDs:", courseIds)
     const { data: courses, error } = await supabase
       .from("courses")
       .select(`
@@ -55,6 +54,7 @@ export async function getCoursesFromIds(courseIds: string[]) {
       return []
     }
 
+    console.log("Fetched courses:", courses)
     return courses || []
   } catch (error) {
     console.error("Error in getCoursesFromIds:", error)
@@ -101,7 +101,9 @@ export async function getCourseSelections(electiveCourseId: string) {
     }
 
     console.log("Course selections fetched:", selections?.length || 0)
-    console.log("Sample selection:", selections?.[0])
+    if (selections && selections.length > 0) {
+      console.log("Sample selection:", selections[0])
+    }
 
     return selections || []
   } catch (error) {
@@ -112,10 +114,30 @@ export async function getCourseSelections(electiveCourseId: string) {
 
 export async function getCourseSelectionData(courseId: string, electiveCourseId: string) {
   try {
-    // Get all selections for this elective course program
+    console.log("Fetching course selection data for course:", courseId, "in program:", electiveCourseId)
+
     const { data: selections, error: selectionsError } = await supabase
       .from("course_selections")
-      .select("*")
+      .select(`
+        *,
+        profiles!inner(
+          id,
+          full_name,
+          email,
+          student_profiles!inner(
+            group_id,
+            enrollment_year,
+            groups(
+              name,
+              display_name,
+              programs(
+                name,
+                name_ru
+              )
+            )
+          )
+        )
+      `)
       .eq("elective_courses_id", electiveCourseId)
 
     if (selectionsError) {
@@ -129,55 +151,8 @@ export async function getCourseSelectionData(courseId: string, electiveCourseId:
         selection.selected_ids && Array.isArray(selection.selected_ids) && selection.selected_ids.includes(courseId),
     )
 
-    // Get profile data for filtered selections
-    const selectionsWithProfiles = await Promise.all(
-      filteredSelections.map(async (selection) => {
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select(`
-              id, 
-              full_name, 
-              email,
-              student_profiles!inner(
-                group_id,
-                enrollment_year,
-                groups(
-                  name,
-                  display_name,
-                  programs(
-                    name,
-                    name_ru
-                  )
-                )
-              )
-            `)
-            .eq("id", selection.student_id)
-            .single()
-
-          if (profileError) {
-            console.error("Error fetching profile:", profileError)
-            return {
-              ...selection,
-              profiles: null,
-            }
-          }
-
-          return {
-            ...selection,
-            profiles: profile,
-          }
-        } catch (error) {
-          console.error("Error processing profile:", error)
-          return {
-            ...selection,
-            profiles: null,
-          }
-        }
-      }),
-    )
-
-    return selectionsWithProfiles
+    console.log("Filtered selections for course:", filteredSelections.length)
+    return filteredSelections
   } catch (error) {
     console.error("Error in getCourseSelectionData:", error)
     return []
@@ -186,6 +161,8 @@ export async function getCourseSelectionData(courseId: string, electiveCourseId:
 
 export async function updateCourseSelectionStatus(selectionId: string, status: "approved" | "rejected") {
   try {
+    console.log("Updating course selection status:", selectionId, "to", status)
+
     const { data, error } = await supabase
       .from("course_selections")
       .update({ status })
@@ -198,6 +175,7 @@ export async function updateCourseSelectionStatus(selectionId: string, status: "
       throw new Error("Failed to update course selection status")
     }
 
+    console.log("Course selection status updated:", data)
     revalidatePath("/manager/electives/course")
     return data
   } catch (error) {
@@ -212,6 +190,8 @@ export async function updateStudentCourseSelection(
   status: "approved" | "rejected" | "pending",
 ) {
   try {
+    console.log("Updating student course selection:", selectionId, "courses:", selectedCourseIds, "status:", status)
+
     const { data, error } = await supabase
       .from("course_selections")
       .update({
@@ -227,6 +207,7 @@ export async function updateStudentCourseSelection(
       throw new Error("Failed to update student course selection")
     }
 
+    console.log("Student course selection updated:", data)
     revalidatePath("/manager/electives/course")
     return data
   } catch (error) {

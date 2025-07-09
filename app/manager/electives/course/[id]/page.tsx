@@ -133,7 +133,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       console.log("Loading course program with ID:", params.id)
 
-      // Load course program
+      // Load course program from elective_courses table
       const program = await getCourseProgram(params.id)
       console.log("Course program loaded:", program)
 
@@ -144,7 +144,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       setElectiveCourse(program)
 
-      // Handle courses array - it might be stored as JSON string or array
+      // Handle courses array from elective_courses.courses column
       let courseIds: string[] = []
       if (program.courses) {
         if (typeof program.courses === "string") {
@@ -159,21 +159,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         }
       }
 
-      console.log("Processed course IDs:", courseIds)
+      console.log("Processed course IDs from elective_courses.courses:", courseIds)
 
-      // Load courses from the courses column
+      // Load courses from the courses table using the IDs
       if (courseIds && courseIds.length > 0) {
         console.log("Loading courses with IDs:", courseIds)
         const coursesData = await getCoursesFromIds(courseIds)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No courses found in program")
+        console.log("No courses found in elective_courses.courses column")
         setCourses([])
       }
 
-      // Load student selections
-      console.log("Loading student selections for course program ID:", params.id)
+      // Load student selections from course_selections table
+      console.log("Loading student selections for elective_courses_id:", params.id)
       const selections = await getCourseSelections(params.id)
       console.log("Student selections loaded:", selections)
       setStudentSelections(selections)
