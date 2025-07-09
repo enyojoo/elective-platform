@@ -7,12 +7,17 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function getCourseProgram(id: string) {
   try {
+    console.log("Fetching course program with ID:", id)
     const { data, error } = await supabase.from("elective_courses").select("*").eq("id", id).single()
 
     if (error) {
       console.error("Error fetching course program:", error)
       return null
     }
+
+    console.log("Raw course program data:", data)
+    console.log("Courses column type:", typeof data?.courses)
+    console.log("Courses column value:", data?.courses)
 
     return data
   } catch (error) {
@@ -22,11 +27,17 @@ export async function getCourseProgram(id: string) {
 }
 
 export async function getCoursesFromIds(courseIds: string[]) {
+  console.log("getCoursesFromIds called with:", courseIds)
+  console.log("courseIds type:", typeof courseIds)
+  console.log("courseIds is array:", Array.isArray(courseIds))
+
   if (!courseIds || courseIds.length === 0) {
+    console.log("No course IDs provided")
     return []
   }
 
   try {
+    console.log("Querying courses table with IDs:", courseIds)
     const { data: courses, error } = await supabase.from("courses").select("*").in("id", courseIds).order("name")
 
     if (error) {
@@ -34,6 +45,7 @@ export async function getCoursesFromIds(courseIds: string[]) {
       return []
     }
 
+    console.log("Fetched courses:", courses)
     return courses || []
   } catch (error) {
     console.error("Error in getCoursesFromIds:", error)
@@ -43,6 +55,8 @@ export async function getCoursesFromIds(courseIds: string[]) {
 
 export async function getCourseSelections(electiveCourseId: string) {
   try {
+    console.log("Fetching course selections for elective course ID:", electiveCourseId)
+
     // First get the selections
     const { data: selections, error: selectionsError } = await supabase
       .from("course_selections")
@@ -54,6 +68,8 @@ export async function getCourseSelections(electiveCourseId: string) {
       console.error("Error fetching course selections:", selectionsError)
       return []
     }
+
+    console.log("Raw selections data:", selections)
 
     // Then get profile data for each selection
     const selectionsWithProfiles = await Promise.all(
@@ -107,6 +123,7 @@ export async function getCourseSelections(electiveCourseId: string) {
       }),
     )
 
+    console.log("Selections with profiles:", selectionsWithProfiles)
     return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getCourseSelections:", error)

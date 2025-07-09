@@ -57,7 +57,7 @@ interface ElectiveCourse {
   deadline: string
   max_selections: number
   status: string
-  courses: string[]
+  courses: string[] | string
   created_at: string
   updated_at: string
 }
@@ -132,16 +132,55 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       // Load course program
       const program = await getCourseProgram(params.id)
       console.log("Course program loaded:", program)
+
+      if (!program) {
+        setError("Course program not found")
+        return
+      }
+
       setElectiveCourse(program)
 
-      // Load courses from the courses column
-      if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
-        console.log("Loading courses with IDs:", program.courses)
-        const coursesData = await getCoursesFromIds(program.courses)
+      // Handle courses column - it might be a string (JSON) or already an array
+      let courseIds: string[] = []
+
+      if (program.courses) {
+        console.log("Raw courses data:", program.courses)
+        console.log("Type of courses:", typeof program.courses)
+
+        if (typeof program.courses === "string") {
+          try {
+            // Try to parse as JSON first
+            const parsed = JSON.parse(program.courses)
+            if (Array.isArray(parsed)) {
+              courseIds = parsed
+            } else {
+              console.error("Parsed courses is not an array:", parsed)
+            }
+          } catch (e) {
+            // If JSON parsing fails, try splitting by comma
+            console.log("JSON parse failed, trying comma split")
+            courseIds = program.courses
+              .split(",")
+              .map((id) => id.trim())
+              .filter((id) => id.length > 0)
+          }
+        } else if (Array.isArray(program.courses)) {
+          courseIds = program.courses
+        } else {
+          console.error("Courses is neither string nor array:", program.courses)
+        }
+      }
+
+      console.log("Processed course IDs:", courseIds)
+
+      // Load courses from the processed IDs
+      if (courseIds.length > 0) {
+        console.log("Loading courses with IDs:", courseIds)
+        const coursesData = await getCoursesFromIds(courseIds)
         console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("No courses found in program or courses is not an array:", program?.courses)
+        console.log("No valid course IDs found")
         setCourses([])
       }
 
@@ -560,11 +599,19 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               <CardHeader>
                 <div>
                   <CardTitle>{t("manager.courseDetails.coursesInProgram")}</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">Debug: Found {courses.length} courses in program</p>
                 </div>
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No courses configured for this program</div>
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No courses configured for this program</p>
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      <p>Debug info:</p>
+                      <p>Raw courses data: {JSON.stringify(electiveCourse.courses)}</p>
+                      <p>Courses type: {typeof electiveCourse.courses}</p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-md border">
                     <table className="w-full">
