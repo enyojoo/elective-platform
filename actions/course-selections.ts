@@ -103,6 +103,22 @@ export async function getElectiveCoursesPackDetails(packId: string) {
   try {
     console.log("Fetching elective courses pack details for ID:", packId)
 
+    // First, let's check if the record exists at all
+    const { data: checkData, error: checkError } = await supabase.from("elective_courses").select("*").eq("id", packId)
+
+    console.log("Raw check query result:", { checkData, checkError })
+
+    if (checkError) {
+      console.error("Error in check query:", checkError)
+      return null
+    }
+
+    if (!checkData || checkData.length === 0) {
+      console.error("No record found with ID:", packId)
+      return null
+    }
+
+    // Now get the specific fields we need
     const { data, error } = await supabase
       .from("elective_courses")
       .select(`

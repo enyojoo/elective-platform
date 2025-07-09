@@ -80,6 +80,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             description: `Elective course pack not found (ID: ${params.id})`,
             variant: "destructive",
           })
+          setLoading(false)
           return
         }
         setElectivePack(packData)
@@ -105,7 +106,9 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       }
     }
 
-    loadData()
+    if (params.id) {
+      loadData()
+    }
   }, [params.id, toast])
 
   // Calculate enrollment counts for each course
@@ -152,13 +155,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="outline">{t("manager.status.draft")}</Badge>
+        return <Badge variant="outline">Draft</Badge>
       case "active":
-        return <Badge variant="secondary">{t("manager.status.published")}</Badge>
+        return <Badge variant="secondary">Published</Badge>
       case "closed":
-        return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
+        return <Badge variant="destructive">Closed</Badge>
       case "archived":
-        return <Badge variant="default">{t("manager.status.archived")}</Badge>
+        return <Badge variant="default">Archived</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -171,21 +174,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.approved")}
+            Approved
           </Badge>
         )
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.pending")}
+            Pending
           </Badge>
         )
       case "rejected":
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.rejected")}
+            Rejected
           </Badge>
         )
       default:
@@ -226,11 +229,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       setEditDialogOpen(false)
       toast({
-        title: t("toast.selection.updated"),
-        description: t("toast.selection.updated.course.description").replace(
-          "{0}",
-          studentToEdit.students?.name || "Student",
-        ),
+        title: "Selection Updated",
+        description: `Updated course selection for ${studentToEdit.students?.name || "Student"}`,
       })
     } catch (error) {
       toast({
@@ -245,8 +245,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const downloadStudentStatement = async (studentName: string, fileUrl: string | null) => {
     if (!fileUrl) {
       toast({
-        title: t("toast.statement.notAvailable"),
-        description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
+        title: "Statement Not Available",
+        description: `No statement file uploaded for ${studentName}`,
       })
       return
     }
@@ -263,8 +263,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       URL.revokeObjectURL(url)
 
       toast({
-        title: t("toast.statement.download.success"),
-        description: t("toast.statement.download.success.description"),
+        title: "Download Successful",
+        description: "Statement file downloaded successfully",
       })
     } catch (error) {
       toast({
@@ -277,28 +277,17 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
   // Function to export all student selections to CSV
   const exportAllSelectionsToCSV = () => {
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}\n`
+    const csvHeader = `"Student Name","Student ID","Group","Program","Email","Selected Courses","Selection Date","Status","Statement"\n`
 
     const allSelectionsContent = filteredSelections
       .map((selection) => {
-        const translatedStatus =
-          language === "ru"
-            ? selection.status === "approved"
-              ? "Утверждено"
-              : selection.status === "pending"
-                ? "На рассмотрении"
-                : "Отклонено"
-            : selection.status
-
         const statementLink = selection.statement_file_url
           ? `${window.location.origin}/api/statements/${selection.statement_file_url}`
-          : language === "ru"
-            ? "Не загружено"
-            : "Not uploaded"
+          : "Not uploaded"
 
         const selectedCourses = Array.isArray(selection.selected_courses) ? selection.selected_courses.join("; ") : ""
 
-        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${selectedCourses}","${formatDate(selection.created_at)}","${translatedStatus}","${statementLink}"`
+        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${selectedCourses}","${formatDate(selection.created_at)}","${selection.status}","${statementLink}"`
       })
       .join("\n")
 
@@ -307,10 +296,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${electivePack?.name?.replace(/\s+/g, "_") || "course_pack"}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
-    )
+    link.setAttribute("download", `${electivePack?.name?.replace(/\s+/g, "_") || "course_pack"}_all_selections.csv`)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
@@ -323,20 +309,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       (selection) => Array.isArray(selection.selected_courses) && selection.selected_courses.includes(courseName),
     )
 
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}\n`
+    const csvHeader = `"Student Name","Student ID","Group","Program","Email","Selection Date","Status"\n`
 
     const courseContent = studentsInCourse
       .map((selection) => {
-        const translatedStatus =
-          language === "ru"
-            ? selection.status === "approved"
-              ? "Утверждено"
-              : selection.status === "pending"
-                ? "На рассмотрении"
-                : "Отклонено"
-            : selection.status
-
-        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${formatDate(selection.created_at)}","${translatedStatus}"`
+        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${formatDate(selection.created_at)}","${selection.status}"`
       })
       .join("\n")
 
@@ -345,10 +322,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${courseName.replace(/\s+/g, "_")}_${language === "ru" ? "зачисления" : "enrollments"}.csv`,
-    )
+    link.setAttribute("download", `${courseName.replace(/\s+/g, "_")}_enrollments.csv`)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
@@ -366,10 +340,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       )
 
       // Show toast based on status
-      const toastKey = newStatus === "approved" ? "approved" : newStatus === "rejected" ? "rejected" : "withdrawn"
+      const toastTitle =
+        newStatus === "approved"
+          ? "Selection Approved"
+          : newStatus === "rejected"
+            ? "Selection Rejected"
+            : "Selection Updated"
       toast({
-        title: t(`toast.selection.${toastKey}`),
-        description: t(`toast.selection.${toastKey}.description`).replace("{0}", studentName),
+        title: toastTitle,
+        description: `${studentName}'s selection has been ${newStatus}`,
       })
     } catch (error) {
       toast({
@@ -429,7 +408,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             <Button variant="outline" size="sm" asChild>
               <Link href={`/manager/electives/course/${params.id}/edit`}>
                 <Edit className="mr-2 h-4 w-4" />
-                {t("manager.courseDetails.edit")}
+                Edit
               </Link>
             </Button>
           </div>
@@ -437,30 +416,28 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         <Card>
           <CardHeader>
-            <CardTitle>{t("manager.courseDetails.programDetails")}</CardTitle>
+            <CardTitle>Program Details</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.selectionPeriod")}:</dt>
+                <dt className="font-medium">Selection Period:</dt>
                 <dd>{electivePack.deadline ? formatDate(electivePack.deadline) : "Not set"}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
-                <dd>
-                  {electivePack.max_selections || 0} {t("manager.courseDetails.courses")}
-                </dd>
+                <dt className="font-medium">Max Selections:</dt>
+                <dd>{electivePack.max_selections || 0} courses</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.courses")}:</dt>
+                <dt className="font-medium">Courses:</dt>
                 <dd>{courses.length}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
+                <dt className="font-medium">Students Enrolled:</dt>
                 <dd>{courseSelections.length}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
+                <dt className="font-medium">Status:</dt>
                 <dd>{electivePack.status}</dd>
               </div>
             </dl>
@@ -469,14 +446,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="courses">{t("manager.courseDetails.coursesTab")}</TabsTrigger>
-            <TabsTrigger value="students">{t("manager.courseDetails.studentsTab")}</TabsTrigger>
+            <TabsTrigger value="courses">Courses</TabsTrigger>
+            <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
           <TabsContent value="courses" className="mt-4">
             <Card>
               <CardHeader>
                 <div>
-                  <CardTitle>{t("manager.courseDetails.coursesInProgram")}</CardTitle>
+                  <CardTitle>Courses in Program</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -489,16 +466,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <table className="w-full">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.professor")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.enrollment")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.export")}
-                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Professor</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Export</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -523,7 +494,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                   className="flex items-center gap-1 mx-auto"
                                 >
                                   <FileDown className="h-4 w-4" />
-                                  {t("manager.courseDetails.download")}
+                                  Download
                                 </Button>
                               </td>
                             </tr>
@@ -540,14 +511,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>{t("manager.courseDetails.studentSelections")}</CardTitle>
+                  <CardTitle>Student Selections</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="search"
-                      placeholder={t("manager.courseDetails.searchStudents")}
+                      placeholder="Search students..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
@@ -555,7 +526,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                   </div>
                   <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
-                    {t("manager.courseDetails.exportAll")}
+                    Export All
                   </Button>
                 </div>
               </CardHeader>
@@ -571,23 +542,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <table className="w-full">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.group")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.selectionDate")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.status")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.view")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.actions")}
-                          </th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Group</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">View</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -630,7 +591,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => openEditDialog(selection)}>
                                     <Edit className="mr-2 h-4 w-4" />
-                                    {t("manager.courseDetails.edit")}
+                                    Edit
                                   </DropdownMenuItem>
                                   {selection.status === "pending" && (
                                     <>
@@ -645,7 +606,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                         }
                                       >
                                         <CheckCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.approve")}
+                                        Approve
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         className="text-red-600"
@@ -658,7 +619,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                         }
                                       >
                                         <XCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.reject")}
+                                        Reject
                                       </DropdownMenuItem>
                                     </>
                                   )}
@@ -674,7 +635,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                       }
                                     >
                                       <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.courseDetails.withdraw")}
+                                      Withdraw
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
@@ -707,41 +668,40 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             {selectedStudent && (
               <>
                 <DialogHeader>
-                  <DialogTitle>{t("manager.courseDetails.studentDetails")}</DialogTitle>
+                  <DialogTitle>Student Details</DialogTitle>
                   <DialogDescription>
-                    {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.students?.name}
-                    {t("manager.courseDetails.courseSelection")}
+                    View details for {selectedStudent.students?.name} course selection
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
+                      <h3 className="text-sm font-medium">Student Information</h3>
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
+                          <span className="font-medium">Name:</span>
                           <span>{selectedStudent.students?.name || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.id")}:</span>
+                          <span className="font-medium">ID:</span>
                           <span>{selectedStudent.students?.student_id || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.email")}:</span>
+                          <span className="font-medium">Email:</span>
                           <span>{selectedStudent.students?.email || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
+                          <span className="font-medium">Group:</span>
                           <span>{selectedStudent.students?.group_name || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
+                          <span className="font-medium">Program:</span>
                           <span>{selectedStudent.students?.degree_program || "N/A"}</span>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
+                      <h3 className="text-sm font-medium">Selected Courses</h3>
                       <div className="mt-2 space-y-2">
                         {Array.isArray(selectedStudent.selected_courses) &&
                         selectedStudent.selected_courses.length > 0 ? (
@@ -756,14 +716,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectionInformation")}</h3>
+                      <h3 className="text-sm font-medium">Selection Information</h3>
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.date")}:</span>
+                          <span className="font-medium">Date:</span>
                           <span>{formatDate(selectedStudent.created_at)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.status")}:</span>
+                          <span className="font-medium">Status:</span>
                           <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
                         </div>
                       </div>
@@ -771,7 +731,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
                     {/* Statement File Section */}
                     <div>
-                      <h3 className="text-sm font-medium">{t("statementFile")}</h3>
+                      <h3 className="text-sm font-medium">Statement File</h3>
                       <div className="mt-2">
                         {selectedStudent.statement_file_url ? (
                           <Button
@@ -786,7 +746,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                             }
                           >
                             <Download className="h-4 w-4" />
-                            {t("downloadStatement")}
+                            Download Statement
                           </Button>
                         ) : (
                           <p className="text-sm text-muted-foreground">No statement file uploaded yet.</p>
@@ -795,10 +755,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     </div>
                     {/* Digital Authorization Section */}
                     <div className="mt-4">
-                      <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
+                      <h3 className="text-sm font-medium">Digital Authorization</h3>
                       <div className="mt-2">
                         <p className="text-sm">
-                          <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
+                          <span className="font-medium">Authorized by:</span>{" "}
                           {selectedStudent.students?.name || "Student"}
                         </p>
                       </div>
@@ -821,7 +781,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         }}
                       >
                         <CheckCircle className="mr-2 h-4 w-4" />
-                        {t("manager.exchangeDetails.approve")}
+                        Approve
                       </Button>
                       <Button
                         variant="outline"
@@ -836,13 +796,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         }}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
-                        {t("manager.exchangeDetails.reject")}
+                        Reject
                       </Button>
                     </>
                   )}
                   <DialogClose asChild>
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      {t("manager.courseDetails.close")}
+                      Close
                     </Button>
                   </DialogClose>
                 </DialogFooter>
@@ -867,35 +827,32 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
             {studentToEdit && (
               <>
                 <DialogHeader>
-                  <DialogTitle>{t("manager.courseDetails.editStudentSelection")}</DialogTitle>
-                  <DialogDescription>
-                    {t("manager.courseDetails.editSelectionFor")} {studentToEdit.students?.name}
-                  </DialogDescription>
+                  <DialogTitle>Edit Student Selection</DialogTitle>
+                  <DialogDescription>Edit selection for {studentToEdit.students?.name}</DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
+                      <h3 className="text-sm font-medium">Student Information</h3>
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
+                          <span className="font-medium">Name:</span>
                           <span>{studentToEdit.students?.name}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
+                          <span className="font-medium">Group:</span>
                           <span>{studentToEdit.students?.group_name}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
+                          <span className="font-medium">Program:</span>
                           <span>{studentToEdit.students?.degree_program}</span>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
+                      <h3 className="text-sm font-medium">Edit Courses</h3>
                       <p className="text-sm text-muted-foreground mt-1 mb-2">
-                        {t("manager.courseDetails.selectUpTo")} {electivePack.max_selections || 0}{" "}
-                        {t("manager.courseDetails.courses")}
+                        Select up to {electivePack.max_selections || 0} courses
                       </p>
                       <div className="mt-2 space-y-2">
                         {courses.map((course) => (
@@ -940,11 +897,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                      {t("manager.courseDetails.cancel")}
+                      Cancel
                     </Button>
                   </DialogClose>
                   <Button onClick={saveStudentSelection} disabled={studentToEdit.editedCourses.length === 0}>
-                    {t("manager.courseDetails.saveChanges")}
+                    Save Changes
                   </Button>
                 </DialogFooter>
               </>
