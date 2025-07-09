@@ -69,9 +69,7 @@ interface University {
   description: string | null
   description_ru: string | null
   status: string
-  university_languages: Array<{
-    language: string
-  }>
+  university_languages: string[]
 }
 
 interface StudentSelection {
@@ -559,10 +557,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                 <dt className="font-medium">Created:</dt>
                 <dd>{formatDate(exchangeProgram.created_at)}</dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">Status:</dt>
-                <dd>{exchangeProgram.status}</dd>
-              </div>
               {exchangeProgram.description && (
                 <div className="flex flex-col gap-1">
                   <dt className="font-medium">Description:</dt>
@@ -607,8 +601,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                       <tbody>
                         {universities.map((university) => {
                           const currentEnrollment = getUniversityEnrollment(university.id)
-                          const languages =
-                            university.university_languages?.map((lang) => lang.language).join(", ") || "-"
+                          const languages = Array.isArray(university.university_languages)
+                            ? university.university_languages.join(", ")
+                            : "-"
 
                           return (
                             <tr key={university.id} className="border-b">

@@ -27,7 +27,7 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
   }
 
   try {
-    // First try to get universities without languages
+    // First get universities
     const { data: universities, error: univError } = await supabase
       .from("universities")
       .select("*")
@@ -39,36 +39,30 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
       return []
     }
 
-    // Then try to get languages for each university
-    const universitiesWithLanguages = await Promise.all(
-      (universities || []).map(async (university) => {
+    // Then get languages for each university from university_languages column
+    const universitiesWithLanguages = (universities || []).map((university) => {
+      // Parse the university_languages column if it exists and is a string
+      let languages = []
+      if (university.university_languages) {
         try {
-          const { data: languages, error: langError } = await supabase
-            .from("university_languages")
-            .select("language")
-            .eq("university_id", university.id)
-
-          if (langError) {
-            console.error("Error fetching languages for university:", university.id, langError)
-            return {
-              ...university,
-              university_languages: [],
-            }
-          }
-
-          return {
-            ...university,
-            university_languages: languages || [],
+          // If it's already an array, use it directly
+          if (Array.isArray(university.university_languages)) {
+            languages = university.university_languages
+          } else if (typeof university.university_languages === "string") {
+            // If it's a string, try to parse it as JSON
+            languages = JSON.parse(university.university_languages)
           }
         } catch (error) {
-          console.error("Error processing university languages:", error)
-          return {
-            ...university,
-            university_languages: [],
-          }
+          console.error("Error parsing university languages:", error)
+          languages = []
         }
-      }),
-    )
+      }
+
+      return {
+        ...university,
+        university_languages: languages,
+      }
+    })
 
     return universitiesWithLanguages
   } catch (error) {
