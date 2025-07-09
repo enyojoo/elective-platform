@@ -1,7 +1,9 @@
 "use server"
 
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function getExchangeProgram(id: string) {
   try {
@@ -9,13 +11,13 @@ export async function getExchangeProgram(id: string) {
 
     if (error) {
       console.error("Error fetching exchange program:", error)
-      throw new Error(`Failed to fetch exchange program: ${error.message}`)
+      return null
     }
 
     return data
   } catch (error) {
     console.error("Error in getExchangeProgram:", error)
-    throw error
+    return null
   }
 }
 
@@ -25,92 +27,166 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
   }
 
   try {
-    // Fetch universities with their languages
-    const { data, error } = await supabase
+    // First try to get universities without languages
+    const { data: universities, error: univError } = await supabase
       .from("universities")
-      .select(`
-        *,
-        university_languages (
-          language
-        )
-      `)
+      .select("*")
       .in("id", universityIds)
       .order("name")
 
-    if (error) {
-      console.error("Error fetching universities:", error)
-      throw new Error(`Failed to fetch universities: ${error.message}`)
+    if (univError) {
+      console.error("Error fetching universities:", univError)
+      return []
     }
 
-    return data || []
+    // Then try to get languages for each university
+    const universitiesWithLanguages = await Promise.all(
+      (universities || []).map(async (university) => {
+        try {
+          const { data: languages, error: langError } = await supabase
+            .from("university_languages")
+            .select("language")
+            .eq("university_id", university.id)
+
+          if (langError) {
+            console.error("Error fetching languages for university:", university.id, langError)
+            return {
+              ...university,
+              university_languages: [],
+            }
+          }
+
+          return {
+            ...university,
+            university_languages: languages || [],
+          }
+        } catch (error) {
+          console.error("Error processing university languages:", error)
+          return {
+            ...university,
+            university_languages: [],
+          }
+        }
+      }),
+    )
+
+    return universitiesWithLanguages
   } catch (error) {
     console.error("Error in getUniversitiesFromIds:", error)
-    throw error
+    return []
   }
 }
 
 export async function getExchangeSelections(exchangeId: string) {
   try {
-    // Fetch exchange selections with student profile data
-    const { data, error } = await supabase
+    // First get the selections
+    const { data: selections, error: selectionsError } = await supabase
       .from("exchange_selections")
-      .select(`
-        id,
-        selected_universities,
-        statement_url,
-        status,
-        created_at,
-        student_id,
-        profiles!exchange_selections_student_id_fkey (
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select("*")
       .eq("elective_exchange_id", exchangeId)
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching exchange selections:", error)
-      throw new Error(`Failed to fetch exchange selections: ${error.message}`)
+    if (selectionsError) {
+      console.error("Error fetching exchange selections:", selectionsError)
+      return []
     }
 
-    return data || []
+    // Then get profile data for each selection
+    const selectionsWithProfiles = await Promise.all(
+      (selections || []).map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .eq("id", selection.student_id)
+            .single()
+
+          if (profileError) {
+            console.error("Error fetching profile for student:", selection.student_id, profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
+
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing selection profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
+
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getExchangeSelections:", error)
-    throw error
+    return []
   }
 }
 
 export async function getUniversitySelectionData(universityId: string, exchangeId: string) {
   try {
-    // Get all selections that include this university
-    const { data, error } = await supabase
+    // Get all selections for this exchange
+    const { data: selections, error: selectionsError } = await supabase
       .from("exchange_selections")
-      .select(`
-        id,
-        status,
-        created_at,
-        student_id,
-        profiles!exchange_selections_student_id_fkey (
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select("*")
       .eq("elective_exchange_id", exchangeId)
-      .contains("selected_universities", [universityId])
-      .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching university selection data:", error)
-      throw new Error(`Failed to fetch university selection data: ${error.message}`)
+    if (selectionsError) {
+      console.error("Error fetching selections:", selectionsError)
+      return []
     }
 
-    return data || []
+    // Filter selections that include this university
+    const filteredSelections = (selections || []).filter(
+      (selection) =>
+        selection.selected_universities &&
+        Array.isArray(selection.selected_universities) &&
+        selection.selected_universities.includes(universityId),
+    )
+
+    // Get profile data for filtered selections
+    const selectionsWithProfiles = await Promise.all(
+      filteredSelections.map(async (selection) => {
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .eq("id", selection.student_id)
+            .single()
+
+          if (profileError) {
+            console.error("Error fetching profile:", profileError)
+            return {
+              ...selection,
+              profiles: null,
+            }
+          }
+
+          return {
+            ...selection,
+            profiles: profile,
+          }
+        } catch (error) {
+          console.error("Error processing profile:", error)
+          return {
+            ...selection,
+            profiles: null,
+          }
+        }
+      }),
+    )
+
+    return selectionsWithProfiles
   } catch (error) {
     console.error("Error in getUniversitySelectionData:", error)
-    throw error
+    return []
   }
 }
 
@@ -120,13 +196,13 @@ export async function downloadStatementFile(statementUrl: string) {
 
     if (error) {
       console.error("Error downloading statement:", error)
-      throw new Error(`Failed to download statement: ${error.message}`)
+      throw new Error("Failed to download statement file")
     }
 
     return data
   } catch (error) {
     console.error("Error in downloadStatementFile:", error)
-    throw error
+    throw new Error("Failed to download statement file")
   }
 }
 
@@ -141,13 +217,13 @@ export async function updateSelectionStatus(selectionId: string, status: "approv
 
     if (error) {
       console.error("Error updating selection status:", error)
-      throw new Error(`Failed to update selection status: ${error.message}`)
+      throw new Error("Failed to update selection status")
     }
 
     revalidatePath("/manager/electives/exchange")
     return data
   } catch (error) {
     console.error("Error in updateSelectionStatus:", error)
-    throw error
+    throw new Error("Failed to update selection status")
   }
 }
