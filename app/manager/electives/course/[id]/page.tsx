@@ -1,11 +1,11 @@
 "use client"
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { UserRole, SelectionStatus } from "@/lib/types"
+import { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/tabs"
 import {
   Dialog,
   DialogContent,
@@ -33,13 +33,8 @@ import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import {
-  getCourseProgram,
-  getCourseProgramCourses,
-  getCourseSelections,
-  getCourseEnrollmentCounts,
-  downloadStatementFile,
-} from "@/actions/course-program-details"
+import { getElectivePack } from "@/actions/elective-packs"
+import { getCourseSelections, getElectiveCourses, updateCourseSelectionStatus } from "@/actions/course-selections"
 
 interface ElectiveCourseDetailPageProps {
   params: {
@@ -48,51 +43,40 @@ interface ElectiveCourseDetailPageProps {
 }
 
 export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
-  const [electiveCourse, setElectiveCourse] = useState<any>(null)
+  const [electivePack, setElectivePack] = useState<any>(null)
   const [courses, setCourses] = useState<any[]>([])
-  const [studentSelections, setStudentSelections] = useState<any[]>([])
-  const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({})
+  const [courseSelections, setCourseSelections] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [studentToEdit, setStudentToEdit] = useState<any>(null)
 
-  // Get translation function
   const { t, language } = useLanguage()
   const { toast } = useToast()
 
-  // Load data
+  // Load data on component mount
   useEffect(() => {
-    async function loadData() {
+    const loadData = async () => {
       try {
         setLoading(true)
-        setError(null)
 
-        console.log("Loading course program data for ID:", params.id)
+        // Load elective pack details
+        const packData = await getElectivePack(params.id)
+        setElectivePack(packData)
 
-        // Get course program details
-        const programData = await getCourseProgram(params.id)
-        setElectiveCourse(programData)
+        // Load courses for this pack
+        const coursesData = await getElectiveCourses(params.id)
+        setCourses(coursesData)
 
-        // Get courses if available
-        if (programData.courses && programData.courses.length > 0) {
-          const coursesData = await getCourseProgramCourses(programData.courses)
-          setCourses(coursesData)
-
-          // Get enrollment counts
-          const counts = await getCourseEnrollmentCounts(programData.courses, params.id)
-          setEnrollmentCounts(counts)
-        }
-
-        // Get student selections
+        // Load course selections
         const selectionsData = await getCourseSelections(params.id)
-        setStudentSelections(selectionsData)
-
-        console.log("Data loaded successfully")
-      } catch (err) {
-        console.error("Error loading data:", err)
-        setError(err instanceof Error ? err.message : "Failed to load data")
+        setCourseSelections(selectionsData)
+      } catch (error) {
+        console.error("Error loading data:", error)
         toast({
           title: "Error",
-          description: "Failed to load course program data",
+          description: "Failed to load course details",
           variant: "destructive",
         })
       } finally {
@@ -102,6 +86,16 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
     loadData()
   }, [params.id, toast])
+
+  // Calculate enrollment counts for each course
+  const getEnrollmentCount = (courseName: string) => {
+    return courseSelections.filter(
+      (selection) =>
+        selection.selected_courses &&
+        selection.selected_courses.includes(courseName) &&
+        (selection.status === "approved" || selection.status === "pending"),
+    ).length
+  }
 
   // Format date helper
   const formatDate = (dateString: string) => {
@@ -118,7 +112,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     switch (status) {
       case "draft":
         return <Badge variant="outline">{t("manager.status.draft")}</Badge>
-      case "published":
+      case "active":
         return <Badge variant="secondary">{t("manager.status.published")}</Badge>
       case "closed":
         return <Badge variant="destructive">{t("manager.status.closed")}</Badge>
@@ -130,23 +124,23 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   }
 
   // Helper function to get selection status badge
-  const getSelectionStatusBadge = (status: SelectionStatus) => {
+  const getSelectionStatusBadge = (status: string) => {
     switch (status) {
-      case SelectionStatus.APPROVED:
+      case "approved":
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
             {t("manager.exchangeDetails.approved")}
           </Badge>
         )
-      case SelectionStatus.PENDING:
+      case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
             {t("manager.exchangeDetails.pending")}
           </Badge>
         )
-      case SelectionStatus.REJECTED:
+      case "rejected":
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
@@ -158,18 +152,37 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     }
   }
 
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
-
   // Function to open dialog with student details
   const openStudentDialog = (student: any) => {
     setSelectedStudent(student)
     setDialogOpen(true)
   }
 
+  // Function to open edit dialog for a student selection
+  const openEditDialog = (student: any) => {
+    setStudentToEdit({
+      ...student,
+      editedCourses: [...(student.selected_courses || [])],
+    })
+    setEditDialogOpen(true)
+  }
+
+  // Function to handle saving edited student selection
+  const saveStudentSelection = () => {
+    console.log("Saving edited selection for student:", studentToEdit)
+    setEditDialogOpen(false)
+    toast({
+      title: t("toast.selection.updated"),
+      description: t("toast.selection.updated.course.description").replace(
+        "{0}",
+        studentToEdit.students?.name || "Student",
+      ),
+    })
+  }
+
   // Function to download student statement
-  const downloadStudentStatement = async (studentName: string, statementUrl: string | null) => {
-    if (!statementUrl) {
+  const downloadStatementFile = async (studentName: string, fileUrl: string | null) => {
+    if (!fileUrl) {
       toast({
         title: t("toast.statement.notAvailable"),
         description: t("toast.statement.notAvailable.description").replace("{0}", studentName),
@@ -178,14 +191,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     }
 
     try {
-      const url = await downloadStatementFile(statementUrl)
-      // Create a temporary link to download the file
+      const file = await downloadStatementFile(fileUrl)
+      const url = URL.createObjectURL(file)
       const link = document.createElement("a")
       link.href = url
-      link.download = `${studentName.replace(/\s+/g, "_")}_statement.pdf`
+      link.download = `${studentName}_statement.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url)
 
       toast({
         title: t("toast.statement.download.success"),
@@ -194,7 +208,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to download statement",
+        description: "Failed to download statement file",
         variant: "destructive",
       })
     }
@@ -202,35 +216,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
   // Function to export all student selections to CSV
   const exportAllSelectionsToCSV = () => {
-    if (!studentSelections.length) {
-      toast({
-        title: "No Data",
-        description: "No student selections to export",
-        variant: "destructive",
-      })
-      return
-    }
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}\n`
 
-    // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление" : "Statement"}"\n`
-
-    // Create CSV content with translated status
-    const allSelectionsContent = studentSelections
+    const allSelectionsContent = courseSelections
       .map((selection) => {
-        const student = selection.profiles
-        const group = student?.student_profiles?.[0]?.groups
-        const program = group?.programs
-
-        // Get course names for selected course IDs
-        const selectedCourseNames =
-          selection.selected_courses
-            ?.map((courseId: string) => {
-              const course = courses.find((c) => c.id === courseId)
-              return course ? course.name : courseId
-            })
-            .join("; ") || ""
-
-        // Translate status based on current language
         const translatedStatus =
           language === "ru"
             ? selection.status === "approved"
@@ -240,23 +229,26 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 : "Отклонено"
             : selection.status
 
-        const statementLink = selection.statement_url || (language === "ru" ? "Не загружено" : "Not uploaded")
+        const statementLink = selection.statement_file_url
+          ? `${window.location.origin}/api/statements/${selection.statement_file_url}`
+          : language === "ru"
+            ? "Не загружено"
+            : "Not uploaded"
 
-        return `"${student?.full_name || ""}","${selection.student_id}","${group?.display_name || ""}","${program?.name || ""}","${student?.email || ""}","${selectedCourseNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementLink}"`
+        const selectedCourses = selection.selected_courses ? selection.selected_courses.join("; ") : ""
+
+        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${selectedCourses}","${formatDate(selection.created_at)}","${translatedStatus}","${statementLink}"`
       })
       .join("\n")
 
-    // Combine header and content
     const csv = csvHeader + allSelectionsContent
-
-    // Create a blob and download
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
     link.setAttribute(
       "download",
-      `${electiveCourse?.name?.replace(/\s+/g, "_") || "course_program"}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
+      `${electivePack?.name?.replace(/\s+/g, "_") || "course_pack"}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
     )
     link.style.visibility = "hidden"
     document.body.appendChild(link)
@@ -265,30 +257,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   }
 
   // Function to export course enrollments to CSV
-  const exportCourseEnrollmentsToCSV = (courseName: string, courseId: string) => {
-    // Find students who selected this course
-    const studentsInCourse = studentSelections.filter((selection) => selection.selected_courses?.includes(courseId))
+  const exportCourseEnrollmentsToCSV = (courseName: string) => {
+    const studentsInCourse = courseSelections.filter(
+      (selection) => selection.selected_courses && selection.selected_courses.includes(courseName),
+    )
 
-    if (!studentsInCourse.length) {
-      toast({
-        title: "No Data",
-        description: `No students enrolled in ${courseName}`,
-        variant: "destructive",
-      })
-      return
-    }
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}\n`
 
-    // Create CSV header with translated column names
-    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}"\n`
-
-    // Create CSV content with translated status
     const courseContent = studentsInCourse
       .map((selection) => {
-        const student = selection.profiles
-        const group = student?.student_profiles?.[0]?.groups
-        const program = group?.programs
-
-        // Translate status based on current language
         const translatedStatus =
           language === "ru"
             ? selection.status === "approved"
@@ -298,14 +275,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 : "Отклонено"
             : selection.status
 
-        return `"${student?.full_name || ""}","${selection.student_id}","${group?.display_name || ""}","${program?.name || ""}","${student?.email || ""}","${formatDate(selection.created_at)}","${translatedStatus}"`
+        return `"${selection.students?.name || ""}","${selection.students?.student_id || ""}","${selection.students?.group_name || ""}","${selection.students?.degree_program || ""}","${selection.students?.email || ""}","${formatDate(selection.created_at)}","${translatedStatus}"`
       })
       .join("\n")
 
-    // Combine header and content
     const csv = csvHeader + courseContent
-
-    // Create a blob and download
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -320,49 +294,52 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.removeChild(link)
   }
 
-  // Clean up function to ensure dialogs are properly closed
-  useEffect(() => {
-    return () => {
-      setDialogOpen(false)
+  // Function to handle status updates
+  const handleStatusUpdate = async (selectionId: string, newStatus: string, studentName: string) => {
+    try {
+      await updateCourseSelectionStatus(selectionId, newStatus)
+
+      // Update local state
+      setCourseSelections((prev) =>
+        prev.map((selection) => (selection.id === selectionId ? { ...selection, status: newStatus } : selection)),
+      )
+
+      // Show toast based on status
+      const toastKey = newStatus === "approved" ? "approved" : newStatus === "rejected" ? "rejected" : "withdrawn"
+      toast({
+        title: t(`toast.selection.${toastKey}`),
+        description: t(`toast.selection.${toastKey}.description`).replace("{0}", studentName),
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update selection status",
+        variant: "destructive",
+      })
     }
-  }, [])
+  }
 
   if (loading) {
     return (
       <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
         <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <Link href="/manager/electives?tab=courses">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div className="h-8 w-64 bg-gray-200 animate-pulse rounded" />
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-32 bg-gray-200 rounded mb-4"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
           </div>
-          <div className="h-32 bg-gray-200 animate-pulse rounded" />
-          <div className="h-96 bg-gray-200 animate-pulse rounded" />
         </div>
       </DashboardLayout>
     )
   }
 
-  if (error || !electiveCourse) {
+  if (!electivePack) {
     return (
       <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
         <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <Link href="/manager/electives?tab=courses">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight">Course Program Not Found</h1>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Course pack not found</h1>
           </div>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground">{error || "The requested course program could not be found."}</p>
-            </CardContent>
-          </Card>
         </div>
       </DashboardLayout>
     )
@@ -379,13 +356,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {language === "ru" && electiveCourse.name_ru ? electiveCourse.name_ru : electiveCourse.name}
-              </h1>
+              <h1 className="text-3xl font-bold tracking-tight">{electivePack.name}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {getStatusBadge(electiveCourse.status)}
+            {getStatusBadge(electivePack.status)}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/manager/electives/course/${params.id}/edit`}>
                 <Edit className="mr-2 h-4 w-4" />
@@ -402,13 +377,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
           <CardContent>
             <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.deadline")}:</dt>
-                <dd>{electiveCourse.deadline ? formatDate(electiveCourse.deadline) : "Not set"}</dd>
+                <dt className="font-medium">{t("manager.courseDetails.selectionPeriod")}:</dt>
+                <dd>{electivePack.deadline ? formatDate(electivePack.deadline) : "Not set"}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
                 <dd>
-                  {electiveCourse.max_selections} {t("manager.courseDetails.courses")}
+                  {electivePack.max_selections} {t("manager.courseDetails.courses")}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -417,15 +392,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
-                <dd>{studentSelections.length}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
-                <dd>{formatDate(electiveCourse.created_at)}</dd>
+                <dd>{courseSelections.length}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium">{t("manager.courseDetails.status")}:</dt>
-                <dd>{t(`manager.status.${electiveCourse.status.toLowerCase()}`)}</dd>
+                <dd>{t(`manager.status.${electivePack.status}`)}</dd>
               </div>
             </dl>
           </CardContent>
@@ -444,57 +415,51 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 </div>
               </CardHeader>
               <CardContent>
-                {courses.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No courses available</p>
-                ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.professor")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.enrollment")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.export")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {courses.map((course) => {
-                          const currentEnrollment = enrollmentCounts[course.id] || 0
-                          return (
-                            <tr key={course.id} className="border-b">
-                              <td className="py-3 px-4 text-sm">
-                                {language === "ru" && course.name_ru ? course.name_ru : course.name}
-                              </td>
-                              <td className="py-3 px-4 text-sm">{course.professor || "TBA"}</td>
-                              <td className="py-3 px-4 text-sm">
-                                <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
-                                  {currentEnrollment}/{course.max_students}
-                                </Badge>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => exportCourseEnrollmentsToCSV(course.name, course.id)}
-                                  className="flex items-center gap-1 mx-auto"
-                                >
-                                  <FileDown className="h-4 w-4" />
-                                  {t("manager.courseDetails.download")}
-                                </Button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.professor")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.enrollment")}
+                        </th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.courseDetails.export")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courses.map((course) => {
+                        const enrollmentCount = getEnrollmentCount(course.name)
+                        return (
+                          <tr key={course.id} className="border-b">
+                            <td className="py-3 px-4 text-sm">{course.name}</td>
+                            <td className="py-3 px-4 text-sm">{course.professor}</td>
+                            <td className="py-3 px-4 text-sm">
+                              <Badge variant={enrollmentCount >= course.max_students ? "destructive" : "secondary"}>
+                                {enrollmentCount}/{course.max_students}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => exportCourseEnrollmentsToCSV(course.name)}
+                                className="flex items-center gap-1 mx-auto"
+                              >
+                                <FileDown className="h-4 w-4" />
+                                {t("manager.courseDetails.download")}
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -520,132 +485,118 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 </div>
               </CardHeader>
               <CardContent>
-                {studentSelections.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No student selections yet</p>
-                ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.group")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.selectionDate")}
-                          </th>
-                          <th className="py-3 px-4 text-left text-sm font-medium">
-                            {t("manager.courseDetails.status")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.view")}
-                          </th>
-                          <th className="py-3 px-4 text-center text-sm font-medium">
-                            {t("manager.courseDetails.actions")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentSelections.map((selection) => {
-                          const student = selection.profiles
-                          const group = student?.student_profiles?.[0]?.groups
-
-                          return (
-                            <tr key={selection.id} className="border-b">
-                              <td className="py-3 px-4 text-sm">{student?.full_name || "Unknown"}</td>
-                              <td className="py-3 px-4 text-sm">{group?.display_name || "Unknown"}</td>
-                              <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
-                              <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
-                              <td className="py-3 px-4 text-sm text-center">
-                                {selection.statement_url ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.name")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.group")}</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">
+                          {t("manager.courseDetails.selectionDate")}
+                        </th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">{t("manager.courseDetails.status")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("statement")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">{t("manager.courseDetails.view")}</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">
+                          {t("manager.courseDetails.actions")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courseSelections.map((selection) => (
+                        <tr key={selection.id} className="border-b">
+                          <td className="py-3 px-4 text-sm">{selection.students?.name || "Unknown"}</td>
+                          <td className="py-3 px-4 text-sm">{selection.students?.group_name || "Unknown"}</td>
+                          <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
+                          <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            {selection.statement_file_url ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  downloadStatementFile(
+                                    selection.students?.name || "Student",
+                                    selection.statement_file_url,
+                                  )
+                                }
+                              >
+                                <FileDown className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(selection)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  {t("manager.courseDetails.edit")}
+                                </DropdownMenuItem>
+                                {selection.status === "pending" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="text-green-600"
+                                      onClick={() =>
+                                        handleStatusUpdate(
+                                          selection.id,
+                                          "approved",
+                                          selection.students?.name || "Student",
+                                        )
+                                      }
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      {t("manager.exchangeDetails.approve")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() =>
+                                        handleStatusUpdate(
+                                          selection.id,
+                                          "rejected",
+                                          selection.students?.name || "Student",
+                                        )
+                                      }
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      {t("manager.exchangeDetails.reject")}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {selection.status === "approved" && (
+                                  <DropdownMenuItem
+                                    className="text-red-600"
                                     onClick={() =>
-                                      downloadStudentStatement(student?.full_name || "student", selection.statement_url)
+                                      handleStatusUpdate(
+                                        selection.id,
+                                        "rejected",
+                                        selection.students?.name || "Student",
+                                      )
                                     }
                                   >
-                                    <FileDown className="h-4 w-4" />
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    {t("manager.courseDetails.withdraw")}
+                                  </DropdownMenuItem>
                                 )}
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center">
-                                <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    {selection.status === "pending" && (
-                                      <>
-                                        <DropdownMenuItem
-                                          className="text-green-600"
-                                          onClick={() => {
-                                            toast({
-                                              title: t("toast.selection.approved"),
-                                              description: t("toast.selection.approved.description").replace(
-                                                "{0}",
-                                                student?.full_name || "student",
-                                              ),
-                                            })
-                                          }}
-                                        >
-                                          <CheckCircle className="mr-2 h-4 w-4" />
-                                          {t("manager.exchangeDetails.approve")}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() => {
-                                            toast({
-                                              title: t("toast.selection.rejected"),
-                                              description: t("toast.selection.rejected.description").replace(
-                                                "{0}",
-                                                student?.full_name || "student",
-                                              ),
-                                            })
-                                          }}
-                                        >
-                                          <XCircle className="mr-2 h-4 w-4" />
-                                          {t("manager.exchangeDetails.reject")}
-                                        </DropdownMenuItem>
-                                      </>
-                                    )}
-                                    {selection.status === "approved" && (
-                                      <DropdownMenuItem
-                                        className="text-red-600"
-                                        onClick={() => {
-                                          toast({
-                                            title: t("toast.selection.withdrawn"),
-                                            description: t("toast.selection.withdrawn.description").replace(
-                                              "{0}",
-                                              student?.full_name || "student",
-                                            ),
-                                          })
-                                        }}
-                                      >
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.courseDetails.withdraw")}
-                                      </DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -669,7 +620,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <DialogHeader>
                   <DialogTitle>{t("manager.courseDetails.studentDetails")}</DialogTitle>
                   <DialogDescription>
-                    {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.profiles?.full_name}
+                    {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.students?.name}
                     {t("manager.courseDetails.courseSelection")}
                   </DialogDescription>
                 </DialogHeader>
@@ -680,47 +631,34 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       <div className="mt-2 space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                          <span>{selectedStudent.profiles?.full_name || "Unknown"}</span>
+                          <span>{selectedStudent.students?.name}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                          <span>{selectedStudent.student_id}</span>
+                          <span>{selectedStudent.students?.student_id}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.email")}:</span>
-                          <span>{selectedStudent.profiles?.email || "Unknown"}</span>
+                          <span>{selectedStudent.students?.email}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                          <span>
-                            {selectedStudent.profiles?.student_profiles?.[0]?.groups?.display_name || "Unknown"}
-                          </span>
+                          <span>{selectedStudent.students?.group_name}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                          <span>
-                            {selectedStudent.profiles?.student_profiles?.[0]?.groups?.programs?.name || "Unknown"}
-                          </span>
+                          <span>{selectedStudent.students?.degree_program}</span>
                         </div>
                       </div>
                     </div>
                     <div>
                       <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
                       <div className="mt-2 space-y-2">
-                        {selectedStudent.selected_courses?.map((courseId: string, index: number) => {
-                          const course = courses.find((c) => c.id === courseId)
-                          return (
-                            <div key={index} className="rounded-md border p-2">
-                              <p className="font-medium">
-                                {course
-                                  ? language === "ru" && course.name_ru
-                                    ? course.name_ru
-                                    : course.name
-                                  : courseId}
-                              </p>
-                            </div>
-                          )
-                        }) || <p className="text-muted-foreground">No courses selected</p>}
+                        {selectedStudent.selected_courses?.map((course: string, index: number) => (
+                          <div key={index} className="rounded-md border p-2">
+                            <p className="font-medium">{course}</p>
+                          </div>
+                        )) || <p className="text-sm text-muted-foreground">No courses selected</p>}
                       </div>
                     </div>
                     <div>
@@ -741,15 +679,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                     <div>
                       <h3 className="text-sm font-medium">{t("statementFile")}</h3>
                       <div className="mt-2">
-                        {selectedStudent.statement_url ? (
+                        {selectedStudent.statement_file_url ? (
                           <Button
                             variant="outline"
                             size="sm"
                             className="w-full flex items-center gap-2 bg-transparent"
                             onClick={() =>
-                              downloadStudentStatement(
-                                selectedStudent.profiles?.full_name || "student",
-                                selectedStudent.statement_url,
+                              downloadStatementFile(
+                                selectedStudent.students?.name || "Student",
+                                selectedStudent.statement_file_url,
                               )
                             }
                           >
@@ -761,6 +699,16 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         )}
                       </div>
                     </div>
+                    {/* Digital Authorization Section */}
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium">{t("student.authorization.title")}</h3>
+                      <div className="mt-2">
+                        <p className="text-sm">
+                          <span className="font-medium">{t("student.authorization.authorizedBy")}</span>{" "}
+                          {selectedStudent.students?.name}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -770,13 +718,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         variant="outline"
                         className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
                         onClick={() => {
-                          toast({
-                            title: t("toast.selection.approved"),
-                            description: t("toast.selection.approved.description").replace(
-                              "{0}",
-                              selectedStudent.profiles?.full_name || "student",
-                            ),
-                          })
+                          handleStatusUpdate(
+                            selectedStudent.id,
+                            "approved",
+                            selectedStudent.students?.name || "Student",
+                          )
                           setDialogOpen(false)
                         }}
                       >
@@ -787,13 +733,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         variant="outline"
                         className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
                         onClick={() => {
-                          toast({
-                            title: t("toast.selection.rejected"),
-                            description: t("toast.selection.rejected.description").replace(
-                              "{0}",
-                              selectedStudent.profiles?.full_name || "student",
-                            ),
-                          })
+                          handleStatusUpdate(
+                            selectedStudent.id,
+                            "rejected",
+                            selectedStudent.students?.name || "Student",
+                          )
                           setDialogOpen(false)
                         }}
                       >
@@ -807,6 +751,107 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       {t("manager.courseDetails.close")}
                     </Button>
                   </DialogClose>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Student Selection Edit Dialog */}
+        <Dialog
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) {
+              setTimeout(() => {
+                setStudentToEdit(null)
+              }, 300)
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px]">
+            {studentToEdit && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{t("manager.courseDetails.editStudentSelection")}</DialogTitle>
+                  <DialogDescription>
+                    {t("manager.courseDetails.editSelectionFor")} {studentToEdit.students?.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
+                      <div className="mt-2 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
+                          <span>{studentToEdit.students?.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
+                          <span>{studentToEdit.students?.group_name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
+                          <span>{studentToEdit.students?.degree_program}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
+                      <p className="text-sm text-muted-foreground mt-1 mb-2">
+                        {t("manager.courseDetails.selectUpTo")} {electivePack.max_selections}{" "}
+                        {t("manager.courseDetails.courses")}
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {courses.map((course) => (
+                          <div key={course.id} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={`course-${course.id}`}
+                              checked={studentToEdit.editedCourses.includes(course.name)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  if (studentToEdit.editedCourses.length < electivePack.max_selections) {
+                                    setStudentToEdit({
+                                      ...studentToEdit,
+                                      editedCourses: [...studentToEdit.editedCourses, course.name],
+                                    })
+                                  }
+                                } else {
+                                  setStudentToEdit({
+                                    ...studentToEdit,
+                                    editedCourses: studentToEdit.editedCourses.filter(
+                                      (name: string) => name !== course.name,
+                                    ),
+                                  })
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
+                              disabled={
+                                !studentToEdit.editedCourses.includes(course.name) &&
+                                studentToEdit.editedCourses.length >= electivePack.max_selections
+                              }
+                            />
+                            <label htmlFor={`course-${course.id}`} className="text-sm font-medium">
+                              {course.name}
+                              <span className="text-xs text-muted-foreground ml-1">({course.professor})</span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                      {t("manager.courseDetails.cancel")}
+                    </Button>
+                  </DialogClose>
+                  <Button onClick={saveStudentSelection} disabled={studentToEdit.editedCourses.length === 0}>
+                    {t("manager.courseDetails.saveChanges")}
+                  </Button>
                 </DialogFooter>
               </>
             )}
