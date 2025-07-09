@@ -6,32 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  ArrowLeft,
-  Edit,
-  Eye,
-  MoreVertical,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Download,
-  FileDown,
-  RefreshCw,
-} from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -43,11 +25,11 @@ import {
   updateCourseSelectionStatus,
   updateStudentCourseSelection,
 } from "@/actions/course-program-details"
-import { PageSkeleton } from "@/components/ui/page-skeleton"
 
-// Interface definitions
 interface ElectiveCourseDetailPageProps {
-  params: { id: string }
+  params: {
+    id: string
+  }
 }
 
 interface ElectiveCourse {
@@ -59,7 +41,7 @@ interface ElectiveCourse {
   deadline: string
   max_selections: number
   status: string
-  courses: string[] // Expecting an array of course UUIDs
+  courses: string[]
   created_at: string
   updated_at: string
 }
@@ -80,7 +62,7 @@ interface Course {
 
 interface StudentSelection {
   id: string
-  selected_ids: string[] // Expecting an array of course UUIDs
+  selected_ids: string[]
   status: string
   created_at: string
   student_id: string
@@ -115,121 +97,130 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [studentToEdit, setStudentToEdit] = useState<any>(null)
+  const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
+  const [editingStudent, setEditingStudent] = useState<StudentSelection | null>(null)
+  const [editStatus, setEditStatus] = useState("")
+  const [editSelectedCourses, setEditSelectedCourses] = useState<string[]>([])
 
   const { t, language } = useLanguage()
   const { toast } = useToast()
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    loadData()
+  }, [params.id])
+
+  const loadData = async () => {
     try {
       setLoading(true)
       setError(null)
-      console.log(`--- Starting data load for elective course ID: ${params.id} ---`)
 
-      // 1. Fetch the main elective course program
-      const programData = await getCourseProgram(params.id)
-      console.log("1. Fetched Elective Course Program:", programData)
+      console.log("Loading course program with ID:", params.id)
 
-      if (!programData) {
-        setError("Elective course program not found. Please check the ID in the URL.")
-        setLoading(false)
-        return
-      }
-      setElectiveCourse(programData)
+      // Load course program
+      const program = await getCourseProgram(params.id)
+      console.log("Course program loaded:", program)
+      setElectiveCourse(program)
 
-      // 2. Get course IDs from the program data
-      // Ensure `programData.courses` is an array. If it's null or not an array, default to empty.
-      const courseIds = Array.isArray(programData.courses) ? programData.courses : []
-      console.log("2. Extracted Course IDs:", courseIds)
-
-      // 3. Fetch details for the extracted course IDs
-      if (courseIds.length > 0) {
-        const coursesData = await getCoursesFromIds(courseIds)
-        console.log("3. Fetched Course Details:", coursesData)
+      // Load courses from the courses column
+      if (program && program.courses && program.courses.length > 0) {
+        console.log("Loading courses with IDs:", program.courses)
+        const coursesData = await getCoursesFromIds(program.courses)
+        console.log("Courses loaded:", coursesData)
         setCourses(coursesData)
       } else {
-        console.log("3. No associated course IDs found in the program data. The 'Courses' tab will be empty.")
+        console.log("No courses found in program")
         setCourses([])
       }
 
-      // 4. Fetch all student selections for this program
-      const selectionsData = await getCourseSelections(params.id)
-      console.log("4. Fetched Student Selections:", selectionsData)
-      setStudentSelections(selectionsData)
-
-      console.log("--- Data load finished successfully ---")
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred"
-      console.error("--- Data load failed ---", err)
-      setError(`Failed to load data: ${errorMessage}`)
+      // Load student selections
+      console.log("Loading student selections for course ID:", params.id)
+      const selections = await getCourseSelections(params.id)
+      console.log("Student selections loaded:", selections)
+      setStudentSelections(selections)
+    } catch (error) {
+      console.error("Error loading data:", error)
+      setError(error instanceof Error ? error.message : "Failed to load course program data")
       toast({
-        title: "Error Loading Data",
-        description: "Failed to load page data. Please check the console for detailed logs.",
+        title: "Error",
+        description: "Failed to load course program data",
         variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
-  }, [params.id, toast])
+  }
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  // Helper functions (calculations, formatting, badges)
-  const getCourseEnrollment = (courseId: string) =>
-    studentSelections.filter(
-      (s) =>
-        Array.isArray(s.selected_ids) &&
-        s.selected_ids.includes(courseId) &&
-        (s.status === "approved" || s.status === "pending"),
+  // Calculate enrollment count for each course (pending + approved)
+  const getCourseEnrollment = (courseId: string) => {
+    const count = studentSelections.filter(
+      (selection) =>
+        selection.selected_ids &&
+        selection.selected_ids.includes(courseId) &&
+        (selection.status === "approved" || selection.status === "pending"),
     ).length
+    console.log(`Course ${courseId} enrollment:`, count)
+    return count
+  }
 
-  const getTotalStudentsEnrolled = () =>
-    studentSelections.filter((s) => s.status === "approved" || s.status === "pending").length
+  // Get total students enrolled (both pending and approved)
+  const getTotalStudentsEnrolled = () => {
+    const count = studentSelections.filter(
+      (selection) => selection.status === "approved" || selection.status === "pending",
+    ).length
+    console.log("Total students enrolled:", count)
+    return count
+  }
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
+  // Format date helper
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     })
-
-  const getStatusBadge = (status: string) => {
-    const statusMap: { [key: string]: { variant: any; label: string } } = {
-      draft: { variant: "outline", label: t("manager.status.draft") },
-      published: { variant: "secondary", label: t("manager.status.published") },
-      closed: { variant: "destructive", label: t("manager.status.closed") },
-      archived: { variant: "default", label: t("manager.status.archived") },
-    }
-    const { variant, label } = statusMap[status] || { variant: "outline", label: status }
-    return <Badge variant={variant}>{label}</Badge>
   }
 
+  // Helper function to get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "draft":
+        return <Badge variant="outline">Draft</Badge>
+      case "published":
+        return <Badge variant="secondary">Published</Badge>
+      case "closed":
+        return <Badge variant="destructive">Closed</Badge>
+      case "archived":
+        return <Badge variant="default">Archived</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  // Helper function to get selection status badge
   const getSelectionStatusBadge = (status: string) => {
     switch (status) {
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200">
             <CheckCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.approved")}
+            Approved
           </Badge>
         )
       case "pending":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200">
             <Clock className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.pending")}
+            Pending
           </Badge>
         )
       case "rejected":
         return (
-          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200">
             <XCircle className="mr-1 h-3 w-3" />
-            {t("manager.exchangeDetails.rejected")}
+            Rejected
           </Badge>
         )
       default:
@@ -237,55 +228,19 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     }
   }
 
-  // Event Handlers
-  const handleStatusChange = async (selectionId: string, newStatus: "approved" | "rejected", studentName: string) => {
-    try {
-      await updateCourseSelectionStatus(selectionId, newStatus)
-      setStudentSelections((prev) => prev.map((s) => (s.id === selectionId ? { ...s, status: newStatus } : s)))
-      toast({ title: `Selection ${newStatus}`, description: `Selection for ${studentName} has been ${newStatus}.` })
-    } catch (error) {
-      toast({ title: "Error", description: `Failed to ${newStatus} selection.`, variant: "destructive" })
-    }
-  }
-
-  const saveStudentSelection = async () => {
-    if (!studentToEdit) return
-    try {
-      await updateStudentCourseSelection(studentToEdit.id, studentToEdit.editedCourses, studentToEdit.status)
-      setStudentSelections((prev) =>
-        prev.map((s) => (s.id === studentToEdit.id ? { ...s, selected_ids: studentToEdit.editedCourses } : s)),
-      )
-      setEditDialogOpen(false)
-      toast({
-        title: t("toast.selection.updated"),
-        description: t("toast.selection.updated.course.description").replace(
-          "{0}",
-          studentToEdit.profiles?.full_name || "Student",
-        ),
-      })
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to update selection.", variant: "destructive" })
-    }
-  }
-
-  // Other functions (dialogs, exports)
-  const openStudentDialog = (student: StudentSelection) => {
-    setSelectedStudent(student)
-    setDialogOpen(true)
-  }
-
-  const openEditDialog = (student: StudentSelection) => {
-    setStudentToEdit({ ...student, editedCourses: [...(student.selected_ids || [])] })
-    setEditDialogOpen(true)
-  }
-
+  // Function to export course enrollments to CSV
   const exportCourseEnrollmentsToCSV = async (course: Course) => {
     try {
       const selectionData = await getCourseSelectionData(course.id, params.id)
+
       if (!selectionData || selectionData.length === 0) {
-        toast({ title: "No Data", description: "No students are enrolled in this course." })
+        toast({
+          title: "No Data",
+          description: "No students are enrolled in this course.",
+        })
         return
       }
+
       // Define column headers based on language
       const headers = {
         en: ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"],
@@ -339,89 +294,158 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         description: `Course enrollment data exported successfully`,
       })
     } catch (error) {
-      toast({ title: "Export Error", description: "Failed to fetch data for export.", variant: "destructive" })
+      console.error("Error exporting course data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export course data",
+        variant: "destructive",
+      })
     }
   }
 
-  const exportAllSelectionsToCSV = () => {
+  // Function to export all student selections to CSV
+  const exportStudentSelectionsToCSV = () => {
     // Create CSV header with translated column names
     const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "ID студента" : "Student ID"}","${language === "ru" ? "Группа" : "Group"}","${language === "ru" ? "Программа" : "Program"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}"\n`
 
     // Create CSV content with translated status
-    const allSelectionsContent = studentSelections
-      .map((student) => {
+    const selectionsContent = studentSelections
+      .map((selection) => {
+        // Get course names for selected courses
+        const selectedCourseNames =
+          selection.selected_ids
+            ?.map((id) => {
+              const course = courses.find((c) => c.id === id)
+              return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name) : "Unknown"
+            })
+            .join("; ") || ""
+
         // Translate status based on current language
         const translatedStatus =
           language === "ru"
-            ? student.status === "approved"
+            ? selection.status === "approved"
               ? "Утверждено"
-              : student.status === "pending"
+              : selection.status === "pending"
                 ? "На рассмотрении"
                 : "Отклонено"
-            : student.status
+            : selection.status
 
-        // Get selected course names
-        const selectedCourseNames = (student.selected_ids || [])
-          .map((courseId: string) => {
-            const course = courses.find((c) => c.id === courseId)
-            return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name) : "Unknown Course"
-          })
-          .join("; ")
+        const groupName = selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"
+        const programName = selection.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"
 
-        const groupName = student.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"
-        const programName = student.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"
-
-        return `"${student.profiles?.full_name || "N/A"}","${student.student_id}","${groupName}","${programName}","${student.profiles?.email || "N/A"}","${selectedCourseNames}","${formatDate(student.created_at)}","${translatedStatus}"`
+        // Escape fields that might contain commas
+        return `"${selection.profiles?.full_name || "N/A"}","${selection.student_id}","${groupName}","${programName}","${selection.profiles?.email || "N/A"}","${selectedCourseNames}","${formatDate(selection.created_at)}","${translatedStatus}"`
       })
       .join("\n")
 
     // Combine header and content
-    const csv = csvHeader + allSelectionsContent
+    const csv = csvHeader + selectionsContent
 
-    // Create a blob and download
+    // Create and download the file
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
+    const fileName = `student_selections_${electiveCourse?.name.replace(/\s+/g, "_")}_${language}.csv`
+
     link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${electiveCourse?.name.replace(/\s+/g, "_")}_${language === "ru" ? "все_выборы" : "all_selections"}.csv`,
-    )
+    link.setAttribute("download", fileName)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
-    if (!fileName) {
-      toast({
-        title: "Statement not available",
-        description: `No statement file uploaded for ${studentName}`,
-      })
-      return
-    }
+  // Function to handle approve/reject actions
+  const handleStatusChange = async (selectionId: string, newStatus: "approved" | "rejected", studentName: string) => {
+    try {
+      await updateCourseSelectionStatus(selectionId, newStatus)
 
-    // In a real app, this would download the actual file
-    // For this demo, we'll just show a toast
-    toast({
-      title: "Statement download",
-      description: "Statement file download started",
-    })
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) => (selection.id === selectionId ? { ...selection, status: newStatus } : selection)),
+      )
+
+      toast({
+        title: `Selection ${newStatus}`,
+        description: `Selection ${newStatus} for ${studentName}`,
+      })
+    } catch (error) {
+      console.error(`Error ${newStatus} selection:`, error)
+      toast({
+        title: "Error",
+        description: `Failed to ${newStatus} selection`,
+        variant: "destructive",
+      })
+    }
   }
 
-  const filteredStudentSelections = studentSelections.filter(
-    (s) =>
-      s.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.student_id?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // Function to handle edit save
+  const handleEditSave = async () => {
+    if (!editingStudent) return
 
-  // Render logic
+    try {
+      await updateStudentCourseSelection(
+        editingStudent.id,
+        editSelectedCourses,
+        editStatus as "approved" | "rejected" | "pending",
+      )
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) =>
+          selection.id === editingStudent.id
+            ? { ...selection, selected_ids: editSelectedCourses, status: editStatus }
+            : selection,
+        ),
+      )
+
+      setEditDialogOpen(false)
+      setEditingStudent(null)
+      setEditStatus("")
+      setEditSelectedCourses([])
+
+      toast({
+        title: "Selection updated",
+        description: `Student selection updated successfully`,
+      })
+    } catch (error) {
+      console.error("Error updating selection:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update selection",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to handle course selection change in edit dialog
+  const handleCourseToggle = (courseId: string, checked: boolean) => {
+    if (checked) {
+      setEditSelectedCourses((prev) => [...prev, courseId])
+    } else {
+      setEditSelectedCourses((prev) => prev.filter((id) => id !== courseId))
+    }
+  }
+
+  // Filter students based on search term
+  const filteredStudentSelections = studentSelections.filter((selection) => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      selection.profiles?.full_name?.toLowerCase().includes(searchLower) ||
+      selection.profiles?.email?.toLowerCase().includes(searchLower) ||
+      selection.student_id?.toLowerCase().includes(searchLower)
+    )
+  })
+
   if (loading) {
     return (
       <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <PageSkeleton />
+        <div className="space-y-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        </div>
       </DashboardLayout>
     )
   }
@@ -429,13 +453,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   if (error) {
     return (
       <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <div className="flex flex-col items-center justify-center h-full text-center">
-          <h1 className="text-2xl font-bold text-red-600">Error Loading Data</h1>
-          <p className="text-muted-foreground mt-2 max-w-md">{error}</p>
-          <Button onClick={loadData} className="mt-4">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
-          </Button>
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-red-600">Error Loading Data</h1>
+            <p className="text-muted-foreground mt-2">{error}</p>
+            <Button onClick={loadData} className="mt-4">
+              Try Again
+            </Button>
+          </div>
         </div>
       </DashboardLayout>
     )
@@ -444,71 +469,70 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   if (!electiveCourse) {
     return (
       <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Course program not found</h1>
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Course program not found</h1>
+          </div>
         </div>
       </DashboardLayout>
     )
   }
 
-  // Main component return
   return (
     <DashboardLayout userRole={UserRole.PROGRAM_MANAGER}>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/manager/electives?tab=courses">
+            <Link href="/manager/electives/course">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {language === "ru" && electiveCourse.name_ru ? electiveCourse.name_ru : electiveCourse.name}
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {language === "ru" && electiveCourse.name_ru ? electiveCourse.name_ru : electiveCourse.name}
+              </h1>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {getStatusBadge(electiveCourse.status)}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/manager/electives/course/${params.id}/edit`}>
                 <Edit className="mr-2 h-4 w-4" />
-                {t("manager.courseDetails.edit")}
+                Edit
               </Link>
             </Button>
           </div>
         </div>
 
-        {/* Details Card */}
         <Card>
           <CardHeader>
-            <CardTitle>{t("manager.courseDetails.programDetails")}</CardTitle>
+            <CardTitle>Program Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+            <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.deadline")}:</dt>
-                <dd>{electiveCourse.deadline ? formatDate(electiveCourse.deadline) : "N/A"}</dd>
+                <dt className="font-medium">Deadline:</dt>
+                <dd>{formatDate(electiveCourse.deadline)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.maxSelections")}:</dt>
-                <dd>
-                  {electiveCourse.max_selections} {t("manager.courseDetails.courses")}
-                </dd>
+                <dt className="font-medium">Max Selections:</dt>
+                <dd>{electiveCourse.max_selections} courses</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.courses")}:</dt>
+                <dt className="font-medium">Courses:</dt>
                 <dd>{courses.length}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.studentsEnrolled")}:</dt>
+                <dt className="font-medium">Students Enrolled:</dt>
                 <dd>{getTotalStudentsEnrolled()}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="font-medium">{t("manager.courseDetails.created")}:</dt>
+                <dt className="font-medium">Created:</dt>
                 <dd>{formatDate(electiveCourse.created_at)}</dd>
               </div>
               {electiveCourse.description && (
-                <div className="col-span-full flex flex-col gap-1 pt-2">
+                <div className="flex flex-col gap-1">
                   <dt className="font-medium">Description:</dt>
                   <dd className="text-sm text-muted-foreground">
                     {language === "ru" && electiveCourse.description_ru
@@ -521,182 +545,252 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
           </CardContent>
         </Card>
 
-        {/* Tabs */}
         <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="courses">{t("manager.courseDetails.coursesTab")}</TabsTrigger>
-            <TabsTrigger value="students">{t("manager.courseDetails.studentsTab")}</TabsTrigger>
+            <TabsTrigger value="courses">Courses</TabsTrigger>
+            <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
-
-          {/* Courses Tab Content */}
           <TabsContent value="courses" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>{t("manager.courseDetails.coursesInProgram")}</CardTitle>
+                <CardTitle>Courses in this Program</CardTitle>
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No courses are configured for this program.
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No courses configured for this program</div>
                 ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[25%]">{t("manager.courseDetails.name")}</TableHead>
-                          <TableHead>Instructor</TableHead>
-                          <TableHead>Degree</TableHead>
-                          <TableHead>{t("manager.courseDetails.enrollment")}</TableHead>
-                          <TableHead className="text-center">{t("manager.courseDetails.export")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {courses.map((course) => (
-                          <TableRow key={course.id}>
-                            <TableCell className="font-medium">
-                              {language === "ru" && course.name_ru ? course.name_ru : course.name}
-                              <div className="text-sm text-muted-foreground">
-                                {course.code} • {course.credits} credits
-                              </div>
-                            </TableCell>
-                            <TableCell>{course.instructor || "N/A"}</TableCell>
-                            <TableCell>{course.degree || "N/A"}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  getCourseEnrollment(course.id) >= course.max_students ? "destructive" : "secondary"
-                                }
-                              >
-                                {getCourseEnrollment(course.id)}/{course.max_students}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => exportCourseEnrollmentsToCSV(course)}
-                                className="flex items-center gap-1 mx-auto"
-                              >
-                                <FileDown className="h-4 w-4" />
-                                {t("manager.courseDetails.download")}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Instructor</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Degree</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Export</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courses.map((course) => {
+                          const currentEnrollment = getCourseEnrollment(course.id)
+
+                          return (
+                            <tr key={course.id} className="border-b">
+                              <td className="py-3 px-4 text-sm">
+                                {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                <div className="text-sm text-muted-foreground">
+                                  {course.code} • {course.credits} credits
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-sm">{course.instructor || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{course.degree || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">
+                                <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
+                                  {currentEnrollment}/{course.max_students}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => exportCourseEnrollmentsToCSV(course)}
+                                  className="flex mx-auto"
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Download
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Students Tab Content */}
           <TabsContent value="students" className="mt-4">
             <Card>
-              <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <CardTitle>{t("manager.courseDetails.studentSelections")}</CardTitle>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <div className="relative flex-grow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Student Selections</CardTitle>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="search"
-                      placeholder={t("manager.courseDetails.searchStudents")}
-                      className="h-10 w-full rounded-md border pl-8"
+                      placeholder="Search students..."
+                      className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
+                  <Button variant="outline" size="sm" onClick={exportStudentSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
-                    {t("manager.courseDetails.exportAll")}
+                    Export All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t("manager.courseDetails.name")}</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>{t("manager.courseDetails.selectionDate")}</TableHead>
-                        <TableHead>{t("manager.courseDetails.status")}</TableHead>
-                        <TableHead className="text-center">Statement</TableHead>
-                        <TableHead className="text-center">{t("manager.courseDetails.view")}</TableHead>
-                        <TableHead className="text-center">{t("manager.courseDetails.actions")}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Email</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">View</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {filteredStudentSelections.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center">
-                            {searchTerm ? "No students found." : "No student selections have been made yet."}
-                          </TableCell>
-                        </TableRow>
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                            {searchTerm ? "No students found matching your search" : "No student selections yet"}
+                          </td>
+                        </tr>
                       ) : (
-                        filteredStudentSelections.map((selection) => (
-                          <TableRow key={selection.id}>
-                            <TableCell className="font-medium">
-                              {selection.profiles?.full_name || "N/A"}
-                              <div className="text-sm text-muted-foreground">
-                                {selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}
-                              </div>
-                            </TableCell>
-                            <TableCell>{selection.profiles?.email || "N/A"}</TableCell>
-                            <TableCell>{formatDate(selection.created_at)}</TableCell>
-                            <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
-                            <TableCell className="text-center">
-                              {selection.statement_file ? (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    downloadStudentStatement(
-                                      selection.profiles?.full_name || "Student",
-                                      selection.statement_file,
-                                    )
-                                  }
-                                >
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                        filteredStudentSelections.map((selection) => {
+                          return (
+                            <tr key={selection.id} className="border-b">
+                              <td className="py-3 px-4 text-sm">
+                                {selection.profiles?.full_name || "N/A"}
+                                <div className="text-sm text-muted-foreground">
+                                  {selection.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-sm">{selection.profiles?.email || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
+                              <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                {selection.statement_file ? (
                                   <Button variant="ghost" size="icon">
-                                    <MoreVertical className="h-4 w-4" />
+                                    <Download className="h-4 w-4" />
                                   </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditDialog(selection)}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    {t("manager.courseDetails.edit")}
-                                  </DropdownMenuItem>
-                                  {selection.status === "pending" && (
-                                    <>
-                                      <DropdownMenuItem
-                                        className="text-green-600"
-                                        onClick={() =>
-                                          handleStatusChange(
-                                            selection.id,
-                                            "approved",
-                                            selection.profiles?.full_name || "Student",
-                                          )
-                                        }
-                                      >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.approve")}
-                                      </DropdownMenuItem>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+                                  <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => setSelectedStudent(selection)}>
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                      <DialogTitle>Student Selection Details</DialogTitle>
+                                    </DialogHeader>
+                                    {selectedStudent && (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                            <Label className="text-sm font-medium">Student Name</Label>
+                                            <p className="text-sm">{selectedStudent.profiles?.full_name || "N/A"}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Email</Label>
+                                            <p className="text-sm">{selectedStudent.profiles?.email || "N/A"}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Selection Date</Label>
+                                            <p className="text-sm">{formatDate(selectedStudent.created_at)}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="text-sm font-medium">Status</Label>
+                                            <div className="mt-1">
+                                              {getSelectionStatusBadge(selectedStudent.status)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <Label className="text-sm font-medium">Selected Courses</Label>
+                                          <div className="mt-2 space-y-2">
+                                            {selectedStudent.selected_ids?.map((courseId) => {
+                                              const course = courses.find((c) => c.id === courseId)
+                                              return (
+                                                <div
+                                                  key={courseId}
+                                                  className="flex items-center justify-between p-2 border rounded"
+                                                >
+                                                  <span className="text-sm">
+                                                    {course
+                                                      ? language === "ru" && course.name_ru
+                                                        ? course.name_ru
+                                                        : course.name
+                                                      : "Unknown Course"}
+                                                  </span>
+                                                  {course && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                      {course.code} • {course.credits} credits
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </DialogContent>
+                                </Dialog>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingStudent(selection)
+                                        setEditStatus(selection.status)
+                                        setEditSelectedCourses(selection.selected_ids || [])
+                                        setEditDialogOpen(true)
+                                      }}
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    {selection.status === "pending" && (
+                                      <>
+                                        <DropdownMenuItem
+                                          className="text-green-600"
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "approved",
+                                              selection.profiles?.full_name || "Student",
+                                            )
+                                          }
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Approve
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "rejected",
+                                              selection.profiles?.full_name || "Student",
+                                            )
+                                          }
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {selection.status === "approved" && (
                                       <DropdownMenuItem
                                         className="text-red-600"
                                         onClick={() =>
@@ -708,279 +802,79 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                         }
                                       >
                                         <XCircle className="mr-2 h-4 w-4" />
-                                        {t("manager.exchangeDetails.reject")}
+                                        Withdraw
                                       </DropdownMenuItem>
-                                    </>
-                                  )}
-                                  {selection.status === "approved" && (
-                                    <DropdownMenuItem
-                                      className="text-red-600"
-                                      onClick={() =>
-                                        handleStatusChange(
-                                          selection.id,
-                                          "rejected",
-                                          selection.profiles?.full_name || "Student",
-                                        )
-                                      }
-                                    >
-                                      <XCircle className="mr-2 h-4 w-4" />
-                                      {t("manager.courseDetails.withdraw")}
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </td>
+                            </tr>
+                          )
+                        })
                       )}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        {/* Dialogs (Student Details, Edit Selection) */}
-        {/* Student Details Dialog */}
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open)
-            if (!open) {
-              setTimeout(() => {
-                setSelectedStudent(null)
-              }, 300)
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[500px]">
-            {selectedStudent && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>{t("manager.courseDetails.studentDetails")}</DialogTitle>
-                  <DialogDescription>
-                    {t("manager.courseDetails.viewDetailsFor")} {selectedStudent.profiles?.full_name || "Student"}
-                    {t("manager.courseDetails.courseSelection")}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                          <span>{selectedStudent.profiles?.full_name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.id")}:</span>
-                          <span>{selectedStudent.student_id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.email")}:</span>
-                          <span>{selectedStudent.profiles?.email || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                          <span>{selectedStudent.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                          <span>
-                            {selectedStudent.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"}
-                          </span>
-                        </div>
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Student Selection</DialogTitle>
+            </DialogHeader>
+            {editingStudent && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Student</Label>
+                  <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Selected Courses</Label>
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {courses.map((course) => (
+                      <div key={course.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={course.id}
+                          checked={editSelectedCourses.includes(course.id)}
+                          onCheckedChange={(checked) => handleCourseToggle(course.id, checked as boolean)}
+                        />
+                        <Label htmlFor={course.id} className="text-sm">
+                          {language === "ru" && course.name_ru ? course.name_ru : course.name} - {course.code} •{" "}
+                          {course.credits} credits
+                        </Label>
                       </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectedCourses")}</h3>
-                      <div className="mt-2 space-y-2">
-                        {(selectedStudent.selected_ids || []).map((courseId: string) => {
-                          const course = courses.find((c) => c.id === courseId)
-                          return (
-                            <div key={courseId} className="rounded-md border p-2">
-                              <p className="font-medium">
-                                {course
-                                  ? language === "ru" && course.name_ru
-                                    ? course.name_ru
-                                    : course.name
-                                  : "Unknown Course"}
-                              </p>
-                              {course && (
-                                <p className="text-sm text-muted-foreground">
-                                  {course.code} • {course.credits} credits
-                                </p>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.selectionInformation")}</h3>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.date")}:</span>
-                          <span>{formatDate(selectedStudent.created_at)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.status")}:</span>
-                          <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
-                        </div>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
-                <DialogFooter>
-                  {selectedStudent.status === "pending" && (
-                    <>
-                      <Button
-                        variant="outline"
-                        className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                        onClick={() => {
-                          handleStatusChange(
-                            selectedStudent.id,
-                            "approved",
-                            selectedStudent.profiles?.full_name || "Student",
-                          )
-                          setDialogOpen(false)
-                        }}
-                      >
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        {t("manager.exchangeDetails.approve")}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                        onClick={() => {
-                          handleStatusChange(
-                            selectedStudent.id,
-                            "rejected",
-                            selectedStudent.profiles?.full_name || "Student",
-                          )
-                          setDialogOpen(false)
-                        }}
-                      >
-                        <XCircle className="mr-2 h-4 w-4" />
-                        {t("manager.exchangeDetails.reject")}
-                      </Button>
-                    </>
-                  )}
-                  <DialogClose asChild>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      {t("manager.courseDetails.close")}
-                    </Button>
-                  </DialogClose>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Student Selection Edit Dialog */}
-        <Dialog
-          open={editDialogOpen}
-          onOpenChange={(open) => {
-            setEditDialogOpen(open)
-            if (!open) {
-              setTimeout(() => {
-                setStudentToEdit(null)
-              }, 300)
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[500px]">
-            {studentToEdit && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>{t("manager.courseDetails.editStudentSelection")}</DialogTitle>
-                  <DialogDescription>
-                    {t("manager.courseDetails.editSelectionFor")} {studentToEdit.profiles?.full_name || "Student"}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.studentInformation")}</h3>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.name")}:</span>
-                          <span>{studentToEdit.profiles?.full_name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.group")}:</span>
-                          <span>{studentToEdit.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{t("manager.courseDetails.program")}:</span>
-                          <span>{studentToEdit.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">{t("manager.courseDetails.editCourses")}</h3>
-                      <p className="text-sm text-muted-foreground mt-1 mb-2">
-                        {t("manager.courseDetails.selectUpTo")} {electiveCourse.max_selections}{" "}
-                        {t("manager.courseDetails.courses")}
-                      </p>
-                      <div className="mt-2 space-y-2">
-                        {courses.map((course) => (
-                          <div key={course.id} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={`course-${course.id}`}
-                              checked={studentToEdit.editedCourses.includes(course.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  // Add course if not exceeding max selections
-                                  if (studentToEdit.editedCourses.length < electiveCourse.max_selections) {
-                                    setStudentToEdit({
-                                      ...studentToEdit,
-                                      editedCourses: [...studentToEdit.editedCourses, course.id],
-                                    })
-                                  }
-                                } else {
-                                  // Remove course
-                                  setStudentToEdit({
-                                    ...studentToEdit,
-                                    editedCourses: studentToEdit.editedCourses.filter((id: string) => id !== course.id),
-                                  })
-                                }
-                              }}
-                              className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
-                              disabled={
-                                !studentToEdit.editedCourses.includes(course.id) &&
-                                studentToEdit.editedCourses.length >= electiveCourse.max_selections
-                              }
-                            />
-                            <label htmlFor={`course-${course.id}`} className="text-sm font-medium">
-                              {language === "ru" && course.name_ru ? course.name_ru : course.name}
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({course.code} • {course.credits} credits)
-                              </span>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                      {t("manager.courseDetails.cancel")}
-                    </Button>
-                  </DialogClose>
-                  <Button onClick={saveStudentSelection} disabled={studentToEdit.editedCourses.length === 0}>
-                    {t("manager.courseDetails.saveChanges")}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancel
                   </Button>
-                </DialogFooter>
-              </>
+                  <Button onClick={handleEditSave}>Save Changes</Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>
       </div>
+
       <Toaster />
     </DashboardLayout>
   )
