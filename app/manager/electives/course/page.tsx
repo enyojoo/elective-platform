@@ -329,71 +329,84 @@ export default function CourseElectivesPage() {
                                   <span className="font-medium">Deadline:</span> {formatDate(course.deadline)}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Max Selections:</span> {course.max_selections}
+                                  <span className="font-medium">Courses:</span> {course.max_selections}
                                 </div>
                                 <div>
                                   <span className="font-medium">Created:</span> {formatDate(course.created_at)}
                                 </div>
                               </div>
                             </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/course/${course.id}`}>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/course/${course.id}/edit`}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </Link>
-                                </DropdownMenuItem>
-                                {course.status === "published" && (
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/manager/electives/course/${course.id}`}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View
+                                </Link>
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/course/${course.id}/edit`}>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  {course.status === "published" && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          course.id,
+                                          "closed",
+                                          language === "ru" && course.name_ru ? course.name_ru : course.name,
+                                        )
+                                      }
+                                    >
+                                      Close
+                                    </DropdownMenuItem>
+                                  )}
+                                  {course.status === "closed" && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          course.id,
+                                          "published",
+                                          language === "ru" && course.name_ru ? course.name_ru : course.name,
+                                        )
+                                      }
+                                    >
+                                      Reopen
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem
                                     onClick={() =>
                                       handleStatusChange(
                                         course.id,
-                                        "closed",
+                                        "archived",
                                         language === "ru" && course.name_ru ? course.name_ru : course.name,
                                       )
                                     }
                                   >
-                                    Close
+                                    Archive
                                   </DropdownMenuItem>
-                                )}
-                                {course.status === "closed" && (
                                   <DropdownMenuItem
+                                    className="text-red-600"
                                     onClick={() =>
-                                      handleStatusChange(
+                                      handleDelete(
                                         course.id,
-                                        "published",
                                         language === "ru" && course.name_ru ? course.name_ru : course.name,
                                       )
                                     }
                                   >
-                                    Reopen
+                                    Delete
                                   </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() =>
-                                    handleDelete(
-                                      course.id,
-                                      language === "ru" && course.name_ru ? course.name_ru : course.name,
-                                    )
-                                  }
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>

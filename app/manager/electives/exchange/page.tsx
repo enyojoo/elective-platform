@@ -341,64 +341,77 @@ export default function ExchangeProgramsPage() {
                                 </div>
                               </div>
                             </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/exchange/${program.id}`}>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/manager/electives/exchange/${program.id}/edit`}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </Link>
-                                </DropdownMenuItem>
-                                {program.status === "published" && (
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/manager/electives/exchange/${program.id}`}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View
+                                </Link>
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/manager/electives/exchange/${program.id}/edit`}>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  {program.status === "published" && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          program.id,
+                                          "closed",
+                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                        )
+                                      }
+                                    >
+                                      Close
+                                    </DropdownMenuItem>
+                                  )}
+                                  {program.status === "closed" && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          program.id,
+                                          "published",
+                                          language === "ru" && program.name_ru ? program.name_ru : program.name,
+                                        )
+                                      }
+                                    >
+                                      Reopen
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem
                                     onClick={() =>
                                       handleStatusChange(
                                         program.id,
-                                        "closed",
+                                        "archived",
                                         language === "ru" && program.name_ru ? program.name_ru : program.name,
                                       )
                                     }
                                   >
-                                    Close
+                                    Archive
                                   </DropdownMenuItem>
-                                )}
-                                {program.status === "closed" && (
                                   <DropdownMenuItem
+                                    className="text-red-600"
                                     onClick={() =>
-                                      handleStatusChange(
+                                      handleDelete(
                                         program.id,
-                                        "published",
                                         language === "ru" && program.name_ru ? program.name_ru : program.name,
                                       )
                                     }
                                   >
-                                    Reopen
+                                    Delete
                                   </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() =>
-                                    handleDelete(
-                                      program.id,
-                                      language === "ru" && program.name_ru ? program.name_ru : program.name,
-                                    )
-                                  }
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
