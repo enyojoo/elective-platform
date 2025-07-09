@@ -336,7 +336,7 @@ export default function EditUniversityPage() {
                     name="description_ru"
                     placeholder={t(
                       "admin.newUniversity.descriptionPlaceholder",
-                      "Краткое описание университета и деталей партнерства...",
+                      "Краткое описание университета и деталей партнерст��а...",
                     )}
                     value={formData.description_ru}
                     onChange={handleChange}

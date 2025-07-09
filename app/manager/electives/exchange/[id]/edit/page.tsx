@@ -142,7 +142,7 @@ export default function ExchangeEditPage({ params }: ExchangeEditPageProps) {
           year: exchangeData.academic_year || "",
           group: exchangeData.group_id || "",
           maxSelections: exchangeData.max_selections || 2,
-          endDate: exchangeData.deadline || "",
+          endDate: exchangeData.deadline ? exchangeData.deadline.split("T")[0] : "",
           status: exchangeData.status || "draft",
           statementTemplateUrl: exchangeData.statement_template_url || "",
         })

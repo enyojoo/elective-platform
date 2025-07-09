@@ -364,6 +364,14 @@ export default function ExchangePage({ params }: ExchangePageProps) {
           <AlertDescription>{t("student.exchange.comingSoonDesc")}</AlertDescription>
         </Alert>
       )
+    if (exchangePackData?.status === "closed")
+      return (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t("student.exchange.programClosed")}</AlertTitle>
+          <AlertDescription>{t("student.exchange.programClosedDesc")}</AlertDescription>
+        </Alert>
+      )
     if (isDeadlinePassed)
       return (
         <Alert variant="destructive">
@@ -411,7 +419,10 @@ export default function ExchangePage({ params }: ExchangePageProps) {
 
   const packName = language === "ru" && exchangePackData.name_ru ? exchangePackData.name_ru : exchangePackData.name
   const canSubmit =
-    !isDeadlinePassed && exchangePackData.status !== "draft" && currentSelectionStatus !== SelectionStatus.APPROVED
+    !isDeadlinePassed &&
+    exchangePackData.status !== "draft" &&
+    exchangePackData.status !== "closed" &&
+    currentSelectionStatus !== SelectionStatus.APPROVED
   const statementRequired = !!exchangePackData?.statement_template_url
   const isStatementHandled = !statementRequired || !!uploadedStatement || !!existingSelection?.statement_url
   const areUnisSelected = selectedUniversityIds.length > 0

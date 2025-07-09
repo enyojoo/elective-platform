@@ -242,6 +242,8 @@ export default function ExchangePage() {
                       </div>
                       {exchange.status === "draft" ? (
                         <Badge variant="outline">{t("student.exchange.comingSoon")}</Badge>
+                      ) : exchange.status === "closed" ? (
+                        <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
                       ) : deadlinePassed ? (
                         <Badge variant="destructive">{t("student.exchange.closed")}</Badge>
                       ) : (
@@ -281,6 +283,7 @@ export default function ExchangePage() {
                           size="sm"
                           variant={
                             exchange.status === "draft" ||
+                            exchange.status === "closed" ||
                             (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
                               ? "outline"
                               : selectionStatus === "approved"
@@ -293,11 +296,12 @@ export default function ExchangePage() {
                             selectionStatus === "approved"
                               ? "border-green-200 hover:bg-green-100 dark:border-green-800 dark:hover:bg-green-900/30"
                               : exchange.status === "draft" ||
+                                  exchange.status === "closed" ||
                                   (deadlinePassed && selectionStatus !== "approved" && selectionStatus !== "pending")
                                 ? "border-gray-200 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900/30"
                                 : ""
                           }`}
-                          disabled={exchange.status === "draft"}
+                          disabled={exchange.status === "draft" || exchange.status === "closed"}
                         >
                           <>
                             <span>{t("student.exchange.view")}</span>

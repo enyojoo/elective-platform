@@ -306,7 +306,11 @@ export default function ManagerExchangeElectivesPage() {
                     ) : filteredPacks.length > 0 ? (
                       filteredPacks.map((pack) => (
                         <TableRow key={pack.id}>
-                          <TableCell className="font-medium">{getLocalizedName(pack)}</TableCell>
+                          <TableCell className="font-medium">
+                            <Link href={`/manager/electives/exchange/${pack.id}`} className="hover:underline">
+                              {getLocalizedName(pack)}
+                            </Link>
+                          </TableCell>
                           <TableCell>
                             {pack.deadline ? (
                               formatDate(pack.deadline)
