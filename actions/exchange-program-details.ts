@@ -2,6 +2,7 @@
 
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { revalidatePath } from "next/cache"
 
 export async function getExchangeProgram(id: string) {
   const supabase = createServerComponentClient({ cookies })
@@ -29,8 +30,17 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    // First try without countries join to see if universities table exists
-    const { data, error } = await supabase.from("universities").select("*").in("id", universityIds).order("name")
+    // Fetch universities with their languages
+    const { data, error } = await supabase
+      .from("universities")
+      .select(`
+        *,
+        university_languages (
+          language
+        )
+      `)
+      .in("id", universityIds)
+      .order("name")
 
     if (error) {
       console.error("Error fetching universities:", error)
@@ -48,30 +58,7 @@ export async function getExchangeSelections(exchangeId: string) {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    // First try a simple query to see if the table exists
-    const { data, error } = await supabase
-      .from("exchange_selections")
-      .select("*")
-      .eq("elective_exchange_id", exchangeId)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching exchange selections:", error)
-      throw new Error(`Failed to fetch exchange selections: ${error.message}`)
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Error in getExchangeSelections:", error)
-    throw error
-  }
-}
-
-export async function getExchangeSelectionsWithProfiles(exchangeId: string) {
-  const supabase = createServerComponentClient({ cookies })
-
-  try {
-    // Try with profile joins
+    // Fetch exchange selections with student profile data
     const { data, error } = await supabase
       .from("exchange_selections")
       .select(`
@@ -91,16 +78,14 @@ export async function getExchangeSelectionsWithProfiles(exchangeId: string) {
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching exchange selections with profiles:", error)
-      // Fall back to simple query
-      return await getExchangeSelections(exchangeId)
+      console.error("Error fetching exchange selections:", error)
+      throw new Error(`Failed to fetch exchange selections: ${error.message}`)
     }
 
     return data || []
   } catch (error) {
-    console.error("Error in getExchangeSelectionsWithProfiles:", error)
-    // Fall back to simple query
-    return await getExchangeSelections(exchangeId)
+    console.error("Error in getExchangeSelections:", error)
+    throw error
   }
 }
 
@@ -111,7 +96,17 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
     // Get all selections that include this university
     const { data, error } = await supabase
       .from("exchange_selections")
-      .select("*")
+      .select(`
+        id,
+        status,
+        created_at,
+        student_id,
+        profiles!exchange_selections_student_id_fkey (
+          id,
+          full_name,
+          email
+        )
+      `)
       .eq("elective_exchange_id", exchangeId)
       .contains("selected_universities", [universityId])
       .order("created_at", { ascending: false })
@@ -142,6 +137,30 @@ export async function downloadStatementFile(statementUrl: string) {
     return data
   } catch (error) {
     console.error("Error in downloadStatementFile:", error)
+    throw error
+  }
+}
+
+export async function updateSelectionStatus(selectionId: string, status: "approved" | "rejected") {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const { data, error } = await supabase
+      .from("exchange_selections")
+      .update({ status })
+      .eq("id", selectionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating selection status:", error)
+      throw new Error(`Failed to update selection status: ${error.message}`)
+    }
+
+    revalidatePath("/manager/electives/exchange")
+    return data
+  } catch (error) {
+    console.error("Error in updateSelectionStatus:", error)
     throw error
   }
 }

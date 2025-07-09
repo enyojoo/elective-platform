@@ -17,9 +17,9 @@ import {
   getExchangeProgram,
   getUniversitiesFromIds,
   getExchangeSelections,
-  getExchangeSelectionsWithProfiles,
   getUniversitySelectionData,
   downloadStatementFile,
+  updateSelectionStatus,
 } from "@/actions/exchange-program-details"
 
 interface ExchangeProgramDetailPageProps {
@@ -48,12 +48,14 @@ interface University {
   name_ru: string | null
   country: string
   city: string
-  language: string | null
   max_students: number
   website: string | null
   description: string | null
   description_ru: string | null
   status: string
+  university_languages: Array<{
+    language: string
+  }>
 }
 
 interface StudentSelection {
@@ -63,7 +65,7 @@ interface StudentSelection {
   status: string
   created_at: string
   student_id: string
-  profiles?: {
+  profiles: {
     id: string
     full_name: string | null
     email: string
@@ -76,10 +78,6 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
   const [studentSelections, setStudentSelections] = useState<StudentSelection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [studentToEdit, setStudentToEdit] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState("")
 
   const { t, language } = useLanguage()
@@ -114,16 +112,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
       // Load student selections
       console.log("Loading student selections for exchange ID:", params.id)
-      try {
-        const selections = await getExchangeSelectionsWithProfiles(params.id)
-        console.log("Student selections loaded:", selections)
-        setStudentSelections(selections)
-      } catch (selectionError) {
-        console.error("Error loading selections with profiles, trying simple query:", selectionError)
-        const simpleSelections = await getExchangeSelections(params.id)
-        console.log("Simple student selections loaded:", simpleSelections)
-        setStudentSelections(simpleSelections)
-      }
+      const selections = await getExchangeSelections(params.id)
+      console.log("Student selections loaded:", selections)
+      setStudentSelections(selections)
     } catch (error) {
       console.error("Error loading data:", error)
       setError(error instanceof Error ? error.message : "Failed to load exchange program data")
@@ -137,7 +128,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     }
   }
 
-  // Calculate enrollment count for each university
+  // Calculate enrollment count for each university (pending + approved)
   const getUniversityEnrollment = (universityId: string) => {
     const count = studentSelections.filter(
       (selection) =>
@@ -376,6 +367,30 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
     document.body.removeChild(link)
   }
 
+  // Function to handle approve/reject actions
+  const handleStatusChange = async (selectionId: string, newStatus: "approved" | "rejected", studentName: string) => {
+    try {
+      await updateSelectionStatus(selectionId, newStatus)
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) => (selection.id === selectionId ? { ...selection, status: newStatus } : selection)),
+      )
+
+      toast({
+        title: `Selection ${newStatus}`,
+        description: `Selection ${newStatus} for ${studentName}`,
+      })
+    } catch (error) {
+      console.error(`Error ${newStatus} selection:`, error)
+      toast({
+        title: "Error",
+        description: `Failed to ${newStatus} selection`,
+        variant: "destructive",
+      })
+    }
+  }
+
   // Filter students based on search term
   const filteredStudentSelections = studentSelections.filter((selection) => {
     const searchLower = searchTerm.toLowerCase()
@@ -500,8 +515,8 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
 
         <Tabs defaultValue="universities">
           <TabsList>
-            <TabsTrigger value="universities">Universities ({universities.length})</TabsTrigger>
-            <TabsTrigger value="students">Student Selections ({studentSelections.length})</TabsTrigger>
+            <TabsTrigger value="universities">Universities</TabsTrigger>
+            <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
           <TabsContent value="universities" className="mt-4">
             <Card>
@@ -528,6 +543,9 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                       <tbody>
                         {universities.map((university) => {
                           const currentEnrollment = getUniversityEnrollment(university.id)
+                          const languages =
+                            university.university_languages?.map((lang) => lang.language).join(", ") || "-"
+
                           return (
                             <tr key={university.id} className="border-b">
                               <td className="py-3 px-4 text-sm">
@@ -536,7 +554,7 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                               <td className="py-3 px-4 text-sm">
                                 {university.city}, {university.country}
                               </td>
-                              <td className="py-3 px-4 text-sm">{university.language || "-"}</td>
+                              <td className="py-3 px-4 text-sm">{languages}</td>
                               <td className="py-3 px-4 text-sm">
                                 <Badge
                                   variant={currentEnrollment >= university.max_students ? "destructive" : "secondary"}
@@ -656,24 +674,26 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                       <>
                                         <DropdownMenuItem
                                           className="text-green-600"
-                                          onClick={() => {
-                                            toast({
-                                              title: "Selection approved",
-                                              description: `Selection approved for ${selection.profiles?.full_name}`,
-                                            })
-                                          }}
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "approved",
+                                              selection.profiles?.full_name || "Student",
+                                            )
+                                          }
                                         >
                                           <CheckCircle className="mr-2 h-4 w-4" />
                                           Approve
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                           className="text-red-600"
-                                          onClick={() => {
-                                            toast({
-                                              title: "Selection rejected",
-                                              description: `Selection rejected for ${selection.profiles?.full_name}`,
-                                            })
-                                          }}
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              selection.id,
+                                              "rejected",
+                                              selection.profiles?.full_name || "Student",
+                                            )
+                                          }
                                         >
                                           <XCircle className="mr-2 h-4 w-4" />
                                           Reject
@@ -683,12 +703,13 @@ export default function ExchangeDetailPage({ params }: ExchangeProgramDetailPage
                                     {selection.status === "approved" && (
                                       <DropdownMenuItem
                                         className="text-red-600"
-                                        onClick={() => {
-                                          toast({
-                                            title: "Selection withdrawn",
-                                            description: `Selection withdrawn for ${selection.profiles?.full_name}`,
-                                          })
-                                        }}
+                                        onClick={() =>
+                                          handleStatusChange(
+                                            selection.id,
+                                            "rejected",
+                                            selection.profiles?.full_name || "Student",
+                                          )
+                                        }
                                       >
                                         <XCircle className="mr-2 h-4 w-4" />
                                         Withdraw
