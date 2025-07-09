@@ -1,12 +1,9 @@
 "use server"
 
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { supabase } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 export async function getExchangeProgram(id: string) {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     const { data, error } = await supabase.from("elective_exchange").select("*").eq("id", id).single()
 
@@ -26,8 +23,6 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
   if (!universityIds || universityIds.length === 0) {
     return []
   }
-
-  const supabase = createServerComponentClient({ cookies })
 
   try {
     // Fetch universities with their languages
@@ -55,8 +50,6 @@ export async function getUniversitiesFromIds(universityIds: string[]) {
 }
 
 export async function getExchangeSelections(exchangeId: string) {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     // Fetch exchange selections with student profile data
     const { data, error } = await supabase
@@ -90,8 +83,6 @@ export async function getExchangeSelections(exchangeId: string) {
 }
 
 export async function getUniversitySelectionData(universityId: string, exchangeId: string) {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     // Get all selections that include this university
     const { data, error } = await supabase
@@ -124,8 +115,6 @@ export async function getUniversitySelectionData(universityId: string, exchangeI
 }
 
 export async function downloadStatementFile(statementUrl: string) {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     const { data, error } = await supabase.storage.from("statements").download(statementUrl)
 
@@ -142,8 +131,6 @@ export async function downloadStatementFile(statementUrl: string) {
 }
 
 export async function updateSelectionStatus(selectionId: string, status: "approved" | "rejected") {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     const { data, error } = await supabase
       .from("exchange_selections")
