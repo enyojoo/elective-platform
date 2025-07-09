@@ -43,7 +43,7 @@ import {
   updateCourseSelectionStatus,
   updateStudentCourseSelection,
 } from "@/actions/course-program-details"
-import PageSkeleton from "@/components/ui/page-skeleton"
+import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 // Interface definitions
 interface ElectiveCourseDetailPageProps {
