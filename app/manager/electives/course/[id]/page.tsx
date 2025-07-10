@@ -60,9 +60,10 @@ interface Course {
 interface StudentSelection {
   id: string
   student_id: string
+  elective_courses_id: string
   selected_ids: string[]
   status: string
-  statement_file?: string
+  statement_url?: string
   created_at: string
   profiles: {
     id: string
@@ -149,25 +150,25 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       const { data: selections, error: selectionsError } = await supabase
         .from("course_selections")
         .select(`
-          *,
-          profiles(
-            id,
-            full_name,
-            email,
-            student_profiles(
-              group_id,
-              enrollment_year,
-              groups(
-                name,
-                display_name,
-                programs(
-                  name,
-                  name_ru
-                )
-              )
-            )
+    *,
+    profiles!course_selections_student_id_fkey(
+      id,
+      full_name,
+      email,
+      student_profiles(
+        group_id,
+        enrollment_year,
+        groups(
+          name,
+          display_name,
+          programs(
+            name,
+            name_ru
           )
-        `)
+        )
+      )
+    )
+  `)
         .eq("elective_courses_id", params.id)
 
       if (selectionsError) {
@@ -413,8 +414,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     setDialogOpen(true)
   }
 
-  const downloadStudentStatement = (studentName: string, fileName: string | null) => {
-    if (!fileName) {
+  const downloadStudentStatement = (studentName: string, statementUrl: string | null) => {
+    if (!statementUrl) {
       toast({
         title: "Statement not available",
         description: `No statement file uploaded for ${studentName}`,
@@ -422,10 +423,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
-    // In a real implementation, you would download from Supabase Storage
+    // Open the statement URL in a new tab
+    window.open(statementUrl, "_blank")
+
     toast({
-      title: "Statement download",
-      description: "Statement file download started",
+      title: "Statement opened",
+      description: "Statement file opened in new tab",
     })
   }
 
@@ -682,14 +685,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               <TableCell>{formatDate(selection.created_at)}</TableCell>
                               <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
                               <TableCell className="text-center">
-                                {selection.statement_file ? (
+                                {selection.statement_url ? (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() =>
                                       downloadStudentStatement(
                                         studentProfile?.full_name || "Student",
-                                        selection.statement_file,
+                                        selection.statement_url,
                                       )
                                     }
                                   >

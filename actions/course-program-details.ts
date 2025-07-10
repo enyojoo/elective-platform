@@ -44,12 +44,11 @@ export async function getCoursesFromIds(courseIds: string[]) {
 
 export async function getCourseSelections(electiveCourseId: string) {
   try {
-    // Simplified query first
     const { data: selections, error } = await supabase
       .from("course_selections")
       .select(`
         *,
-        profiles(
+        profiles!course_selections_student_id_fkey(
           id,
           full_name,
           email,
