@@ -51,6 +51,10 @@ interface Course {
   instructor_ru?: string
   degree_id: string
   max_students: number
+  degrees?: {
+    name: string
+    name_ru?: string
+  }
 }
 
 interface StudentSelection {
@@ -126,7 +130,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     instructor_en,
     instructor_ru,
     degree_id,
-    max_students
+    max_students,
+    degrees(
+      name,
+      name_ru
+    )
   `)
           .in("id", program.courses)
 
@@ -581,7 +589,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                   ? course.instructor_ru
                                   : course.instructor_en || "Not assigned"}
                               </TableCell>
-                              <TableCell>{course.degree_id || "Not specified"}</TableCell>
+                              <TableCell>
+                                {course.degrees
+                                  ? language === "ru" && course.degrees.name_ru
+                                    ? course.degrees.name_ru
+                                    : course.degrees.name
+                                  : "Not specified"}
+                              </TableCell>
                               <TableCell>
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
