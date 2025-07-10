@@ -43,14 +43,52 @@ interface ElectiveCourseDetailPageProps {
   }
 }
 
+interface Course {
+  id: string
+  name: string
+  name_ru?: string
+  code: string
+  credits: number
+  instructor: string
+  degree: string
+  max_students: number
+  status: string
+}
+
+interface StudentSelection {
+  id: string
+  student_id: string
+  selected_ids: string[]
+  status: string
+  statement_file?: string
+  created_at: string
+  profiles: {
+    id: string
+    full_name: string
+    email: string
+    student_profiles: Array<{
+      group_id: string
+      enrollment_year: number
+      groups: {
+        name: string
+        display_name: string
+        programs: {
+          name: string
+          name_ru?: string
+        }
+      }
+    }>
+  }
+}
+
 export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetailPageProps) {
   const [electiveCourse, setElectiveCourse] = useState<any>(null)
-  const [courses, setCourses] = useState<any[]>([])
-  const [studentSelections, setStudentSelections] = useState<any[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
+  const [studentSelections, setStudentSelections] = useState<StudentSelection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const { language } = useLanguage()
@@ -66,10 +104,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       setLoading(true)
       setError(null)
 
-      // Load course program from elective_courses table
+      // Load course program
       const { data: program, error: programError } = await supabase
         .from("elective_courses")
-        .select("*, courses") // Select the 'courses' column which contains UUIDs
+        .select("*")
         .eq("id", params.id)
         .single()
 
@@ -79,23 +117,21 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
       setElectiveCourse(program)
 
-      // Load course details from 'courses' table using UUIDs from 'elective_courses.courses'
+      // Load courses using the UUIDs from the courses column
       if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses")
-          .select("*") // Fetch all details for each course
+          .select("*")
           .in("id", program.courses)
 
-        if (!coursesError && coursesData) {
+        if (coursesError) {
+          console.error("Error loading courses:", coursesError)
+        } else if (coursesData) {
           setCourses(coursesData)
-        } else if (coursesError) {
-          console.error("Error fetching courses from IDs:", coursesError)
         }
-      } else {
-        setCourses([]) // No courses linked
       }
 
-      // Load student selections
+      // Load student selections with profile information
       const { data: selections, error: selectionsError } = await supabase
         .from("course_selections")
         .select(`
@@ -120,10 +156,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         `)
         .eq("elective_courses_id", params.id)
 
-      if (!selectionsError && selections) {
+      if (selectionsError) {
+        console.error("Error loading student selections:", selectionsError)
+      } else if (selections) {
         setStudentSelections(selections)
-      } else if (selectionsError) {
-        console.error("Error fetching course selections:", selectionsError)
       }
     } catch (error) {
       console.error("Error loading data:", error)
@@ -150,13 +186,29 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="outline">Draft</Badge>
+        return (
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">
+            Draft
+          </Badge>
+        )
       case "published":
-        return <Badge variant="secondary">Published</Badge>
+        return (
+          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+            Published
+          </Badge>
+        )
       case "closed":
-        return <Badge variant="destructive">Closed</Badge>
+        return (
+          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200">
+            Closed
+          </Badge>
+        )
       case "archived":
-        return <Badge variant="default">Archived</Badge>
+        return (
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
+            Archived
+          </Badge>
+        )
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -227,7 +279,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     }
   }
 
-  const exportCourseEnrollmentsToCSV = (course: any) => {
+  const exportCourseEnrollmentsToCSV = (course: Course) => {
+    // Get students enrolled in this specific course
     const enrolledStudents = studentSelections.filter(
       (selection) =>
         selection.selected_ids &&
@@ -243,19 +296,20 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
+    // Create CSV content
     const headers = ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"]
     let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
 
     enrolledStudents.forEach((selection) => {
-      const studentProfile = selection.profiles
-      const groupInfo = studentProfile?.student_profiles?.[0]?.groups
-      const programInfo = groupInfo?.programs
+      const studentProfile = selection.profiles?.student_profiles?.[0]
+      const groupName = studentProfile?.groups?.display_name || "N/A"
+      const programName = studentProfile?.groups?.programs?.name || "N/A"
 
       const row = [
-        `"${studentProfile?.full_name || "N/A"}"`,
-        `"${studentProfile?.email || "N/A"}"`,
-        `"${groupInfo?.display_name || "N/A"}"`,
-        `"${programInfo?.name || "N/A"}"`,
+        `"${selection.profiles?.full_name || "N/A"}"`,
+        `"${selection.profiles?.email || "N/A"}"`,
+        `"${groupName}"`,
+        `"${programName}"`,
         `"${selection.status}"`,
         `"${formatDate(selection.created_at)}"`,
       ]
@@ -263,10 +317,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       csvContent += row.join(",") + "\n"
     })
 
+    // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `course_${(language === "ru" && course.name_ru ? course.name_ru : course.name).replace(/\s+/g, "_")}_enrollments.csv`
+    const fileName = `course_${course.name.replace(/\s+/g, "_")}_enrollments.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -276,12 +331,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.removeChild(link)
 
     toast({
-      title: "Success",
-      description: "Course enrollment data exported successfully",
+      title: "Export Successful",
+      description: `Course enrollment data for "${course.name}" exported successfully`,
     })
   }
 
-  const exportAllStudentSelectionsToCSV = () => {
+  const exportAllSelectionsToCSV = () => {
     if (studentSelections.length === 0) {
       toast({
         title: "No Data",
@@ -290,38 +345,41 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
-    const headers = ["Student Name", "Email", "Group", "Program", "Selection Date", "Status", "Selected Courses"]
+    // Create CSV content
+    const headers = ["Student Name", "Email", "Group", "Program", "Selected Courses", "Status", "Selection Date"]
     let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
 
     studentSelections.forEach((selection) => {
-      const studentProfile = selection.profiles
-      const groupInfo = studentProfile?.student_profiles?.[0]?.groups
-      const programInfo = groupInfo?.programs
+      const studentProfile = selection.profiles?.student_profiles?.[0]
+      const groupName = studentProfile?.groups?.display_name || "N/A"
+      const programName = studentProfile?.groups?.programs?.name || "N/A"
 
+      // Get selected course names
       const selectedCourseNames = (selection.selected_ids || [])
-        .map((courseId: string) => {
+        .map((courseId) => {
           const course = courses.find((c) => c.id === courseId)
           return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name) : "Unknown Course"
         })
         .join("; ")
 
       const row = [
-        `"${studentProfile?.full_name || "N/A"}"`,
-        `"${studentProfile?.email || "N/A"}"`,
-        `"${groupInfo?.display_name || "N/A"}"`,
-        `"${programInfo?.name || "N/A"}"`,
-        `"${formatDate(selection.created_at)}"`,
-        `"${selection.status}"`,
+        `"${selection.profiles?.full_name || "N/A"}"`,
+        `"${selection.profiles?.email || "N/A"}"`,
+        `"${groupName}"`,
+        `"${programName}"`,
         `"${selectedCourseNames}"`,
+        `"${selection.status}"`,
+        `"${formatDate(selection.created_at)}"`,
       ]
 
       csvContent += row.join(",") + "\n"
     })
 
+    // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `all_student_course_selections_${electiveCourse.name.replace(/\s+/g, "_")}.csv`
+    const fileName = `course_program_${electiveCourse?.name?.replace(/\s+/g, "_")}_all_selections.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -331,12 +389,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.removeChild(link)
 
     toast({
-      title: "Success",
+      title: "Export Successful",
       description: "All student selections exported successfully",
     })
   }
 
-  const openStudentDialog = (student: any) => {
+  const openStudentDialog = (student: StudentSelection) => {
     setSelectedStudent(student)
     setDialogOpen(true)
   }
@@ -349,12 +407,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       })
       return
     }
-    // In a real application, you would fetch the file from storage (e.g., Supabase Storage)
-    // For now, we'll just log and toast.
-    console.log(`Attempting to download statement: ${fileName} for ${studentName}`)
+
+    // In a real implementation, you would download from Supabase Storage
     toast({
-      title: "Statement download initiated",
-      description: "If the file exists, it will download shortly.",
+      title: "Statement download",
+      description: "Statement file download started",
     })
   }
 
@@ -363,8 +420,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     return (
       selection.profiles?.full_name?.toLowerCase().includes(searchLower) ||
       selection.profiles?.email?.toLowerCase().includes(searchLower) ||
-      selection.student_id?.toLowerCase().includes(searchLower) ||
-      selection.profiles?.student_profiles?.[0]?.groups?.display_name?.toLowerCase().includes(searchLower)
+      selection.student_id?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -478,8 +534,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
         <Tabs defaultValue="courses">
           <TabsList>
-            <TabsTrigger value="courses">Courses ({courses.length})</TabsTrigger>
-            <TabsTrigger value="students">Student Selections ({studentSelections.length})</TabsTrigger>
+            <TabsTrigger value="courses">Courses</TabsTrigger>
+            <TabsTrigger value="students">Student Selections</TabsTrigger>
           </TabsList>
 
           <TabsContent value="courses" className="mt-4">
@@ -517,8 +573,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                   {course.code} • {course.credits} credits
                                 </div>
                               </TableCell>
-                              <TableCell>{course.instructor || "N/A"}</TableCell>
-                              <TableCell>{course.degree || "N/A"}</TableCell>
+                              <TableCell>{course.instructor || "Not assigned"}</TableCell>
+                              <TableCell>{course.degree || "Not specified"}</TableCell>
                               <TableCell>
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
@@ -563,7 +619,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Button variant="outline" size="sm" onClick={exportAllStudentSelectionsToCSV}>
+                  <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
                     Export All
                   </Button>
@@ -765,7 +821,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               </p>
                               {course && (
                                 <p className="text-sm text-muted-foreground">
-                                  {course.code} • {course.credits} credits
+                                  {course.code} • {course.credits} credits • {course.instructor}
                                 </p>
                               )}
                             </div>
@@ -822,23 +878,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         Reject
                       </Button>
                     </>
-                  )}
-                  {selectedStudent.status === "approved" && (
-                    <Button
-                      variant="outline"
-                      className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                      onClick={() => {
-                        handleStatusChange(
-                          selectedStudent.id,
-                          "rejected",
-                          selectedStudent.profiles?.full_name || "Student",
-                        )
-                        setDialogOpen(false)
-                      }}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Withdraw
-                    </Button>
                   )}
                   <DialogClose asChild>
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>
