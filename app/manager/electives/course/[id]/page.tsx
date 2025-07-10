@@ -47,13 +47,10 @@ interface Course {
   id: string
   name_en: string
   name_ru?: string
-  code: string
-  credits: number
   instructor_en: string
   instructor_ru?: string
   degree_id: string
   max_students: number
-  status: string
 }
 
 interface StudentSelection {
@@ -123,17 +120,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses")
           .select(`
-      id,
-      name_en,
-      name_ru,
-      code,
-      credits,
-      instructor_en,
-      instructor_ru,
-      degree_id,
-      max_students,
-      status
-    `)
+    id,
+    name_en,
+    name_ru,
+    instructor_en,
+    instructor_ru,
+    degree_id,
+    max_students
+  `)
           .in("id", program.courses)
 
         if (coursesError) {
@@ -581,9 +575,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                             <TableRow key={course.id}>
                               <TableCell className="font-medium">
                                 {language === "ru" && course.name_ru ? course.name_ru : course.name_en}
-                                <div className="text-sm text-muted-foreground">
-                                  {course.code} • {course.credits} credits
-                                </div>
                               </TableCell>
                               <TableCell>
                                 {language === "ru" && course.instructor_ru
@@ -837,7 +828,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                               </p>
                               {course && (
                                 <p className="text-sm text-muted-foreground">
-                                  {course.code} • {course.credits} credits •{" "}
                                   {language === "ru" && course.instructor_ru
                                     ? course.instructor_ru
                                     : course.instructor_en}
