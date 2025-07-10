@@ -11,18 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  ArrowLeft,
-  Edit,
-  Eye,
-  MoreVertical,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Download,
-  ExternalLink,
-} from "lucide-react"
+import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -400,7 +389,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.removeChild(link)
   }
 
-  const downloadStudentStatement = (studentName: string, statementUrl: string | null) => {
+  const downloadStudentStatement = async (studentName: string, statementUrl: string | null) => {
     if (!statementUrl) {
       toast({
         title: "Statement not available",
@@ -409,13 +398,37 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
-    // Open the statement URL in a new tab
-    window.open(statementUrl, "_blank")
+    try {
+      // Fetch the file and trigger download
+      const response = await fetch(statementUrl)
+      const blob = await response.blob()
 
-    toast({
-      title: "Statement opened",
-      description: "Statement file opened in new tab",
-    })
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${studentName.replace(/\s+/g, "_")}_statement.pdf`
+      link.style.display = "none"
+
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      // Clean up
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Statement downloaded",
+        description: `Statement file downloaded for ${studentName}`,
+      })
+    } catch (error) {
+      console.error("Error downloading statement:", error)
+      toast({
+        title: "Download failed",
+        description: "Failed to download statement file",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleEditSave = async () => {
@@ -427,10 +440,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         .update({
           selected_ids: editSelectedCourses,
           status: editStatus,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", editingStudent.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error:", error)
+        throw error
+      }
 
       // Update local state
       setStudentSelections((prev) =>
@@ -441,6 +458,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         ),
       )
 
+      // Close dialog and reset state
       setEditDialogOpen(false)
       setEditingStudent(null)
       setEditStatus("")
@@ -853,7 +871,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <div>
                   <Label className="text-sm font-medium">Selected Courses</Label>
                   <div className="mt-2 space-y-2">
-                    {selectedStudent.selected_ids?.map((courseId) => {
+                    {(selectedStudent.selected_ids || []).map((courseId) => {
                       const course = courses.find((c) => c.id === courseId)
                       return (
                         <div key={courseId} className="flex items-center justify-between p-2 border rounded">
@@ -890,14 +908,6 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download Statement
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(selectedStudent.statement_url!, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        View Online
                       </Button>
                     </div>
                   </div>
