@@ -151,7 +151,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         .from("course_selections")
         .select(`
     *,
-    profiles!course_selections_student_id_fkey(
+    profiles(
       id,
       full_name,
       email,
