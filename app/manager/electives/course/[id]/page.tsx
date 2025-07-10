@@ -45,12 +45,13 @@ interface ElectiveCourseDetailPageProps {
 
 interface Course {
   id: string
-  name: string
+  name_en: string
   name_ru?: string
   code: string
   credits: number
-  instructor: string
-  degree: string
+  instructor_en: string
+  instructor_ru?: string
+  degree_id: string
   max_students: number
   status: string
 }
@@ -121,7 +122,18 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       if (program?.courses && Array.isArray(program.courses) && program.courses.length > 0) {
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses")
-          .select("*")
+          .select(`
+      id,
+      name_en,
+      name_ru,
+      code,
+      credits,
+      instructor_en,
+      instructor_ru,
+      degree_id,
+      max_students,
+      status
+    `)
           .in("id", program.courses)
 
         if (coursesError) {
@@ -321,7 +333,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `course_${course.name.replace(/\s+/g, "_")}_enrollments.csv`
+    const fileName = `course_${course.name_en.replace(/\s+/g, "_")}_enrollments.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -332,7 +344,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
 
     toast({
       title: "Export Successful",
-      description: `Course enrollment data for "${course.name}" exported successfully`,
+      description: `Course enrollment data for "${course.name_en}" exported successfully`,
     })
   }
 
@@ -358,7 +370,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       const selectedCourseNames = (selection.selected_ids || [])
         .map((courseId) => {
           const course = courses.find((c) => c.id === courseId)
-          return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name) : "Unknown Course"
+          return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name_en) : "Unknown Course"
         })
         .join("; ")
 
@@ -568,13 +580,17 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                           return (
                             <TableRow key={course.id}>
                               <TableCell className="font-medium">
-                                {language === "ru" && course.name_ru ? course.name_ru : course.name}
+                                {language === "ru" && course.name_ru ? course.name_ru : course.name_en}
                                 <div className="text-sm text-muted-foreground">
                                   {course.code} • {course.credits} credits
                                 </div>
                               </TableCell>
-                              <TableCell>{course.instructor || "Not assigned"}</TableCell>
-                              <TableCell>{course.degree || "Not specified"}</TableCell>
+                              <TableCell>
+                                {language === "ru" && course.instructor_ru
+                                  ? course.instructor_ru
+                                  : course.instructor_en || "Not assigned"}
+                              </TableCell>
+                              <TableCell>{course.degree_id || "Not specified"}</TableCell>
                               <TableCell>
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
@@ -816,12 +832,15 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                 {course
                                   ? language === "ru" && course.name_ru
                                     ? course.name_ru
-                                    : course.name
+                                    : course.name_en
                                   : "Unknown Course"}
                               </p>
                               {course && (
                                 <p className="text-sm text-muted-foreground">
-                                  {course.code} • {course.credits} credits • {course.instructor}
+                                  {course.code} • {course.credits} credits •{" "}
+                                  {language === "ru" && course.instructor_ru
+                                    ? course.instructor_ru
+                                    : course.instructor_en}
                                 </p>
                               )}
                             </div>
