@@ -69,18 +69,6 @@ interface StudentSelection {
     id: string
     full_name: string
     email: string
-    student_profiles: Array<{
-      group_id: string
-      enrollment_year: number
-      groups: {
-        name: string
-        display_name: string
-        programs: {
-          name: string
-          name_ru?: string
-        }
-      }
-    }>
   }
 }
 
@@ -151,22 +139,10 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
         .from("course_selections")
         .select(`
     *,
-    profiles(
+    profiles!student_id(
       id,
       full_name,
-      email,
-      student_profiles(
-        group_id,
-        enrollment_year,
-        groups(
-          name,
-          display_name,
-          programs(
-            name,
-            name_ru
-          )
-        )
-      )
+      email
     )
   `)
         .eq("elective_courses_id", params.id)
@@ -316,9 +292,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
 
     enrolledStudents.forEach((selection) => {
-      const studentProfile = selection.profiles?.student_profiles?.[0]
-      const groupName = studentProfile?.groups?.display_name || "N/A"
-      const programName = studentProfile?.groups?.programs?.name || "N/A"
+      const groupName = "N/A"
+      const programName = "N/A"
 
       const row = [
         `"${selection.profiles?.full_name || "N/A"}"`,
@@ -365,9 +340,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
 
     studentSelections.forEach((selection) => {
-      const studentProfile = selection.profiles?.student_profiles?.[0]
-      const groupName = studentProfile?.groups?.display_name || "N/A"
-      const programName = studentProfile?.groups?.programs?.name || "N/A"
+      const groupName = "N/A"
+      const programName = "N/A"
 
       // Get selected course names
       const selectedCourseNames = (selection.selected_ids || [])
@@ -673,13 +647,12 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       ) : (
                         filteredStudentSelections.map((selection) => {
                           const studentProfile = selection.profiles
-                          const groupInfo = studentProfile?.student_profiles?.[0]?.groups
 
                           return (
                             <TableRow key={selection.id}>
                               <TableCell className="font-medium">
                                 {studentProfile?.full_name || "N/A"}
-                                <div className="text-sm text-muted-foreground">{groupInfo?.display_name || "N/A"}</div>
+                                <div className="text-sm text-muted-foreground">Student</div>
                               </TableCell>
                               <TableCell>{studentProfile?.email || "N/A"}</TableCell>
                               <TableCell>{formatDate(selection.created_at)}</TableCell>
@@ -819,13 +792,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">Group:</span>
-                          <span>{selectedStudent.profiles?.student_profiles?.[0]?.groups?.display_name || "N/A"}</span>
+                          <span>N/A</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">Program:</span>
-                          <span>
-                            {selectedStudent.profiles?.student_profiles?.[0]?.groups?.programs?.name || "N/A"}
-                          </span>
+                          <span>N/A</span>
                         </div>
                       </div>
                     </div>
