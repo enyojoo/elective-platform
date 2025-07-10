@@ -11,7 +11,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Edit, Eye, MoreVertical, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import {
+  ArrowLeft,
+  Edit,
+  Eye,
+  MoreVertical,
+  Search,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  ExternalLink,
+} from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { useLanguage } from "@/lib/language-context"
@@ -43,7 +54,7 @@ interface StudentSelection {
   id: string
   student_id: string
   elective_courses_id: string
-  selected_ids: string[]
+  selected_course_ids: string[]
   status: string
   statement_url?: string
   created_at: string
@@ -222,8 +233,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const getCourseEnrollment = (courseId: string) => {
     return studentSelections.filter(
       (selection) =>
-        selection.selected_ids &&
-        selection.selected_ids.includes(courseId) &&
+        selection.selected_course_ids &&
+        selection.selected_course_ids.includes(courseId) &&
         (selection.status === "approved" || selection.status === "pending"),
     ).length
   }
@@ -260,8 +271,8 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     try {
       const enrolledStudents = studentSelections.filter(
         (selection) =>
-          selection.selected_ids &&
-          selection.selected_ids.includes(course.id) &&
+          selection.selected_course_ids &&
+          selection.selected_course_ids.includes(course.id) &&
           (selection.status === "approved" || selection.status === "pending"),
       )
 
@@ -347,7 +358,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       .map((selection) => {
         // Get course names for selected courses
         const selectedCourseNames =
-          selection.selected_ids
+          selection.selected_course_ids
             ?.map((id) => {
               const course = courses.find((c) => c.id === id)
               return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name_en) : "Unknown"
@@ -438,7 +449,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       const { error } = await supabase
         .from("course_selections")
         .update({
-          selected_ids: editSelectedCourses,
+          selected_course_ids: editSelectedCourses,
           status: editStatus,
           updated_at: new Date().toISOString(),
         })
@@ -453,7 +464,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       setStudentSelections((prev) =>
         prev.map((selection) =>
           selection.id === editingStudent.id
-            ? { ...selection, selected_ids: editSelectedCourses, status: editStatus }
+            ? { ...selection, selected_course_ids: editSelectedCourses, status: editStatus }
             : selection,
         ),
       )
@@ -775,7 +786,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                       onClick={() => {
                                         setEditingStudent(selection)
                                         setEditStatus(selection.status)
-                                        setEditSelectedCourses(selection.selected_ids || [])
+                                        setEditSelectedCourses(selection.selected_course_ids || [])
                                         setEditDialogOpen(true)
                                       }}
                                     >
@@ -871,7 +882,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <div>
                   <Label className="text-sm font-medium">Selected Courses</Label>
                   <div className="mt-2 space-y-2">
-                    {(selectedStudent.selected_ids || []).map((courseId) => {
+                    {(selectedStudent.selected_course_ids || []).map((courseId) => {
                       const course = courses.find((c) => c.id === courseId)
                       return (
                         <div key={courseId} className="flex items-center justify-between p-2 border rounded">
@@ -908,6 +919,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download Statement
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(selectedStudent.statement_url!, "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Online
                       </Button>
                     </div>
                   </div>
