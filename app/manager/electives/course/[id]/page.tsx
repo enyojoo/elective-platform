@@ -6,18 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   ArrowLeft,
   Edit,
@@ -28,7 +21,7 @@ import {
   XCircle,
   Clock,
   Download,
-  FileDown,
+  ExternalLink,
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -80,7 +73,11 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingStudent, setEditingStudent] = useState<StudentSelection | null>(null)
+  const [editStatus, setEditStatus] = useState("")
+  const [editSelectedCourses, setEditSelectedCourses] = useState<string[]>([])
 
   const { language } = useLanguage()
   const { toast } = useToast()
@@ -270,63 +267,81 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     }
   }
 
-  const exportCourseEnrollmentsToCSV = (course: Course) => {
-    // Get students enrolled in this specific course
-    const enrolledStudents = studentSelections.filter(
-      (selection) =>
-        selection.selected_ids &&
-        selection.selected_ids.includes(course.id) &&
-        (selection.status === "approved" || selection.status === "pending"),
-    )
+  const exportCourseToCSV = async (course: Course) => {
+    try {
+      const enrolledStudents = studentSelections.filter(
+        (selection) =>
+          selection.selected_ids &&
+          selection.selected_ids.includes(course.id) &&
+          (selection.status === "approved" || selection.status === "pending"),
+      )
 
-    if (enrolledStudents.length === 0) {
-      toast({
-        title: "No Data",
-        description: "No students are enrolled in this course.",
+      if (enrolledStudents.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No students are enrolled in this course.",
+        })
+        return
+      }
+
+      // Define column headers based on language
+      const headers = {
+        en: ["Student Name", "Email", "Status", "Selection Date"],
+        ru: ["Имя студента", "Электронная почта", "Статус", "Дата выбора"],
+      }
+
+      // Create CSV content
+      let csvContent = headers[language as keyof typeof headers].map((header) => `"${header}"`).join(",") + "\n"
+
+      // Add data rows
+      enrolledStudents.forEach((selection) => {
+        const translatedStatus =
+          language === "ru"
+            ? selection.status === "approved"
+              ? "Утверждено"
+              : selection.status === "pending"
+                ? "На рассмотрении"
+                : "Отклонено"
+            : selection.status
+
+        const row = [
+          `"${selection.profiles?.full_name || "N/A"}"`,
+          `"${selection.profiles?.email || "N/A"}"`,
+          `"${translatedStatus}"`,
+          `"${formatDate(selection.created_at)}"`,
+        ]
+
+        csvContent += row.join(",") + "\n"
       })
-      return
+
+      // Create and download the file
+      const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvContent], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const fileName = `course_${course.name_en.replace(/\s+/g, "_")}_enrollments_${language}.csv`
+
+      link.setAttribute("href", url)
+      link.setAttribute("download", fileName)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Success",
+        description: `Course enrollment data exported successfully`,
+      })
+    } catch (error) {
+      console.error("Error exporting course data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export course data",
+        variant: "destructive",
+      })
     }
-
-    // Create CSV content
-    const headers = ["Student Name", "Email", "Group", "Program", "Status", "Selection Date"]
-    let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
-
-    enrolledStudents.forEach((selection) => {
-      const groupName = "N/A"
-      const programName = "N/A"
-
-      const row = [
-        `"${selection.profiles?.full_name || "N/A"}"`,
-        `"${selection.profiles?.email || "N/A"}"`,
-        `"${groupName}"`,
-        `"${programName}"`,
-        `"${selection.status}"`,
-        `"${formatDate(selection.created_at)}"`,
-      ]
-
-      csvContent += row.join(",") + "\n"
-    })
-
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    const fileName = `course_${course.name_en.replace(/\s+/g, "_")}_enrollments.csv`
-
-    link.setAttribute("href", url)
-    link.setAttribute("download", fileName)
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    toast({
-      title: "Export Successful",
-      description: `Course enrollment data for "${course.name_en}" exported successfully`,
-    })
   }
 
-  const exportAllSelectionsToCSV = () => {
+  const exportStudentSelectionsToCSV = () => {
     if (studentSelections.length === 0) {
       toast({
         title: "No Data",
@@ -335,40 +350,47 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       return
     }
 
-    // Create CSV content
-    const headers = ["Student Name", "Email", "Group", "Program", "Selected Courses", "Status", "Selection Date"]
-    let csvContent = headers.map((header) => `"${header}"`).join(",") + "\n"
+    // Create CSV header with translated column names
+    const csvHeader = `"${language === "ru" ? "Имя студента" : "Student Name"}","${language === "ru" ? "Электронная почта" : "Email"}","${language === "ru" ? "Выбранные курсы" : "Selected Courses"}","${language === "ru" ? "Дата выбора" : "Selection Date"}","${language === "ru" ? "Статус" : "Status"}","${language === "ru" ? "Заявление URL" : "Statement URL"}"\n`
 
-    studentSelections.forEach((selection) => {
-      const groupName = "N/A"
-      const programName = "N/A"
+    // Create CSV content with translated status
+    const selectionsContent = studentSelections
+      .map((selection) => {
+        // Get course names for selected courses
+        const selectedCourseNames =
+          selection.selected_ids
+            ?.map((id) => {
+              const course = courses.find((c) => c.id === id)
+              return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name_en) : "Unknown"
+            })
+            .join("; ") || ""
 
-      // Get selected course names
-      const selectedCourseNames = (selection.selected_ids || [])
-        .map((courseId) => {
-          const course = courses.find((c) => c.id === courseId)
-          return course ? (language === "ru" && course.name_ru ? course.name_ru : course.name_en) : "Unknown Course"
-        })
-        .join("; ")
+        // Translate status based on current language
+        const translatedStatus =
+          language === "ru"
+            ? selection.status === "approved"
+              ? "Утверждено"
+              : selection.status === "pending"
+                ? "На рассмотрении"
+                : "Отклонено"
+            : selection.status
 
-      const row = [
-        `"${selection.profiles?.full_name || "N/A"}"`,
-        `"${selection.profiles?.email || "N/A"}"`,
-        `"${groupName}"`,
-        `"${programName}"`,
-        `"${selectedCourseNames}"`,
-        `"${selection.status}"`,
-        `"${formatDate(selection.created_at)}"`,
-      ]
+        // Statement URL
+        const statementUrl = selection.statement_url || ""
 
-      csvContent += row.join(",") + "\n"
-    })
+        // Escape fields that might contain commas
+        return `"${selection.profiles?.full_name || "N/A"}","${selection.profiles?.email || "N/A"}","${selectedCourseNames}","${formatDate(selection.created_at)}","${translatedStatus}","${statementUrl}"`
+      })
+      .join("\n")
 
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" })
+    // Combine header and content
+    const csv = csvHeader + selectionsContent
+
+    // Create and download the file
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    const fileName = `course_program_${electiveCourse?.name?.replace(/\s+/g, "_")}_all_selections.csv`
+    const fileName = `student_selections_${electiveCourse?.name.replace(/\s+/g, "_")}_${language}.csv`
 
     link.setAttribute("href", url)
     link.setAttribute("download", fileName)
@@ -376,23 +398,13 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-
-    toast({
-      title: "Export Successful",
-      description: "All student selections exported successfully",
-    })
-  }
-
-  const openStudentDialog = (student: StudentSelection) => {
-    setSelectedStudent(student)
-    setDialogOpen(true)
   }
 
   const downloadStudentStatement = (studentName: string, statementUrl: string | null) => {
     if (!statementUrl) {
       toast({
         title: "Statement not available",
-        description: `No statement file uploaded for ${studentName}`,
+        description: `No statement file available for ${studentName}`,
       })
       return
     }
@@ -404,6 +416,56 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
       title: "Statement opened",
       description: "Statement file opened in new tab",
     })
+  }
+
+  const handleEditSave = async () => {
+    if (!editingStudent) return
+
+    try {
+      const { error } = await supabase
+        .from("course_selections")
+        .update({
+          selected_ids: editSelectedCourses,
+          status: editStatus,
+        })
+        .eq("id", editingStudent.id)
+
+      if (error) throw error
+
+      // Update local state
+      setStudentSelections((prev) =>
+        prev.map((selection) =>
+          selection.id === editingStudent.id
+            ? { ...selection, selected_ids: editSelectedCourses, status: editStatus }
+            : selection,
+        ),
+      )
+
+      setEditDialogOpen(false)
+      setEditingStudent(null)
+      setEditStatus("")
+      setEditSelectedCourses([])
+
+      toast({
+        title: "Selection updated",
+        description: `Student selection updated successfully`,
+      })
+    } catch (error) {
+      console.error("Error updating selection:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update selection",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCourseToggle = (courseId: string, checked: boolean) => {
+    if (checked) {
+      setEditSelectedCourses((prev) => [...prev, courseId])
+    } else {
+      setEditSelectedCourses((prev) => prev.filter((id) => id !== courseId))
+    }
   }
 
   const filteredStudentSelections = studentSelections.filter((selection) => {
@@ -532,70 +594,69 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
           <TabsContent value="courses" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Courses in this Program</CardTitle>
+                <CardTitle>Courses</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[25%]">Name</TableHead>
-                        <TableHead className="w-[20%]">Instructor</TableHead>
-                        <TableHead className="w-[15%]">Degree</TableHead>
-                        <TableHead className="w-[15%]">Enrollment</TableHead>
-                        <TableHead className="w-[25%] text-center">Export</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {courses.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            No courses configured for this program
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        courses.map((course) => {
+                {courses.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No courses configured for this course program
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Instructor</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Degree</th>
+                          <th className="py-3 px-4 text-left text-sm font-medium">Enrollment</th>
+                          <th className="py-3 px-4 text-center text-sm font-medium">Export</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courses.map((course) => {
                           const currentEnrollment = getCourseEnrollment(course.id)
+
                           return (
-                            <TableRow key={course.id}>
-                              <TableCell className="font-medium">
+                            <tr key={course.id} className="border-b">
+                              <td className="py-3 px-4 text-sm">
                                 {language === "ru" && course.name_ru ? course.name_ru : course.name_en}
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="py-3 px-4 text-sm">
                                 {language === "ru" && course.instructor_ru
                                   ? course.instructor_ru
                                   : course.instructor_en || "Not assigned"}
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="py-3 px-4 text-sm">
                                 {course.degrees
                                   ? language === "ru" && course.degrees.name_ru
                                     ? course.degrees.name_ru
                                     : course.degrees.name
                                   : "Not specified"}
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="py-3 px-4 text-sm">
                                 <Badge variant={currentEnrollment >= course.max_students ? "destructive" : "secondary"}>
                                   {currentEnrollment}/{course.max_students}
                                 </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => exportCourseEnrollmentsToCSV(course)}
-                                  className="flex items-center gap-1 mx-auto"
+                                  onClick={() => exportCourseToCSV(course)}
+                                  className="flex mx-auto"
                                 >
-                                  <FileDown className="h-4 w-4" />
+                                  <Download className="h-4 w-4 mr-1" />
                                   Download
                                 </Button>
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           )
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -609,78 +670,82 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
+                    <input
                       type="search"
                       placeholder="Search students..."
-                      className="pl-8 md:w-[200px]"
+                      className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-[200px]"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Button variant="outline" size="sm" onClick={exportAllSelectionsToCSV}>
+                  <Button variant="outline" size="sm" onClick={exportStudentSelectionsToCSV}>
                     <Download className="mr-2 h-4 w-4" />
                     Export All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[20%]">Name</TableHead>
-                        <TableHead className="w-[20%]">Email</TableHead>
-                        <TableHead className="w-[15%]">Selection Date</TableHead>
-                        <TableHead className="w-[15%]">Status</TableHead>
-                        <TableHead className="w-[10%] text-center">Statement</TableHead>
-                        <TableHead className="w-[10%] text-center">View</TableHead>
-                        <TableHead className="w-[10%] text-center">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="py-3 px-4 text-left text-sm font-medium">Name</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Email</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Selection Date</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium">Status</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Statement</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">View</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {filteredStudentSelections.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center">
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-muted-foreground">
                             {searchTerm ? "No students found matching your search" : "No student selections yet"}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ) : (
                         filteredStudentSelections.map((selection) => {
-                          const studentProfile = selection.profiles
-
                           return (
-                            <TableRow key={selection.id}>
-                              <TableCell className="font-medium">
-                                {studentProfile?.full_name || "N/A"}
-                                <div className="text-sm text-muted-foreground">Student</div>
-                              </TableCell>
-                              <TableCell>{studentProfile?.email || "N/A"}</TableCell>
-                              <TableCell>{formatDate(selection.created_at)}</TableCell>
-                              <TableCell>{getSelectionStatusBadge(selection.status)}</TableCell>
-                              <TableCell className="text-center">
+                            <tr key={selection.id} className="border-b">
+                              <td className="py-3 px-4 text-sm">{selection.profiles?.full_name || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{selection.profiles?.email || "N/A"}</td>
+                              <td className="py-3 px-4 text-sm">{formatDate(selection.created_at)}</td>
+                              <td className="py-3 px-4 text-sm">{getSelectionStatusBadge(selection.status)}</td>
+                              <td className="py-3 px-4 text-sm text-center">
                                 {selection.statement_url ? (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() =>
                                       downloadStudentStatement(
-                                        studentProfile?.full_name || "Student",
+                                        selection.profiles?.full_name || "Student",
                                         selection.statement_url,
                                       )
                                     }
                                   >
-                                    <FileDown className="h-4 w-4" />
+                                    <Download className="h-4 w-4" />
                                   </Button>
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Button variant="ghost" size="icon" onClick={() => openStudentDialog(selection)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                              <TableCell className="text-center">
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
+                                <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedStudent(selection)
+                                      setViewDialogOpen(true)
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Dialog>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon">
@@ -688,7 +753,14 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingStudent(selection)
+                                        setEditStatus(selection.status)
+                                        setEditSelectedCourses(selection.selected_ids || [])
+                                        setEditDialogOpen(true)
+                                      }}
+                                    >
                                       <Edit className="mr-2 h-4 w-4" />
                                       Edit
                                     </DropdownMenuItem>
@@ -700,7 +772,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                             handleStatusChange(
                                               selection.id,
                                               "approved",
-                                              studentProfile?.full_name || "Student",
+                                              selection.profiles?.full_name || "Student",
                                             )
                                           }
                                         >
@@ -713,7 +785,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                             handleStatusChange(
                                               selection.id,
                                               "rejected",
-                                              studentProfile?.full_name || "Student",
+                                              selection.profiles?.full_name || "Student",
                                             )
                                           }
                                         >
@@ -729,7 +801,7 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                           handleStatusChange(
                                             selection.id,
                                             "rejected",
-                                            studentProfile?.full_name || "Student",
+                                            selection.profiles?.full_name || "Student",
                                           )
                                         }
                                       >
@@ -739,150 +811,152 @@ export default function ElectiveCourseDetailPage({ params }: ElectiveCourseDetai
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           )
                         })
                       )}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        {/* Student Details Dialog */}
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open)
-            if (!open) {
-              setTimeout(() => {
-                setSelectedStudent(null)
-              }, 300)
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[500px]">
+        {/* View Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Student Selection Details</DialogTitle>
+            </DialogHeader>
             {selectedStudent && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>Student Selection Details</DialogTitle>
-                  <DialogDescription>
-                    View details for {selectedStudent.profiles?.full_name || "Student"} course selection
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium">Student Information</h3>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">Name:</span>
-                          <span>{selectedStudent.profiles?.full_name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">ID:</span>
-                          <span>{selectedStudent.student_id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Email:</span>
-                          <span>{selectedStudent.profiles?.email || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Group:</span>
-                          <span>N/A</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Program:</span>
-                          <span>N/A</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">Selected Courses</h3>
-                      <div className="mt-2 space-y-2">
-                        {(selectedStudent.selected_ids || []).map((courseId: string) => {
-                          const course = courses.find((c) => c.id === courseId)
-                          return (
-                            <div key={courseId} className="rounded-md border p-2">
-                              <p className="font-medium">
-                                {course
-                                  ? language === "ru" && course.name_ru
-                                    ? course.name_ru
-                                    : course.name_en
-                                  : "Unknown Course"}
-                              </p>
-                              {course && (
-                                <p className="text-sm text-muted-foreground">
-                                  {language === "ru" && course.instructor_ru
-                                    ? course.instructor_ru
-                                    : course.instructor_en}
-                                </p>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">Selection Information</h3>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">Date:</span>
-                          <span>{formatDate(selectedStudent.created_at)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Status:</span>
-                          <span>{getSelectionStatusBadge(selectedStudent.status)}</span>
-                        </div>
-                      </div>
-                    </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Student Name</Label>
+                    <p className="text-sm">{selectedStudent.profiles?.full_name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Email</Label>
+                    <p className="text-sm">{selectedStudent.profiles?.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Selection Date</Label>
+                    <p className="text-sm">{formatDate(selectedStudent.created_at)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Status</Label>
+                    <div className="mt-1">{getSelectionStatusBadge(selectedStudent.status)}</div>
                   </div>
                 </div>
-                <DialogFooter>
-                  {selectedStudent.status === "pending" && (
-                    <>
+                <div>
+                  <Label className="text-sm font-medium">Selected Courses</Label>
+                  <div className="mt-2 space-y-2">
+                    {selectedStudent.selected_ids?.map((courseId) => {
+                      const course = courses.find((c) => c.id === courseId)
+                      return (
+                        <div key={courseId} className="flex items-center justify-between p-2 border rounded">
+                          <span className="text-sm">
+                            {course
+                              ? language === "ru" && course.name_ru
+                                ? course.name_ru
+                                : course.name_en
+                              : "Unknown Course"}
+                          </span>
+                          {course && (
+                            <span className="text-xs text-muted-foreground">
+                              {language === "ru" && course.instructor_ru ? course.instructor_ru : course.instructor_en}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                {selectedStudent.statement_url && (
+                  <div>
+                    <Label className="text-sm font-medium">Statement</Label>
+                    <div className="mt-2 flex items-center gap-2">
                       <Button
                         variant="outline"
-                        className="mr-2 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
-                        onClick={() => {
-                          handleStatusChange(
-                            selectedStudent.id,
-                            "approved",
+                        size="sm"
+                        onClick={() =>
+                          downloadStudentStatement(
                             selectedStudent.profiles?.full_name || "Student",
+                            selectedStudent.statement_url,
                           )
-                          setDialogOpen(false)
-                        }}
+                        }
                       >
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Approve
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Statement
                       </Button>
                       <Button
                         variant="outline"
-                        className="mr-2 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
-                        onClick={() => {
-                          handleStatusChange(
-                            selectedStudent.id,
-                            "rejected",
-                            selectedStudent.profiles?.full_name || "Student",
-                          )
-                          setDialogOpen(false)
-                        }}
+                        size="sm"
+                        onClick={() => window.open(selectedStudent.statement_url!, "_blank")}
                       >
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Reject
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Online
                       </Button>
-                    </>
-                  )}
-                  <DialogClose asChild>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Close
-                    </Button>
-                  </DialogClose>
-                </DialogFooter>
-              </>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Student Selection</DialogTitle>
+            </DialogHeader>
+            {editingStudent && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Student</Label>
+                  <p className="text-sm">{editingStudent.profiles?.full_name || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Selected Courses</Label>
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {courses.map((course) => (
+                      <div key={course.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={course.id}
+                          checked={editSelectedCourses.includes(course.id)}
+                          onCheckedChange={(checked) => handleCourseToggle(course.id, checked as boolean)}
+                        />
+                        <Label htmlFor={course.id} className="text-sm">
+                          {language === "ru" && course.name_ru ? course.name_ru : course.name_en} -{" "}
+                          {language === "ru" && course.instructor_ru ? course.instructor_ru : course.instructor_en}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleEditSave}>Save Changes</Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>
