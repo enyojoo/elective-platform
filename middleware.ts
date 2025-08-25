@@ -2,16 +2,12 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(req: NextRequest) {
-  // Get hostname for multi-tenancy - Azure Front Door compatible
-  const forwardedHost = req.headers.get("x-forwarded-host")
-  const originalHost = req.headers.get("host")
-  const hostname = forwardedHost || originalHost || ""
-
+  // Get hostname for multi-tenancy
+  const hostname = req.headers.get("host") || ""
   const path = req.nextUrl.pathname
   const method = req.method
 
   console.log(`Middleware: Processing ${method} request for hostname: ${hostname}, path: ${path}`)
-  console.log(`Middleware: x-forwarded-host: ${forwardedHost}, host: ${originalHost}`)
 
   // Check if we're in development mode (localhost)
   const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1")
@@ -27,7 +23,7 @@ export async function middleware(req: NextRequest) {
     subdomain = url.searchParams.get("subdomain")
     console.log(`Middleware: Development mode, subdomain from query: ${subdomain}`)
   } else {
-    // In production, extract subdomain from hostname (Azure Front Door compatible)
+    // In production, extract subdomain from hostname
     const isSubdomain =
       hostname.includes(".electivepro.net") &&
       !hostname.startsWith("www.") &&
@@ -93,9 +89,8 @@ export async function middleware(req: NextRequest) {
       if (isDevelopment) {
         apiUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}/api/subdomain/${subdomain}`
       } else {
-        // In production with Azure Front Door, use the forwarded host or construct the URL properly
-        const baseUrl = forwardedHost ? `https://${forwardedHost}` : `https://${originalHost}`
-        apiUrl = `${baseUrl}/api/subdomain/${subdomain}`
+        // In production, use the full URL to avoid cross-origin issues
+        apiUrl = `https://${hostname}/api/subdomain/${subdomain}`
       }
 
       console.log(`Middleware: Checking subdomain via API: ${apiUrl}`)
@@ -109,8 +104,6 @@ export async function middleware(req: NextRequest) {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
           Expires: "0",
-          // Forward the original headers for Azure Front Door compatibility
-          ...(forwardedHost && { "x-forwarded-host": forwardedHost }),
         },
         signal: controller.signal,
       }).finally(() => clearTimeout(timeoutId))
@@ -124,10 +117,6 @@ export async function middleware(req: NextRequest) {
           console.log(`Middleware: Allowing dashboard page despite API error: ${path}`)
           const requestHeaders = new Headers(req.headers)
           requestHeaders.set("x-electivepro-subdomain", subdomain)
-          // Preserve the original host information
-          if (forwardedHost) {
-            requestHeaders.set("x-original-host", forwardedHost)
-          }
 
           return NextResponse.next({
             request: {
@@ -154,10 +143,6 @@ export async function middleware(req: NextRequest) {
           console.log(`Middleware: Allowing dashboard page despite invalid subdomain (likely a reload): ${path}`)
           const requestHeaders = new Headers(req.headers)
           requestHeaders.set("x-electivepro-subdomain", subdomain)
-          // Preserve the original host information
-          if (forwardedHost) {
-            requestHeaders.set("x-original-host", forwardedHost)
-          }
 
           return NextResponse.next({
             request: {
@@ -178,11 +163,6 @@ export async function middleware(req: NextRequest) {
       console.log(`Middleware: Valid subdomain: ${subdomain}, allowing access`)
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set("x-electivepro-subdomain", subdomain)
-
-      // Preserve the original host information for Azure Front Door
-      if (forwardedHost) {
-        requestHeaders.set("x-original-host", forwardedHost)
-      }
 
       // Only set these headers if we have the data
       if (data.institution) {
@@ -232,10 +212,6 @@ export async function middleware(req: NextRequest) {
         console.log(`Middleware: Allowing dashboard page despite error: ${path}`)
         const requestHeaders = new Headers(req.headers)
         requestHeaders.set("x-electivepro-subdomain", subdomain)
-        // Preserve the original host information
-        if (forwardedHost) {
-          requestHeaders.set("x-original-host", forwardedHost)
-        }
 
         return NextResponse.next({
           request: {
